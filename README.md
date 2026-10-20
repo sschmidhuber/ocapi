@@ -30,7 +30,7 @@ base URL — including remote machines, e.g. `http://192.168.1.10:8000/v1`.
 
 ocapi can connect to [MCP](https://modelcontextprotocol.io) servers and make
 their **tools**, **resources** and **prompts** available to the model. Open
-**Manage MCP servers…** in the sidebar to configure servers:
+**Tools → MCP servers…** in the sidebar to configure servers:
 
 - **Transports**: Streamable HTTP (MCP 2025-03-26+, JSON or SSE responses),
   legacy HTTP+SSE, and **stdio** (spawn a local server process, e.g.
@@ -108,7 +108,7 @@ To build without tests: `cmake -B build -DOCAPI_BUILD_TESTS=OFF`.
 
 ## Usage
 
-1. Start the app, click **Manage backends…** in the sidebar.
+1. Start the app, click **Tools → Model backends…** in the sidebar.
 2. Add a backend: pick a type, set the base URL (remote hosts work, e.g.
    `http://myserver:11434`) and paste an API key for cloud services.
 3. Back in the main window, pick the backend and model, then chat.

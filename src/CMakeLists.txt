@@ -95,10 +95,12 @@ set(OCAPI_UI_SOURCES
     ui/composer.cpp
     ui/sidebar.h
     ui/sidebar.cpp
-    ui/backenddialog.h
-    ui/backenddialog.cpp
-    ui/mcpdialog.h
-    ui/mcpdialog.cpp
+    ui/backendpage.h
+    ui/backendpage.cpp
+    ui/mcppage.h
+    ui/mcppage.cpp
+    ui/settingsdialog.h
+    ui/settingsdialog.cpp
 )
 
 qt_add_executable(ocapi

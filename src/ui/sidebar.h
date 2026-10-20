@@ -23,15 +23,13 @@ public:
 signals:
     void sessionSelected(const QUuid &id);
     void newChatRequested();
-    void manageBackendsRequested();
-    void manageMcpServersRequested();
+    void settingsRequested(const QString &pageId);
     void sessionDeleteRequested(const QUuid &id);
 
 private:
     QListWidget *m_list;
     QPushButton *m_newChatButton;
-    QPushButton *m_backendsButton;
-    QPushButton *m_mcpButton;
+    QPushButton *m_toolsButton;
 };
 
 } // namespace ocapi

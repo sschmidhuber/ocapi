@@ -4,10 +4,9 @@
 #include "backends/ibackend.h"
 #include "core/chatsession.h"
 #include "storage/chatdatabase.h"
-#include "ui/backenddialog.h"
 #include "ui/chatview.h"
 #include "ui/composer.h"
-#include "ui/mcpdialog.h"
+#include "ui/settingsdialog.h"
 #include "ui/sidebar.h"
 
 #include <QComboBox>
@@ -93,44 +92,46 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     rightLayout->setContentsMargins(0, 0, 0, 0);
     rightLayout->setSpacing(0);
 
-    // Toolbar: backend + model selectors, send/stop.
-    auto *toolbar = new QWidget(rightPanel);
-    auto *toolbarLayout = new QHBoxLayout(toolbar);
-    toolbarLayout->setContentsMargins(8, 6, 8, 6);
-    m_backendCombo = new QComboBox(toolbar);
-    m_modelCombo = new QComboBox(toolbar);
-    m_modelCombo->setEditable(true);
-    m_modelCombo->setMinimumWidth(220);
-    m_modelCombo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-    m_sendButton = new QPushButton(tr("Send"), toolbar);
-    m_stopButton = new QPushButton(tr("Stop"), toolbar);
-    m_stopButton->setVisible(false);
-    toolbarLayout->addWidget(new QLabel(tr("Backend:"), toolbar));
-    toolbarLayout->addWidget(m_backendCombo);
-    toolbarLayout->addWidget(new QLabel(tr("Model:"), toolbar));
-    toolbarLayout->addWidget(m_modelCombo, 1);
-    toolbarLayout->addWidget(m_sendButton);
-    toolbarLayout->addWidget(m_stopButton);
-    rightLayout->addWidget(toolbar);
-
     m_chatView = new ChatView(rightPanel);
     rightLayout->addWidget(m_chatView, 1);
 
-    m_emptyLabel = new QLabel(tr("Select a chat or start a new one.\n\n"
-                                 "Set up a backend via \"Manage backends…\" to get started."),
-                              rightPanel);
+    m_emptyLabel =
+        new QLabel(tr("Select a chat or start a new one.\n\n"
+                      "Set up a backend via \"Tools → Model backends…\" to get started."),
+                   rightPanel);
     m_emptyLabel->setAlignment(Qt::AlignCenter);
     m_emptyLabel->setStyleSheet(QStringLiteral("color: gray;"));
     rightLayout->addWidget(m_emptyLabel);
     m_emptyLabel->hide();
 
-    auto *composerRow = new QWidget(rightPanel);
-    auto *composerLayout = new QHBoxLayout(composerRow);
-    composerLayout->setContentsMargins(8, 0, 8, 8);
-    m_composer = new Composer(composerRow);
+    auto *composerColumn = new QWidget(rightPanel);
+    auto *composerColumnLayout = new QVBoxLayout(composerColumn);
+    composerColumnLayout->setContentsMargins(8, 0, 8, 8);
+    composerColumnLayout->setSpacing(4);
+    m_composer = new Composer(composerColumn);
     m_composer->setMaximumHeight(160);
-    composerLayout->addWidget(m_composer, 1);
-    rightLayout->addWidget(composerRow);
+    composerColumnLayout->addWidget(m_composer);
+
+    // Footer row below the input: backend + model selectors and send/stop.
+    auto *footerRow = new QWidget(composerColumn);
+    auto *footerLayout = new QHBoxLayout(footerRow);
+    footerLayout->setContentsMargins(0, 0, 0, 0);
+    footerLayout->setSpacing(6);
+    m_backendCombo = new QComboBox(footerRow);
+    m_modelCombo = new QComboBox(footerRow);
+    m_modelCombo->setEditable(true);
+    m_modelCombo->setMinimumWidth(180);
+    m_modelCombo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    m_sendButton = new QPushButton(tr("Send"), footerRow);
+    m_stopButton = new QPushButton(tr("Stop"), footerRow);
+    m_stopButton->setVisible(false);
+    footerLayout->addWidget(m_backendCombo);
+    footerLayout->addWidget(m_modelCombo, 1);
+    footerLayout->addStretch(1);
+    footerLayout->addWidget(m_sendButton);
+    footerLayout->addWidget(m_stopButton);
+    composerColumnLayout->addWidget(footerRow);
+    rightLayout->addWidget(composerColumn);
 
     splitter->addWidget(m_sidebar);
     splitter->addWidget(rightPanel);
@@ -151,8 +152,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     connect(m_sidebar, &Sidebar::sessionSelected, this, &MainWindow::onSessionSelected);
     connect(m_sidebar, &Sidebar::sessionDeleteRequested, this,
             &MainWindow::onSessionDeleteRequested);
-    connect(m_sidebar, &Sidebar::manageBackendsRequested, this, &MainWindow::onManageBackends);
-    connect(m_sidebar, &Sidebar::manageMcpServersRequested, this, &MainWindow::onManageMcpServers);
+    connect(m_sidebar, &Sidebar::settingsRequested, this,
+            [this](const QString &pageId) { openSettings(pageId); });
     connect(m_composer, &Composer::sendRequested, this,
             [this](const QString &text, const QVector<ImageAttachment> &images) {
                 onSend(text, images);
@@ -310,13 +311,10 @@ void MainWindow::onSessionDeleteRequested(const QUuid &id) {
         updateEmptyState();
 }
 
-void MainWindow::onManageBackends() {
-    BackendDialog dialog(&m_registry, this);
-    dialog.exec();
-}
-
-void MainWindow::onManageMcpServers() {
-    McpDialog dialog(&m_mcpRegistry, &m_mcpManager, this);
+void MainWindow::openSettings(const QString &pageId) {
+    SettingsDialog dialog(&m_registry, &m_mcpRegistry, &m_mcpManager, this);
+    if (pageId == QStringLiteral("mcp"))
+        dialog.selectPage(QStringLiteral("mcp"));
     dialog.exec();
 }
 
@@ -504,8 +502,9 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
     const QString backendId = m_currentSession->backendId();
     auto *config = m_registry.find(backendId);
     if (!config) {
-        QMessageBox::warning(this, tr("No backend"),
-                             tr("Please configure a backend first via \"Manage backends…\"."));
+        QMessageBox::warning(
+            this, tr("No backend"),
+            tr("Please configure a backend first via \"Tools → Model backends…\"."));
         return;
     }
     if (!config->enabled) {
@@ -758,8 +757,8 @@ void MainWindow::updateEmptyState() {
     m_chatView->setVisible(!m_emptyLabel->isVisible());
     if (noBackends)
         m_emptyLabel->setText(tr("No backends configured yet.\n\n"
-                                 "Click \"Manage backends…\" to add Ollama, llama.cpp, vLLM,\n"
-                                 "OpenAI, Anthropic, Google Gemini, Mistral AI or any\n"
+                                 "Click \"Tools → Model backends…\" to add Ollama, llama.cpp,\n"
+                                 "vLLM, OpenAI, Anthropic, Google Gemini, Mistral AI or any\n"
                                  "OpenAI-compatible endpoint (local or remote)."));
     else if (noSession)
         m_emptyLabel->setText(tr("Select a chat or start a new one."));

@@ -35,8 +35,7 @@ private slots:
     void onNewChat();
     void onSessionSelected(const QUuid &id);
     void onSessionDeleteRequested(const QUuid &id);
-    void onManageBackends();
-    void onManageMcpServers();
+    void openSettings(const QString &pageId = {});
     void onSend(const QString &text, const QVector<ImageAttachment> &images = {});
     void onStop();
     void onBackendChanged();

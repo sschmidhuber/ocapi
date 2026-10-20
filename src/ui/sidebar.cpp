@@ -11,21 +11,24 @@ namespace ocapi {
 Sidebar::Sidebar(QWidget *parent)
     : QWidget(parent), m_list(new QListWidget(this)),
       m_newChatButton(new QPushButton(tr("+ New chat"), this)),
-      m_backendsButton(new QPushButton(tr("Manage backends…"), this)),
-      m_mcpButton(new QPushButton(tr("Manage MCP servers…"), this)) {
+      m_toolsButton(new QPushButton(tr("Tools"), this)) {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(8, 8, 8, 8);
     layout->setSpacing(6);
     layout->addWidget(m_newChatButton);
     layout->addWidget(m_list, 1);
-    layout->addWidget(m_backendsButton);
-    layout->addWidget(m_mcpButton);
+    layout->addWidget(m_toolsButton);
 
     m_list->setContextMenuPolicy(Qt::CustomContextMenu);
 
+    auto *toolsMenu = new QMenu(m_toolsButton);
+    toolsMenu->addAction(tr("Model backends…"), this,
+                         [this]() { emit settingsRequested(QStringLiteral("backends")); });
+    toolsMenu->addAction(tr("MCP servers…"), this,
+                         [this]() { emit settingsRequested(QStringLiteral("mcp")); });
+    m_toolsButton->setMenu(toolsMenu);
+
     connect(m_newChatButton, &QPushButton::clicked, this, &Sidebar::newChatRequested);
-    connect(m_backendsButton, &QPushButton::clicked, this, &Sidebar::manageBackendsRequested);
-    connect(m_mcpButton, &QPushButton::clicked, this, &Sidebar::manageMcpServersRequested);
     connect(m_list, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {
         if (item)
             emit sessionSelected(QUuid(item->data(Qt::UserRole).toString()));

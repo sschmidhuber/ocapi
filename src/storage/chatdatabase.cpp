@@ -6,6 +6,7 @@
 
 #include <QAtomicInt>
 #include <QHash>
+#include <QJsonDocument>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QVariant>
@@ -51,6 +52,18 @@ void createTables(QSqlDatabase &database) {
                        "timestamp INTEGER NOT NULL, "
                        "position INTEGER NOT NULL, "
                        "FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE)"));
+    query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS mcp_servers ("
+                              "id TEXT PRIMARY KEY NOT NULL, "
+                              "name TEXT NOT NULL, "
+                              "transport TEXT NOT NULL DEFAULT 'http', "
+                              "url TEXT NOT NULL DEFAULT '', "
+                              "command TEXT NOT NULL DEFAULT '', "
+                              "arguments TEXT NOT NULL DEFAULT '', "
+                              "environment TEXT NOT NULL DEFAULT '', "
+                              "headers TEXT NOT NULL DEFAULT '', "
+                              "default_permission TEXT NOT NULL DEFAULT 'ask', "
+                              "tool_permissions TEXT NOT NULL DEFAULT '{}', "
+                              "enabled INTEGER NOT NULL DEFAULT 1)"));
     query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS message_images ("
                               "id TEXT PRIMARY KEY NOT NULL, "
                               "message_id TEXT NOT NULL, "
@@ -272,6 +285,73 @@ QVector<BackendConfig> ChatDatabase::loadBackends() const {
         config.apiKey = query.value(4).toString();
         config.defaultModel = query.value(5).toString();
         config.enabled = query.value(6).toInt() != 0;
+        result.push_back(std::move(config));
+    }
+    return result;
+}
+
+void ChatDatabase::insertMcpServer(const McpServerConfig &config) {
+    execute(
+        QStringLiteral("INSERT INTO mcp_servers (id, name, transport, url, command, arguments, "
+                       "environment, headers, default_permission, tool_permissions, enabled) "
+                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                       "ON CONFLICT (id) DO UPDATE SET name = excluded.name, "
+                       "transport = excluded.transport, url = excluded.url, "
+                       "command = excluded.command, arguments = excluded.arguments, "
+                       "environment = excluded.environment, headers = excluded.headers, "
+                       "default_permission = excluded.default_permission, "
+                       "tool_permissions = excluded.tool_permissions, "
+                       "enabled = excluded.enabled"),
+        {
+            config.id.toString(QUuid::WithoutBraces),
+            nullToEmpty(config.name),
+            McpServerConfig::transportKey(config.transport),
+            nullToEmpty(config.url),
+            nullToEmpty(config.command),
+            nullToEmpty(config.arguments.join(QLatin1Char('\n'))),
+            nullToEmpty(config.environment.join(QLatin1Char('\n'))),
+            nullToEmpty(config.headers.join(QLatin1Char('\n'))),
+            McpServerConfig::permissionKey(config.defaultPermission),
+            QString::fromUtf8(QJsonDocument(config.toolPermissions).toJson(QJsonDocument::Compact)),
+            config.enabled ? 1 : 0,
+        });
+}
+
+void ChatDatabase::deleteMcpServer(const QString &serverId) {
+    execute(QStringLiteral("DELETE FROM mcp_servers WHERE id = ?"), {serverId});
+}
+
+QVector<McpServerConfig> ChatDatabase::loadMcpServers() const {
+    QVector<McpServerConfig> result;
+    QSqlQuery query(m_database);
+    if (!query.exec(QStringLiteral("SELECT id, name, transport, url, command, arguments, "
+                                   "environment, headers, default_permission, tool_permissions, "
+                                   "enabled FROM mcp_servers ORDER BY rowid ASC"))) {
+        m_lastError = query.lastError().text();
+        return result;
+    }
+    while (query.next()) {
+        McpServerConfig config;
+        config.id = QUuid(query.value(0).toString());
+        if (config.id.isNull())
+            config.id = QUuid::createUuid();
+        config.name = query.value(1).toString();
+        config.transport = McpServerConfig::transportFromString(query.value(2).toString());
+        config.url = query.value(3).toString();
+        config.command = query.value(4).toString();
+        const auto splitLines = [](const QString &joined) {
+            QStringList lines = joined.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+            for (auto &line : lines)
+                line = line.trimmed();
+            lines.removeAll(QString());
+            return lines;
+        };
+        config.arguments = splitLines(query.value(5).toString());
+        config.environment = splitLines(query.value(6).toString());
+        config.headers = splitLines(query.value(7).toString());
+        config.defaultPermission = McpServerConfig::permissionFromString(query.value(8).toString());
+        config.toolPermissions = QJsonDocument::fromJson(query.value(9).toByteArray()).object();
+        config.enabled = query.value(10).toInt() != 0;
         result.push_back(std::move(config));
     }
     return result;

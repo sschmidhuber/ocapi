@@ -9,6 +9,7 @@
 
 #include "core/backendconfig.h"
 #include "core/imagemessage.h"
+#include "core/mcpserverconfig.h"
 
 namespace ocapi {
 
@@ -47,6 +48,10 @@ public:
     void updateBackend(const BackendConfig &config);
     void deleteBackend(const QString &backendId);
     [[nodiscard]] QVector<BackendConfig> loadBackends() const;
+
+    void insertMcpServer(const McpServerConfig &config);
+    void deleteMcpServer(const QString &serverId);
+    [[nodiscard]] QVector<McpServerConfig> loadMcpServers() const;
 
     [[nodiscard]] QStringList sessionIds() const;
     bool insertSession(const ChatSession &session);

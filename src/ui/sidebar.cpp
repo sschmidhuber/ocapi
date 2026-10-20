@@ -11,18 +11,21 @@ namespace ocapi {
 Sidebar::Sidebar(QWidget *parent)
     : QWidget(parent), m_list(new QListWidget(this)),
       m_newChatButton(new QPushButton(tr("+ New chat"), this)),
-      m_backendsButton(new QPushButton(tr("Manage backends…"), this)) {
+      m_backendsButton(new QPushButton(tr("Manage backends…"), this)),
+      m_mcpButton(new QPushButton(tr("Manage MCP servers…"), this)) {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(8, 8, 8, 8);
     layout->setSpacing(6);
     layout->addWidget(m_newChatButton);
     layout->addWidget(m_list, 1);
     layout->addWidget(m_backendsButton);
+    layout->addWidget(m_mcpButton);
 
     m_list->setContextMenuPolicy(Qt::CustomContextMenu);
 
     connect(m_newChatButton, &QPushButton::clicked, this, &Sidebar::newChatRequested);
     connect(m_backendsButton, &QPushButton::clicked, this, &Sidebar::manageBackendsRequested);
+    connect(m_mcpButton, &QPushButton::clicked, this, &Sidebar::manageMcpServersRequested);
     connect(m_list, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {
         if (item)
             emit sessionSelected(QUuid(item->data(Qt::UserRole).toString()));

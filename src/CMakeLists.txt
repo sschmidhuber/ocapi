@@ -26,6 +26,13 @@ set(OCAPI_CORE_SOURCES
     core/backendconfig.cpp
     core/backendregistry.h
     core/backendregistry.cpp
+    core/mcpprotocol.h
+    core/mcpserverconfig.h
+    core/mcpserverconfig.cpp
+    core/mcpregistry.h
+    core/mcpregistry.cpp
+    core/mcpmanager.h
+    core/mcpmanager.cpp
     storage/chatdatabase.h
     storage/chatdatabase.cpp
 
@@ -44,6 +51,8 @@ set(OCAPI_CORE_SOURCES
     backends/geminibackend.cpp
     backends/backendfactory.h
     backends/backendfactory.cpp
+    backends/mcpclient.h
+    backends/mcpclient.cpp
 )
 
 add_library(ocapi-core STATIC ${OCAPI_CORE_SOURCES})
@@ -76,6 +85,8 @@ set(OCAPI_UI_SOURCES
     ui/sidebar.cpp
     ui/backenddialog.h
     ui/backenddialog.cpp
+    ui/mcpdialog.h
+    ui/mcpdialog.cpp
 )
 
 qt_add_executable(ocapi

@@ -3,11 +3,18 @@ set(OCAPI_TESTS
     tst_message
     tst_imagemessage
     tst_chatsession
+    tst_chatsession_tools
     tst_backendregistry
     tst_backendfactory
     tst_sseparser
     tst_chatdatabase
-    tst_textextractor)
+    tst_textextractor
+    tst_mcpprotocol
+    tst_mcpserverconfig
+    tst_mcpregistry
+    tst_mcpserverdatabase
+    tst_mcpclient
+    tst_mcpmanager)
 
 
 foreach(test_name ${OCAPI_TESTS})

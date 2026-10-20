@@ -47,7 +47,7 @@ void TestImageMessage::nameFilterListsAllExtensions() {
 }
 
 QString TestImageMessage::writeImage(const QImage &image, const QString &name) {
-    const QString path = m_tempDir.filePath(name);
+    QString path = m_tempDir.filePath(name);
     QImageWriter writer(path);
     writer.setQuality(95);
     QVERIFY(writer.write(image));

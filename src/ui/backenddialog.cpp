@@ -227,10 +227,11 @@ void BackendDialog::onTestModelsReady(const QStringList &models) {
     } else {
         QString text = tr("Connection successful. %n model(s) detected:", nullptr,
                           static_cast<int>(models.size()));
-        const int shown = std::min<int>(models.size(), 8);
+        const int total = static_cast<int>(models.size());
+        const int shown = std::min(total, 8);
         for (int i = 0; i < shown; ++i)
             text += QStringLiteral("\n• %1").arg(models.at(i));
-        if (static_cast<int>(models.size()) > shown)
+        if (total > shown)
             text += QStringLiteral("\n• …");
         if (m_modelEdit->text().trimmed().isEmpty() && !models.isEmpty()) {
             m_modelEdit->setText(models.first());

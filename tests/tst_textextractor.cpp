@@ -2,6 +2,8 @@
 
 #include <QtTest>
 
+#include <array>
+
 using namespace ocapi;
 
 namespace {
@@ -16,22 +18,22 @@ void writeMinimalPdf(const QString &path, const QByteArray &content) {
 
 // A minimal but valid single-page PDF containing the text "Hello ocapi PDF".
 QByteArray minimalPdf() {
-    const char *objects[] = {
-        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
-        "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-        "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] "
-        "/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n",
-        "4 0 obj\n<< /Length 46 >>\nstream\nBT /F1 24 Tf 20 40 Td (Hello ocapi PDF) Tj ET\n"
-        "endstream\nendobj\n",
-        "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"};
-    QByteArray xrefOffsets;
+    const std::array<QByteArray, 5> objects = {
+        QByteArrayLiteral("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"),
+        QByteArrayLiteral("2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"),
+        QByteArrayLiteral("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] "
+                          "/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"),
+        QByteArrayLiteral("4 0 obj\n<< /Length 46 >>\nstream\nBT /F1 24 Tf 20 40 Td "
+                          "(Hello ocapi PDF) Tj ET\nendstream\nendobj\n"),
+        QByteArrayLiteral("5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica "
+                          ">>\nendobj\n")};
     QByteArray pdf("%PDF-1.4\n");
     QList<int> offsets;
-    for (const char *object : objects) {
-        offsets.push_back(pdf.size());
+    for (const QByteArray &object : objects) {
+        offsets.push_back(static_cast<int>(pdf.size()));
         pdf += object;
     }
-    const int xrefPos = pdf.size();
+    const int xrefPos = static_cast<int>(pdf.size());
     pdf += "xref\n0 6\n0000000000 65535 f \n";
     for (int offset : offsets)
         pdf += QByteArray::number(offset).rightJustified(10, '0') + " 00000 n \n";
@@ -102,5 +104,5 @@ void TestTextExtractor::extractFromFileRejectsUnsupportedSuffix() {
     QFile::remove(path);
 }
 
-QTEST_MAIN(TestTextExtractor)
+QTEST_GUILESS_MAIN(TestTextExtractor)
 #include "tst_textextractor.moc"

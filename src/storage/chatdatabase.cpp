@@ -390,9 +390,9 @@ bool ChatDatabase::insertImage(const QString &messageId, const ImageAttachment &
                    {
                        image.id.toString(QUuid::WithoutBraces),
                        messageId,
-                       image.mimeType,
-                       image.fileName,
-                       image.sourcePath,
+                       nullToEmpty(image.mimeType),
+                       nullToEmpty(image.fileName),
+                       nullToEmpty(image.sourcePath),
                        image.width,
                        image.height,
                        image.resized ? 1 : 0,

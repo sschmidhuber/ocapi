@@ -108,7 +108,8 @@ QSize ChatDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelInd
             : 400;
     doc.setTextWidth(maxTextWidth);
     doc.setPlainText(content);
-    return QSize(option.rect.width(), doc.size().height() + 2 * kBubblePadding + 18 + 8 + 14);
+    return {option.rect.width(),
+            static_cast<int>(doc.size().height()) + 2 * kBubblePadding + 18 + 8 + 14};
 }
 
 } // namespace ocapi

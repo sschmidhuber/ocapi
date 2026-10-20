@@ -16,7 +16,10 @@ Checks: >
   -readability-implicit-bool-conversion,
   -cppcoreguidelines-special-member-functions,
   -cppcoreguidelines-non-private-member-variables-in-classes,
-  -performance-enum-size
+  -performance-enum-size,
+  -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-prefer-member-initializer,
+  -bugprone-easily-swappable-parameters
 WarningsAsErrors: ''
 HeaderFilterRegex: '.*ocapi/.*(core|backends|ui)/.*'
 FormatStyle: file

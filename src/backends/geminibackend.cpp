@@ -133,11 +133,11 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model) {
                     m_accumulated.append(token);
                 }
                 emit tokenReceived(m_currentMessageId, m_accumulated);
-                const bool done = candidates.first()
-                                      .toObject()
-                                      .value(QStringLiteral("finishReason"))
-                                      .toString()
-                                      .isEmpty() == false;
+                const bool done = !candidates.first()
+                                       .toObject()
+                                       .value(QStringLiteral("finishReason"))
+                                       .toString()
+                                       .isEmpty();
                 if (done)
                     emit finished(m_currentMessageId);
             });

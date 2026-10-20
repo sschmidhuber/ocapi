@@ -11,7 +11,7 @@ void applyDesktopStyle(QApplication &app) {
     const QByteArray desktop = qgetenv("XDG_CURRENT_DESKTOP").toLower();
     const bool isKde = desktop.contains("kde");
     if (!isKde && QStyleFactory::keys().contains(QStringLiteral("Fusion"), Qt::CaseInsensitive))
-        app.setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+        QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
 }
 
 } // namespace

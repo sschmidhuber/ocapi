@@ -31,7 +31,7 @@ private:
     void populateList();
     void loadConfigIntoForm(const BackendConfig &config);
     void saveFormIntoConfig(BackendConfig &config);
-    BackendKind currentKind() const;
+    [[nodiscard]] BackendKind currentKind() const;
 
     BackendRegistry *m_registry;
     QListWidget *m_list;

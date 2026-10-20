@@ -24,7 +24,7 @@ public:
     explicit ChatModel(QObject *parent = nullptr) : QAbstractListModel(parent) {}
 
     [[nodiscard]] int rowCount(const QModelIndex &parent = {}) const override {
-        return parent.isValid() ? 0 : m_messages.size();
+        return parent.isValid() ? 0 : static_cast<int>(m_messages.size());
     }
 
     [[nodiscard]] QVariant data(const QModelIndex &index, int role) const override {
@@ -54,10 +54,10 @@ public:
     }
 
     void updateMessage(const Message &message) {
-        for (int i = 0; i < m_messages.size(); ++i) {
+        for (qsizetype i = 0; i < m_messages.size(); ++i) {
             if (m_messages.at(i).id == message.id) {
                 m_messages[i] = message;
-                const QModelIndex idx = index(i);
+                const QModelIndex idx = index(static_cast<int>(i));
                 emit dataChanged(idx, idx);
                 return;
             }
@@ -97,9 +97,9 @@ void ChatView::setSession(ChatSession *session) {
         scrollToEnd();
     });
     connect(m_session, &ChatSession::messageUpdated, this, [this, model](const Message &message) {
-        for (int i = 0; i < m_messages.size(); ++i) {
-            if (m_messages.at(i).id == message.id) {
-                m_messages[i] = message;
+        for (auto &m : m_messages) {
+            if (m.id == message.id) {
+                m = message;
                 break;
             }
         }

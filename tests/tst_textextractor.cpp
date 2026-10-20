@@ -52,6 +52,11 @@ private slots:
     void extractFromPdfRejectsMissingFile();
     void extractFromImageIsAvailableOrReportsError();
     void extractFromFileRejectsUnsupportedSuffix();
+    void extractFromTextFileReturnsContent();
+    void extractFromTextFileTruncatesLargeFiles();
+    void isTextFileAcceptsPlainTextFormats();
+    void isTextFileRejectsBinaryFiles();
+    void extractFromFileRoutesTextFiles();
 };
 
 void TestTextExtractor::availabilityFlagsAreConsistent() {
@@ -94,9 +99,99 @@ void TestTextExtractor::extractFromImageIsAvailableOrReportsError() {
     QVERIFY(text.isEmpty() || !error.isEmpty() || text.trimmed().isEmpty());
 }
 
+void TestTextExtractor::extractFromTextFileReturnsContent() {
+    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.txt"));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("name,value\nfoo,42\nbar,1337");
+    file.close();
+
+    QString error;
+    const QString text = TextExtractor::extractFromTextFile(path, &error);
+    QVERIFY2(!text.isEmpty(), qPrintable(error));
+    QCOMPARE(text, QStringLiteral("name,value\nfoo,42\nbar,1337"));
+    QFile::remove(path);
+}
+
+void TestTextExtractor::extractFromTextFileTruncatesLargeFiles() {
+    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-large.txt"));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    const QString filler = QString(TextExtractor::maxTextFileChars() + 100, QLatin1Char('x'));
+    file.write(filler.toUtf8());
+    file.close();
+
+    QString error;
+    const QString text = TextExtractor::extractFromTextFile(path, &error);
+    QVERIFY(text.size() <= TextExtractor::maxTextFileChars() + 100);
+    QVERIFY(text.contains(QStringLiteral("[... file truncated ...]")));
+    QFile::remove(path);
+}
+
+void TestTextExtractor::isTextFileAcceptsPlainTextFormats() {
+    struct TestCase {
+        QString name;
+        QByteArray content;
+    };
+    const std::array<TestCase, 6> cases = {
+        TestCase{QStringLiteral("ocapi.csv"), QByteArrayLiteral("id,name\n1,alpha\n2,beta")},
+        TestCase{QStringLiteral("ocapi.md"), QByteArrayLiteral("# Heading\n\nSome *markdown*.")},
+        TestCase{QStringLiteral("ocapi.html"), QByteArrayLiteral("<html><body>hi</body></html>\n")},
+        TestCase{QStringLiteral("ocapi.cpp"), QByteArrayLiteral("int main() { return 0; }\n")},
+        TestCase{QStringLiteral("ocapi.json"), QByteArrayLiteral("{\"key\": [1, 2, 3]}")},
+        TestCase{QStringLiteral("ocapi.log"), QByteArrayLiteral("2026-10-20 INFO started\n")}};
+    for (const auto &testCase : cases) {
+        const QString path = QDir::temp().filePath(testCase.name);
+        QFile file(path);
+        QVERIFY2(file.open(QIODevice::WriteOnly), qPrintable(testCase.name));
+        file.write(testCase.content);
+        file.close();
+        QVERIFY2(TextExtractor::isTextFile(path), qPrintable(testCase.name));
+        QVERIFY2(!TextExtractor::extractFromFile(path).isEmpty(), qPrintable(testCase.name));
+        QFile::remove(path);
+    }
+}
+
+void TestTextExtractor::isTextFileRejectsBinaryFiles() {
+    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-binary.bin"));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    char binary[64];
+    for (int i = 0; i < 64; ++i)
+        binary[i] = static_cast<char>(i * 3);
+    file.write(binary, sizeof(binary));
+    file.close();
+    QVERIFY(!TextExtractor::isTextFile(path));
+
+    QString error;
+    const QString text = TextExtractor::extractFromFile(path, &error);
+    QVERIFY(text.isEmpty());
+    QVERIFY(!error.isEmpty());
+    QFile::remove(path);
+}
+
+void TestTextExtractor::extractFromFileRoutesTextFiles() {
+    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-notes.md"));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("- first\n- second");
+    file.close();
+
+    QString error;
+    const QString text = TextExtractor::extractFromFile(path, &error);
+    QCOMPARE(text, QStringLiteral("- first\n- second"));
+    QFile::remove(path);
+}
+
 void TestTextExtractor::extractFromFileRejectsUnsupportedSuffix() {
     const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.xyz"));
-    writeMinimalPdf(path, QByteArrayLiteral("not really"));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    char binary[48];
+    for (int i = 0; i < 48; ++i)
+        binary[i] = static_cast<char>(i * 5);
+    file.write(binary, sizeof(binary));
+    file.close();
     QString error;
     const QString text = TextExtractor::extractFromFile(path, &error);
     QVERIFY(text.isEmpty());

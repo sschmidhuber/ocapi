@@ -22,25 +22,31 @@ namespace {
 constexpr int kMaxAttachmentsPerMessage = 8;
 constexpr int kThumbnailSize = 48;
 
-bool isImageFile(const QUrl &url) {
-    if (!url.isLocalFile())
-        return false;
-    const QString suffix = QFileInfo(url.toLocalFile()).suffix().toLower();
+const QStringList &imageSuffixes() {
     static const QStringList allowed = {
         QStringLiteral("jpg"),  QStringLiteral("jpeg"), QStringLiteral("png"),
         QStringLiteral("webp"), QStringLiteral("jxl"),  QStringLiteral("avif"),
         QStringLiteral("tif"),  QStringLiteral("tiff"), QStringLiteral("gif")};
-    return allowed.contains(suffix);
+    return allowed;
 }
 
-bool isPdfFile(const QUrl &url) {
+bool isImageFile(const QUrl &url) {
     if (!url.isLocalFile())
         return false;
-    return QFileInfo(url.toLocalFile()).suffix().toLower() == QLatin1String("pdf");
+    return imageSuffixes().contains(QFileInfo(url.toLocalFile()).suffix().toLower());
+}
+
+bool isImageFileName(const QString &path) {
+    return imageSuffixes().contains(QFileInfo(path).suffix().toLower());
+}
+
+bool isDocumentFile(const QUrl &url) {
+    return url.isLocalFile();
 }
 
 QString nameFilter() {
-    return ImagePreprocessor::supportedNameFilter() + QStringLiteral(";;PDF documents (*.pdf)");
+    return ImagePreprocessor::supportedNameFilter() +
+           QStringLiteral(";;PDF documents (*.pdf);;Text files (*)");
 }
 
 } // namespace
@@ -52,7 +58,7 @@ bool MessageTextEdit::canInsertFromMimeData(const QMimeData *source) const {
         return true;
     if (source->hasUrls()) {
         for (const QUrl &url : source->urls())
-            if (isImageFile(url) || isPdfFile(url))
+            if (isImageFile(url) || isDocumentFile(url))
                 return true;
     }
     return QPlainTextEdit::canInsertFromMimeData(source);
@@ -82,8 +88,8 @@ void MessageTextEdit::insertFromMimeData(const QMimeData *source) {
                 } else {
                     emit imagePasteFailed(error);
                 }
-            } else if (isPdfFile(url)) {
-                emit pdfDropped(url.toLocalFile());
+            } else if (isDocumentFile(url)) {
+                emit documentDropped(url.toLocalFile());
                 handled = true;
             }
         }
@@ -113,8 +119,7 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     m_textEdit = new MessageTextEdit(row);
     m_attachButton = new QToolButton(row);
     m_attachButton->setText(QStringLiteral("+"));
-    m_attachButton->setToolTip(
-        tr("Attach images (JPEG, PNG, WebP, JPEG XL, AVIF, TIFF, GIF) or PDF documents"));
+    m_attachButton->setToolTip(tr("Attach images, PDF documents or text files"));
     m_attachButton->setAutoRaise(true);
     m_attachButton->setFixedSize(28, 28);
     rowLayout->addWidget(m_textEdit, 1);
@@ -132,8 +137,8 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
             [this](const ImageAttachment &attachment) { addAttachment(attachment); });
     connect(m_textEdit, &MessageTextEdit::imagePasteFailed, this,
             [this](const QString &error) { QMessageBox::warning(this, tr("Image error"), error); });
-    connect(m_textEdit, &MessageTextEdit::pdfDropped, this,
-            [this](const QString &path) { addPdf(path); });
+    connect(m_textEdit, &MessageTextEdit::documentDropped, this,
+            [this](const QString &path) { addDocument(path); });
 }
 
 bool Composer::eventFilter(QObject *watched, QEvent *event) {
@@ -185,8 +190,8 @@ void Composer::attachFiles() {
     const QStringList files =
         QFileDialog::getOpenFileNames(this, tr("Attach files"), QString(), nameFilter());
     for (const QString &file : files) {
-        if (QFileInfo(file).suffix().toLower() == QLatin1String("pdf")) {
-            addPdf(file);
+        if (!isImageFileName(file)) {
+            addDocument(file);
             continue;
         }
         if (m_attachments.size() >= kMaxAttachmentsPerMessage)
@@ -200,11 +205,11 @@ void Composer::attachFiles() {
     }
 }
 
-void Composer::addPdf(const QString &path) {
+void Composer::addDocument(const QString &path) {
     QString error;
-    const QString text = TextExtractor::extractFromPdf(path, &error);
+    const QString text = TextExtractor::extractFromFile(path, &error);
     if (text.isEmpty()) {
-        QMessageBox::warning(this, tr("PDF error"), error);
+        QMessageBox::warning(this, tr("Attachment error"), error);
         return;
     }
     addTextBlock(QFileInfo(path).fileName(), text);

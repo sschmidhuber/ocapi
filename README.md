@@ -28,11 +28,13 @@ base URL — including remote machines, e.g. `http://192.168.1.10:8000/v1`.
 
 ## Attachments
 
-Besides images (JPEG, PNG, WebP, JPEG XL, AVIF, TIFF, GIF), PDF documents can be
-attached to chat messages. Text is extracted with Poppler; scanned pages and
-image files are recognized with Tesseract OCR. Both libraries are optional at
-build time (detected via pkg-config) — the features are disabled gracefully
-when they are missing.
+Besides images (JPEG, PNG, WebP, JPEG XL, AVIF, TIFF, GIF), PDF documents and
+any kind of text file (CSV, plaintext, Markdown, HTML, JSON, logs, source
+code, …) can be attached to chat messages. PDF text is extracted with
+Poppler; scanned pages and image files are recognized with Tesseract OCR.
+Text files are detected by content (UTF-8, printable characters) regardless of
+their extension. Poppler and Tesseract are optional at build time (detected
+via pkg-config) — the features are disabled gracefully when they are missing.
 
 Install the dependencies, e.g. on Debian/Ubuntu:
 

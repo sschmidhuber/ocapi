@@ -24,7 +24,7 @@ public:
 signals:
     void imagePasted(const ocapi::ImageAttachment &attachment);
     void imagePasteFailed(const QString &error);
-    void pdfDropped(const QString &path);
+    void documentDropped(const QString &path);
 
 protected:
     bool canInsertFromMimeData(const QMimeData *source) const override;
@@ -60,7 +60,7 @@ protected:
 
 private:
     void addAttachment(const ImageAttachment &attachment);
-    void addPdf(const QString &path);
+    void addDocument(const QString &path);
     void addTextBlock(const QString &fileName, const QString &text);
     void refreshAttachmentStrip();
 

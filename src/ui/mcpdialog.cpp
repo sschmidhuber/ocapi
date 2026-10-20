@@ -185,10 +185,11 @@ void McpDialog::onSelectionChanged() {
     m_updatingForm = true;
     auto *item = m_list->currentItem();
     const bool hasSelection = item != nullptr;
-    for (auto *widget : {static_cast<QWidget *>(m_nameEdit), m_transportCombo, m_connectionStack,
-                         m_defaultPermissionCombo, m_enabledBox, m_testButton, m_toolsTable}) {
+    const QList<QWidget *> widgets{m_nameEdit,   m_transportCombo, m_connectionStack,
+                                   m_enabledBox, m_testButton,     m_toolsTable};
+    for (auto *widget : widgets)
         widget->setEnabled(hasSelection);
-    }
+    m_defaultPermissionCombo->setEnabled(hasSelection);
     m_testResultLabel->clear();
     m_testResultLabel->hide();
     m_serverInfoLabel->clear();

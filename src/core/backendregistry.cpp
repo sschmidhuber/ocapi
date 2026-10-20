@@ -9,8 +9,7 @@ namespace {
 constexpr auto kGroup = "backends";
 constexpr auto kCount = "count";
 
-BackendKind kindFromString(const QString& value)
-{
+BackendKind kindFromString(const QString &value) {
     static const QHash<QString, BackendKind> map{
         {QStringLiteral("ollama"), BackendKind::Ollama},
         {QStringLiteral("llamacpp"), BackendKind::LlamaCpp},
@@ -23,29 +22,31 @@ BackendKind kindFromString(const QString& value)
     return map.value(value, BackendKind::Ollama);
 }
 
-QString kindToString(BackendKind kind)
-{
+QString kindToString(BackendKind kind) {
     switch (kind) {
-    case BackendKind::Ollama: return QStringLiteral("ollama");
-    case BackendKind::LlamaCpp: return QStringLiteral("llamacpp");
-    case BackendKind::Vllm: return QStringLiteral("vllm");
-    case BackendKind::OpenAi: return QStringLiteral("openai");
-    case BackendKind::Anthropic: return QStringLiteral("anthropic");
-    case BackendKind::Gemini: return QStringLiteral("gemini");
-    case BackendKind::Mistral: return QStringLiteral("mistral");
+    case BackendKind::Ollama:
+        return QStringLiteral("ollama");
+    case BackendKind::LlamaCpp:
+        return QStringLiteral("llamacpp");
+    case BackendKind::Vllm:
+        return QStringLiteral("vllm");
+    case BackendKind::OpenAi:
+        return QStringLiteral("openai");
+    case BackendKind::Anthropic:
+        return QStringLiteral("anthropic");
+    case BackendKind::Gemini:
+        return QStringLiteral("gemini");
+    case BackendKind::Mistral:
+        return QStringLiteral("mistral");
     }
     return {};
 }
 
 } // namespace
 
-BackendRegistry::BackendRegistry(QObject* parent)
-    : QObject(parent)
-{
-}
+BackendRegistry::BackendRegistry(QObject *parent) : QObject(parent) {}
 
-void BackendRegistry::load()
-{
+void BackendRegistry::load() {
     m_backends.clear();
     QSettings settings;
     settings.beginGroup(kGroup);
@@ -70,13 +71,12 @@ void BackendRegistry::load()
     settings.endGroup();
 }
 
-void BackendRegistry::save() const
-{
+void BackendRegistry::save() const {
     QSettings settings;
     settings.beginGroup(kGroup);
     settings.beginWriteArray(kCount);
     for (int i = 0; i < m_backends.size(); ++i) {
-        const auto& config = m_backends.at(i);
+        const auto &config = m_backends.at(i);
         settings.setArrayIndex(i);
         settings.setValue(QStringLiteral("id"), config.id.toString());
         settings.setValue(QStringLiteral("name"), config.name);
@@ -90,8 +90,7 @@ void BackendRegistry::save() const
     settings.endGroup();
 }
 
-BackendConfig& BackendRegistry::add(const QString& name, BackendKind kind)
-{
+BackendConfig &BackendRegistry::add(const QString &name, BackendKind kind) {
     BackendConfig config;
     config.name = name;
     config.kind = kind;
@@ -101,8 +100,7 @@ BackendConfig& BackendRegistry::add(const QString& name, BackendKind kind)
     return m_backends.last();
 }
 
-bool BackendRegistry::remove(const QUuid& id)
-{
+bool BackendRegistry::remove(const QUuid &id) {
     for (auto it = m_backends.begin(); it != m_backends.end(); ++it) {
         if (it->id == id) {
             m_backends.erase(it);
@@ -113,19 +111,17 @@ bool BackendRegistry::remove(const QUuid& id)
     return false;
 }
 
-BackendConfig* BackendRegistry::find(const QUuid& id)
-{
-    for (auto& config : m_backends) {
+BackendConfig *BackendRegistry::find(const QUuid &id) {
+    for (auto &config : m_backends) {
         if (config.id == id)
             return &config;
     }
     return nullptr;
 }
 
-QVector<BackendConfig> BackendRegistry::enabled() const
-{
+QVector<BackendConfig> BackendRegistry::enabled() const {
     QVector<BackendConfig> result;
-    for (const auto& config : m_backends) {
+    for (const auto &config : m_backends) {
         if (config.enabled)
             result.push_back(config);
     }

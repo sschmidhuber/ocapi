@@ -9,13 +9,12 @@
 
 namespace ocapi {
 
-class ChatSession : public QObject
-{
+class ChatSession : public QObject {
     Q_OBJECT
 
 public:
-    explicit ChatSession(QObject* parent = nullptr);
-    ChatSession(QString title, QString backendId, QObject* parent = nullptr);
+    explicit ChatSession(QObject *parent = nullptr);
+    ChatSession(QString title, QString backendId, QObject *parent = nullptr);
 
     [[nodiscard]] QUuid id() const { return m_id; }
     [[nodiscard]] QString title() const { return m_title; }
@@ -27,17 +26,17 @@ public:
     [[nodiscard]] QString model() const { return m_model; }
     void setModel(QString model);
 
-    [[nodiscard]] const QVector<Message>& messages() const { return m_messages; }
+    [[nodiscard]] const QVector<Message> &messages() const { return m_messages; }
 
-    Message& appendMessage(Role role, const QString& content = {});
-    void updateMessage(const QUuid& id, const QString& content, bool streaming);
-    void failMessage(const QUuid& id, const QString& error);
+    Message &appendMessage(Role role, const QString &content = {});
+    void updateMessage(const QUuid &id, const QString &content, bool streaming);
+    void failMessage(const QUuid &id, const QString &error);
     void clear();
 
 signals:
-    void titleChanged(const QString& title);
-    void messageAdded(const ocapi::Message& message);
-    void messageUpdated(const ocapi::Message& message);
+    void titleChanged(const QString &title);
+    void messageAdded(const ocapi::Message &message);
+    void messageUpdated(const ocapi::Message &message);
 
 private:
     QUuid m_id = QUuid::createUuid();

@@ -16,13 +16,10 @@ constexpr int kMaxBubbleWidthFraction = 80; // percent of viewport width
 
 } // namespace
 
-ChatDelegate::ChatDelegate(QObject* parent)
-    : QStyledItemDelegate(parent)
-{
-}
+ChatDelegate::ChatDelegate(QObject *parent) : QStyledItemDelegate(parent) {}
 
-void ChatDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const
-{
+void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
+                         const QModelIndex &index) const {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
@@ -43,13 +40,15 @@ void ChatDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, 
         bubbleColor = option.palette.color(QPalette::Highlight);
         textColor = option.palette.color(QPalette::HighlightedText);
     } else {
-        bubbleColor = option.palette.color(QPalette::Base).darker(option.state & QStyle::State_Enabled ? 104 : 100);
+        bubbleColor = option.palette.color(QPalette::Base)
+                          .darker((option.state & QStyle::State_Enabled) ? 104 : 100);
         textColor = option.palette.color(QPalette::Text);
     }
 
     QTextDocument doc;
     doc.setDefaultFont(option.font);
-    const int maxTextWidth = option.rect.width() * kMaxBubbleWidthFraction / 100 - 2 * kBubblePadding;
+    const int maxTextWidth =
+        option.rect.width() * kMaxBubbleWidthFraction / 100 - 2 * kBubblePadding;
     doc.setTextWidth(maxTextWidth);
     QString displayText = content;
     if (streaming && !displayText.isEmpty())
@@ -59,15 +58,12 @@ void ChatDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, 
 
     QRect bubbleRect;
     if (isUser) {
-        bubbleRect = QRect(rect.right() - textSize.width() - 2 * kBubblePadding - 30,
-                           rect.top(),
+        bubbleRect = QRect(rect.right() - textSize.width() - 2 * kBubblePadding - 30, rect.top(),
                            textSize.width() + 2 * kBubblePadding,
                            textSize.height() + 2 * kBubblePadding + 18);
         bubbleRect.moveRight(rect.right());
     } else {
-        bubbleRect = QRect(rect.left() + 30,
-                           rect.top(),
-                           textSize.width() + 2 * kBubblePadding,
+        bubbleRect = QRect(rect.left() + 30, rect.top(), textSize.width() + 2 * kBubblePadding,
                            textSize.height() + 2 * kBubblePadding + 18);
     }
 
@@ -81,17 +77,13 @@ void ChatDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, 
     labelFont.setBold(true);
     labelFont.setPointSizeF(qMax(7.0, labelFont.pointSizeF() - 1.0));
     painter->setFont(labelFont);
-    const QRect labelRect(bubbleRect.left(),
-                          bubbleRect.top() - 14,
-                          bubbleRect.width(),
-                          14);
+    const QRect labelRect(bubbleRect.left(), bubbleRect.top() - 14, bubbleRect.width(), 14);
     painter->drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, roleLabel);
 
     // Message text inside the bubble.
     painter->setFont(option.font);
     painter->setPen(textColor);
-    painter->translate(bubbleRect.left() + kBubblePadding,
-                       bubbleRect.top() + kBubblePadding + 8);
+    painter->translate(bubbleRect.left() + kBubblePadding, bubbleRect.top() + kBubblePadding + 8);
     if (!error.isEmpty()) {
         QFont errorFont = option.font;
         errorFont.setItalic(true);
@@ -106,18 +98,18 @@ void ChatDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, 
     painter->restore();
 }
 
-QSize ChatDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const
-{
+QSize ChatDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const {
     const QString content = index.data(Qt::DisplayRole).toString();
     QTextDocument doc;
     doc.setDefaultFont(option.font);
-    const int maxTextWidth = option.rect.width() > 0
-        ? option.rect.width() * kMaxBubbleWidthFraction / 100 - 2 * kBubblePadding
-        : 400;
+    const int maxTextWidth =
+        option.rect.width() > 0
+            ? option.rect.width() * kMaxBubbleWidthFraction / 100 - 2 * kBubblePadding
+            : 400;
     doc.setTextWidth(maxTextWidth);
     doc.setPlainText(content);
-    return QSize(option.rect.width(),
-                 doc.size().height() + 2 * kBubblePadding + 18 + 8 + 14);
+    return {option.rect.width(),
+            static_cast<int>(doc.size().height()) + 2 * kBubblePadding + 18 + 8 + 14};
 }
 
 } // namespace ocapi

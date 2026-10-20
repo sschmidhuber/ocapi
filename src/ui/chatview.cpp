@@ -17,49 +17,47 @@ enum DataRoles {
     ErrorRole,
 };
 
-class ChatModel : public QAbstractListModel
-{
+class ChatModel : public QAbstractListModel {
     Q_OBJECT
 
 public:
-    explicit ChatModel(QObject* parent = nullptr)
-        : QAbstractListModel(parent)
-    {
+    explicit ChatModel(QObject *parent = nullptr) : QAbstractListModel(parent) {}
+
+    [[nodiscard]] int rowCount(const QModelIndex &parent = {}) const override {
+        return parent.isValid() ? 0 : static_cast<int>(m_messages.size());
     }
 
-    [[nodiscard]] int rowCount(const QModelIndex& parent = {}) const override
-    {
-        return parent.isValid() ? 0 : m_messages.size();
-    }
-
-    [[nodiscard]] QVariant data(const QModelIndex& index, int role) const override
-    {
+    [[nodiscard]] QVariant data(const QModelIndex &index, int role) const override {
         if (!index.isValid() || index.row() >= m_messages.size())
             return {};
-        const Message& message = m_messages.at(index.row());
+        const Message &message = m_messages.at(index.row());
         switch (role) {
-        case Qt::DisplayRole: return message.content;
-        case IsUserRole: return message.role == Role::User;
-        case RoleLabelRole: return message.role == Role::User ? tr("You") : tr("Assistant");
-        case StreamingRole: return message.streaming;
-        case ErrorRole: return message.error;
-        default: return {};
+        case Qt::DisplayRole:
+            return message.content;
+        case IsUserRole:
+            return message.role == Role::User;
+        case RoleLabelRole:
+            return message.role == Role::User ? tr("You") : tr("Assistant");
+        case StreamingRole:
+            return message.streaming;
+        case ErrorRole:
+            return message.error;
+        default:
+            return {};
         }
     }
 
-    void setMessages(const QVector<Message>& messages)
-    {
+    void setMessages(const QVector<Message> &messages) {
         beginResetModel();
         m_messages = messages;
         endResetModel();
     }
 
-    void updateMessage(const Message& message)
-    {
-        for (int i = 0; i < m_messages.size(); ++i) {
+    void updateMessage(const Message &message) {
+        for (qsizetype i = 0; i < m_messages.size(); ++i) {
             if (m_messages.at(i).id == message.id) {
                 m_messages[i] = message;
-                const QModelIndex idx = index(i);
+                const QModelIndex idx = index(static_cast<int>(i));
                 emit dataChanged(idx, idx);
                 return;
             }
@@ -71,10 +69,8 @@ public:
 
 } // namespace
 
-ChatView::ChatView(QWidget* parent)
-    : QListView(parent)
-{
-    auto* model = new ChatModel(this);
+ChatView::ChatView(QWidget *parent) : QListView(parent) {
+    auto *model = new ChatModel(this);
     setModel(model);
     setItemDelegate(new ChatDelegate(this));
     setSelectionMode(QAbstractItemView::NoSelection);
@@ -85,54 +81,50 @@ ChatView::ChatView(QWidget* parent)
     viewport()->setAutoFillBackground(false);
 }
 
-void ChatView::setSession(ChatSession* session)
-{
+void ChatView::setSession(ChatSession *session) {
     if (m_session)
         m_session->disconnect(this);
     m_session = session;
-    auto* model = qobject_cast<ChatModel*>(this->model());
+    auto *model = qobject_cast<ChatModel *>(this->model());
     if (!m_session) {
         m_messages.clear();
         model->setMessages(m_messages);
         return;
     }
-    connect(m_session, &ChatSession::messageAdded, this, [this, model](const Message& message) {
+    connect(m_session, &ChatSession::messageAdded, this, [this, model](const Message &message) {
         m_messages.push_back(message);
-        qobject_cast<ChatModel*>(model)->setMessages(m_messages);
+        qobject_cast<ChatModel *>(model)->setMessages(m_messages);
         scrollToEnd();
     });
-    connect(m_session, &ChatSession::messageUpdated, this, [this, model](const Message& message) {
-        for (int i = 0; i < m_messages.size(); ++i) {
-            if (m_messages.at(i).id == message.id) {
-                m_messages[i] = message;
+    connect(m_session, &ChatSession::messageUpdated, this, [this, model](const Message &message) {
+        for (auto &m : m_messages) {
+            if (m.id == message.id) {
+                m = message;
                 break;
             }
         }
-        qobject_cast<ChatModel*>(model)->updateMessage(message);
+        qobject_cast<ChatModel *>(model)->updateMessage(message);
         scrollToEnd();
     });
     rebuild();
 }
 
-void ChatView::rebuild()
-{
+void ChatView::rebuild() {
     m_messages = m_session ? m_session->messages() : QVector<Message>{};
-    qobject_cast<ChatModel*>(model())->setMessages(m_messages);
+    qobject_cast<ChatModel *>(model())->setMessages(m_messages);
     scrollToEnd();
 }
 
-void ChatView::scrollToEnd()
-{
+void ChatView::scrollToEnd() {
     if (verticalScrollBar())
         verticalScrollBar()->setValue(verticalScrollBar()->maximum());
 }
 
-void ChatView::resizeEvent(QResizeEvent* event)
-{
+void ChatView::resizeEvent(QResizeEvent *event) {
     QListView::resizeEvent(event);
     // Force size hints to be recomputed for the new width.
     if (model())
-        emit model()->layoutChanged();
+        emit model() -> layoutChanged();
 }
 
 } // namespace ocapi

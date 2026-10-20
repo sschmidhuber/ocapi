@@ -9,23 +9,22 @@ namespace ocapi {
 
 class ChatSession;
 
-class ChatView : public QListView
-{
+class ChatView : public QListView {
     Q_OBJECT
 
 public:
-    explicit ChatView(QWidget* parent = nullptr);
+    explicit ChatView(QWidget *parent = nullptr);
 
-    void setSession(ChatSession* session);
+    void setSession(ChatSession *session);
 
 protected:
-    void resizeEvent(QResizeEvent* event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     void rebuild();
     void scrollToEnd();
 
-    ChatSession* m_session = nullptr;
+    ChatSession *m_session = nullptr;
     QVector<Message> m_messages;
 };
 

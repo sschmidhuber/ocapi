@@ -18,36 +18,28 @@ namespace ocapi {
 
 namespace {
 
-const QVector<BackendKind>& allKinds()
-{
+const QVector<BackendKind> &allKinds() {
     static const QVector<BackendKind> kinds{
-        BackendKind::Ollama,
-        BackendKind::LlamaCpp,
-        BackendKind::Vllm,
-        BackendKind::OpenAi,
-        BackendKind::Anthropic,
-        BackendKind::Gemini,
-        BackendKind::Mistral,
+        BackendKind::Ollama,    BackendKind::LlamaCpp, BackendKind::Vllm,    BackendKind::OpenAi,
+        BackendKind::Anthropic, BackendKind::Gemini,   BackendKind::Mistral,
     };
     return kinds;
 }
 
 } // namespace
 
-BackendDialog::BackendDialog(BackendRegistry* registry, QWidget* parent)
-    : QDialog(parent)
-    , m_registry(registry)
-{
+BackendDialog::BackendDialog(BackendRegistry *registry, QWidget *parent)
+    : QDialog(parent), m_registry(registry) {
     setWindowTitle(tr("Manage backends"));
     resize(720, 420);
 
-    auto* splitter = new QSplitter(this);
+    auto *splitter = new QSplitter(this);
 
     m_list = new QListWidget(splitter);
     m_list->setMinimumWidth(200);
 
-    auto* formWidget = new QWidget(splitter);
-    auto* formLayout = new QFormLayout(formWidget);
+    auto *formWidget = new QWidget(splitter);
+    auto *formLayout = new QFormLayout(formWidget);
 
     m_nameEdit = new QLineEdit(formWidget);
     m_kindCombo = new QComboBox(formWidget);
@@ -72,25 +64,25 @@ BackendDialog::BackendDialog(BackendRegistry* registry, QWidget* parent)
     formLayout->addRow(tr("Default model:"), m_modelEdit);
     formLayout->addRow(m_enabledBox);
 
-    auto* listButtons = new QHBoxLayout;
-    auto* addButton = new QPushButton(tr("Add"), splitter->parentWidget() ? nullptr : formWidget);
+    auto *listButtons = new QHBoxLayout;
+    auto *addButton = new QPushButton(tr("Add"), splitter->parentWidget() ? nullptr : formWidget);
     addButton->setParent(m_list->parentWidget());
-    auto* removeButton = new QPushButton(tr("Remove"));
+    auto *removeButton = new QPushButton(tr("Remove"));
     removeButton->setParent(m_list->parentWidget());
     listButtons->addWidget(addButton);
     listButtons->addWidget(removeButton);
     listButtons->addStretch();
 
-    auto* leftLayout = new QVBoxLayout;
+    auto *leftLayout = new QVBoxLayout;
     leftLayout->addWidget(m_list);
     leftLayout->addLayout(listButtons);
-    auto* leftWidget = new QWidget(splitter);
+    auto *leftWidget = new QWidget(splitter);
     leftWidget->setLayout(leftLayout);
     splitter->addWidget(leftWidget);
     splitter->addWidget(formWidget);
     splitter->setStretchFactor(1, 1);
 
-    auto* outerLayout = new QVBoxLayout(this);
+    auto *outerLayout = new QVBoxLayout(this);
     outerLayout->addWidget(splitter);
 
     m_buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, this);
@@ -105,7 +97,7 @@ BackendDialog::BackendDialog(BackendRegistry* registry, QWidget* parent)
     connect(m_kindCombo, &QComboBox::currentIndexChanged, this, &BackendDialog::onKindChanged);
     connect(m_buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
-    for (auto* edit : {m_nameEdit, m_urlEdit, m_apiKeyEdit, m_modelEdit}) {
+    for (auto *edit : {m_nameEdit, m_urlEdit, m_apiKeyEdit, m_modelEdit}) {
         connect(edit, &QLineEdit::textEdited, this, &BackendDialog::onFieldEdited);
     }
     connect(m_enabledBox, &QCheckBox::toggled, this, &BackendDialog::onFieldEdited);
@@ -117,21 +109,17 @@ BackendDialog::BackendDialog(BackendRegistry* registry, QWidget* parent)
         onSelectionChanged();
 }
 
-void BackendDialog::populateList()
-{
+void BackendDialog::populateList() {
     m_list->clear();
-    for (const auto& config : m_registry->backends()) {
-        auto* item = new QListWidgetItem(
-            config.enabled ? config.name
-                           : tr("%1 (disabled)").arg(config.name),
-            m_list);
+    for (const auto &config : m_registry->backends()) {
+        auto *item = new QListWidgetItem(
+            config.enabled ? config.name : tr("%1 (disabled)").arg(config.name), m_list);
         item->setData(Qt::UserRole, config.id.toString());
     }
 }
 
-void BackendDialog::onAddBackend()
-{
-    auto& config = m_registry->add(tr("New backend"), BackendKind::Ollama);
+void BackendDialog::onAddBackend() {
+    auto &config = m_registry->add(tr("New backend"), BackendKind::Ollama);
     m_registry->save();
     populateList();
     for (int i = 0; i < m_list->count(); ++i) {
@@ -144,15 +132,14 @@ void BackendDialog::onAddBackend()
     m_nameEdit->selectAll();
 }
 
-void BackendDialog::onRemoveBackend()
-{
-    auto* item = m_list->currentItem();
+void BackendDialog::onRemoveBackend() {
+    auto *item = m_list->currentItem();
     if (!item)
         return;
     const QUuid id(item->data(Qt::UserRole).toString());
     if (QMessageBox::question(this, tr("Remove backend"),
-                              tr("Remove the backend \"%1\"?").arg(item->text()))
-        != QMessageBox::Yes)
+                              tr("Remove the backend \"%1\"?").arg(item->text())) !=
+        QMessageBox::Yes)
         return;
     m_registry->remove(id);
     m_registry->save();
@@ -160,10 +147,9 @@ void BackendDialog::onRemoveBackend()
     onSelectionChanged();
 }
 
-void BackendDialog::onSelectionChanged()
-{
+void BackendDialog::onSelectionChanged() {
     m_updatingForm = true;
-    auto* item = m_list->currentItem();
+    auto *item = m_list->currentItem();
     const bool hasSelection = item != nullptr;
     m_nameEdit->setEnabled(hasSelection);
     m_kindCombo->setEnabled(hasSelection);
@@ -172,7 +158,7 @@ void BackendDialog::onSelectionChanged()
     m_modelEdit->setEnabled(hasSelection);
     m_enabledBox->setEnabled(hasSelection);
     if (hasSelection) {
-        const auto* config = m_registry->find(QUuid(item->data(Qt::UserRole).toString()));
+        const auto *config = m_registry->find(QUuid(item->data(Qt::UserRole).toString()));
         if (config)
             loadConfigIntoForm(*config);
     } else {
@@ -185,8 +171,7 @@ void BackendDialog::onSelectionChanged()
     m_updatingForm = false;
 }
 
-void BackendDialog::onKindChanged(int index)
-{
+void BackendDialog::onKindChanged(int index) {
     if (m_updatingForm || !m_urlEdit->isEnabled())
         return;
     const auto kind = static_cast<BackendKind>(m_kindCombo->itemData(index).toInt());
@@ -197,25 +182,22 @@ void BackendDialog::onKindChanged(int index)
     onFieldEdited();
 }
 
-void BackendDialog::onFieldEdited()
-{
+void BackendDialog::onFieldEdited() {
     if (m_updatingForm)
         return;
-    auto* item = m_list->currentItem();
+    auto *item = m_list->currentItem();
     if (!item)
         return;
-    auto* config = m_registry->find(QUuid(item->data(Qt::UserRole).toString()));
+    auto *config = m_registry->find(QUuid(item->data(Qt::UserRole).toString()));
     if (!config)
         return;
     saveFormIntoConfig(*config);
-    item->setText(config->enabled ? config->name
-                                  : tr("%1 (disabled)").arg(config->name));
+    item->setText(config->enabled ? config->name : tr("%1 (disabled)").arg(config->name));
     m_registry->save();
     emit m_registry->changed();
 }
 
-void BackendDialog::loadConfigIntoForm(const BackendConfig& config)
-{
+void BackendDialog::loadConfigIntoForm(const BackendConfig &config) {
     m_nameEdit->setText(config.name);
     const int kindIndex = m_kindCombo->findData(QVariant::fromValue(static_cast<int>(config.kind)));
     m_kindCombo->setCurrentIndex(kindIndex < 0 ? 0 : kindIndex);
@@ -225,11 +207,9 @@ void BackendDialog::loadConfigIntoForm(const BackendConfig& config)
     m_enabledBox->setChecked(config.enabled);
 }
 
-void BackendDialog::saveFormIntoConfig(BackendConfig& config)
-{
-    config.name = m_nameEdit->text().trimmed().isEmpty()
-        ? BackendConfig::kindName(config.kind)
-        : m_nameEdit->text().trimmed();
+void BackendDialog::saveFormIntoConfig(BackendConfig &config) {
+    config.name = m_nameEdit->text().trimmed().isEmpty() ? BackendConfig::kindName(config.kind)
+                                                         : m_nameEdit->text().trimmed();
     config.kind = currentKind();
     config.baseUrl = m_urlEdit->text().trimmed();
     if (config.baseUrl.isEmpty())
@@ -239,8 +219,7 @@ void BackendDialog::saveFormIntoConfig(BackendConfig& config)
     config.enabled = m_enabledBox->isChecked();
 }
 
-BackendKind BackendDialog::currentKind() const
-{
+BackendKind BackendDialog::currentKind() const {
     return static_cast<BackendKind>(m_kindCombo->currentData().toInt());
 }
 

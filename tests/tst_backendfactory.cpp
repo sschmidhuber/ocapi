@@ -1,5 +1,5 @@
-#include "backends/backendfactory.h"
 #include "backends/anthropicbackend.h"
+#include "backends/backendfactory.h"
 #include "backends/geminibackend.h"
 #include "backends/ollamabackend.h"
 #include "backends/openaiapibackend.h"
@@ -9,8 +9,7 @@
 
 using namespace ocapi;
 
-class TestBackendFactory : public QObject
-{
+class TestBackendFactory : public QObject {
     Q_OBJECT
 
 private slots:
@@ -18,11 +17,10 @@ private slots:
     void createdBackendCarriesConfig();
 };
 
-void TestBackendFactory::createsCorrectBackendTypeForEachKind()
-{
+void TestBackendFactory::createsCorrectBackendTypeForEachKind() {
     struct Case {
         BackendKind kind;
-        const char* typeName;
+        const char *typeName;
     };
     const QList<Case> cases{
         {BackendKind::Ollama, "ocapi::OllamaBackend"},
@@ -34,7 +32,7 @@ void TestBackendFactory::createsCorrectBackendTypeForEachKind()
         {BackendKind::Gemini, "ocapi::GeminiBackend"},
     };
 
-    for (const auto& c : cases) {
+    for (const auto &c : cases) {
         BackendConfig config;
         config.kind = c.kind;
         auto backend = createBackend(config);
@@ -43,8 +41,7 @@ void TestBackendFactory::createsCorrectBackendTypeForEachKind()
     }
 }
 
-void TestBackendFactory::createdBackendCarriesConfig()
-{
+void TestBackendFactory::createdBackendCarriesConfig() {
     BackendConfig config;
     config.name = QStringLiteral("factory test");
     config.kind = BackendKind::Anthropic;

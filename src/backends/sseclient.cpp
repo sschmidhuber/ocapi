@@ -7,14 +7,9 @@
 
 namespace ocapi {
 
-SseClient::SseClient(QNetworkAccessManager* nam, QObject* parent)
-    : QObject(parent)
-    , m_nam(nam)
-{
-}
+SseClient::SseClient(QNetworkAccessManager *nam, QObject *parent) : QObject(parent), m_nam(nam) {}
 
-void SseClient::post(const QNetworkRequest& request, const QByteArray& payload)
-{
+void SseClient::post(const QNetworkRequest &request, const QByteArray &payload) {
     cancel();
     m_buffer.clear();
     m_reply = m_nam->post(request, payload);
@@ -22,8 +17,7 @@ void SseClient::post(const QNetworkRequest& request, const QByteArray& payload)
     connect(m_reply, &QNetworkReply::finished, this, &SseClient::onFinished);
 }
 
-void SseClient::cancel()
-{
+void SseClient::cancel() {
     if (m_reply) {
         m_reply->disconnect(this);
         m_reply->abort();
@@ -32,21 +26,19 @@ void SseClient::cancel()
     }
 }
 
-void SseClient::onReadyRead()
-{
+void SseClient::onReadyRead() {
     if (!m_reply)
         return;
     m_buffer.append(m_reply->readAll());
 
-    for (const auto& rawEvent : extractCompleteEvents(m_buffer)) {
+    for (const auto &rawEvent : extractCompleteEvents(m_buffer)) {
         const auto parsed = parseSseEventBlock(rawEvent);
         if (parsed)
             emit eventReceived(parsed->event, parsed->data);
     }
 }
 
-void SseClient::onFinished()
-{
+void SseClient::onFinished() {
     if (!m_reply)
         return;
 

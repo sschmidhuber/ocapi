@@ -7,18 +7,16 @@ namespace {
 
 // Prefer a desktop-native look: Fusion on non-KDE, and breeze when running
 // under KDE Plasma where the platform theme already provides it.
-void applyDesktopStyle(QApplication& app)
-{
+void applyDesktopStyle(QApplication &app) {
     const QByteArray desktop = qgetenv("XDG_CURRENT_DESKTOP").toLower();
     const bool isKde = desktop.contains("kde");
     if (!isKde && QStyleFactory::keys().contains(QStringLiteral("Fusion"), Qt::CaseInsensitive))
-        app.setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+        QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
 }
 
 } // namespace
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("ocapi"));
     QApplication::setOrganizationName(QStringLiteral("sschmidhuber"));

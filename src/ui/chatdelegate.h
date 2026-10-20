@@ -4,15 +4,16 @@
 
 namespace ocapi {
 
-class ChatDelegate : public QStyledItemDelegate
-{
+class ChatDelegate : public QStyledItemDelegate {
     Q_OBJECT
 
 public:
-    explicit ChatDelegate(QObject* parent = nullptr);
+    explicit ChatDelegate(QObject *parent = nullptr);
 
-    void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
-    [[nodiscard]] QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override;
+    void paint(QPainter *painter, const QStyleOptionViewItem &option,
+               const QModelIndex &index) const override;
+    [[nodiscard]] QSize sizeHint(const QStyleOptionViewItem &option,
+                                 const QModelIndex &index) const override;
 };
 
 } // namespace ocapi

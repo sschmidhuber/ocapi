@@ -4,8 +4,7 @@
 
 using namespace ocapi;
 
-class TestBackendConfig : public QObject
-{
+class TestBackendConfig : public QObject {
     Q_OBJECT
 
 private slots:
@@ -16,12 +15,10 @@ private slots:
     void everyKindHasMatchingRoundTripName();
 };
 
-void TestBackendConfig::kindNameIsUniqueAndNonEmpty()
-{
+void TestBackendConfig::kindNameIsUniqueAndNonEmpty() {
     const QList<BackendKind> kinds{
-        BackendKind::Ollama, BackendKind::LlamaCpp, BackendKind::Vllm,
-        BackendKind::OpenAi, BackendKind::Anthropic, BackendKind::Gemini,
-        BackendKind::Mistral,
+        BackendKind::Ollama,    BackendKind::LlamaCpp, BackendKind::Vllm,    BackendKind::OpenAi,
+        BackendKind::Anthropic, BackendKind::Gemini,   BackendKind::Mistral,
     };
     QSet<QString> names;
     for (const auto kind : kinds) {
@@ -34,25 +31,22 @@ void TestBackendConfig::kindNameIsUniqueAndNonEmpty()
     QCOMPARE(names.size(), kinds.size());
 }
 
-void TestBackendConfig::kindDescriptionIsNonEmpty()
-{
+void TestBackendConfig::kindDescriptionIsNonEmpty() {
     const QList<BackendKind> kinds{
-        BackendKind::Ollama, BackendKind::LlamaCpp, BackendKind::Vllm,
-        BackendKind::OpenAi, BackendKind::Anthropic, BackendKind::Gemini,
-        BackendKind::Mistral,
+        BackendKind::Ollama,    BackendKind::LlamaCpp, BackendKind::Vllm,    BackendKind::OpenAi,
+        BackendKind::Anthropic, BackendKind::Gemini,   BackendKind::Mistral,
     };
     for (const auto kind : kinds)
-        QVERIFY2(!BackendConfig::kindDescription(kind).isEmpty(),
-                 qPrintable(QStringLiteral("kindDescription empty for %1")
-                                .arg(BackendConfig::kindName(kind))));
+        QVERIFY2(
+            !BackendConfig::kindDescription(kind).isEmpty(),
+            qPrintable(
+                QStringLiteral("kindDescription empty for %1").arg(BackendConfig::kindName(kind))));
 }
 
-void TestBackendConfig::defaultBaseUrlIsValidHttpUrl()
-{
+void TestBackendConfig::defaultBaseUrlIsValidHttpUrl() {
     const QList<BackendKind> kinds{
-        BackendKind::Ollama, BackendKind::LlamaCpp, BackendKind::Vllm,
-        BackendKind::OpenAi, BackendKind::Anthropic, BackendKind::Gemini,
-        BackendKind::Mistral,
+        BackendKind::Ollama,    BackendKind::LlamaCpp, BackendKind::Vllm,    BackendKind::OpenAi,
+        BackendKind::Anthropic, BackendKind::Gemini,   BackendKind::Mistral,
     };
     for (const auto kind : kinds) {
         const QUrl url(BackendConfig::defaultBaseUrl(kind));
@@ -63,8 +57,7 @@ void TestBackendConfig::defaultBaseUrlIsValidHttpUrl()
     }
 }
 
-void TestBackendConfig::defaultConstructedConfigIsEnabledWithUniqueId()
-{
+void TestBackendConfig::defaultConstructedConfigIsEnabledWithUniqueId() {
     BackendConfig a;
     BackendConfig b;
     QVERIFY(a.enabled);
@@ -73,8 +66,7 @@ void TestBackendConfig::defaultConstructedConfigIsEnabledWithUniqueId()
     QCOMPARE(a.kindName(), BackendConfig::kindName(a.kind));
 }
 
-void TestBackendConfig::everyKindHasMatchingRoundTripName()
-{
+void TestBackendConfig::everyKindHasMatchingRoundTripName() {
     // kindName() is the human-readable label; make sure the expected
     // well-known labels are stable so UI and settings stay compatible.
     QCOMPARE(BackendConfig::kindName(BackendKind::Ollama), QStringLiteral("Ollama"));

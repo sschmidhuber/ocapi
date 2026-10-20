@@ -3,10 +3,10 @@
 #include "core/backendregistry.h"
 
 #include <QComboBox>
+#include <QHash>
 #include <QLabel>
 #include <QMainWindow>
 #include <QPushButton>
-#include <QHash>
 #include <QVector>
 #include <memory>
 
@@ -18,48 +18,47 @@ class Composer;
 class IBackend;
 class Sidebar;
 
-class MainWindow : public QMainWindow
-{
+class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit MainWindow(QWidget* parent = nullptr);
+    explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
 
 private slots:
     void onNewChat();
-    void onSessionSelected(const QUuid& id);
-    void onSessionDeleteRequested(const QUuid& id);
+    void onSessionSelected(const QUuid &id);
+    void onSessionDeleteRequested(const QUuid &id);
     void onManageBackends();
-    void onSend(const QString& text);
+    void onSend(const QString &text);
     void onStop();
     void onBackendChanged();
-    void onModelSelected(const QString& model);
+    void onModelSelected(const QString &model);
 
 private:
-    void createSession(const QString& backendId = {}, const QString& model = {});
+    void createSession(const QString &backendId = {}, const QString &model = {});
     void refreshSidebar();
     void refreshBackendSelector();
     void updateEmptyState();
-    IBackend* activeBackend();
-    void connectBackend(IBackend* backend);
+    IBackend *activeBackend();
+    void connectBackend(IBackend *backend);
     void disconnectBackend();
 
     BackendRegistry m_registry;
-    QVector<ChatSession*> m_sessions;
-    ChatSession* m_currentSession = nullptr;
+    QVector<ChatSession *> m_sessions;
+    ChatSession *m_currentSession = nullptr;
     std::unique_ptr<IBackend> m_backend;
     bool m_streaming = false;
 
-    Sidebar* m_sidebar = nullptr;
-    ChatView* m_chatView = nullptr;
-    Composer* m_composer = nullptr;
-    QComboBox* m_backendCombo = nullptr;
-    QComboBox* m_modelCombo = nullptr;
-    QPushButton* m_sendButton = nullptr;
-    QPushButton* m_stopButton = nullptr;
-    QLabel* m_statusLabel = nullptr;
-    QLabel* m_emptyLabel = nullptr;
+    Sidebar *m_sidebar = nullptr;
+    ChatView *m_chatView = nullptr;
+    Composer *m_composer = nullptr;
+    QComboBox *m_backendCombo = nullptr;
+    QComboBox *m_modelCombo = nullptr;
+    QPushButton *m_sendButton = nullptr;
+    QPushButton *m_stopButton = nullptr;
+    QLabel *m_statusLabel = nullptr;
+    QLabel *m_emptyLabel = nullptr;
 };
 
 } // namespace ocapi

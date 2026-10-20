@@ -10,27 +10,26 @@ namespace ocapi {
 
 class ChatSession;
 
-class Sidebar : public QWidget
-{
+class Sidebar : public QWidget {
     Q_OBJECT
 
 public:
-    explicit Sidebar(QWidget* parent = nullptr);
+    explicit Sidebar(QWidget *parent = nullptr);
 
-    void setSessions(const QVector<ChatSession*>& sessions);
-    void selectSession(const QUuid& id);
+    void setSessions(const QVector<ChatSession *> &sessions);
+    void selectSession(const QUuid &id);
     [[nodiscard]] QUuid currentSessionId() const;
 
 signals:
-    void sessionSelected(const QUuid& id);
+    void sessionSelected(const QUuid &id);
     void newChatRequested();
     void manageBackendsRequested();
-    void sessionDeleteRequested(const QUuid& id);
+    void sessionDeleteRequested(const QUuid &id);
 
 private:
-    QListWidget* m_list;
-    QPushButton* m_newChatButton;
-    QPushButton* m_backendsButton;
+    QListWidget *m_list;
+    QPushButton *m_newChatButton;
+    QPushButton *m_backendsButton;
 };
 
 } // namespace ocapi

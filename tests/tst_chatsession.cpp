@@ -5,8 +5,7 @@
 
 using namespace ocapi;
 
-class TestChatSession : public QObject
-{
+class TestChatSession : public QObject {
     Q_OBJECT
 
 private slots:
@@ -24,8 +23,7 @@ private slots:
     void sessionsHaveUniqueIds();
 };
 
-void TestChatSession::defaultConstructorUsesNewChatTitle()
-{
+void TestChatSession::defaultConstructorUsesNewChatTitle() {
     ChatSession session;
     QVERIFY(!session.title().isEmpty());
     QVERIFY(session.backendId().isEmpty());
@@ -33,8 +31,7 @@ void TestChatSession::defaultConstructorUsesNewChatTitle()
     QVERIFY(session.messages().isEmpty());
 }
 
-void TestChatSession::parameterizedConstructorSetsTitleAndBackend()
-{
+void TestChatSession::parameterizedConstructorSetsTitleAndBackend() {
     ChatSession session;
     session.setTitle(QStringLiteral("My chat"));
     session.setBackendId(QStringLiteral("backend-1"));
@@ -42,11 +39,10 @@ void TestChatSession::parameterizedConstructorSetsTitleAndBackend()
     QCOMPARE(session.backendId(), QStringLiteral("backend-1"));
 }
 
-void TestChatSession::appendMessageAddsMessageAndEmitsSignal()
-{
+void TestChatSession::appendMessageAddsMessageAndEmitsSignal() {
     ChatSession session;
     QSignalSpy addedSpy(&session, &ChatSession::messageAdded);
-    auto& message = session.appendMessage(Role::User, QStringLiteral("hello"));
+    auto &message = session.appendMessage(Role::User, QStringLiteral("hello"));
     QCOMPARE(session.messages().size(), 1);
     QCOMPARE(message.role, Role::User);
     QCOMPARE(message.content, QStringLiteral("hello"));
@@ -55,22 +51,20 @@ void TestChatSession::appendMessageAddsMessageAndEmitsSignal()
     QCOMPARE(emitted.id, message.id);
 }
 
-void TestChatSession::appendMessageReturnsReferenceToStoredMessage()
-{
+void TestChatSession::appendMessageReturnsReferenceToStoredMessage() {
     ChatSession session;
-    auto& message = session.appendMessage(Role::Assistant);
+    auto &message = session.appendMessage(Role::Assistant);
     message.content = QStringLiteral("edited");
     QCOMPARE(session.messages().constLast().content, QStringLiteral("edited"));
 }
 
-void TestChatSession::updateMessageModifiesContentAndStreamingFlag()
-{
+void TestChatSession::updateMessageModifiesContentAndStreamingFlag() {
     ChatSession session;
     const QUuid id = session.appendMessage(Role::Assistant).id;
     QSignalSpy updatedSpy(&session, &ChatSession::messageUpdated);
 
     session.updateMessage(id, QStringLiteral("partial"), true);
-    const auto& message = session.messages().constLast();
+    const auto &message = session.messages().constLast();
     QCOMPARE(message.content, QStringLiteral("partial"));
     QVERIFY(message.streaming);
     QCOMPARE(updatedSpy.count(), 1);
@@ -81,8 +75,7 @@ void TestChatSession::updateMessageModifiesContentAndStreamingFlag()
     QCOMPARE(updatedSpy.count(), 2);
 }
 
-void TestChatSession::updateMessageClearsError()
-{
+void TestChatSession::updateMessageClearsError() {
     ChatSession session;
     const QUuid id = session.appendMessage(Role::Assistant).id;
     session.failMessage(id, QStringLiteral("boom"));
@@ -92,8 +85,7 @@ void TestChatSession::updateMessageClearsError()
     QVERIFY(session.messages().constLast().error.isEmpty());
 }
 
-void TestChatSession::updateMessageIgnoresUnknownId()
-{
+void TestChatSession::updateMessageIgnoresUnknownId() {
     ChatSession session;
     session.appendMessage(Role::User, QStringLiteral("hello"));
     QSignalSpy updatedSpy(&session, &ChatSession::messageUpdated);
@@ -102,23 +94,21 @@ void TestChatSession::updateMessageIgnoresUnknownId()
     QCOMPARE(updatedSpy.count(), 0);
 }
 
-void TestChatSession::failMessageSetsErrorAndStopsStreaming()
-{
+void TestChatSession::failMessageSetsErrorAndStopsStreaming() {
     ChatSession session;
-    auto& message = session.appendMessage(Role::Assistant);
+    auto &message = session.appendMessage(Role::Assistant);
     message.streaming = true;
     const QUuid id = message.id;
     QSignalSpy updatedSpy(&session, &ChatSession::messageUpdated);
 
     session.failMessage(id, QStringLiteral("connection refused"));
-    const auto& failed = session.messages().constLast();
+    const auto &failed = session.messages().constLast();
     QCOMPARE(failed.error, QStringLiteral("connection refused"));
     QVERIFY(!failed.streaming);
     QCOMPARE(updatedSpy.count(), 1);
 }
 
-void TestChatSession::failMessageIgnoresUnknownId()
-{
+void TestChatSession::failMessageIgnoresUnknownId() {
     ChatSession session;
     session.appendMessage(Role::User);
     QSignalSpy updatedSpy(&session, &ChatSession::messageUpdated);
@@ -127,8 +117,7 @@ void TestChatSession::failMessageIgnoresUnknownId()
     QVERIFY(session.messages().constLast().error.isEmpty());
 }
 
-void TestChatSession::setTitleEmitsOnlyOnChange()
-{
+void TestChatSession::setTitleEmitsOnlyOnChange() {
     ChatSession session;
     session.setTitle(QStringLiteral("initial"));
     QSignalSpy titleSpy(&session, &ChatSession::titleChanged);
@@ -142,8 +131,7 @@ void TestChatSession::setTitleEmitsOnlyOnChange()
     QCOMPARE(titleSpy.takeFirst().at(0).toString(), QStringLiteral("renamed"));
 }
 
-void TestChatSession::clearRemovesAllMessages()
-{
+void TestChatSession::clearRemovesAllMessages() {
     ChatSession session;
     session.appendMessage(Role::User, QStringLiteral("one"));
     session.appendMessage(Role::Assistant, QStringLiteral("two"));
@@ -152,8 +140,7 @@ void TestChatSession::clearRemovesAllMessages()
     QVERIFY(session.messages().isEmpty());
 }
 
-void TestChatSession::sessionsHaveUniqueIds()
-{
+void TestChatSession::sessionsHaveUniqueIds() {
     ChatSession a;
     ChatSession b;
     QVERIFY(!a.id().isNull());

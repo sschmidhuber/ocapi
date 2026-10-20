@@ -4,13 +4,12 @@
 
 namespace ocapi {
 
-QList<QByteArray> extractCompleteEvents(QByteArray& buffer)
-{
+QList<QByteArray> extractCompleteEvents(QByteArray &buffer) {
     QList<QByteArray> events;
     int pos = 0;
     while (true) {
-        int idx = buffer.indexOf("\n\n", pos);
-        int sepLen = 2;
+        qsizetype idx = buffer.indexOf("\n\n", pos);
+        qsizetype sepLen = 2;
         if (idx < 0) {
             idx = buffer.indexOf("\r\n\r\n", pos);
             sepLen = 4;
@@ -25,19 +24,18 @@ QList<QByteArray> extractCompleteEvents(QByteArray& buffer)
     return events;
 }
 
-std::optional<SseEvent> parseSseEventBlock(const QByteArray& rawEvent)
-{
+std::optional<SseEvent> parseSseEventBlock(const QByteArray &rawEvent) {
     if (rawEvent.trimmed().isEmpty())
         return std::nullopt;
 
     QByteArray event = QStringLiteral("message").toUtf8();
     QByteArray data;
     const auto lines = rawEvent.split('\n');
-    for (const auto& line : lines) {
+    for (const auto &line : lines) {
         const QByteArray trimmed = line.trimmed();
         if (trimmed.startsWith(':'))
             continue; // comment / heartbeat
-        const int colon = trimmed.indexOf(':');
+        const qsizetype colon = trimmed.indexOf(':');
         if (colon < 0)
             continue;
         const QByteArray field = trimmed.left(colon);

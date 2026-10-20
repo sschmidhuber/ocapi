@@ -9,8 +9,7 @@
 
 namespace ocapi {
 
-std::unique_ptr<IBackend> createBackend(const BackendConfig& config)
-{
+std::unique_ptr<IBackend> createBackend(const BackendConfig &config) {
     switch (config.kind) {
     case BackendKind::Ollama:
         return std::make_unique<OllamaBackend>(config);

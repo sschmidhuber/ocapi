@@ -18,7 +18,7 @@ struct SignatureEntry {
     QString mimeType;
 };
 
-const std::array<SignatureEntry, 8> kSignatures{
+const std::array<SignatureEntry, 8> kSignatures{{
     {QByteArrayLiteral("\xFF\xD8\xFF"), QStringLiteral("image/jpeg")},
     {QByteArrayLiteral("\x89PNG\r\n\x1A\n"), QStringLiteral("image/png")},
     {QByteArrayLiteral("II*\x0"), QStringLiteral("image/tiff")},
@@ -27,7 +27,7 @@ const std::array<SignatureEntry, 8> kSignatures{
     {QByteArrayLiteral("GIF89a"), QStringLiteral("image/gif")},
     {QByteArrayLiteral("\xFF\x0A"), QStringLiteral("image/jxl")},
     {QByteArrayLiteral("\x0\x0\x0\xCJXL "), QStringLiteral("image/jxl")},
-};
+}};
 
 bool isWebP(const QByteArray &bytes) {
     return bytes.size() >= 12 && bytes.startsWith("RIFF") && bytes.mid(8, 4) == "WEBP";

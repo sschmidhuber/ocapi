@@ -7,6 +7,9 @@ ChatSession::ChatSession(QObject *parent) : QObject(parent), m_title(tr("New cha
 ChatSession::ChatSession(QString title, QString backendId, QObject *parent)
     : QObject(parent), m_title(std::move(title)), m_backendId(std::move(backendId)) {}
 
+ChatSession::ChatSession(const QUuid &id, QString title, QString backendId, QObject *parent)
+    : QObject(parent), m_id(id), m_title(std::move(title)), m_backendId(std::move(backendId)) {}
+
 void ChatSession::setTitle(QString title) {
     if (m_title == title)
         return;
@@ -26,6 +29,12 @@ Message &ChatSession::appendMessage(Role role, const QString &content) {
     Message message;
     message.role = role;
     message.content = content;
+    m_messages.push_back(message);
+    emit messageAdded(m_messages.constLast());
+    return m_messages.last();
+}
+
+Message &ChatSession::appendMessage(const Message &message) {
     m_messages.push_back(message);
     emit messageAdded(m_messages.constLast());
     return m_messages.last();

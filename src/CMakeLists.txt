@@ -6,6 +6,8 @@ set(OCAPI_CORE_SOURCES
     core/backendconfig.cpp
     core/backendregistry.h
     core/backendregistry.cpp
+    storage/chatdatabase.h
+    storage/chatdatabase.cpp
 
     backends/ibackend.h
     backends/sseparser.h
@@ -26,7 +28,7 @@ set(OCAPI_CORE_SOURCES
 
 add_library(ocapi-core STATIC ${OCAPI_CORE_SOURCES})
 target_include_directories(ocapi-core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(ocapi-core PUBLIC Qt6::Core Qt6::Network)
+target_link_libraries(ocapi-core PUBLIC Qt6::Core Qt6::Network Qt6::Sql)
 
 set(OCAPI_UI_SOURCES
     ui/mainwindow.h

@@ -15,6 +15,7 @@ class ChatSession : public QObject {
 public:
     explicit ChatSession(QObject *parent = nullptr);
     ChatSession(QString title, QString backendId, QObject *parent = nullptr);
+    ChatSession(const QUuid &id, QString title, QString backendId, QObject *parent = nullptr);
 
     [[nodiscard]] QUuid id() const { return m_id; }
     [[nodiscard]] QString title() const { return m_title; }
@@ -29,6 +30,7 @@ public:
     [[nodiscard]] const QVector<Message> &messages() const { return m_messages; }
 
     Message &appendMessage(Role role, const QString &content = {});
+    Message &appendMessage(const Message &message);
     void updateMessage(const QUuid &id, const QString &content, bool streaming);
     void failMessage(const QUuid &id, const QString &error);
     void clear();

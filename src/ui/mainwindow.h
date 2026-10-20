@@ -1,6 +1,8 @@
 #pragma once
 
 #include "core/backendregistry.h"
+#include "core/message.h"
+#include "storage/chatdatabase.h"
 
 #include <QComboBox>
 #include <QHash>
@@ -41,12 +43,19 @@ private:
     void refreshSidebar();
     void refreshBackendSelector();
     void updateEmptyState();
+    [[nodiscard]] bool openDatabase();
+    void persistSession(ChatSession *session);
+    void persistMessageForSession(ChatSession *session, const Message &message);
+    void syncSessionToDatabase(ChatSession *session);
+    [[nodiscard]] QString messageContent(const QUuid &messageId) const;
+    void endStreaming(const QString &statusMessage);
     IBackend *activeBackend();
     void connectBackend(IBackend *backend);
     void disconnectBackend();
     void detectModels();
 
     BackendRegistry m_registry;
+    ChatDatabase m_database;
     QVector<ChatSession *> m_sessions;
     ChatSession *m_currentSession = nullptr;
     std::unique_ptr<IBackend> m_backend;

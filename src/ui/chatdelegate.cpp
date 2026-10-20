@@ -79,6 +79,12 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     painter->setFont(labelFont);
     const QRect labelRect(bubbleRect.left(), bubbleRect.top() - 14, bubbleRect.width(), 14);
     painter->drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, roleLabel);
+    const double tokensPerSecond = index.data(static_cast<int>(Qt::UserRole) + 4).toDouble();
+    if (!isUser && tokensPerSecond > 0.0) {
+        const QString throughput =
+            QStringLiteral("%1 tok/s").arg(QString::number(tokensPerSecond, 'f', 1));
+        painter->drawText(labelRect, Qt::AlignRight | Qt::AlignVCenter, throughput);
+    }
 
     // Message text inside the bubble.
     painter->setFont(option.font);

@@ -21,6 +21,9 @@ private slots:
     void setTitleEmitsOnlyOnChange();
     void clearRemovesAllMessages();
     void sessionsHaveUniqueIds();
+    void setThroughputUpdatesMessageAndEmitsSignal();
+    void setThroughputIgnoresUnknownId();
+    void setThroughputIgnoresSameValue();
 };
 
 void TestChatSession::defaultConstructorUsesNewChatTitle() {
@@ -145,6 +148,34 @@ void TestChatSession::sessionsHaveUniqueIds() {
     ChatSession b;
     QVERIFY(!a.id().isNull());
     QVERIFY(a.id() != b.id());
+}
+
+void TestChatSession::setThroughputUpdatesMessageAndEmitsSignal() {
+    ChatSession session;
+    const QUuid id = session.appendMessage(Role::Assistant).id;
+    QSignalSpy updatedSpy(&session, &ChatSession::messageUpdated);
+    session.setThroughput(id, 42.5);
+    QCOMPARE(session.messages().constLast().tokensPerSecond, 42.5);
+    QCOMPARE(updatedSpy.count(), 1);
+}
+
+void TestChatSession::setThroughputIgnoresUnknownId() {
+    ChatSession session;
+    session.appendMessage(Role::Assistant);
+    QSignalSpy updatedSpy(&session, &ChatSession::messageUpdated);
+    session.setThroughput(QUuid::createUuid(), 10.0);
+    QCOMPARE(updatedSpy.count(), 0);
+    QCOMPARE(session.messages().constLast().tokensPerSecond, -1.0);
+}
+
+void TestChatSession::setThroughputIgnoresSameValue() {
+    ChatSession session;
+    const QUuid id = session.appendMessage(Role::Assistant).id;
+    session.setThroughput(id, 30.0);
+    QSignalSpy updatedSpy(&session, &ChatSession::messageUpdated);
+    session.setThroughput(id, 30.0);
+    QCOMPARE(updatedSpy.count(), 0);
+    QCOMPARE(session.messages().constLast().tokensPerSecond, 30.0);
 }
 
 QTEST_GUILESS_MAIN(TestChatSession)

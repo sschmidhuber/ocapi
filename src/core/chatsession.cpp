@@ -59,6 +59,18 @@ void ChatSession::updateMessage(const QUuid &id, const QString &content, bool st
     }
 }
 
+void ChatSession::setThroughput(const QUuid &id, double tokensPerSecond) {
+    for (auto &message : m_messages) {
+        if (message.id == id) {
+            if (message.tokensPerSecond == tokensPerSecond)
+                return;
+            message.tokensPerSecond = tokensPerSecond;
+            emit messageUpdated(message);
+            return;
+        }
+    }
+}
+
 void ChatSession::failMessage(const QUuid &id, const QString &error) {
     for (auto &message : m_messages) {
         if (message.id == id) {

@@ -20,6 +20,7 @@ struct StoredMessage {
     QString error;
     QDateTime timestamp;
     bool streaming = false;
+    double tokensPerSecond = -1.0;
 };
 
 class ChatDatabase {
@@ -52,6 +53,7 @@ public:
     bool insertMessage(const QString &sessionId, const QString &messageId, const QString &role,
                        const QString &content, const QDateTime &timestamp);
     bool updateMessage(const QString &messageId, const QString &content, bool streaming);
+    bool setThroughput(const QString &messageId, double tokensPerSecond);
     bool failMessage(const QString &messageId, const QString &error);
 
     [[nodiscard]] QString sessionTitle(const QString &sessionId) const;

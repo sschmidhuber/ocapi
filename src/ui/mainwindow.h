@@ -3,6 +3,7 @@
 #include "core/backendregistry.h"
 #include "core/message.h"
 #include "storage/chatdatabase.h"
+#include <QDateTime>
 
 #include <QComboBox>
 #include <QHash>
@@ -50,6 +51,7 @@ private:
     void persistMessageForSession(ChatSession *session, const Message &message);
     void syncSessionToDatabase(ChatSession *session);
     [[nodiscard]] QString messageContent(const QUuid &messageId) const;
+    [[nodiscard]] double throughputFor(const QUuid &messageId);
     void endStreaming(const QString &statusMessage);
     IBackend *activeBackend();
     void connectBackend(IBackend *backend);
@@ -64,6 +66,9 @@ private:
     std::unique_ptr<IBackend> m_detectorBackend;
     bool m_streaming = false;
     bool m_loadingOlder = false;
+    QUuid m_streamedMessageId;
+    int m_streamedTokens = 0;
+    QDateTime m_firstToken;
     QString m_detectedBackendId;
 
     Sidebar *m_sidebar = nullptr;

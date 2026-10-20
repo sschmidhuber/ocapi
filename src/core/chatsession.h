@@ -33,6 +33,7 @@ public:
     Message &appendMessage(const Message &message);
     void prependMessages(const QVector<Message> &messages);
     void updateMessage(const QUuid &id, const QString &content, bool streaming);
+    void setThroughput(const QUuid &id, double tokensPerSecond);
     void failMessage(const QUuid &id, const QString &error);
     void clear();
 

@@ -15,6 +15,7 @@ enum DataRoles {
     RoleLabelRole,
     StreamingRole,
     ErrorRole,
+    ThroughputRole,
 };
 
 class ChatModel : public QAbstractListModel {
@@ -42,6 +43,8 @@ public:
             return message.streaming;
         case ErrorRole:
             return message.error;
+        case ThroughputRole:
+            return message.tokensPerSecond;
         default:
             return {};
         }

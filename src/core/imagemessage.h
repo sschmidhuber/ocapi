@@ -37,8 +37,10 @@ public:
                                                                     QString *error = nullptr);
     // Re-encodes a decoded image (e.g. after resizing or when the source
     // format is not widely supported by model providers).
-    [[nodiscard]] static std::optional<ImageAttachment>
-    processImage(QImage image, QString mimeType, const QString &fileName, QString *error = nullptr);
+    [[nodiscard]] static std::optional<ImageAttachment> processImage(const QImage &image,
+                                                                     const QString &mimeType,
+                                                                     const QString &fileName,
+                                                                     QString *error = nullptr);
 
     [[nodiscard]] static std::optional<ImageAttachment>
     fromBase64(const QString &id, const QString &mimeType, const QString &fileName, int width,

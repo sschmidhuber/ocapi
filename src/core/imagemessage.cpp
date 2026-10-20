@@ -1,5 +1,7 @@
 #include "core/imagemessage.h"
 
+#include <array>
+
 #include <QBuffer>
 #include <QFile>
 #include <QFileInfo>
@@ -11,10 +13,12 @@ namespace ocapi {
 
 namespace {
 
-constexpr struct {
+struct SignatureEntry {
     QByteArray signature;
     QString mimeType;
-} kSignatures[] = {
+};
+
+const std::array<SignatureEntry, 8> kSignatures{
     {QByteArrayLiteral("\xFF\xD8\xFF"), QStringLiteral("image/jpeg")},
     {QByteArrayLiteral("\x89PNG\r\n\x1A\n"), QStringLiteral("image/png")},
     {QByteArrayLiteral("II*\x0"), QStringLiteral("image/tiff")},
@@ -82,7 +86,8 @@ std::optional<QString> ImagePreprocessor::sniffMimeType(const QByteArray &bytes)
     return std::nullopt;
 }
 
-std::optional<ImageAttachment> ImagePreprocessor::processImage(QImage image, QString mimeType,
+std::optional<ImageAttachment> ImagePreprocessor::processImage(const QImage &image,
+                                                               const QString &mimeType,
                                                                const QString &fileName,
                                                                QString *error) {
     if (image.isNull()) {
@@ -132,7 +137,7 @@ std::optional<ImageAttachment> ImagePreprocessor::processFile(const QString &pat
             *error = QObject::tr("Unsupported image format: %1").arg(QFileInfo(path).fileName());
         return std::nullopt;
     }
-    const QString mimeType = *sniffed;
+    const QString &mimeType = *sniffed;
     const QString fileName = QFileInfo(path).fileName();
 
     // GIFs: keep the original (possibly animated) bytes when within limits.
@@ -179,10 +184,10 @@ std::optional<ImageAttachment> ImagePreprocessor::processFile(const QString &pat
     }
 
     if (longest > maxDimension()) {
-        image = image.scaled(maxDimension(), maxDimension(),
-                             Qt::KeepAspectRatio | Qt::SmoothTransformation);
+        image = image.scaled(maxDimension(), maxDimension(), Qt::KeepAspectRatio,
+                             Qt::SmoothTransformation);
     }
-    auto attachment = processImage(std::move(image), mimeType, fileName, error);
+    auto attachment = processImage(image, mimeType, fileName, error);
     if (attachment) {
         attachment->sourcePath = path;
         attachment->resized = longest > maxDimension();

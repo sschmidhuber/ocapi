@@ -334,7 +334,8 @@ void ChatDatabase::loadAttachmentsFor(QVector<StoredMessage> &messages) const {
 
 bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messageId,
                                  const QString &role, const QString &content,
-                                 const QDateTime &timestamp) {
+                                 const QDateTime &timestamp,
+                                 const QVector<ImageAttachment> &images) {
     QSqlQuery position(m_database);
     position.prepare(QStringLiteral("SELECT COALESCE(MAX(position) + 1, 0) FROM messages "
                                     "WHERE session_id = ?"));
@@ -343,21 +344,30 @@ bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messag
         m_lastError = position.lastError().text();
         return false;
     }
-    return execute(QStringLiteral("INSERT INTO messages (id, session_id, role, content, "
-                                  "streaming, error, timestamp, position) "
-                                  "VALUES (?, ?, ?, ?, 0, '', ?, ?) "
-                                  "ON CONFLICT (id) DO UPDATE SET role = excluded.role, "
-                                  "content = excluded.content"),
-                   {
-                       messageId,
-                       sessionId,
-                       role,
-                       content,
-                       timestamp.isValid() ? timestamp.toSecsSinceEpoch() : 0,
-                       position.value(0),
-                   });
-    for (const auto &image : images)
-        insertImage(messageId, image);
+    const bool stored = execute(QStringLiteral("INSERT INTO messages (id, session_id, role, "
+                                               "content, streaming, error, timestamp, position) "
+                                               "VALUES (?, ?, ?, ?, 0, '', ?, ?) "
+                                               "ON CONFLICT (id) DO UPDATE SET role = "
+                                               "excluded.role, content = excluded.content"),
+                                {
+                                    messageId,
+                                    sessionId,
+                                    role,
+                                    content,
+                                    timestamp.isValid() ? timestamp.toSecsSinceEpoch() : 0,
+                                    position.value(0),
+                                });
+    if (!stored)
+        return false;
+    if (!images.isEmpty()) {
+        const bool inserted = execute(QStringLiteral("DELETE FROM message_images WHERE "
+                                                     "message_id = ?"),
+                                      {messageId});
+        if (!inserted)
+            return false;
+        for (const auto &image : images)
+            insertImage(messageId, image);
+    }
     return true;
 }
 

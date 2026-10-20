@@ -29,7 +29,7 @@ base URL — including remote machines, e.g. `http://192.168.1.10:8000/v1`.
 ## Building
 
 Requirements: CMake ≥ 3.21, a C++23 compiler (GCC 13+, Clang 17+), Qt 6.5+
-(Widgets, Network).
+(Widgets, Network, Test for the unit tests).
 
 ```sh
 cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -42,6 +42,20 @@ Install:
 ```sh
 cmake --install build   # or: sudo cmake --install build --prefix /usr
 ```
+
+## Testing
+
+Unit tests use Qt Test and live in `tests/`. They cover the core domain
+models (`Message`, `ChatSession`, `BackendConfig`, `BackendRegistry`), the
+backend factory, and the SSE stream parser.
+
+```sh
+cmake -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+To build without tests: `cmake -B build -DOCAPI_BUILD_TESTS=OFF`.
 
 ## Usage
 
@@ -60,8 +74,9 @@ API keys and backend settings are stored via `QSettings`
 src/
   main.cpp                 application entry point
   core/                    messages, chat sessions, backend configuration + registry
-  backends/                IBackend interface, SSE client, one class per provider family
+  backends/                IBackend interface, SSE client/parser, one class per provider family
   ui/                      main window, sidebar, chat view/delegate, composer, backend dialog
+tests/                     Qt Test unit tests
 resources/icons/ocapi.svg  application icon
 data/                      XDG desktop entry
 ```

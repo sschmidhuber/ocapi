@@ -3,21 +3,47 @@
 #include "backends/backendfactory.h"
 #include "backends/ibackend.h"
 #include "core/chatsession.h"
+#include "storage/chatdatabase.h"
 #include "ui/backenddialog.h"
 #include "ui/chatview.h"
 #include "ui/composer.h"
 #include "ui/sidebar.h"
 
 #include <QComboBox>
+#include <QDateTime>
+#include <QDir>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSettings>
 #include <QSplitter>
+#include <QStandardPaths>
 #include <QStatusBar>
 #include <QVBoxLayout>
 
 namespace ocapi {
+
+namespace {
+
+QString defaultDatabasePath() {
+    const QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (!QDir().mkpath(dataDir))
+        return QStringLiteral("ocapi.sqlite");
+    return dataDir + QStringLiteral("/ocapi.sqlite");
+}
+
+Role roleFromName(const QString &name) {
+    if (name == QLatin1String("system"))
+        return Role::System;
+    if (name == QLatin1String("assistant"))
+        return Role::Assistant;
+    if (name == QLatin1String("tool"))
+        return Role::Tool;
+    return Role::User;
+}
+
+} // namespace
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setWindowTitle(tr("ocapi"));
@@ -105,13 +131,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(m_backendCombo, &QComboBox::currentIndexChanged, this, [this]() {
         if (m_currentSession && m_backendCombo->currentData().isValid()) {
             m_currentSession->setBackendId(m_backendCombo->currentData().toString());
+            syncSessionToDatabase(m_currentSession);
             disconnectBackend();
         }
         detectModels();
     });
     connect(m_modelCombo, &QComboBox::currentTextChanged, this, [this](const QString &text) {
-        if (m_currentSession)
+        if (m_currentSession) {
             m_currentSession->setModel(text.trimmed());
+            syncSessionToDatabase(m_currentSession);
+        }
     });
     connect(m_modelCombo, &QComboBox::activated, this,
             [this](int) { onModelSelected(m_modelCombo->currentText()); });
@@ -120,6 +149,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     onBackendChanged();
     refreshSidebar();
 
+    if (!openDatabase())
+        statusBar()->showMessage(tr("Warning: chat storage unavailable, chats will not be "
+                                    "persisted."));
     if (m_sessions.isEmpty())
         createSession();
     else
@@ -157,8 +189,14 @@ void MainWindow::createSession(const QString &backendId, const QString &model) {
             refreshSidebar();
         }
     });
+    connect(session, &ChatSession::messageAdded, this, [this, session](const Message &message) {
+        persistMessageForSession(session, message);
+    });
 
     m_sessions.push_back(session);
+    persistSession(session);
+    connect(session, &ChatSession::titleChanged, this,
+            [this, session](const QString &) { syncSessionToDatabase(session); });
     refreshSidebar();
     onSessionSelected(session->id());
 }
@@ -193,6 +231,8 @@ void MainWindow::onSessionDeleteRequested(const QUuid &id) {
                 m_currentSession = nullptr;
                 m_chatView->setSession(nullptr);
             }
+            if (m_database.isOpen())
+                m_database.deleteSession((*it)->id().toString(QUuid::WithoutBraces));
             delete *it;
             m_sessions.erase(it);
             break;
@@ -210,6 +250,55 @@ void MainWindow::onSessionDeleteRequested(const QUuid &id) {
 void MainWindow::onManageBackends() {
     BackendDialog dialog(&m_registry, this);
     dialog.exec();
+}
+
+bool MainWindow::openDatabase() {
+    if (!m_database.open(defaultDatabasePath()))
+        return false;
+    for (const auto &sessionId : m_database.sessionIds()) {
+        const QUuid id(sessionId);
+        if (id.isNull())
+            continue;
+        auto *session = new ChatSession(id, m_database.sessionTitle(sessionId),
+                                        m_database.sessionBackendId(sessionId), this);
+        session->setModel(m_database.sessionModel(sessionId));
+        for (const auto &stored : m_database.messagesForSession(sessionId)) {
+            Message message;
+            message.id = QUuid(stored.id);
+            message.role = roleFromName(stored.role);
+            message.content = stored.content;
+            message.timestamp = stored.timestamp;
+            message.streaming = false;
+            message.error = stored.error;
+            if (!message.id.isNull())
+                session->appendMessage(message);
+        }
+        connect(session, &ChatSession::messageAdded, this, [this, session](const Message &message) {
+            persistMessageForSession(session, message);
+        });
+        m_sessions.push_back(session);
+    }
+    return true;
+}
+
+void MainWindow::persistSession(ChatSession *session) {
+    if (!m_database.isOpen())
+        return;
+    m_database.insertSession(*session);
+}
+
+void MainWindow::persistMessageForSession(ChatSession *session, const Message &message) {
+    if (!m_database.isOpen() || !session)
+        return;
+    m_database.insertMessage(session->id().toString(QUuid::WithoutBraces),
+                             message.id.toString(QUuid::WithoutBraces), message.roleName(),
+                             message.content, message.timestamp);
+}
+
+void MainWindow::syncSessionToDatabase(ChatSession *session) {
+    if (!m_database.isOpen() || !session)
+        return;
+    m_database.updateSession(*session);
 }
 
 void MainWindow::onBackendChanged() {
@@ -353,8 +442,12 @@ IBackend *MainWindow::activeBackend() {
 void MainWindow::connectBackend(IBackend *backend) {
     connect(backend, &IBackend::tokenReceived, this,
             [this](const QUuid &messageId, const QString &text) {
-                if (m_currentSession)
+                if (m_currentSession) {
                     m_currentSession->updateMessage(messageId, text, true);
+                    if (m_database.isOpen())
+                        m_database.updateMessage(messageId.toString(QUuid::WithoutBraces), text,
+                                                 true);
+                }
             });
     connect(backend, &IBackend::finished, this, [this](const QUuid &messageId) {
         if (m_currentSession)
@@ -367,6 +460,16 @@ void MainWindow::connectBackend(IBackend *backend) {
                                                                   return QString();
                                                               }(),
                                             false);
+        if (m_currentSession && m_database.isOpen()) {
+            const QString content = [&]() {
+                for (const auto &m : m_currentSession->messages())
+                    if (m.id == messageId)
+                        return m.content;
+                return QString();
+            }();
+            m_database.updateMessage(messageId.toString(QUuid::WithoutBraces), content, false);
+            syncSessionToDatabase(m_currentSession);
+        }
         m_streaming = false;
         m_composer->setBusy(false);
         m_sendButton->setVisible(true);
@@ -375,8 +478,11 @@ void MainWindow::connectBackend(IBackend *backend) {
         m_composer->focusInput();
     });
     connect(backend, &IBackend::failed, this, [this](const QUuid &messageId, const QString &error) {
-        if (m_currentSession)
+        if (m_currentSession) {
             m_currentSession->failMessage(messageId, error);
+            if (m_database.isOpen())
+                m_database.failMessage(messageId.toString(QUuid::WithoutBraces), error);
+        }
         m_streaming = false;
         m_composer->setBusy(false);
         m_sendButton->setVisible(true);

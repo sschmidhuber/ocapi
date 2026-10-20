@@ -5,7 +5,8 @@ set(OCAPI_TESTS
     tst_backendregistry
     tst_backendfactory
     tst_sseparser
-)
+    tst_chatdatabase)
+
 
 foreach(test_name ${OCAPI_TESTS})
     add_executable(${test_name} ${test_name}.cpp)

@@ -26,6 +26,32 @@ Any OpenAI-compatible server (LM Studio, LocalAI, text-generation-webui with
 the OpenAI extension, …) can be added as an "OpenAI" backend by setting its
 base URL — including remote machines, e.g. `http://192.168.1.10:8000/v1`.
 
+## MCP servers (Model Context Protocol)
+
+ocapi can connect to [MCP](https://modelcontextprotocol.io) servers and make
+their **tools**, **resources** and **prompts** available to the model. Open
+**Manage MCP servers…** in the sidebar to configure servers:
+
+- **Transports**: Streamable HTTP (MCP 2025-03-26+, JSON or SSE responses),
+  legacy HTTP+SSE, and **stdio** (spawn a local server process, e.g.
+  `npx -y @modelcontextprotocol/server-filesystem /tmp`).
+- **Connection test**: the dialog runs the MCP `initialize` handshake and
+  lists the server's tools, resources and prompts with their capabilities.
+- **Permissions**: per tool and per server you choose **Off** (disabled),
+  **Ask** (ocapi asks before every use) or **Allow** (no confirmation). The
+  server-wide default applies to tools without an override.
+- **Chat integration**: when the model calls a tool, the call and its result
+  are shown in the chat; ocapi then feeds the result back to the model and
+  continues the conversation automatically.
+
+MCP works with any backend that supports OpenAI-style function calling
+(OpenAI-compatible servers such as Ollama, llama.cpp and vLLM). The MCP
+client speaks the full protocol: tools, resources (list/read/templates),
+prompts (list/get), logging notifications and capability negotiation.
+
+MCP server configurations are stored in the same SQLite database as backends
+and chats.
+
 ## Attachments
 
 Besides images (JPEG, PNG, WebP, JPEG XL, AVIF, TIFF, GIF), PDF documents can be
@@ -87,9 +113,11 @@ Backend settings, API keys and chat history are stored in an SQLite database
 ```
 src/
   main.cpp                 application entry point
-  core/                    messages, chat sessions, backend configuration + registry
-  backends/                IBackend interface, SSE client/parser, one class per provider family
-  ui/                      main window, sidebar, chat view/delegate, composer, backend dialog
+  core/                    messages, chat sessions, backend + MCP configuration and registries
+  backends/                IBackend interface, SSE client/parser, one class per provider
+                           family, MCP client (stdio + HTTP transports)
+  ui/                      main window, sidebar, chat view/delegate, composer, backend and
+                           MCP server dialogs
 tests/                     Qt Test unit tests
 resources/icons/ocapi.svg  application icon
 data/                      XDG desktop entry

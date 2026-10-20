@@ -51,6 +51,40 @@ QJsonValue contentForMessage(const Message &message) {
     return parts;
 }
 
+QJsonObject assistantMessageToJson(const Message &message) {
+    QJsonObject object{
+        {QStringLiteral("role"), message.roleName()},
+        {QStringLiteral("content"), message.content.isEmpty() ? QJsonValue() : message.content},
+    };
+    if (message.hasToolCalls()) {
+        QJsonArray toolCalls;
+        for (const auto &call : message.toolCalls) {
+            toolCalls.append(QJsonObject{
+                {QStringLiteral("id"), call.id},
+                {QStringLiteral("type"), QStringLiteral("function")},
+                {QStringLiteral("function"),
+                 QJsonObject{
+                     {QStringLiteral("name"), call.name},
+                     {QStringLiteral("arguments"),
+                      QString::fromUtf8(
+                          QJsonDocument(call.arguments).toJson(QJsonDocument::Compact))},
+                 }},
+            });
+        }
+        object.insert(QStringLiteral("tool_calls"), toolCalls);
+    }
+    return object;
+}
+
+QJsonObject toolMessageToJson(const Message &message) {
+    return {
+        {QStringLiteral("role"), QStringLiteral("tool")},
+        {QStringLiteral("tool_call_id"), message.toolCallId},
+        {QStringLiteral("name"), message.toolName},
+        {QStringLiteral("content"), message.content},
+    };
+}
+
 } // namespace
 
 OpenAiApiBackend::OpenAiApiBackend(BackendConfig config, QObject *parent)
@@ -88,6 +122,9 @@ void OpenAiApiBackend::sendMessage(ChatSession *session, const QString &model) {
     cancel();
     m_currentMessageId = session->appendMessage(Role::Assistant).id;
     m_accumulated.clear();
+    m_pendingToolCalls.clear();
+    m_argumentsBuffer.clear();
+    m_hasToolCalls = false;
 
     QJsonArray messages;
     for (const auto &message : session->messages()) {
@@ -95,17 +132,29 @@ void OpenAiApiBackend::sendMessage(ChatSession *session, const QString &model) {
             break;
         if (!message.error.isEmpty())
             continue;
+        if (message.role == Role::Assistant && message.hasToolCalls()) {
+            messages.append(assistantMessageToJson(message));
+            continue;
+        }
+        if (message.role == Role::Tool) {
+            messages.append(toolMessageToJson(message));
+            continue;
+        }
         messages.append(QJsonObject{
             {QStringLiteral("role"), message.roleName()},
             {QStringLiteral("content"), contentForMessage(message)},
         });
     }
 
-    const QJsonObject payload{
+    QJsonObject payload{
         {QStringLiteral("model"), model},
         {QStringLiteral("messages"), messages},
         {QStringLiteral("stream"), true},
     };
+    if (m_toolsEnabled) {
+        payload.insert(QStringLiteral("tools"), m_availableTools);
+        payload.insert(QStringLiteral("tool_choice"), QStringLiteral("auto"));
+    }
 
     m_stream = std::make_unique<SseClient>(m_nam, this);
     connect(m_stream.get(), &SseClient::eventReceived, this,
@@ -117,19 +166,55 @@ void OpenAiApiBackend::sendMessage(ChatSession *session, const QString &model) {
                 const auto choices = object.value(QStringLiteral("choices")).toArray();
                 if (choices.isEmpty())
                     return;
-                const QString token = choices.first()
-                                          .toObject()
-                                          .value(QStringLiteral("delta"))
-                                          .toObject()
-                                          .value(QStringLiteral("content"))
-                                          .toString();
-                m_accumulated.append(token);
-                emit tokenReceived(m_currentMessageId, m_accumulated);
+                const auto choice = choices.first().toObject();
+                const auto delta = choice.value(QStringLiteral("delta")).toObject();
+                const QString token = delta.value(QStringLiteral("content")).toString();
+                if (!token.isEmpty()) {
+                    m_accumulated.append(token);
+                    emit tokenReceived(m_currentMessageId, m_accumulated);
+                }
+                const auto toolCallDeltas = delta.value(QStringLiteral("tool_calls")).toArray();
+                if (!toolCallDeltas.isEmpty()) {
+                    for (const auto &value : toolCallDeltas) {
+                        const auto toolCallDelta = value.toObject();
+                        const int index = toolCallDelta.value(QStringLiteral("index")).toInt();
+                        while (m_pendingToolCalls.size() <= index)
+                            m_pendingToolCalls.append(ToolCall{});
+                        auto &call = m_pendingToolCalls[index];
+                        const QString id = toolCallDelta.value(QStringLiteral("id")).toString();
+                        if (!id.isEmpty())
+                            call.id = id;
+                        const auto function =
+                            toolCallDelta.value(QStringLiteral("function")).toObject();
+                        call.name = function.value(QStringLiteral("name")).toString();
+                        m_argumentsBuffer[index].append(
+                            function.value(QStringLiteral("arguments")).toString());
+                    }
+                    m_hasToolCalls = true;
+                }
                 const QString finishReason =
-                    choices.first().toObject().value(QStringLiteral("finish_reason")).toString();
+                    choice.value(QStringLiteral("finish_reason")).toString();
                 if (finishReason == QStringLiteral("stop") ||
-                    finishReason == QStringLiteral("length"))
+                    finishReason == QStringLiteral("length") ||
+                    finishReason == QStringLiteral("tool_calls")) {
+                    if (m_hasToolCalls && !m_pendingToolCalls.isEmpty()) {
+                        // Arguments arrive as JSON fragments; parse the
+                        // accumulated buffer per call.
+                        for (int i = 0; i < m_pendingToolCalls.size(); ++i) {
+                            const QString buffer = m_argumentsBuffer.value(i);
+                            m_pendingToolCalls[i].arguments =
+                                QJsonDocument::fromJson(buffer.toUtf8()).object();
+                            if (m_pendingToolCalls[i].id.isEmpty())
+                                m_pendingToolCalls[i].id = QStringLiteral("call_%1").arg(i);
+                        }
+                        emit toolCallsRequested(m_currentMessageId, m_pendingToolCalls);
+                        m_pendingToolCalls.clear();
+                        m_argumentsBuffer.clear();
+                        m_hasToolCalls = false;
+                        m_accumulated.clear();
+                    }
                     emit finished(m_currentMessageId);
+                }
             });
     connect(m_stream.get(), &SseClient::httpError, this, [this](int, const QByteArray &body) {
         const auto error = QJsonDocument::fromJson(body)
@@ -153,6 +238,15 @@ void OpenAiApiBackend::sendMessage(ChatSession *session, const QString &model) {
 void OpenAiApiBackend::cancel() {
     if (m_stream)
         m_stream->cancel();
+}
+
+bool OpenAiApiBackend::supportsTools() const {
+    return true;
+}
+
+void OpenAiApiBackend::setAvailableTools(const QJsonArray &tools) {
+    m_toolsEnabled = !tools.isEmpty();
+    m_availableTools = tools;
 }
 
 } // namespace ocapi

@@ -7,12 +7,14 @@
 #include "ui/backenddialog.h"
 #include "ui/chatview.h"
 #include "ui/composer.h"
+#include "ui/mcpdialog.h"
 #include "ui/sidebar.h"
 
 #include <QComboBox>
 #include <QDateTime>
 #include <QDir>
 #include <QHBoxLayout>
+#include <QJsonDocument>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
@@ -65,7 +67,7 @@ void appendStoredMessage(ChatSession *session, const StoredMessage &stored) {
 
 } // namespace
 
-MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_mcpRegistry) {
     setWindowTitle(tr("ocapi"));
     resize(1100, 720);
 
@@ -73,6 +75,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         statusBar()->showMessage(tr("Warning: chat storage unavailable, chats will not be "
                                     "persisted."));
     loadBackendsFromDatabase();
+    loadMcpServersFromDatabase();
 
     auto *central = new QWidget(this);
     auto *centralLayout = new QHBoxLayout(central);
@@ -137,13 +140,19 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     m_statusLabel = new QLabel(statusBar());
     statusBar()->addPermanentWidget(m_statusLabel);
+    m_mcpStatusLabel = new QLabel(statusBar());
+    statusBar()->addPermanentWidget(m_mcpStatusLabel);
     statusBar()->showMessage(tr("Ready"));
+
+    m_mcpManager.reload();
+    onMcpToolsChanged();
 
     connect(m_sidebar, &Sidebar::newChatRequested, this, &MainWindow::onNewChat);
     connect(m_sidebar, &Sidebar::sessionSelected, this, &MainWindow::onSessionSelected);
     connect(m_sidebar, &Sidebar::sessionDeleteRequested, this,
             &MainWindow::onSessionDeleteRequested);
     connect(m_sidebar, &Sidebar::manageBackendsRequested, this, &MainWindow::onManageBackends);
+    connect(m_sidebar, &Sidebar::manageMcpServersRequested, this, &MainWindow::onManageMcpServers);
     connect(m_composer, &Composer::sendRequested, this,
             [this](const QString &text, const QVector<ImageAttachment> &images) {
                 onSend(text, images);
@@ -173,6 +182,34 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(m_modelCombo, &QComboBox::activated, this,
             [this](int) { onModelSelected(m_modelCombo->currentText()); });
     connect(&m_registry, &BackendRegistry::changed, this, &MainWindow::onBackendChanged);
+    connect(&m_mcpManager, &McpManager::toolsChanged, this, &MainWindow::onMcpToolsChanged);
+    connect(&m_mcpManager, &McpManager::permissionRequested, this,
+            &MainWindow::onMcpPermissionRequested);
+    connect(&m_mcpManager, &McpManager::serverLog, this,
+            [this](const QString &serverName, const QString &level, const QString &message) {
+                statusBar()->showMessage(tr("MCP [%1] %2: %3").arg(serverName, level, message),
+                                         10000);
+            });
+    connect(&m_mcpManager, &McpManager::serverStateChanged, this,
+            [this](const QString &, const QString &serverName, bool connected) {
+                statusBar()->showMessage(
+                    connected ? tr("MCP server \"%1\" connected.").arg(serverName)
+                              : tr("MCP server \"%1\" disconnected.").arg(serverName),
+                    5000);
+                onMcpToolsChanged();
+            });
+    connect(&m_mcpManager, &McpManager::toolResultReady, this,
+            [this](const QString &toolName, const QString &resultText, bool isError) {
+                Q_UNUSED(resultText)
+                statusBar()->showMessage(isError ? tr("MCP tool \"%1\" failed.").arg(toolName)
+                                                 : tr("MCP tool \"%1\" finished.").arg(toolName),
+                                         5000);
+            });
+    connect(&m_mcpManager, &McpManager::toolCallFailed, this,
+            [this](const QString &toolName, const QString &error) {
+                statusBar()->showMessage(tr("MCP tool \"%1\" failed: %2").arg(toolName, error),
+                                         10000);
+            });
 
     onBackendChanged();
     refreshSidebar();
@@ -276,6 +313,16 @@ void MainWindow::onSessionDeleteRequested(const QUuid &id) {
 void MainWindow::onManageBackends() {
     BackendDialog dialog(&m_registry, this);
     dialog.exec();
+}
+
+void MainWindow::onManageMcpServers() {
+    McpDialog dialog(&m_mcpRegistry, &m_mcpManager, this);
+    dialog.exec();
+}
+
+void MainWindow::loadMcpServersFromDatabase() {
+    if (m_database.isOpen())
+        m_mcpRegistry.load(m_database);
 }
 
 bool MainWindow::openDatabase() {
@@ -449,7 +496,7 @@ double MainWindow::throughputFor(const QUuid &messageId) {
 }
 
 void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &images) {
-    if (!m_currentSession || m_streaming)
+    if (!m_currentSession || m_streaming || m_runningTools)
         return;
     if (text.isEmpty() && images.isEmpty())
         return;
@@ -485,6 +532,8 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
     m_composer->clearAttachments();
 
     m_backend = createBackend(*config);
+    if (m_backend->supportsTools())
+        m_backend->setAvailableTools(m_mcpManager.availableTools());
     m_streamedTokens = 0;
     m_firstToken = QDateTime();
     connectBackend(m_backend.get());
@@ -514,6 +563,7 @@ IBackend *MainWindow::activeBackend() {
 }
 
 void MainWindow::connectBackend(IBackend *backend) {
+    connect(backend, &IBackend::toolCallsRequested, this, &MainWindow::onToolCallsRequested);
     connect(backend, &IBackend::tokenReceived, this,
             [this](const QUuid &messageId, const QString &text) {
                 if (messageId == m_streamedMessageId) {
@@ -578,6 +628,127 @@ void MainWindow::disconnectBackend() {
     m_composer->setBusy(false);
     m_sendButton->setVisible(true);
     m_stopButton->setVisible(false);
+}
+
+void MainWindow::onToolCallsRequested(const QUuid &messageId, const QVector<ToolCall> &toolCalls) {
+    if (!m_currentSession || toolCalls.isEmpty())
+        return;
+    // Record the requested tool calls on the assistant message so the chat UI
+    // can render them and the conversation history stays complete.
+    m_currentSession->setToolCalls(messageId, toolCalls);
+    runToolCalls(m_currentSession, messageId, toolCalls);
+}
+
+void MainWindow::runToolCalls(ChatSession *session, const QUuid &assistantMessageId,
+                              const QVector<ToolCall> &toolCalls) {
+    Q_UNUSED(assistantMessageId)
+    m_runningTools = true;
+    m_toolSession = session;
+    m_pendingToolRounds = static_cast<int>(toolCalls.size());
+    m_composer->setBusy(true);
+    statusBar()->showMessage(tr("Running MCP tools…"));
+    // Watch for tool result messages; each result decrements the round count.
+    auto *watcher = new QObject(this);
+    connect(session, &ChatSession::messageAdded, watcher,
+            [this, session, watcher](const Message &message) {
+                if (message.role != Role::Tool)
+                    return;
+                watcher->deleteLater();
+                --m_pendingToolRounds;
+                if (m_pendingToolRounds <= 0)
+                    continueAfterToolResults(session);
+            });
+    for (const auto &call : toolCalls) {
+        // executeToolCall returns false when the user must be asked first; in
+        // that case the round is accounted for when the permission is decided
+        // (see onMcpPermissionRequested). Synchronous failures (unknown tool,
+        // disabled tool/server) append a Role::Tool message immediately, which
+        // the watcher above picks up.
+        m_mcpManager.executeToolCall(session, call);
+    }
+    // When every call failed synchronously, the watcher already fired and the
+    // loop continues via continueAfterToolResults. Calls that need a permission
+    // decision resume in onMcpPermissionRequested.
+}
+
+void MainWindow::continueAfterToolResults(ChatSession *session) {
+    if (!session || session != m_currentSession)
+        return;
+    m_runningTools = false;
+    m_toolSession = nullptr;
+    // Send the conversation (now including tool results) back to the model.
+    const QString backendId = session->backendId();
+    auto *config = m_registry.find(backendId);
+    if (!config || !config->enabled) {
+        endStreaming(tr("Ready"));
+        return;
+    }
+    QString model = session->model();
+    if (model.isEmpty())
+        model = m_modelCombo->currentText().trimmed();
+    m_backend = createBackend(*config);
+    if (m_backend->supportsTools())
+        m_backend->setAvailableTools(m_mcpManager.availableTools());
+    m_streamedTokens = 0;
+    m_firstToken = QDateTime();
+    connectBackend(m_backend.get());
+    m_streaming = true;
+    m_composer->setBusy(true);
+    m_sendButton->setVisible(false);
+    m_stopButton->setVisible(true);
+    statusBar()->showMessage(tr("Generating…"));
+    const qsizetype count = session->messages().size();
+    m_backend->sendMessage(session, model);
+    if (session->messages().size() > count) {
+        const Message &assistant = session->messages().constLast();
+        if (assistant.role == Role::Assistant)
+            m_streamedMessageId = assistant.id;
+    }
+}
+
+void MainWindow::onMcpPermissionRequested(const QString &callKey, const QString &serverName,
+                                          const QString &toolName, const QJsonObject &arguments) {
+    const QString args =
+        QString::fromUtf8(QJsonDocument(arguments).toJson(QJsonDocument::Indented));
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Question);
+    box.setWindowTitle(tr("Allow tool call?"));
+    box.setText(tr("MCP server \"%1\" wants to run the tool \"%2\".").arg(serverName, toolName));
+    box.setDetailedText(args);
+    box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    box.setDefaultButton(QMessageBox::No);
+    const bool allow = box.exec() == QMessageBox::Yes;
+    // decidePermission either starts the call (result arrives via the session's
+    // messageAdded signal) or appends a denial message synchronously.
+    const int toolMessagesBefore = [this]() {
+        int count = 0;
+        if (m_toolSession)
+            for (const auto &message : m_toolSession->messages())
+                if (message.role == Role::Tool)
+                    ++count;
+        return count;
+    }();
+    m_mcpManager.decidePermission(callKey, allow);
+    if (!allow && m_toolSession) {
+        // Denied: a tool message was appended synchronously; account for it.
+        int toolMessagesAfter = 0;
+        for (const auto &message : m_toolSession->messages())
+            if (message.role == Role::Tool)
+                ++toolMessagesAfter;
+        if (toolMessagesAfter > toolMessagesBefore) {
+            --m_pendingToolRounds;
+            if (m_pendingToolRounds <= 0)
+                continueAfterToolResults(m_toolSession);
+        }
+    }
+}
+
+void MainWindow::onMcpToolsChanged() {
+    const int toolCount = m_mcpManager.allTools().size();
+    if (toolCount == 0)
+        m_mcpStatusLabel->setText(tr("MCP: no tools"));
+    else
+        m_mcpStatusLabel->setText(tr("MCP: %n tool(s)", nullptr, toolCount));
 }
 
 void MainWindow::updateEmptyState() {

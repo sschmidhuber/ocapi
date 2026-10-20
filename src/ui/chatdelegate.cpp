@@ -6,6 +6,8 @@
 #include <QPainter>
 #include <QTextDocument>
 
+#include <QJsonDocument>
+
 namespace ocapi {
 
 namespace {
@@ -25,6 +27,30 @@ QVector<QImage> decodeImages(const QModelIndex &index) {
     for (const auto &attachment : attachments)
         images.push_back(attachment.decode());
     return images;
+}
+
+QVector<ToolCall> decodeToolCalls(const QModelIndex &index) {
+    return index.data(static_cast<int>(Qt::UserRole) + 6).value<QVector<ToolCall>>();
+}
+
+QString formatToolArguments(const QJsonObject &arguments) {
+    return QString::fromUtf8(QJsonDocument(arguments).toJson(QJsonDocument::Compact));
+}
+
+QString toolCallDisplayText(const ToolCall &call) {
+    return QStringLiteral("\U0001F9EA0 %1(%2)").arg(call.name, formatToolArguments(call.arguments));
+}
+
+int toolCallsBlockHeight(const QVector<ToolCall> &toolCalls, const QFont &font, int maxTextWidth) {
+    int height = 0;
+    for (const auto &call : toolCalls) {
+        QTextDocument callDoc;
+        callDoc.setDefaultFont(font);
+        callDoc.setTextWidth(maxTextWidth);
+        callDoc.setPlainText(toolCallDisplayText(call));
+        height += callDoc.size().toSize().height() + 2;
+    }
+    return height;
 }
 
 int imagesBlockWidth(const QVector<QImage> &images) {
@@ -56,6 +82,10 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     const bool streaming = index.data(static_cast<int>(Qt::UserRole) + 2).toBool();
     const QString error = index.data(static_cast<int>(Qt::UserRole) + 3).toString();
     const QVector<QImage> images = decodeImages(index);
+    const QVector<ToolCall> toolCalls = decodeToolCalls(index);
+    const bool isToolMessage =
+        index.data(static_cast<int>(Qt::UserRole) + 1).toString() == QStringLiteral("Tool");
+    const QString toolName = index.data(static_cast<int>(Qt::UserRole) + 7).toString();
 
     const QRect rect = option.rect.adjusted(kBubbleMargin, 4, -kBubbleMargin, -4);
 
@@ -81,14 +111,19 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     QString displayText = content;
     if (streaming && !displayText.isEmpty())
         displayText.append(QChar(0x2588)); // block cursor while streaming
+    if (isToolMessage && !toolName.isEmpty())
+        displayText.prepend(QStringLiteral("\U0001F9EA0 %1\n").arg(toolName));
     doc.setPlainText(displayText.isEmpty() && streaming ? QStringLiteral("…") : displayText);
     const QSize textSize = doc.size().toSize();
+
+    const int toolCallsHeight = toolCallsBlockHeight(toolCalls, option.font, maxTextWidth);
 
     const int imageBlockWidth = imagesBlockWidth(images);
     const int imageBlockHeight = images.isEmpty() ? 0 : imagesBlockHeight(images) + kImageSpacing;
     const int contentWidth =
         qMax(textSize.width(), qMin(imageBlockWidth, maxTextWidth)) + 2 * kBubblePadding;
-    const int contentHeight = textSize.height() + imageBlockHeight + 2 * kBubblePadding + 18;
+    const int contentHeight =
+        textSize.height() + imageBlockHeight + toolCallsHeight + 2 * kBubblePadding + 18;
 
     QRect bubbleRect;
     if (isUser) {
@@ -118,9 +153,27 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
         painter->drawText(labelRect, Qt::AlignRight | Qt::AlignVCenter, throughput);
     }
 
+    // Tool calls requested by the assistant, above the message text.
+    int toolY = bubbleRect.top() + kBubblePadding + 8;
+    QFont toolFont = option.font;
+    toolFont.setItalic(true);
+    painter->setFont(toolFont);
+    painter->setPen(option.palette.color(QPalette::Text).darker(120));
+    for (const auto &call : toolCalls) {
+        QTextDocument callDoc;
+        callDoc.setDefaultFont(toolFont);
+        callDoc.setTextWidth(bubbleRect.width() - 2 * kBubblePadding);
+        callDoc.setPlainText(toolCallDisplayText(call));
+        const int callHeight = callDoc.size().toSize().height();
+        painter->translate(bubbleRect.left() + kBubblePadding, toolY);
+        callDoc.drawContents(painter);
+        painter->translate(-(bubbleRect.left() + kBubblePadding), -toolY);
+        toolY += callHeight + 2;
+    }
+
     // Images above the message text inside the bubble.
     int x = bubbleRect.left() + kBubblePadding;
-    const int imageTop = bubbleRect.top() + kBubblePadding + 8;
+    const int imageTop = bubbleRect.top() + kBubblePadding + 8 + toolCallsHeight;
     for (const auto &image : images) {
         const int targetWidth = qMin(image.width(), kImageSize);
         const int targetHeight = qMin(image.height(), kImageSize);
@@ -133,7 +186,7 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     painter->setFont(option.font);
     painter->setPen(textColor);
     painter->translate(bubbleRect.left() + kBubblePadding,
-                       bubbleRect.top() + kBubblePadding + 8 + imageBlockHeight);
+                       bubbleRect.top() + kBubblePadding + 8 + toolCallsHeight + imageBlockHeight);
     if (!error.isEmpty()) {
         QFont errorFont = option.font;
         errorFont.setItalic(true);
@@ -160,8 +213,10 @@ QSize ChatDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelInd
     doc.setTextWidth(maxTextWidth);
     doc.setPlainText(content);
     const int imageBlockHeight = images.isEmpty() ? 0 : imagesBlockHeight(images) + kImageSpacing;
+    const int toolCallsHeight =
+        toolCallsBlockHeight(decodeToolCalls(index), option.font, maxTextWidth);
     return {option.rect.width(), static_cast<int>(doc.size().height()) + imageBlockHeight +
-                                     2 * kBubblePadding + 18 + 8 + 14};
+                                     toolCallsHeight + 2 * kBubblePadding + 18 + 8 + 14};
 }
 
 } // namespace ocapi

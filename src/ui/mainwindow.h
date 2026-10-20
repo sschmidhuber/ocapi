@@ -2,6 +2,8 @@
 
 #include "core/backendregistry.h"
 #include "core/imagemessage.h"
+#include "core/mcpmanager.h"
+#include "core/mcpregistry.h"
 #include "core/message.h"
 #include "storage/chatdatabase.h"
 #include <QDateTime>
@@ -34,11 +36,16 @@ private slots:
     void onSessionSelected(const QUuid &id);
     void onSessionDeleteRequested(const QUuid &id);
     void onManageBackends();
+    void onManageMcpServers();
     void onSend(const QString &text, const QVector<ImageAttachment> &images = {});
     void onStop();
     void onBackendChanged();
     void onModelSelected(const QString &model);
     void onModelsDetected(const QStringList &models);
+    void onToolCallsRequested(const QUuid &messageId, const QVector<ToolCall> &toolCalls);
+    void onMcpPermissionRequested(const QString &callKey, const QString &serverName,
+                                  const QString &toolName, const QJsonObject &arguments);
+    void onMcpToolsChanged();
 
 private:
     void createSession(const QString &backendId = {}, const QString &model = {});
@@ -47,6 +54,7 @@ private:
     void updateEmptyState();
     [[nodiscard]] bool openDatabase();
     void loadBackendsFromDatabase();
+    void loadMcpServersFromDatabase();
     void loadOlderMessages(ChatSession *session);
     void persistSession(ChatSession *session);
     void persistMessageForSession(ChatSession *session, const Message &message);
@@ -58,8 +66,15 @@ private:
     void connectBackend(IBackend *backend);
     void disconnectBackend();
     void detectModels();
+    // Runs the MCP tool-call loop for the session: executes the requested
+    // tools and re-sends the conversation until the model answers with text.
+    void runToolCalls(ChatSession *session, const QUuid &assistantMessageId,
+                      const QVector<ToolCall> &toolCalls);
+    void continueAfterToolResults(ChatSession *session);
 
     BackendRegistry m_registry;
+    McpRegistry m_mcpRegistry;
+    McpManager m_mcpManager;
     ChatDatabase m_database;
     QVector<ChatSession *> m_sessions;
     ChatSession *m_currentSession = nullptr;
@@ -67,10 +82,14 @@ private:
     std::unique_ptr<IBackend> m_detectorBackend;
     bool m_streaming = false;
     bool m_loadingOlder = false;
+    bool m_runningTools = false; // a tool-call round is in progress
     QUuid m_streamedMessageId;
     int m_streamedTokens = 0;
     QDateTime m_firstToken;
     QString m_detectedBackendId;
+    // Session waiting for tool results before the next model round.
+    ChatSession *m_toolSession = nullptr;
+    int m_pendingToolRounds = 0;
 
     Sidebar *m_sidebar = nullptr;
     ChatView *m_chatView = nullptr;
@@ -81,6 +100,7 @@ private:
     QPushButton *m_stopButton = nullptr;
     QLabel *m_statusLabel = nullptr;
     QLabel *m_emptyLabel = nullptr;
+    QLabel *m_mcpStatusLabel = nullptr;
 };
 
 } // namespace ocapi

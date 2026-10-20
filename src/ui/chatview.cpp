@@ -17,6 +17,8 @@ enum DataRoles {
     ErrorRole,
     ThroughputRole,
     ImagesRole,
+    ToolCallsRole,
+    ToolNameRole,
 };
 
 class ChatModel : public QAbstractListModel {
@@ -39,7 +41,11 @@ public:
         case IsUserRole:
             return message.role == Role::User;
         case RoleLabelRole:
-            return message.role == Role::User ? tr("You") : tr("Assistant");
+            if (message.role == Role::User)
+                return tr("You");
+            if (message.role == Role::Tool)
+                return tr("Tool");
+            return tr("Assistant");
         case StreamingRole:
             return message.streaming;
         case ErrorRole:
@@ -48,6 +54,10 @@ public:
             return message.tokensPerSecond;
         case ImagesRole:
             return QVariant::fromValue(message.images);
+        case ToolCallsRole:
+            return QVariant::fromValue(message.toolCalls);
+        case ToolNameRole:
+            return message.role == Role::Tool ? message.toolName : QString();
         default:
             return {};
         }

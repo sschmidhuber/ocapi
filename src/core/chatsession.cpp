@@ -59,6 +59,19 @@ void ChatSession::updateMessage(const QUuid &id, const QString &content, bool st
     }
 }
 
+void ChatSession::setToolCalls(const QUuid &id, const QVector<ToolCall> &toolCalls) {
+    for (auto &message : m_messages) {
+        if (message.id == id) {
+            if (message.toolCalls == toolCalls)
+                return;
+            message.toolCalls = toolCalls;
+            message.streaming = false;
+            emit messageUpdated(message);
+            return;
+        }
+    }
+}
+
 void ChatSession::setThroughput(const QUuid &id, double tokensPerSecond) {
     for (auto &message : m_messages) {
         if (message.id == id) {

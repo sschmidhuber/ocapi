@@ -230,7 +230,7 @@ void BackendDialog::onTestModelsReady(const QStringList &models) {
         const int shown = std::min<int>(models.size(), 8);
         for (int i = 0; i < shown; ++i)
             text += QStringLiteral("\n• %1").arg(models.at(i));
-        if (models.size() > shown)
+        if (static_cast<int>(models.size()) > shown)
             text += QStringLiteral("\n• …");
         if (m_modelEdit->text().trimmed().isEmpty() && !models.isEmpty()) {
             m_modelEdit->setText(models.first());

@@ -8,7 +8,7 @@ machines.
 - C++23, Qt 6 (Widgets + Network)
 - Streaming responses over Server-Sent Events
 - KDE Plasma look & feel, works on GNOME and other desktops
-- Free desktop standards (XDG desktop entry, QSettings for configuration)
+- Free desktop standards (XDG desktop entry, SQLite storage in the XDG data dir)
 
 ## Supported backends
 
@@ -65,8 +65,8 @@ To build without tests: `cmake -B build -DOCAPI_BUILD_TESTS=OFF`.
 3. Back in the main window, pick the backend and model, then chat.
    Responses stream in token by token; press **Stop** to cancel.
 
-API keys and backend settings are stored via `QSettings`
-(`~/.config/sschmidhuber/ocapi.conf`).
+Backend settings, API keys and chat history are stored in an SQLite database
+(`$XDG_DATA_HOME/sschmidhuber/ocapi/ocapi.sqlite`).
 
 ## Project layout
 

@@ -2,63 +2,9 @@
 
 #include "storage/chatdatabase.h"
 
-#include <QSettings>
-
 namespace ocapi {
 
-namespace {
-
-constexpr auto kGroup = "backends";
-constexpr auto kCount = "count";
-
-} // namespace
-
 BackendRegistry::BackendRegistry(QObject *parent) : QObject(parent) {}
-
-void BackendRegistry::loadFromSettings() {
-    m_backends.clear();
-    QSettings settings;
-    settings.beginGroup(kGroup);
-    const int count = settings.beginReadArray(kCount);
-    for (int i = 0; i < count; ++i) {
-        settings.setArrayIndex(i);
-        BackendConfig config;
-        config.id = QUuid(settings.value(QStringLiteral("id")).toString());
-        if (config.id.isNull())
-            config.id = QUuid::createUuid();
-        config.name = settings.value(QStringLiteral("name")).toString();
-        config.kind =
-            BackendConfig::kindFromString(settings.value(QStringLiteral("kind")).toString());
-        config.baseUrl = settings.value(QStringLiteral("baseUrl")).toString();
-        if (config.baseUrl.isEmpty())
-            config.baseUrl = BackendConfig::defaultBaseUrl(config.kind);
-        config.apiKey = settings.value(QStringLiteral("apiKey")).toString();
-        config.defaultModel = settings.value(QStringLiteral("defaultModel")).toString();
-        config.enabled = settings.value(QStringLiteral("enabled"), true).toBool();
-        m_backends.push_back(std::move(config));
-    }
-    settings.endArray();
-    settings.endGroup();
-}
-
-void BackendRegistry::saveToSettings() const {
-    QSettings settings;
-    settings.beginGroup(kGroup);
-    settings.beginWriteArray(kCount);
-    for (int i = 0; i < m_backends.size(); ++i) {
-        const auto &config = m_backends.at(i);
-        settings.setArrayIndex(i);
-        settings.setValue(QStringLiteral("id"), config.id.toString());
-        settings.setValue(QStringLiteral("name"), config.name);
-        settings.setValue(QStringLiteral("kind"), BackendConfig::kindKey(config.kind));
-        settings.setValue(QStringLiteral("baseUrl"), config.baseUrl);
-        settings.setValue(QStringLiteral("apiKey"), config.apiKey);
-        settings.setValue(QStringLiteral("defaultModel"), config.defaultModel);
-        settings.setValue(QStringLiteral("enabled"), config.enabled);
-    }
-    settings.endArray();
-    settings.endGroup();
-}
 
 void BackendRegistry::load(ChatDatabase &database) {
     m_backends = database.loadBackends();
@@ -70,12 +16,10 @@ void BackendRegistry::attachDatabase(ChatDatabase *database) {
 }
 
 void BackendRegistry::save() const {
-    if (m_database) {
-        for (const auto &config : m_backends)
-            m_database->insertBackend(config);
+    if (!m_database)
         return;
-    }
-    saveToSettings();
+    for (const auto &config : m_backends)
+        m_database->insertBackend(config);
 }
 
 BackendConfig &BackendRegistry::add(const QString &name, BackendKind kind) {

@@ -1,7 +1,7 @@
 #pragma once
-
 #include <QString>
 #include <QUuid>
+#include <QVector>
 
 namespace ocapi {
 
@@ -13,13 +13,17 @@ enum class BackendKind {
     Anthropic,
     Gemini,
     Mistral,
+    Zai,
+    Qwen,
+    DeepSeek,
+    Groq,
 };
 
 struct BackendConfig {
     QUuid id = QUuid::createUuid();
     QString name;
     BackendKind kind = BackendKind::Ollama;
-    QString baseUrl = QStringLiteral("http://127.0.0.1:11434");
+    QString baseUrl;
     QString apiKey;
     QString defaultModel;
     bool enabled = true;
@@ -27,6 +31,14 @@ struct BackendConfig {
     [[nodiscard]] static QString kindName(BackendKind kind);
     [[nodiscard]] static QString kindDescription(BackendKind kind);
     [[nodiscard]] static QString defaultBaseUrl(BackendKind kind);
+    [[nodiscard]] static bool isCloud(BackendKind kind);
+    [[nodiscard]] static bool requiresApiKey(BackendKind kind);
+    [[nodiscard]] static const QVector<BackendKind> &allKinds();
+    [[nodiscard]] bool isCloud() const { return isCloud(kind); }
+    [[nodiscard]] QString effectiveBaseUrl() const {
+        const QString trimmed = baseUrl.trimmed();
+        return trimmed.isEmpty() ? defaultBaseUrl(kind) : trimmed;
+    }
     [[nodiscard]] QString kindName() const { return kindName(kind); }
 };
 

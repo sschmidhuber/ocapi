@@ -34,6 +34,7 @@ private slots:
     void onStop();
     void onBackendChanged();
     void onModelSelected(const QString &model);
+    void onModelsDetected(const QStringList &models);
 
 private:
     void createSession(const QString &backendId = {}, const QString &model = {});
@@ -43,12 +44,15 @@ private:
     IBackend *activeBackend();
     void connectBackend(IBackend *backend);
     void disconnectBackend();
+    void detectModels();
 
     BackendRegistry m_registry;
     QVector<ChatSession *> m_sessions;
     ChatSession *m_currentSession = nullptr;
     std::unique_ptr<IBackend> m_backend;
+    std::unique_ptr<IBackend> m_detectorBackend;
     bool m_streaming = false;
+    QString m_detectedBackendId;
 
     Sidebar *m_sidebar = nullptr;
     ChatView *m_chatView = nullptr;

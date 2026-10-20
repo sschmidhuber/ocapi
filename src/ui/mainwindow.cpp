@@ -107,6 +107,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
             m_currentSession->setBackendId(m_backendCombo->currentData().toString());
             disconnectBackend();
         }
+        detectModels();
     });
     connect(m_modelCombo, &QComboBox::currentTextChanged, this, [this](const QString &text) {
         if (m_currentSession)
@@ -212,8 +213,10 @@ void MainWindow::onManageBackends() {
 }
 
 void MainWindow::onBackendChanged() {
+    m_detectedBackendId.clear();
     refreshBackendSelector();
     updateEmptyState();
+    detectModels();
 }
 
 void MainWindow::refreshSidebar() {
@@ -258,6 +261,44 @@ void MainWindow::refreshBackendSelector() {
 void MainWindow::onModelSelected(const QString &model) {
     if (m_currentSession)
         m_currentSession->setModel(model.trimmed());
+}
+
+void MainWindow::detectModels() {
+    const QString backendId = m_backendCombo->currentData().toString();
+    const auto *config = m_registry.find(backendId);
+    if (!config || !config->enabled)
+        return;
+    if (m_detectedBackendId == backendId)
+        return;
+    m_detectedBackendId = backendId;
+    m_detectorBackend = createBackend(*config);
+    connect(m_detectorBackend.get(), &IBackend::modelsReady, this, &MainWindow::onModelsDetected);
+    connect(m_detectorBackend.get(), &IBackend::modelsFailed, this,
+            [this](const QString &) { m_detectorBackend.reset(); });
+    m_detectorBackend->listModels();
+}
+
+void MainWindow::onModelsDetected(const QStringList &models) {
+    m_detectorBackend.reset();
+    if (models.isEmpty())
+        return;
+    const QString backendId = m_backendCombo->currentData().toString();
+    if (backendId != m_detectedBackendId)
+        return;
+    const auto *config = m_registry.find(backendId);
+    if (!config)
+        return;
+    // Keep any currently selected model first; add detected models as choices.
+    const QString current = m_modelCombo->currentText();
+    const QSignalBlocker blocker(m_modelCombo);
+    m_modelCombo->clear();
+    if (!config->defaultModel.isEmpty())
+        m_modelCombo->addItem(config->defaultModel);
+    for (const auto &model : models) {
+        if (m_modelCombo->findText(model) < 0)
+            m_modelCombo->addItem(model);
+    }
+    m_modelCombo->setCurrentText(current);
 }
 
 void MainWindow::onSend(const QString &text) {

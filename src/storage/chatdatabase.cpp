@@ -12,7 +12,11 @@ namespace ocapi {
 namespace {
 
 constexpr auto kConnectionName = "ocapi_chat";
-QAtomicInt s_connectionCounter = 0;
+
+int nextConnectionCounter() {
+    static QAtomicInt counter = 0;
+    return counter.fetchAndAddRelaxed(1);
+}
 
 void createTables(QSqlDatabase &database) {
     QSqlQuery query(database);
@@ -39,10 +43,9 @@ void createTables(QSqlDatabase &database) {
 
 } // namespace
 
-ChatDatabase::ChatDatabase() {
-    m_connectionName = QString::fromLatin1(kConnectionName) + QLatin1Char('-') +
-                       QString::number(s_connectionCounter.fetchAndAddRelaxed(1));
-}
+ChatDatabase::ChatDatabase()
+    : m_connectionName(QString::fromLatin1(kConnectionName) + QLatin1Char('-') +
+                       QString::number(nextConnectionCounter())) {}
 
 ChatDatabase::~ChatDatabase() {
     close();
@@ -77,13 +80,13 @@ void ChatDatabase::close() {
     QSqlDatabase::removeDatabase(name);
 }
 
-bool ChatDatabase::execute(const QString &statement, const QVariantList &bindings) {
-    QSqlQuery query(m_database);
-    query.prepare(statement);
+bool ChatDatabase::execute(const QString &query, const QVariantList &bindings) {
+    QSqlQuery statement(m_database);
+    statement.prepare(query);
     for (const auto &binding : bindings)
-        query.addBindValue(binding);
-    if (!query.exec()) {
-        m_lastError = query.lastError().text();
+        statement.addBindValue(binding);
+    if (!statement.exec()) {
+        m_lastError = statement.lastError().text();
         return false;
     }
     return true;

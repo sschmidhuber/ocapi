@@ -442,53 +442,46 @@ IBackend *MainWindow::activeBackend() {
 void MainWindow::connectBackend(IBackend *backend) {
     connect(backend, &IBackend::tokenReceived, this,
             [this](const QUuid &messageId, const QString &text) {
-                if (m_currentSession) {
+                if (m_currentSession)
                     m_currentSession->updateMessage(messageId, text, true);
-                    if (m_database.isOpen())
-                        m_database.updateMessage(messageId.toString(QUuid::WithoutBraces), text,
-                                                 true);
-                }
+                if (m_database.isOpen())
+                    m_database.updateMessage(messageId.toString(QUuid::WithoutBraces), text, true);
             });
     connect(backend, &IBackend::finished, this, [this](const QUuid &messageId) {
+        const QString content = messageContent(messageId);
         if (m_currentSession)
-            m_currentSession->updateMessage(messageId, m_currentSession->messages().isEmpty()
-                                                            ? QString()
-                                                            : [&]() {
-                                                                  for (const auto& m : m_currentSession->messages())
-                                                                      if (m.id == messageId)
-                                                                          return m.content;
-                                                                  return QString();
-                                                              }(),
-                                            false);
-        if (m_currentSession && m_database.isOpen()) {
-            const QString content = [&]() {
-                for (const auto &m : m_currentSession->messages())
-                    if (m.id == messageId)
-                        return m.content;
-                return QString();
-            }();
+            m_currentSession->updateMessage(messageId, content, false);
+        if (m_database.isOpen()) {
             m_database.updateMessage(messageId.toString(QUuid::WithoutBraces), content, false);
             syncSessionToDatabase(m_currentSession);
         }
-        m_streaming = false;
-        m_composer->setBusy(false);
-        m_sendButton->setVisible(true);
-        m_stopButton->setVisible(false);
-        statusBar()->showMessage(tr("Ready"));
+        endStreaming(tr("Ready"));
         m_composer->focusInput();
     });
     connect(backend, &IBackend::failed, this, [this](const QUuid &messageId, const QString &error) {
-        if (m_currentSession) {
+        if (m_currentSession)
             m_currentSession->failMessage(messageId, error);
-            if (m_database.isOpen())
-                m_database.failMessage(messageId.toString(QUuid::WithoutBraces), error);
-        }
-        m_streaming = false;
-        m_composer->setBusy(false);
-        m_sendButton->setVisible(true);
-        m_stopButton->setVisible(false);
-        statusBar()->showMessage(tr("Error: %1").arg(error));
+        if (m_database.isOpen())
+            m_database.failMessage(messageId.toString(QUuid::WithoutBraces), error);
+        endStreaming(tr("Error: %1").arg(error));
     });
+}
+
+QString MainWindow::messageContent(const QUuid &messageId) const {
+    if (!m_currentSession)
+        return {};
+    for (const auto &message : m_currentSession->messages())
+        if (message.id == messageId)
+            return message.content;
+    return {};
+}
+
+void MainWindow::endStreaming(const QString &statusMessage) {
+    m_streaming = false;
+    m_composer->setBusy(false);
+    m_sendButton->setVisible(true);
+    m_stopButton->setVisible(false);
+    statusBar()->showMessage(statusMessage);
 }
 
 void MainWindow::disconnectBackend() {

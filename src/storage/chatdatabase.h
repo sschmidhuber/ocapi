@@ -39,15 +39,13 @@ public:
     [[nodiscard]] QString value(const QString &key, const QString &defaultValue = {}) const;
 
     [[nodiscard]] QStringList sessionIds() const;
-    [[nodiscard]] bool insertSession(const ChatSession &session);
-    [[nodiscard]] bool updateSession(const ChatSession &session);
-    [[nodiscard]] bool deleteSession(const QString &sessionId);
-    [[nodiscard]] bool insertMessage(const QString &sessionId, const QString &messageId,
-                                     const QString &role, const QString &content,
-                                     const QDateTime &timestamp);
-    [[nodiscard]] bool updateMessage(const QString &messageId, const QString &content,
-                                     bool streaming);
-    [[nodiscard]] bool failMessage(const QString &messageId, const QString &error);
+    bool insertSession(const ChatSession &session);
+    bool updateSession(const ChatSession &session);
+    bool deleteSession(const QString &sessionId);
+    bool insertMessage(const QString &sessionId, const QString &messageId, const QString &role,
+                       const QString &content, const QDateTime &timestamp);
+    bool updateMessage(const QString &messageId, const QString &content, bool streaming);
+    bool failMessage(const QString &messageId, const QString &error);
 
     [[nodiscard]] QString sessionTitle(const QString &sessionId) const;
     [[nodiscard]] QString sessionBackendId(const QString &sessionId) const;

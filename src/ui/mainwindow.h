@@ -47,6 +47,8 @@ private:
     void persistSession(ChatSession *session);
     void persistMessageForSession(ChatSession *session, const Message &message);
     void syncSessionToDatabase(ChatSession *session);
+    [[nodiscard]] QString messageContent(const QUuid &messageId) const;
+    void endStreaming(const QString &statusMessage);
     IBackend *activeBackend();
     void connectBackend(IBackend *backend);
     void disconnectBackend();

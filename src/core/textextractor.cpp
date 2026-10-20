@@ -216,15 +216,14 @@ bool TextExtractor::isTextFile(const QString &path) {
     const bool validUtf8 = !utf8Decoder.hasError();
     Q_UNUSED(decoded);
     int printable = 0;
-    const int total = probe.size();
+    const auto total = static_cast<double>(probe.size());
     for (const char c : probe) {
-        const unsigned char uc = static_cast<unsigned char>(c);
+        const auto uc = static_cast<unsigned char>(c);
         if (uc == '\t' || uc == '\n' || uc == '\r' || (uc >= 0x20 && uc != 0x7F))
             ++printable;
     }
     static constexpr double kMinPrintableRatio = 0.85;
-    return validUtf8 &&
-           static_cast<double>(printable) / static_cast<double>(total) >= kMinPrintableRatio;
+    return validUtf8 && static_cast<double>(printable) / total >= kMinPrintableRatio;
 }
 
 QString TextExtractor::extractFromFile(const QString &path, QString *error) {

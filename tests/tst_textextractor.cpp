@@ -156,10 +156,10 @@ void TestTextExtractor::isTextFileRejectsBinaryFiles() {
     const QString path = QDir::temp().filePath(QStringLiteral("ocapi-binary.bin"));
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
-    char binary[64];
-    for (int i = 0; i < 64; ++i)
+    std::array<char, 64> binary{};
+    for (std::size_t i = 0; i < binary.size(); ++i)
         binary[i] = static_cast<char>(i * 3);
-    file.write(binary, sizeof(binary));
+    file.write(binary.data(), static_cast<qint64>(binary.size()));
     file.close();
     QVERIFY(!TextExtractor::isTextFile(path));
 
@@ -187,10 +187,10 @@ void TestTextExtractor::extractFromFileRejectsUnsupportedSuffix() {
     const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.xyz"));
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
-    char binary[48];
-    for (int i = 0; i < 48; ++i)
+    std::array<char, 48> binary{};
+    for (std::size_t i = 0; i < binary.size(); ++i)
         binary[i] = static_cast<char>(i * 5);
-    file.write(binary, sizeof(binary));
+    file.write(binary.data(), static_cast<qint64>(binary.size()));
     file.close();
     QString error;
     const QString text = TextExtractor::extractFromFile(path, &error);

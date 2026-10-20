@@ -6,13 +6,13 @@
 #include <QHash>
 #include <QJsonObject>
 #include <QObject>
+#include <QProcess>
 #include <QQueue>
 #include <QString>
 #include <QVector>
 
 class QNetworkAccessManager;
 class QNetworkReply;
-class QProcess;
 
 namespace ocapi {
 

@@ -2,6 +2,7 @@
 
 #include "core/mcpprotocol.h"
 #include "core/mcpregistry.h"
+#include "core/message.h"
 
 #include <QHash>
 #include <QObject>

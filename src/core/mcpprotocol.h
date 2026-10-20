@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QMetaType>
 #include <QString>
@@ -286,4 +287,3 @@ Q_DECLARE_METATYPE(QVector<ocapi::McpPrompt>)
 Q_DECLARE_METATYPE(ocapi::McpToolResult)
 Q_DECLARE_METATYPE(ocapi::McpServerInfo)
 Q_DECLARE_METATYPE(ocapi::McpPromptContent)
-Q_DECLARE_METATYPE(QVector<ocapi::ToolCall>)

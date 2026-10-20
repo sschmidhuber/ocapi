@@ -32,6 +32,7 @@ struct ToolCall {
 } // namespace ocapi
 
 Q_DECLARE_METATYPE(ocapi::ToolCall)
+Q_DECLARE_METATYPE(QVector<ocapi::ToolCall>)
 
 namespace ocapi {
 

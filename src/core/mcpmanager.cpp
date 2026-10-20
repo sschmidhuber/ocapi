@@ -185,8 +185,8 @@ bool McpManager::splitToolName(const QString &namespacedName, QUuid &serverId,
     if (separator <= 0)
         return false;
     toolName = namespacedName.mid(separator + 2);
-    for (const auto &entry : m_servers) {
-        const auto *config = m_registry->find(QUuid(entry.key()));
+    for (auto it = m_servers.constBegin(); it != m_servers.constEnd(); ++it) {
+        const auto *config = m_registry->find(QUuid(it.key()));
         if (config && namespacedToolName(config->name, toolName) == namespacedName) {
             serverId = config->id;
             return true;

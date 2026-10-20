@@ -46,8 +46,6 @@ private:
     [[nodiscard]] bool openDatabase();
     void loadBackendsFromDatabase();
     void loadOlderMessages(ChatSession *session);
-    [[nodiscard]] Message storedToMessage(const StoredMessage &stored) const;
-    void appendStoredMessage(ChatSession *session, const StoredMessage &stored);
     void persistSession(ChatSession *session);
     void persistMessageForSession(ChatSession *session, const Message &message);
     void syncSessionToDatabase(ChatSession *session);

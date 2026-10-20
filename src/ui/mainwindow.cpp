@@ -45,6 +45,23 @@ Role roleFromName(const QString &name) {
     return Role::User;
 }
 
+Message storedToMessage(const StoredMessage &stored) {
+    Message message;
+    message.id = QUuid(stored.id);
+    message.role = roleFromName(stored.role);
+    message.content = stored.content;
+    message.timestamp = stored.timestamp;
+    message.streaming = false;
+    message.error = stored.error;
+    return message;
+}
+
+void appendStoredMessage(ChatSession *session, const StoredMessage &stored) {
+    const Message message = storedToMessage(stored);
+    if (!message.id.isNull())
+        session->appendMessage(message);
+}
+
 } // namespace
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
@@ -318,23 +335,6 @@ void MainWindow::loadOlderMessages(ChatSession *session) {
         session->setProperty("ocapi_loadedCount", loaded + static_cast<int>(older.size()));
     }
     m_loadingOlder = false;
-}
-
-Message MainWindow::storedToMessage(const StoredMessage &stored) const {
-    Message message;
-    message.id = QUuid(stored.id);
-    message.role = roleFromName(stored.role);
-    message.content = stored.content;
-    message.timestamp = stored.timestamp;
-    message.streaming = false;
-    message.error = stored.error;
-    return message;
-}
-
-void MainWindow::appendStoredMessage(ChatSession *session, const StoredMessage &stored) {
-    const Message message = storedToMessage(stored);
-    if (!message.id.isNull())
-        session->appendMessage(message);
 }
 
 void MainWindow::persistSession(ChatSession *session) {

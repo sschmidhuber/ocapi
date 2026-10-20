@@ -1,6 +1,7 @@
 set(OCAPI_TESTS
     tst_backendconfig
     tst_message
+    tst_imagemessage
     tst_chatsession
     tst_backendregistry
     tst_backendfactory

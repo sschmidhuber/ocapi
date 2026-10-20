@@ -8,6 +8,7 @@
 #include <QVector>
 
 #include "core/backendconfig.h"
+#include "core/imagemessage.h"
 
 namespace ocapi {
 
@@ -21,6 +22,7 @@ struct StoredMessage {
     QDateTime timestamp;
     bool streaming = false;
     double tokensPerSecond = -1.0;
+    QVector<ImageAttachment> images;
 };
 
 class ChatDatabase {
@@ -51,7 +53,8 @@ public:
     bool updateSession(const ChatSession &session);
     bool deleteSession(const QString &sessionId);
     bool insertMessage(const QString &sessionId, const QString &messageId, const QString &role,
-                       const QString &content, const QDateTime &timestamp);
+                       const QString &content, const QDateTime &timestamp,
+                       const QVector<ImageAttachment> &images = {});
     bool updateMessage(const QString &messageId, const QString &content, bool streaming);
     bool setThroughput(const QString &messageId, double tokensPerSecond);
     bool failMessage(const QString &messageId, const QString &error);
@@ -65,6 +68,8 @@ public:
 
 private:
     bool execute(const QString &query, const QVariantList &bindings);
+    bool insertImage(const QString &messageId, const ImageAttachment &image);
+    void loadAttachmentsFor(QVector<StoredMessage> &messages) const;
 
     QString m_connectionName;
     QSqlDatabase m_database;

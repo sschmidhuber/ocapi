@@ -32,10 +32,17 @@ QNetworkRequest makeRequest(const QUrl &url, const QString &apiKey) {
 }
 
 QJsonObject toOllamaMessage(const Message &message) {
-    return {
+    QJsonObject object{
         {QStringLiteral("role"), message.roleName()},
         {QStringLiteral("content"), message.content},
     };
+    if (!message.images.isEmpty()) {
+        QJsonArray images;
+        for (const auto &image : message.images)
+            images.append(QString::fromLatin1(image.data.toBase64()));
+        object.insert(QStringLiteral("images"), images);
+    }
+    return object;
 }
 
 } // namespace

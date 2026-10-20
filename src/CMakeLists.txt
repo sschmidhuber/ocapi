@@ -1,5 +1,7 @@
 set(OCAPI_CORE_SOURCES
     core/message.h
+    core/imagemessage.h
+    core/imagemessage.cpp
     core/chatsession.h
     core/chatsession.cpp
     core/backendconfig.h
@@ -28,7 +30,7 @@ set(OCAPI_CORE_SOURCES
 
 add_library(ocapi-core STATIC ${OCAPI_CORE_SOURCES})
 target_include_directories(ocapi-core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(ocapi-core PUBLIC Qt6::Core Qt6::Network Qt6::Sql)
+target_link_libraries(ocapi-core PUBLIC Qt6::Core Qt6::Network Qt6::Sql Qt6::Gui)
 
 set(OCAPI_UI_SOURCES
     ui/mainwindow.h

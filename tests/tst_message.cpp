@@ -12,6 +12,9 @@ private slots:
     void defaultMessageIsUserRoleNotStreamingNoError();
     void eachMessageHasUniqueId();
     void timestampIsSet();
+    void imagesDefaultEmpty();
+    void imageAttachmentsAreKept();
+    void isEmptyCoversTextAndImages();
 };
 
 void TestMessage::roleNameMapsEveryRole() {
@@ -48,6 +51,35 @@ void TestMessage::timestampIsSet() {
     QVERIFY(m.timestamp.isValid());
     QVERIFY(m.timestamp.toUTC() >= before);
     QVERIFY(m.timestamp.toUTC() <= after);
+}
+
+void TestMessage::imagesDefaultEmpty() {
+    const Message m;
+    QVERIFY(m.images.isEmpty());
+    QVERIFY(!m.hasImages());
+}
+
+void TestMessage::imageAttachmentsAreKept() {
+    Message m;
+    ImageAttachment image;
+    image.mimeType = QStringLiteral("image/png");
+    image.data = QByteArrayLiteral("\x89PNG");
+    m.images.push_back(image);
+    QVERIFY(m.hasImages());
+    QCOMPARE(m.images.size(), 1);
+    QCOMPARE(m.images.first().mimeType, QStringLiteral("image/png"));
+}
+
+void TestMessage::isEmptyCoversTextAndImages() {
+    Message m;
+    QVERIFY(m.isEmpty());
+    ImageAttachment image;
+    image.data = QByteArrayLiteral("x");
+    m.images.push_back(image);
+    QVERIFY(!m.isEmpty());
+    m.images.clear();
+    m.content = QStringLiteral("hello");
+    QVERIFY(!m.isEmpty());
 }
 
 QTEST_GUILESS_MAIN(TestMessage)

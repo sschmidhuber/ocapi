@@ -31,6 +31,26 @@ QNetworkRequest makeRequest(const QUrl &url, const QString &apiKey) {
     return request;
 }
 
+QJsonValue contentForMessage(const Message &message) {
+    if (message.images.isEmpty())
+        return message.content;
+    QJsonArray parts;
+    if (!message.content.isEmpty()) {
+        parts.append(QJsonObject{{QStringLiteral("type"), QStringLiteral("text")},
+                                 {QStringLiteral("text"), message.content}});
+    }
+    for (const auto &image : message.images) {
+        parts.append(QJsonObject{
+            {QStringLiteral("type"), QStringLiteral("image_url")},
+            {QStringLiteral("image_url"),
+             QJsonObject{
+                 {QStringLiteral("url"),
+                  QStringLiteral("data:%1;base64,%2").arg(image.mimeType, image.base64Data())}}},
+        });
+    }
+    return parts;
+}
+
 } // namespace
 
 OpenAiApiBackend::OpenAiApiBackend(BackendConfig config, QObject *parent)
@@ -77,7 +97,7 @@ void OpenAiApiBackend::sendMessage(ChatSession *session, const QString &model) {
             continue;
         messages.append(QJsonObject{
             {QStringLiteral("role"), message.roleName()},
-            {QStringLiteral("content"), message.content},
+            {QStringLiteral("content"), contentForMessage(message)},
         });
     }
 

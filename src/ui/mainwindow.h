@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/backendregistry.h"
+#include "core/imagemessage.h"
 #include "core/message.h"
 #include "storage/chatdatabase.h"
 #include <QDateTime>
@@ -33,7 +34,7 @@ private slots:
     void onSessionSelected(const QUuid &id);
     void onSessionDeleteRequested(const QUuid &id);
     void onManageBackends();
-    void onSend(const QString &text);
+    void onSend(const QString &text, const QVector<ImageAttachment> &images = {});
     void onStop();
     void onBackendChanged();
     void onModelSelected(const QString &model);

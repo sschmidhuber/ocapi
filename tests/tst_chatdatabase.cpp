@@ -31,6 +31,8 @@ private slots:
     void messagePaginationBeyondEndIsEmpty();
     void messageCountMatchesStoredMessages();
     void throughputRoundTrip();
+    void imageAttachmentsRoundTrip();
+    void deleteSessionRemovesImages();
 
 private:
     ChatDatabase &db() { return m_database; }
@@ -275,6 +277,59 @@ void TestChatDatabase::throughputRoundTrip() {
     const auto stored = db().messagesForSession(sessionId);
     QCOMPARE(stored.size(), 1);
     QCOMPARE(stored.at(0).tokensPerSecond, 37.4);
+}
+
+void TestChatDatabase::imageAttachmentsRoundTrip() {
+    ChatSession session(QStringLiteral("Images"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+
+    Message message;
+    message.role = Role::User;
+    message.content = QStringLiteral("look at this");
+    ImageAttachment image;
+    image.mimeType = QStringLiteral("image/png");
+    image.fileName = QStringLiteral("cat.png");
+    image.width = 32;
+    image.height = 16;
+    image.resized = true;
+    image.data = QByteArrayLiteral("\x89PNG\r\n\x1a\nfakebytes");
+    message.images.push_back(image);
+    session.appendMessage(message);
+
+    QVERIFY(db().insertMessage(sessionId, message.id.toString(QUuid::WithoutBraces),
+                               message.roleName(), message.content, message.timestamp,
+                               message.images));
+
+    const auto stored = db().messagesForSession(sessionId);
+    QCOMPARE(stored.size(), 1);
+    QCOMPARE(stored.at(0).images.size(), 1);
+    const auto &storedImage = stored.at(0).images.at(0);
+    QCOMPARE(storedImage.mimeType, QStringLiteral("image/png"));
+    QCOMPARE(storedImage.fileName, QStringLiteral("cat.png"));
+    QCOMPARE(storedImage.width, 32);
+    QCOMPARE(storedImage.height, 16);
+    QVERIFY(storedImage.resized);
+    QCOMPARE(storedImage.data, QByteArrayLiteral("\x89PNG\r\n\x1a\nfakebytes"));
+}
+
+void TestChatDatabase::deleteSessionRemovesImages() {
+    ChatSession session(QStringLiteral("Images"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+    Message message;
+    message.role = Role::User;
+    ImageAttachment image;
+    image.mimeType = QStringLiteral("image/png");
+    image.data = QByteArrayLiteral("fake");
+    message.images.push_back(image);
+    session.appendMessage(message);
+    QVERIFY(db().insertMessage(sessionId, message.id.toString(QUuid::WithoutBraces),
+                               message.roleName(), message.content, message.timestamp,
+                               message.images));
+    QVERIFY(db().deleteSession(sessionId));
+    QCOMPARE(db().messageCount(sessionId), 0);
+    QCOMPARE(db().messagesForSession(sessionId).size(), 0);
 }
 
 QTEST_GUILESS_MAIN(TestChatDatabase)

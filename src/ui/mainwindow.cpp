@@ -53,6 +53,7 @@ Message storedToMessage(const StoredMessage &stored) {
     message.streaming = false;
     message.error = stored.error;
     message.tokensPerSecond = stored.tokensPerSecond;
+    message.images = stored.images;
     return message;
 }
 
@@ -143,13 +144,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(m_sidebar, &Sidebar::sessionDeleteRequested, this,
             &MainWindow::onSessionDeleteRequested);
     connect(m_sidebar, &Sidebar::manageBackendsRequested, this, &MainWindow::onManageBackends);
-    connect(m_composer, &Composer::sendRequested, this, &MainWindow::onSend);
+    connect(m_composer, &Composer::sendRequested, this,
+            [this](const QString &text, const QVector<ImageAttachment> &images) {
+                onSend(text, images);
+            });
     connect(m_chatView, &ChatView::olderMessagesRequested, this,
             [this]() { loadOlderMessages(m_currentSession); });
     connect(m_sendButton, &QPushButton::clicked, this, [this]() {
-        const QString text = m_composer->toPlainText().trimmed();
-        if (!text.isEmpty())
-            onSend(text);
+        if (m_composer->isEmpty())
+            return;
+        onSend(m_composer->text().trimmed(), m_composer->attachments());
     });
     connect(m_stopButton, &QPushButton::clicked, this, &MainWindow::onStop);
     connect(m_backendCombo, &QComboBox::currentIndexChanged, this, [this]() {
@@ -337,7 +341,7 @@ void MainWindow::persistMessageForSession(ChatSession *session, const Message &m
         return;
     m_database.insertMessage(session->id().toString(QUuid::WithoutBraces),
                              message.id.toString(QUuid::WithoutBraces), message.roleName(),
-                             message.content, message.timestamp);
+                             message.content, message.timestamp, message.images);
 }
 
 void MainWindow::syncSessionToDatabase(ChatSession *session) {
@@ -444,8 +448,10 @@ double MainWindow::throughputFor(const QUuid &messageId) {
     return m_streamedTokens * 1000.0 / static_cast<double>(elapsedMs);
 }
 
-void MainWindow::onSend(const QString &text) {
+void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &images) {
     if (!m_currentSession || m_streaming)
+        return;
+    if (text.isEmpty() && images.isEmpty())
         return;
 
     const QString backendId = m_currentSession->backendId();
@@ -470,8 +476,13 @@ void MainWindow::onSend(const QString &text) {
     }
     m_currentSession->setModel(model);
 
-    m_currentSession->appendMessage(Role::User, text);
-    m_composer->clear();
+    Message userMessage;
+    userMessage.role = Role::User;
+    userMessage.content = text;
+    userMessage.images = images;
+    m_currentSession->appendMessage(userMessage);
+    m_composer->clearText();
+    m_composer->clearAttachments();
 
     m_backend = createBackend(*config);
     m_streamedTokens = 0;

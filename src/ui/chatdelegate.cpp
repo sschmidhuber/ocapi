@@ -2,6 +2,7 @@
 #include "core/message.h"
 
 #include <QApplication>
+#include <QImage>
 #include <QPainter>
 #include <QTextDocument>
 
@@ -13,6 +14,32 @@ constexpr int kBubbleMargin = 12;
 constexpr int kBubblePadding = 10;
 constexpr int kBubbleRadius = 10;
 constexpr int kMaxBubbleWidthFraction = 80; // percent of viewport width
+constexpr int kImageSize = 160;             // max thumbnail edge in the chat bubble
+constexpr int kImageSpacing = 6;
+
+QVector<QImage> decodeImages(const QModelIndex &index) {
+    const auto attachments =
+        index.data(static_cast<int>(Qt::UserRole) + 5).value<QVector<ImageAttachment>>();
+    QVector<QImage> images;
+    images.reserve(attachments.size());
+    for (const auto &attachment : attachments)
+        images.push_back(attachment.decode());
+    return images;
+}
+
+int imagesBlockWidth(const QVector<QImage> &images) {
+    int width = 0;
+    for (const auto &image : images)
+        width += qMin(image.width(), kImageSize) + kImageSpacing;
+    return width > 0 ? width - kImageSpacing : 0;
+}
+
+int imagesBlockHeight(const QVector<QImage> &images) {
+    int height = 0;
+    for (const auto &image : images)
+        height = qMax(height, qMin(image.height(), kImageSize));
+    return height;
+}
 
 } // namespace
 
@@ -28,6 +55,7 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     const QString content = index.data(Qt::DisplayRole).toString();
     const bool streaming = index.data(static_cast<int>(Qt::UserRole) + 2).toBool();
     const QString error = index.data(static_cast<int>(Qt::UserRole) + 3).toString();
+    const QVector<QImage> images = decodeImages(index);
 
     const QRect rect = option.rect.adjusted(kBubbleMargin, 4, -kBubbleMargin, -4);
 
@@ -56,15 +84,19 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     doc.setPlainText(displayText.isEmpty() && streaming ? QStringLiteral("…") : displayText);
     const QSize textSize = doc.size().toSize();
 
+    const int imageBlockWidth = imagesBlockWidth(images);
+    const int imageBlockHeight = images.isEmpty() ? 0 : imagesBlockHeight(images) + kImageSpacing;
+    const int contentWidth =
+        qMax(textSize.width(), qMin(imageBlockWidth, maxTextWidth)) + 2 * kBubblePadding;
+    const int contentHeight = textSize.height() + imageBlockHeight + 2 * kBubblePadding + 18;
+
     QRect bubbleRect;
     if (isUser) {
-        bubbleRect = QRect(rect.right() - textSize.width() - 2 * kBubblePadding - 30, rect.top(),
-                           textSize.width() + 2 * kBubblePadding,
-                           textSize.height() + 2 * kBubblePadding + 18);
+        bubbleRect =
+            QRect(rect.right() - contentWidth - 30, rect.top(), contentWidth, contentHeight);
         bubbleRect.moveRight(rect.right());
     } else {
-        bubbleRect = QRect(rect.left() + 30, rect.top(), textSize.width() + 2 * kBubblePadding,
-                           textSize.height() + 2 * kBubblePadding + 18);
+        bubbleRect = QRect(rect.left() + 30, rect.top(), contentWidth, contentHeight);
     }
 
     painter->setPen(Qt::NoPen);
@@ -86,10 +118,22 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
         painter->drawText(labelRect, Qt::AlignRight | Qt::AlignVCenter, throughput);
     }
 
+    // Images above the message text inside the bubble.
+    int x = bubbleRect.left() + kBubblePadding;
+    const int imageTop = bubbleRect.top() + kBubblePadding + 8;
+    for (const auto &image : images) {
+        const int targetWidth = qMin(image.width(), kImageSize);
+        const int targetHeight = qMin(image.height(), kImageSize);
+        const QRect target(x, imageTop, targetWidth, targetHeight);
+        painter->drawImage(target, image);
+        x += targetWidth + kImageSpacing;
+    }
+
     // Message text inside the bubble.
     painter->setFont(option.font);
     painter->setPen(textColor);
-    painter->translate(bubbleRect.left() + kBubblePadding, bubbleRect.top() + kBubblePadding + 8);
+    painter->translate(bubbleRect.left() + kBubblePadding,
+                       bubbleRect.top() + kBubblePadding + 8 + imageBlockHeight);
     if (!error.isEmpty()) {
         QFont errorFont = option.font;
         errorFont.setItalic(true);
@@ -106,6 +150,7 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
 
 QSize ChatDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const {
     const QString content = index.data(Qt::DisplayRole).toString();
+    const QVector<QImage> images = decodeImages(index);
     QTextDocument doc;
     doc.setDefaultFont(option.font);
     const int maxTextWidth =
@@ -114,8 +159,9 @@ QSize ChatDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelInd
             : 400;
     doc.setTextWidth(maxTextWidth);
     doc.setPlainText(content);
-    return {option.rect.width(),
-            static_cast<int>(doc.size().height()) + 2 * kBubblePadding + 18 + 8 + 14};
+    const int imageBlockHeight = images.isEmpty() ? 0 : imagesBlockHeight(images) + kImageSpacing;
+    return {option.rect.width(), static_cast<int>(doc.size().height()) + imageBlockHeight +
+                                     2 * kBubblePadding + 18 + 8 + 14};
 }
 
 } // namespace ocapi

@@ -1,8 +1,11 @@
 #pragma once
 
+#include "core/imagemessage.h"
+
 #include <QDateTime>
 #include <QString>
 #include <QUuid>
+#include <QVector>
 
 namespace ocapi {
 
@@ -20,7 +23,11 @@ struct Message {
     QDateTime timestamp = QDateTime::currentDateTime();
     bool streaming = false;
     QString error;
-    double tokensPerSecond = -1.0; // output tokens/s; negative when unknown
+    double tokensPerSecond = -1.0;   // output tokens/s; negative when unknown
+    QVector<ImageAttachment> images; // images attached to this message
+
+    [[nodiscard]] bool hasImages() const { return !images.isEmpty(); }
+    [[nodiscard]] bool isEmpty() const { return content.isEmpty() && images.isEmpty(); }
 
     [[nodiscard]] QString roleName() const {
         switch (role) {

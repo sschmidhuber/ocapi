@@ -713,7 +713,7 @@ void MainWindow::onMcpPermissionRequested(const QString &callKey, const QString 
     QMessageBox box(this);
     box.setIcon(QMessageBox::Question);
     box.setWindowTitle(tr("Allow tool call?"));
-    box.setText(tr("MCP server \"%1\" wants to run the tool \"%2\".").arg(serverName, toolName));
+    box.setText(tr(R"(MCP server "%1" wants to run the tool "%2".)").arg(serverName, toolName));
     box.setDetailedText(args);
     box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
     box.setDefaultButton(QMessageBox::No);
@@ -744,7 +744,7 @@ void MainWindow::onMcpPermissionRequested(const QString &callKey, const QString 
 }
 
 void MainWindow::onMcpToolsChanged() {
-    const int toolCount = m_mcpManager.allTools().size();
+    const int toolCount = static_cast<int>(m_mcpManager.allTools().size());
     if (toolCount == 0)
         m_mcpStatusLabel->setText(tr("MCP: no tools"));
     else

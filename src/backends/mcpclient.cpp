@@ -24,11 +24,11 @@ QNetworkRequest makeRequest(const QUrl &url, const QStringList &headers) {
     request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
     request.setRawHeader("Accept", "application/json, text/event-stream");
     for (const auto &header : headers) {
-        const int colon = header.indexOf(QLatin1Char(':'));
+        const qsizetype colon = header.indexOf(QLatin1Char(':'));
         if (colon <= 0)
             continue;
-        request.setRawHeader(header.left(colon).trimmed().toUtf8(),
-                             header.mid(colon + 1).trimmed().toUtf8());
+        request.setRawHeader(header.left(static_cast<int>(colon)).trimmed().toUtf8(),
+                             header.mid(static_cast<int>(colon) + 1).trimmed().toUtf8());
     }
     return request;
 }
@@ -112,9 +112,10 @@ void McpClient::startStdio() {
     m_process = new QProcess(this);
     QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
     for (const auto &entry : m_config.environment) {
-        const int equals = entry.indexOf(QLatin1Char('='));
+        const qsizetype equals = entry.indexOf(QLatin1Char('='));
         if (equals > 0)
-            environment.insert(entry.left(equals), entry.mid(equals + 1));
+            environment.insert(entry.left(static_cast<int>(equals)),
+                               entry.mid(static_cast<int>(equals) + 1));
     }
     m_process->setProcessEnvironment(environment);
     m_process->setProgram(m_config.command);
@@ -124,9 +125,10 @@ void McpClient::startStdio() {
     connect(m_process, &QProcess::finished, this, &McpClient::onProcessFinished);
     m_process->start();
     // errorOccurred(FailedToStart) fires asynchronously when the binary is
-    // missing; onProcessErrorOccurred reports the failure.
-    if (m_process->state() == QProcess::NotRunning && m_process->error() == QProcess::FailedToStart)
-        fail(tr("Failed to start MCP server process \"%1\".").arg(m_config.command));
+    // missing; onProcessErrorOccurred reports the failure. Kick off the
+    // initialize handshake once the process is actually running.
+    if (m_process->state() != QProcess::NotRunning || m_process->error() != QProcess::FailedToStart)
+        sendRequest(QStringLiteral("initialize"), initializeParamsJson());
 }
 
 void McpClient::startHttp() {
@@ -164,7 +166,7 @@ void McpClient::onProcessReadyRead() {
         return;
     m_stdioBuffer.append(m_process->readAllStandardOutput());
     while (true) {
-        const int newline = m_stdioBuffer.indexOf('\n');
+        const qsizetype newline = m_stdioBuffer.indexOf('\n');
         if (newline < 0)
             break;
         const QByteArray line = m_stdioBuffer.left(newline).trimmed();

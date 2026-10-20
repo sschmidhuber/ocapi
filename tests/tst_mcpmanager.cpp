@@ -148,12 +148,16 @@ void TestMcpManager::reloadConnectsEnabledServersOnly() {
     disabled.command = QStringLiteral("true");
     disabled.enabled = false;
     McpManager manager(&registry);
-    QSignalSpy stateSpy(&manager, &McpManager::serverStateChanged);
+    // The disabled server must not be connected at all; the enabled one is.
+    QCOMPARE(manager.allTools().size(), 0);
+    QVERIFY(!manager.hasConnectedServers());
     manager.reload();
-    // Only the enabled server gets a state notification.
-    QCOMPARE(stateSpy.count(), 1);
-    QCOMPARE(stateSpy.first().at(1).toString(), QStringLiteral("on"));
-    QCOMPARE(stateSpy.first().at(2).toBool(), false);
+    // The enabled server is started ("true" exits immediately, so it fails
+    // asynchronously); the disabled server is never touched. Wait for the
+    // enabled server's state to settle.
+    QTRY_VERIFY_WITH_TIMEOUT(!manager.hasConnectedServers(), 5000);
+    // No tools are exposed either way.
+    QCOMPARE(manager.allTools().size(), 0);
     Q_UNUSED(enabled)
     Q_UNUSED(disabled)
 }

@@ -32,6 +32,10 @@ public:
     void setAvailableTools(const QJsonArray &tools) override;
 
 private:
+    void onStreamEvent(const QByteArray &data);
+    void processToolCallDeltas(const QJsonArray &toolCallDeltas);
+    void finishIfToolCallsComplete();
+
     QNetworkAccessManager *m_nam;
     std::unique_ptr<SseClient> m_stream;
     QNetworkReply *m_modelsReply = nullptr;

@@ -3,6 +3,8 @@
 #include "backends/mcpclient.h"
 #include "core/chatsession.h"
 
+#include <algorithm>
+
 #include <QJsonArray>
 #include <QJsonObject>
 
@@ -158,11 +160,9 @@ QJsonArray McpManager::availableTools() const {
 }
 
 bool McpManager::hasConnectedServers() const {
-    for (const auto &entry : m_servers) {
-        if (entry.client && entry.client->isConnected())
-            return true;
-    }
-    return false;
+    return std::any_of(m_servers.begin(), m_servers.end(), [](const ServerEntry &entry) {
+        return entry.client && entry.client->isConnected();
+    });
 }
 
 bool McpManager::splitToolName(const QString &namespacedName, QUuid &serverId,
@@ -181,10 +181,10 @@ bool McpManager::splitToolName(const QString &namespacedName, QUuid &serverId,
             }
         }
     }
-    const int separator = namespacedName.indexOf(QStringLiteral("__"));
+    const qsizetype separator = namespacedName.indexOf(QStringLiteral("__"));
     if (separator <= 0)
         return false;
-    toolName = namespacedName.mid(separator + 2);
+    toolName = namespacedName.mid(static_cast<int>(separator) + 2);
     for (auto it = m_servers.constBegin(); it != m_servers.constEnd(); ++it) {
         const auto *config = m_registry->find(QUuid(it.key()));
         if (config && namespacedToolName(config->name, toolName) == namespacedName) {
@@ -236,7 +236,7 @@ void McpManager::decidePermission(const QString &callKey, bool allowOnce) {
     const auto it = m_pendingPermissions.constFind(callKey);
     if (it == m_pendingPermissions.constEnd())
         return;
-    const PendingPermission pending = it.value();
+    const PendingPermission &pending = it.value();
     m_pendingPermissions.erase(it);
     if (!allowOnce) {
         appendToolResultMessage(

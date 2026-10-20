@@ -23,6 +23,13 @@ private slots:
     void failMessagePersistsError();
     void deleteSessionRemovesMessages();
     void updateSessionChangesMetadata();
+    void backendRoundTrip();
+    void backendUpdateOverwritesEntry();
+    void backendDeleteRemovesEntry();
+    void messagePaginationReturnsLastPage();
+    void messagePaginationSecondPageIsOlderMessages();
+    void messagePaginationBeyondEndIsEmpty();
+    void messageCountMatchesStoredMessages();
 
 private:
     ChatDatabase &db() { return m_database; }
@@ -154,6 +161,105 @@ void TestChatDatabase::updateSessionChangesMetadata() {
     const auto id = session.id().toString(QUuid::WithoutBraces);
     QCOMPARE(db().sessionTitle(id), QStringLiteral("New title"));
     QCOMPARE(db().sessionModel(id), QStringLiteral("mistral"));
+}
+
+void TestChatDatabase::backendRoundTrip() {
+    BackendConfig config;
+    config.name = QStringLiteral("Ollama local");
+    config.kind = BackendKind::Ollama;
+    config.baseUrl = QStringLiteral("http://192.168.1.10:11434");
+    config.apiKey = QStringLiteral("secret");
+    config.defaultModel = QStringLiteral("llama3.2");
+    config.enabled = false;
+    db().insertBackend(config);
+    QVERIFY(db().hasBackends());
+    const auto loaded = db().loadBackends();
+    QCOMPARE(loaded.size(), 1);
+    QCOMPARE(loaded.at(0).name, QStringLiteral("Ollama local"));
+    QCOMPARE(loaded.at(0).kind, BackendKind::Ollama);
+    QCOMPARE(loaded.at(0).baseUrl, QStringLiteral("http://192.168.1.10:11434"));
+    QCOMPARE(loaded.at(0).apiKey, QStringLiteral("secret"));
+    QCOMPARE(loaded.at(0).defaultModel, QStringLiteral("llama3.2"));
+    QVERIFY(!loaded.at(0).enabled);
+}
+
+void TestChatDatabase::backendUpdateOverwritesEntry() {
+    BackendConfig config;
+    config.name = QStringLiteral("before");
+    config.kind = BackendKind::OpenAi;
+    db().insertBackend(config);
+    config.name = QStringLiteral("after");
+    config.kind = BackendKind::Groq;
+    config.enabled = false;
+    db().updateBackend(config);
+    const auto loaded = db().loadBackends();
+    QCOMPARE(loaded.size(), 1);
+    QCOMPARE(loaded.at(0).name, QStringLiteral("after"));
+    QCOMPARE(loaded.at(0).kind, BackendKind::Groq);
+    QVERIFY(!loaded.at(0).enabled);
+}
+
+void TestChatDatabase::backendDeleteRemovesEntry() {
+    BackendConfig config;
+    config.name = QStringLiteral("doomed");
+    db().insertBackend(config);
+    QVERIFY(db().hasBackends());
+    db().deleteBackend(config.id.toString(QUuid::WithoutBraces));
+    QVERIFY(!db().hasBackends());
+    QVERIFY(db().loadBackends().isEmpty());
+}
+
+void TestChatDatabase::messagePaginationReturnsLastPage() {
+    ChatSession session(QStringLiteral("Chat"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+    for (int i = 0; i < 5; ++i) {
+        const auto &message = session.appendMessage(Role::User, QStringLiteral("m%1").arg(i));
+        QVERIFY(db().insertMessage(sessionId, message.id.toString(QUuid::WithoutBraces),
+                                   message.roleName(), message.content, message.timestamp));
+    }
+    const auto page = db().messagesForSession(sessionId, 2, 0);
+    QCOMPARE(page.size(), 2);
+    QCOMPARE(page.at(0).content, QStringLiteral("m3"));
+    QCOMPARE(page.at(1).content, QStringLiteral("m4"));
+}
+
+void TestChatDatabase::messagePaginationSecondPageIsOlderMessages() {
+    ChatSession session(QStringLiteral("Chat"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+    for (int i = 0; i < 5; ++i) {
+        const auto &message = session.appendMessage(Role::User, QStringLiteral("m%1").arg(i));
+        QVERIFY(db().insertMessage(sessionId, message.id.toString(QUuid::WithoutBraces),
+                                   message.roleName(), message.content, message.timestamp));
+    }
+    const auto page = db().messagesForSession(sessionId, 2, 2);
+    QCOMPARE(page.size(), 2);
+    QCOMPARE(page.at(0).content, QStringLiteral("m1"));
+    QCOMPARE(page.at(1).content, QStringLiteral("m2"));
+}
+
+void TestChatDatabase::messagePaginationBeyondEndIsEmpty() {
+    ChatSession session(QStringLiteral("Chat"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+    const auto &message = session.appendMessage(Role::User, QStringLiteral("only"));
+    QVERIFY(db().insertMessage(sessionId, message.id.toString(QUuid::WithoutBraces),
+                               message.roleName(), message.content, message.timestamp));
+    QVERIFY(db().messagesForSession(sessionId, 10, 5).isEmpty());
+}
+
+void TestChatDatabase::messageCountMatchesStoredMessages() {
+    ChatSession session(QStringLiteral("Chat"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+    QCOMPARE(db().messageCount(sessionId), 0);
+    for (int i = 0; i < 3; ++i) {
+        const auto &message = session.appendMessage(Role::User, QStringLiteral("m%1").arg(i));
+        QVERIFY(db().insertMessage(sessionId, message.id.toString(QUuid::WithoutBraces),
+                                   message.roleName(), message.content, message.timestamp));
+    }
+    QCOMPARE(db().messageCount(sessionId), 3);
 }
 
 QTEST_GUILESS_MAIN(TestChatDatabase)

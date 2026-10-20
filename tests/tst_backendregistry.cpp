@@ -1,7 +1,9 @@
 #include "core/backendregistry.h"
+#include "storage/chatdatabase.h"
 
 #include <QSettings>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QtTest>
 
 using namespace ocapi;
@@ -24,6 +26,8 @@ private slots:
     void saveAndLoadRoundTripsAllBackends();
     void loadAppliesDefaultsForMissingFields();
     void loadHandlesCorruptSettings();
+    void databaseRoundTripPreservesAllFields();
+    void removePersistsToDatabase();
 
 private:
     QString m_settingsPath;
@@ -137,12 +141,12 @@ void TestBackendRegistry::saveAndLoadRoundTripsAllBackends() {
         b.apiKey = QStringLiteral("sk-ant-xxx");
         b.defaultModel = QStringLiteral("claude-sonnet-4-5");
 
-        registry.save();
+        registry.saveToSettings();
     }
 
     {
         BackendRegistry registry;
-        registry.load();
+        registry.loadFromSettings();
         QCOMPARE(registry.backends().size(), 2);
 
         const auto ollama =
@@ -182,7 +186,7 @@ void TestBackendRegistry::loadAppliesDefaultsForMissingFields() {
     }
 
     BackendRegistry registry;
-    registry.load();
+    registry.loadFromSettings();
     QCOMPARE(registry.backends().size(), 1);
     const auto &config = registry.backends().constFirst();
     QCOMPARE(config.kind, BackendKind::Gemini);
@@ -206,12 +210,66 @@ void TestBackendRegistry::loadHandlesCorruptSettings() {
     }
 
     BackendRegistry registry;
-    registry.load();
+    registry.loadFromSettings();
     QCOMPARE(registry.backends().size(), 1);
     const auto &config = registry.backends().constFirst();
     QVERIFY(!config.id.isNull());               // invalid UUID replaced with a fresh one
     QCOMPARE(config.kind, BackendKind::Ollama); // unknown kind falls back to Ollama
     QCOMPARE(config.baseUrl, BackendConfig::defaultBaseUrl(BackendKind::Ollama));
+}
+
+void TestBackendRegistry::databaseRoundTripPreservesAllFields() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    {
+        ChatDatabase database;
+        QVERIFY(database.open(dir.filePath(QStringLiteral("ocapi.sqlite"))));
+        BackendRegistry registry;
+        registry.attachDatabase(&database);
+        auto &a = registry.add(QStringLiteral("Ollama local"), BackendKind::Ollama);
+        a.apiKey = QStringLiteral("secret-key");
+        a.defaultModel = QStringLiteral("llama3.2");
+        a.baseUrl = QStringLiteral("http://192.168.1.10:11434");
+        registry.save();
+        auto &b = registry.add(QStringLiteral("DeepSeek"), BackendKind::DeepSeek);
+        b.enabled = false;
+        registry.save();
+    }
+    {
+        ChatDatabase database;
+        QVERIFY(database.open(dir.filePath(QStringLiteral("ocapi.sqlite"))));
+        BackendRegistry registry;
+        registry.load(database);
+        QCOMPARE(registry.backends().size(), 2);
+        const auto ollama =
+            std::find_if(registry.backends().begin(), registry.backends().end(),
+                         [](const BackendConfig &c) { return c.kind == BackendKind::Ollama; });
+        QVERIFY(ollama != registry.backends().end());
+        QCOMPARE(ollama->name, QStringLiteral("Ollama local"));
+        QCOMPARE(ollama->apiKey, QStringLiteral("secret-key"));
+        QCOMPARE(ollama->defaultModel, QStringLiteral("llama3.2"));
+        QCOMPARE(ollama->baseUrl, QStringLiteral("http://192.168.1.10:11434"));
+        QVERIFY(ollama->enabled);
+        const auto deepseek =
+            std::find_if(registry.backends().begin(), registry.backends().end(),
+                         [](const BackendConfig &c) { return c.kind == BackendKind::DeepSeek; });
+        QVERIFY(deepseek != registry.backends().end());
+        QVERIFY(!deepseek->enabled);
+    }
+}
+
+void TestBackendRegistry::removePersistsToDatabase() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    ChatDatabase database;
+    QVERIFY(database.open(dir.filePath(QStringLiteral("ocapi.sqlite"))));
+    BackendRegistry registry;
+    registry.attachDatabase(&database);
+    auto &config = registry.add(QStringLiteral("temp"), BackendKind::Vllm);
+    QVERIFY(registry.remove(config.id));
+    BackendRegistry reloaded;
+    reloaded.load(database);
+    QVERIFY(reloaded.backends().isEmpty());
 }
 
 QTEST_GUILESS_MAIN(TestBackendRegistry)

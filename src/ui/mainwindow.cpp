@@ -19,33 +19,31 @@
 
 namespace ocapi {
 
-MainWindow::MainWindow(QWidget* parent)
-    : QMainWindow(parent)
-{
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setWindowTitle(tr("ocapi"));
     resize(1100, 720);
 
     m_registry.load();
 
-    auto* central = new QWidget(this);
-    auto* centralLayout = new QHBoxLayout(central);
+    auto *central = new QWidget(this);
+    auto *centralLayout = new QHBoxLayout(central);
     centralLayout->setContentsMargins(0, 0, 0, 0);
     centralLayout->setSpacing(0);
 
-    auto* splitter = new QSplitter(central);
+    auto *splitter = new QSplitter(central);
 
     m_sidebar = new Sidebar(splitter);
     m_sidebar->setMinimumWidth(200);
     m_sidebar->setMaximumWidth(320);
 
-    auto* rightPanel = new QWidget(splitter);
-    auto* rightLayout = new QVBoxLayout(rightPanel);
+    auto *rightPanel = new QWidget(splitter);
+    auto *rightLayout = new QVBoxLayout(rightPanel);
     rightLayout->setContentsMargins(0, 0, 0, 0);
     rightLayout->setSpacing(0);
 
     // Toolbar: backend + model selectors, send/stop.
-    auto* toolbar = new QWidget(rightPanel);
-    auto* toolbarLayout = new QHBoxLayout(toolbar);
+    auto *toolbar = new QWidget(rightPanel);
+    auto *toolbarLayout = new QHBoxLayout(toolbar);
     toolbarLayout->setContentsMargins(8, 6, 8, 6);
     m_backendCombo = new QComboBox(toolbar);
     m_modelCombo = new QComboBox(toolbar);
@@ -74,8 +72,8 @@ MainWindow::MainWindow(QWidget* parent)
     rightLayout->addWidget(m_emptyLabel);
     m_emptyLabel->hide();
 
-    auto* composerRow = new QWidget(rightPanel);
-    auto* composerLayout = new QHBoxLayout(composerRow);
+    auto *composerRow = new QWidget(rightPanel);
+    auto *composerLayout = new QHBoxLayout(composerRow);
     composerLayout->setContentsMargins(8, 0, 8, 8);
     m_composer = new Composer(composerRow);
     m_composer->setMaximumHeight(160);
@@ -94,7 +92,8 @@ MainWindow::MainWindow(QWidget* parent)
 
     connect(m_sidebar, &Sidebar::newChatRequested, this, &MainWindow::onNewChat);
     connect(m_sidebar, &Sidebar::sessionSelected, this, &MainWindow::onSessionSelected);
-    connect(m_sidebar, &Sidebar::sessionDeleteRequested, this, &MainWindow::onSessionDeleteRequested);
+    connect(m_sidebar, &Sidebar::sessionDeleteRequested, this,
+            &MainWindow::onSessionDeleteRequested);
     connect(m_sidebar, &Sidebar::manageBackendsRequested, this, &MainWindow::onManageBackends);
     connect(m_composer, &Composer::sendRequested, this, &MainWindow::onSend);
     connect(m_sendButton, &QPushButton::clicked, this, [this]() {
@@ -109,11 +108,12 @@ MainWindow::MainWindow(QWidget* parent)
             disconnectBackend();
         }
     });
-    connect(m_modelCombo, &QComboBox::currentTextChanged, this, [this](const QString& text) {
+    connect(m_modelCombo, &QComboBox::currentTextChanged, this, [this](const QString &text) {
         if (m_currentSession)
             m_currentSession->setModel(text.trimmed());
     });
-    connect(m_modelCombo, &QComboBox::activated, this, [this](int) { onModelSelected(m_modelCombo->currentText()); });
+    connect(m_modelCombo, &QComboBox::activated, this,
+            [this](int) { onModelSelected(m_modelCombo->currentText()); });
     connect(&m_registry, &BackendRegistry::changed, this, &MainWindow::onBackendChanged);
 
     onBackendChanged();
@@ -125,18 +125,15 @@ MainWindow::MainWindow(QWidget* parent)
         onSessionSelected(m_sessions.first()->id());
 }
 
-MainWindow::~MainWindow()
-{
+MainWindow::~MainWindow() {
     qDeleteAll(m_sessions);
 }
 
-void MainWindow::onNewChat()
-{
+void MainWindow::onNewChat() {
     createSession();
 }
 
-void MainWindow::createSession(const QString& backendId, const QString& model)
-{
+void MainWindow::createSession(const QString &backendId, const QString &model) {
     QString effectiveBackendId = backendId;
     if (effectiveBackendId.isEmpty()) {
         const auto enabled = m_registry.enabled();
@@ -144,12 +141,12 @@ void MainWindow::createSession(const QString& backendId, const QString& model)
             effectiveBackendId = enabled.first().id.toString();
     }
 
-    auto* session = new ChatSession(tr("New chat"), effectiveBackendId, this);
+    auto *session = new ChatSession(tr("New chat"), effectiveBackendId, this);
     if (!model.isEmpty())
         session->setModel(model);
 
     // Auto-generate a title from the first user message.
-    connect(session, &ChatSession::messageAdded, this, [this, session](const Message& message) {
+    connect(session, &ChatSession::messageAdded, this, [this, session](const Message &message) {
         if (message.role == Role::User && session->title() == tr("New chat")) {
             QString title = message.content;
             title.replace(QLatin1Char('\n'), QLatin1Char(' '));
@@ -165,11 +162,10 @@ void MainWindow::createSession(const QString& backendId, const QString& model)
     onSessionSelected(session->id());
 }
 
-void MainWindow::onSessionSelected(const QUuid& id)
-{
+void MainWindow::onSessionSelected(const QUuid &id) {
     disconnectBackend();
     m_currentSession = nullptr;
-    for (auto* session : m_sessions) {
+    for (auto *session : m_sessions) {
         if (session->id() == id) {
             m_currentSession = session;
             break;
@@ -188,8 +184,7 @@ void MainWindow::onSessionSelected(const QUuid& id)
     updateEmptyState();
 }
 
-void MainWindow::onSessionDeleteRequested(const QUuid& id)
-{
+void MainWindow::onSessionDeleteRequested(const QUuid &id) {
     for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
         if ((*it)->id() == id) {
             if (*it == m_currentSession) {
@@ -211,32 +206,27 @@ void MainWindow::onSessionDeleteRequested(const QUuid& id)
         updateEmptyState();
 }
 
-void MainWindow::onManageBackends()
-{
+void MainWindow::onManageBackends() {
     BackendDialog dialog(&m_registry, this);
     dialog.exec();
 }
 
-void MainWindow::onBackendChanged()
-{
+void MainWindow::onBackendChanged() {
     refreshBackendSelector();
     updateEmptyState();
 }
 
-void MainWindow::refreshSidebar()
-{
+void MainWindow::refreshSidebar() {
     m_sidebar->setSessions(m_sessions);
     if (m_currentSession)
         m_sidebar->selectSession(m_currentSession->id());
 }
 
-void MainWindow::refreshBackendSelector()
-{
+void MainWindow::refreshBackendSelector() {
     const QSignalBlocker blocker(m_backendCombo);
     m_backendCombo->clear();
-    for (const auto& config : m_registry.backends()) {
-        m_backendCombo->addItem(config.enabled ? config.name
-                                               : tr("%1 (disabled)").arg(config.name),
+    for (const auto &config : m_registry.backends()) {
+        m_backendCombo->addItem(config.enabled ? config.name : tr("%1 (disabled)").arg(config.name),
                                 config.id.toString());
     }
 
@@ -255,7 +245,7 @@ void MainWindow::refreshBackendSelector()
     const QSignalBlocker modelBlocker(m_modelCombo);
     m_modelCombo->clear();
     if (m_currentSession && index >= 0) {
-        const auto* config = m_registry.find(QUuid(m_backendCombo->currentData().toString()));
+        const auto *config = m_registry.find(QUuid(m_backendCombo->currentData().toString()));
         if (config && !config->defaultModel.isEmpty())
             m_modelCombo->addItem(config->defaultModel);
         if (!m_currentSession->model().isEmpty())
@@ -265,19 +255,17 @@ void MainWindow::refreshBackendSelector()
     }
 }
 
-void MainWindow::onModelSelected(const QString& model)
-{
+void MainWindow::onModelSelected(const QString &model) {
     if (m_currentSession)
         m_currentSession->setModel(model.trimmed());
 }
 
-void MainWindow::onSend(const QString& text)
-{
+void MainWindow::onSend(const QString &text) {
     if (!m_currentSession || m_streaming)
         return;
 
     const QString backendId = m_currentSession->backendId();
-    auto* config = m_registry.find(backendId);
+    auto *config = m_registry.find(backendId);
     if (!config) {
         QMessageBox::warning(this, tr("No backend"),
                              tr("Please configure a backend first via \"Manage backends…\"."));
@@ -293,8 +281,7 @@ void MainWindow::onSend(const QString& text)
     if (model.isEmpty())
         model = m_modelCombo->currentText().trimmed();
     if (model.isEmpty()) {
-        QMessageBox::warning(this, tr("No model"),
-                             tr("Please enter or select a model name."));
+        QMessageBox::warning(this, tr("No model"), tr("Please enter or select a model name."));
         return;
     }
     m_currentSession->setModel(model);
@@ -313,24 +300,22 @@ void MainWindow::onSend(const QString& text)
     m_backend->sendMessage(m_currentSession, model);
 }
 
-void MainWindow::onStop()
-{
+void MainWindow::onStop() {
     if (m_backend)
         m_backend->cancel();
 }
 
-IBackend* MainWindow::activeBackend()
-{
+IBackend *MainWindow::activeBackend() {
     return m_backend.get();
 }
 
-void MainWindow::connectBackend(IBackend* backend)
-{
-    connect(backend, &IBackend::tokenReceived, this, [this](const QUuid& messageId, const QString& text) {
-        if (m_currentSession)
-            m_currentSession->updateMessage(messageId, text, true);
-    });
-    connect(backend, &IBackend::finished, this, [this](const QUuid& messageId) {
+void MainWindow::connectBackend(IBackend *backend) {
+    connect(backend, &IBackend::tokenReceived, this,
+            [this](const QUuid &messageId, const QString &text) {
+                if (m_currentSession)
+                    m_currentSession->updateMessage(messageId, text, true);
+            });
+    connect(backend, &IBackend::finished, this, [this](const QUuid &messageId) {
         if (m_currentSession)
             m_currentSession->updateMessage(messageId, m_currentSession->messages().isEmpty()
                                                             ? QString()
@@ -348,7 +333,7 @@ void MainWindow::connectBackend(IBackend* backend)
         statusBar()->showMessage(tr("Ready"));
         m_composer->focusInput();
     });
-    connect(backend, &IBackend::failed, this, [this](const QUuid& messageId, const QString& error) {
+    connect(backend, &IBackend::failed, this, [this](const QUuid &messageId, const QString &error) {
         if (m_currentSession)
             m_currentSession->failMessage(messageId, error);
         m_streaming = false;
@@ -359,8 +344,7 @@ void MainWindow::connectBackend(IBackend* backend)
     });
 }
 
-void MainWindow::disconnectBackend()
-{
+void MainWindow::disconnectBackend() {
     if (m_backend) {
         m_backend->cancel();
         m_backend->disconnect(this);
@@ -372,8 +356,7 @@ void MainWindow::disconnectBackend()
     m_stopButton->setVisible(false);
 }
 
-void MainWindow::updateEmptyState()
-{
+void MainWindow::updateEmptyState() {
     const bool noBackends = m_registry.backends().isEmpty();
     const bool noSession = m_currentSession == nullptr;
     m_emptyLabel->setVisible(noBackends || noSession);

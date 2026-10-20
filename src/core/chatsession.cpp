@@ -2,39 +2,27 @@
 
 namespace ocapi {
 
-ChatSession::ChatSession(QObject* parent)
-    : QObject(parent)
-    , m_title(tr("New chat"))
-{
-}
+ChatSession::ChatSession(QObject *parent) : QObject(parent), m_title(tr("New chat")) {}
 
-ChatSession::ChatSession(QString title, QString backendId, QObject* parent)
-    : QObject(parent)
-    , m_title(std::move(title))
-    , m_backendId(std::move(backendId))
-{
-}
+ChatSession::ChatSession(QString title, QString backendId, QObject *parent)
+    : QObject(parent), m_title(std::move(title)), m_backendId(std::move(backendId)) {}
 
-void ChatSession::setTitle(QString title)
-{
+void ChatSession::setTitle(QString title) {
     if (m_title == title)
         return;
     m_title = std::move(title);
     emit titleChanged(m_title);
 }
 
-void ChatSession::setBackendId(QString backendId)
-{
+void ChatSession::setBackendId(QString backendId) {
     m_backendId = std::move(backendId);
 }
 
-void ChatSession::setModel(QString model)
-{
+void ChatSession::setModel(QString model) {
     m_model = std::move(model);
 }
 
-Message& ChatSession::appendMessage(Role role, const QString& content)
-{
+Message &ChatSession::appendMessage(Role role, const QString &content) {
     Message message;
     message.role = role;
     message.content = content;
@@ -43,9 +31,8 @@ Message& ChatSession::appendMessage(Role role, const QString& content)
     return m_messages.last();
 }
 
-void ChatSession::updateMessage(const QUuid& id, const QString& content, bool streaming)
-{
-    for (auto& message : m_messages) {
+void ChatSession::updateMessage(const QUuid &id, const QString &content, bool streaming) {
+    for (auto &message : m_messages) {
         if (message.id == id) {
             message.content = content;
             message.streaming = streaming;
@@ -56,9 +43,8 @@ void ChatSession::updateMessage(const QUuid& id, const QString& content, bool st
     }
 }
 
-void ChatSession::failMessage(const QUuid& id, const QString& error)
-{
-    for (auto& message : m_messages) {
+void ChatSession::failMessage(const QUuid &id, const QString &error) {
+    for (auto &message : m_messages) {
         if (message.id == id) {
             message.streaming = false;
             message.error = error;
@@ -68,8 +54,7 @@ void ChatSession::failMessage(const QUuid& id, const QString& error)
     }
 }
 
-void ChatSession::clear()
-{
+void ChatSession::clear() {
     m_messages.clear();
 }
 

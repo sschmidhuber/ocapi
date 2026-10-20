@@ -11,22 +11,21 @@ namespace ocapi {
 
 class SseClient;
 
-class OllamaBackend : public IBackend
-{
+class OllamaBackend : public IBackend {
     Q_OBJECT
 
 public:
-    explicit OllamaBackend(BackendConfig config, QObject* parent = nullptr);
+    explicit OllamaBackend(BackendConfig config, QObject *parent = nullptr);
     ~OllamaBackend() override;
 
     void listModels() override;
-    void sendMessage(ChatSession* session, const QString& model) override;
+    void sendMessage(ChatSession *session, const QString &model) override;
     void cancel() override;
 
 private:
-    QNetworkAccessManager* m_nam;
+    QNetworkAccessManager *m_nam;
     std::unique_ptr<SseClient> m_stream;
-    QNetworkReply* m_modelsReply = nullptr;
+    QNetworkReply *m_modelsReply = nullptr;
     QUuid m_currentMessageId;
     QString m_accumulated;
 };

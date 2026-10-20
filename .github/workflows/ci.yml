@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    name: Build & Test (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt6 and tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qt6-base-dev qt6-base-dev-tools libgl1-mesa-dev \
+            cmake ninja-build clang-tidy cppcheck clang-format
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DOCAPI_ENABLE_CLANG_TIDY=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Run tests
+        run: ctest --test-dir build --output-on-failure
+
+  format:
+    name: clang-format check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+      - name: Check formatting
+        run: |
+          find src tests -name '*.cpp' -o -name '*.h' | xargs clang-format --dry-run --Werror
+
+  cppcheck:
+    name: cppcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+      - name: Run cppcheck
+        run: |
+          cppcheck --enable=warning,style,performance,portability \
+            --inline-suppr --std=c++20 --error-exitcode=1 \
+            -I src --suppress=missingIncludeSystem --suppress=unknownMacro \
+            --suppress=shadowFunction --suppress=useStlAlgorithm \
+            src/ tests/
+
+  clang-tidy:
+    name: clang-tidy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt6 and tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qt6-base-dev qt6-base-dev-tools libgl1-mesa-dev \
+            cmake ninja-build clang-tidy
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DOCAPI_ENABLE_CLANG_TIDY=ON
+      - name: Run clang-tidy
+        run: |
+          cmake --build build 2>&1 | tee tidy.log
+          if grep -E '(^| )(warning|error): ' tidy.log; then
+            echo "clang-tidy reported issues"
+            exit 1
+          fi

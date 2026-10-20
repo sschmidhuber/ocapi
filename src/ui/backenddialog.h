@@ -14,12 +14,11 @@ namespace ocapi {
 
 class BackendRegistry;
 
-class BackendDialog : public QDialog
-{
+class BackendDialog : public QDialog {
     Q_OBJECT
 
 public:
-    explicit BackendDialog(BackendRegistry* registry, QWidget* parent = nullptr);
+    explicit BackendDialog(BackendRegistry *registry, QWidget *parent = nullptr);
 
 private slots:
     void onAddBackend();
@@ -30,19 +29,19 @@ private slots:
 
 private:
     void populateList();
-    void loadConfigIntoForm(const BackendConfig& config);
-    void saveFormIntoConfig(BackendConfig& config);
+    void loadConfigIntoForm(const BackendConfig &config);
+    void saveFormIntoConfig(BackendConfig &config);
     BackendKind currentKind() const;
 
-    BackendRegistry* m_registry;
-    QListWidget* m_list;
-    QLineEdit* m_nameEdit;
-    QComboBox* m_kindCombo;
-    QLineEdit* m_urlEdit;
-    QLineEdit* m_apiKeyEdit;
-    QLineEdit* m_modelEdit;
-    QCheckBox* m_enabledBox;
-    QDialogButtonBox* m_buttonBox;
+    BackendRegistry *m_registry;
+    QListWidget *m_list;
+    QLineEdit *m_nameEdit;
+    QComboBox *m_kindCombo;
+    QLineEdit *m_urlEdit;
+    QLineEdit *m_apiKeyEdit;
+    QLineEdit *m_modelEdit;
+    QCheckBox *m_enabledBox;
+    QDialogButtonBox *m_buttonBox;
     bool m_updatingForm = false;
 };
 

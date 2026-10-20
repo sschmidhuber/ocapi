@@ -4,8 +4,7 @@
 
 namespace ocapi {
 
-QList<QByteArray> extractCompleteEvents(QByteArray& buffer)
-{
+QList<QByteArray> extractCompleteEvents(QByteArray &buffer) {
     QList<QByteArray> events;
     int pos = 0;
     while (true) {
@@ -25,15 +24,14 @@ QList<QByteArray> extractCompleteEvents(QByteArray& buffer)
     return events;
 }
 
-std::optional<SseEvent> parseSseEventBlock(const QByteArray& rawEvent)
-{
+std::optional<SseEvent> parseSseEventBlock(const QByteArray &rawEvent) {
     if (rawEvent.trimmed().isEmpty())
         return std::nullopt;
 
     QByteArray event = QStringLiteral("message").toUtf8();
     QByteArray data;
     const auto lines = rawEvent.split('\n');
-    for (const auto& line : lines) {
+    for (const auto &line : lines) {
         const QByteArray trimmed = line.trimmed();
         if (trimmed.startsWith(':'))
             continue; // comment / heartbeat

@@ -4,8 +4,7 @@
 
 using namespace ocapi;
 
-class TestMessage : public QObject
-{
+class TestMessage : public QObject {
     Q_OBJECT
 
 private slots:
@@ -15,8 +14,7 @@ private slots:
     void timestampIsSet();
 };
 
-void TestMessage::roleNameMapsEveryRole()
-{
+void TestMessage::roleNameMapsEveryRole() {
     Message m;
     m.role = Role::System;
     QCOMPARE(m.roleName(), QStringLiteral("system"));
@@ -28,8 +26,7 @@ void TestMessage::roleNameMapsEveryRole()
     QCOMPARE(m.roleName(), QStringLiteral("tool"));
 }
 
-void TestMessage::defaultMessageIsUserRoleNotStreamingNoError()
-{
+void TestMessage::defaultMessageIsUserRoleNotStreamingNoError() {
     const Message m;
     QCOMPARE(m.role, Role::User);
     QVERIFY(!m.streaming);
@@ -37,16 +34,14 @@ void TestMessage::defaultMessageIsUserRoleNotStreamingNoError()
     QVERIFY(m.content.isEmpty());
 }
 
-void TestMessage::eachMessageHasUniqueId()
-{
+void TestMessage::eachMessageHasUniqueId() {
     const Message a;
     const Message b;
     QVERIFY(!a.id.isNull());
     QVERIFY(a.id != b.id);
 }
 
-void TestMessage::timestampIsSet()
-{
+void TestMessage::timestampIsSet() {
     const QDateTime before = QDateTime::currentDateTimeUtc().addSecs(-1);
     const Message m;
     const QDateTime after = QDateTime::currentDateTimeUtc().addSecs(1);

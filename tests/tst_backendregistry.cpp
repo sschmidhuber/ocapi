@@ -6,8 +6,7 @@
 
 using namespace ocapi;
 
-class TestBackendRegistry : public QObject
-{
+class TestBackendRegistry : public QObject {
     Q_OBJECT
 
 private slots:
@@ -30,27 +29,25 @@ private:
     QString m_settingsPath;
 };
 
-void TestBackendRegistry::initTestCase()
-{
+void TestBackendRegistry::initTestCase() {
     // Isolate QSettings so tests never touch the real user configuration.
-    m_settingsPath = QDir::tempPath() + QStringLiteral("/ocapi-test-") + QUuid::createUuid().toString();
+    m_settingsPath =
+        QDir::tempPath() + QStringLiteral("/ocapi-test-") + QUuid::createUuid().toString();
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, m_settingsPath);
     QSettings::setDefaultFormat(QSettings::IniFormat);
     QSettings settings;
     settings.clear();
 }
 
-void TestBackendRegistry::cleanupTestCase()
-{
+void TestBackendRegistry::cleanupTestCase() {
     QSettings settings;
     settings.clear();
     QDir(m_settingsPath).removeRecursively();
 }
 
-void TestBackendRegistry::addAppendsBackendWithDefaults()
-{
+void TestBackendRegistry::addAppendsBackendWithDefaults() {
     BackendRegistry registry;
-    auto& config = registry.add(QStringLiteral("Local Ollama"), BackendKind::Ollama);
+    auto &config = registry.add(QStringLiteral("Local Ollama"), BackendKind::Ollama);
     QCOMPARE(registry.backends().size(), 1);
     QCOMPARE(config.name, QStringLiteral("Local Ollama"));
     QCOMPARE(config.kind, BackendKind::Ollama);
@@ -59,26 +56,23 @@ void TestBackendRegistry::addAppendsBackendWithDefaults()
     QVERIFY(!config.id.isNull());
 }
 
-void TestBackendRegistry::addEmitsChanged()
-{
+void TestBackendRegistry::addEmitsChanged() {
     BackendRegistry registry;
     QSignalSpy spy(&registry, &BackendRegistry::changed);
     registry.add(QStringLiteral("a"), BackendKind::OpenAi);
     QCOMPARE(spy.count(), 1);
 }
 
-void TestBackendRegistry::removeExistingBackendReturnsTrue()
-{
+void TestBackendRegistry::removeExistingBackendReturnsTrue() {
     BackendRegistry registry;
-    auto& config = registry.add(QStringLiteral("to remove"), BackendKind::Gemini);
+    auto &config = registry.add(QStringLiteral("to remove"), BackendKind::Gemini);
     QSignalSpy spy(&registry, &BackendRegistry::changed);
     QVERIFY(registry.remove(config.id));
     QVERIFY(registry.backends().isEmpty());
     QCOMPARE(spy.count(), 1);
 }
 
-void TestBackendRegistry::removeUnknownBackendReturnsFalse()
-{
+void TestBackendRegistry::removeUnknownBackendReturnsFalse() {
     BackendRegistry registry;
     registry.add(QStringLiteral("stay"), BackendKind::Mistral);
     QSignalSpy spy(&registry, &BackendRegistry::changed);
@@ -87,45 +81,41 @@ void TestBackendRegistry::removeUnknownBackendReturnsFalse()
     QCOMPARE(spy.count(), 0);
 }
 
-void TestBackendRegistry::findReturnsMatchingBackend()
-{
+void TestBackendRegistry::findReturnsMatchingBackend() {
     BackendRegistry registry;
-    auto& added = registry.add(QStringLiteral("find me"), BackendKind::Anthropic);
-    BackendConfig* found = registry.find(added.id);
+    auto &added = registry.add(QStringLiteral("find me"), BackendKind::Anthropic);
+    BackendConfig *found = registry.find(added.id);
     QVERIFY(found != nullptr);
     QCOMPARE(found->name, QStringLiteral("find me"));
 }
 
-void TestBackendRegistry::findByStringParsesUuid()
-{
+void TestBackendRegistry::findByStringParsesUuid() {
     BackendRegistry registry;
-    auto& added = registry.add(QStringLiteral("by string"), BackendKind::Vllm);
-    BackendConfig* found = registry.find(added.id.toString());
+    auto &added = registry.add(QStringLiteral("by string"), BackendKind::Vllm);
+    BackendConfig *found = registry.find(added.id.toString());
     QVERIFY(found != nullptr);
     QCOMPARE(found->id, added.id);
 }
 
-void TestBackendRegistry::findReturnsNullForUnknownId()
-{
+void TestBackendRegistry::findReturnsNullForUnknownId() {
     BackendRegistry registry;
     registry.add(QStringLiteral("some"), BackendKind::Ollama);
     QVERIFY(registry.find(QUuid::createUuid()) == nullptr);
     QVERIFY(registry.find(QStringLiteral("not-a-uuid")) == nullptr);
 }
 
-void TestBackendRegistry::enabledFiltersDisabledBackends()
-{
+void TestBackendRegistry::enabledFiltersDisabledBackends() {
     BackendRegistry registry;
-    auto& enabled1 = registry.add(QStringLiteral("on1"), BackendKind::Ollama);
-    auto& disabled = registry.add(QStringLiteral("off"), BackendKind::OpenAi);
-    auto& enabled2 = registry.add(QStringLiteral("on2"), BackendKind::Gemini);
+    auto &enabled1 = registry.add(QStringLiteral("on1"), BackendKind::Ollama);
+    auto &disabled = registry.add(QStringLiteral("off"), BackendKind::OpenAi);
+    auto &enabled2 = registry.add(QStringLiteral("on2"), BackendKind::Gemini);
     disabled.enabled = false;
 
     const auto result = registry.enabled();
     QCOMPARE(result.size(), 2);
-    const auto ids = [](const QVector<BackendConfig>& list) {
+    const auto ids = [](const QVector<BackendConfig> &list) {
         QList<QUuid> result;
-        for (const auto& c : list)
+        for (const auto &c : list)
             result.append(c.id);
         return result;
     };
@@ -134,16 +124,15 @@ void TestBackendRegistry::enabledFiltersDisabledBackends()
     QVERIFY(!ids(result).contains(disabled.id));
 }
 
-void TestBackendRegistry::saveAndLoadRoundTripsAllBackends()
-{
+void TestBackendRegistry::saveAndLoadRoundTripsAllBackends() {
     {
         BackendRegistry registry;
-        auto& a = registry.add(QStringLiteral("Ollama local"), BackendKind::Ollama);
+        auto &a = registry.add(QStringLiteral("Ollama local"), BackendKind::Ollama);
         a.apiKey = QStringLiteral("secret-key");
         a.defaultModel = QStringLiteral("llama3.2");
         a.baseUrl = QStringLiteral("http://192.168.1.10:11434");
 
-        auto& b = registry.add(QStringLiteral("Cloud"), BackendKind::Anthropic);
+        auto &b = registry.add(QStringLiteral("Cloud"), BackendKind::Anthropic);
         b.enabled = false;
         b.apiKey = QStringLiteral("sk-ant-xxx");
         b.defaultModel = QStringLiteral("claude-sonnet-4-5");
@@ -156,8 +145,9 @@ void TestBackendRegistry::saveAndLoadRoundTripsAllBackends()
         registry.load();
         QCOMPARE(registry.backends().size(), 2);
 
-        const auto ollama = std::find_if(registry.backends().begin(), registry.backends().end(),
-                                         [](const BackendConfig& c) { return c.kind == BackendKind::Ollama; });
+        const auto ollama =
+            std::find_if(registry.backends().begin(), registry.backends().end(),
+                         [](const BackendConfig &c) { return c.kind == BackendKind::Ollama; });
         QVERIFY(ollama != registry.backends().end());
         QCOMPARE(ollama->name, QStringLiteral("Ollama local"));
         QCOMPARE(ollama->apiKey, QStringLiteral("secret-key"));
@@ -165,8 +155,9 @@ void TestBackendRegistry::saveAndLoadRoundTripsAllBackends()
         QCOMPARE(ollama->baseUrl, QStringLiteral("http://192.168.1.10:11434"));
         QVERIFY(ollama->enabled);
 
-        const auto anthropic = std::find_if(registry.backends().begin(), registry.backends().end(),
-                                            [](const BackendConfig& c) { return c.kind == BackendKind::Anthropic; });
+        const auto anthropic =
+            std::find_if(registry.backends().begin(), registry.backends().end(),
+                         [](const BackendConfig &c) { return c.kind == BackendKind::Anthropic; });
         QVERIFY(anthropic != registry.backends().end());
         QCOMPARE(anthropic->name, QStringLiteral("Cloud"));
         QVERIFY(!anthropic->enabled);
@@ -175,8 +166,7 @@ void TestBackendRegistry::saveAndLoadRoundTripsAllBackends()
     }
 }
 
-void TestBackendRegistry::loadAppliesDefaultsForMissingFields()
-{
+void TestBackendRegistry::loadAppliesDefaultsForMissingFields() {
     // Write a minimal entry without baseUrl/enabled to verify defaults kick in.
     {
         QSettings settings;
@@ -194,14 +184,13 @@ void TestBackendRegistry::loadAppliesDefaultsForMissingFields()
     BackendRegistry registry;
     registry.load();
     QCOMPARE(registry.backends().size(), 1);
-    const auto& config = registry.backends().constFirst();
+    const auto &config = registry.backends().constFirst();
     QCOMPARE(config.kind, BackendKind::Gemini);
     QCOMPARE(config.baseUrl, BackendConfig::defaultBaseUrl(BackendKind::Gemini));
     QVERIFY(config.enabled);
 }
 
-void TestBackendRegistry::loadHandlesCorruptSettings()
-{
+void TestBackendRegistry::loadHandlesCorruptSettings() {
     {
         QSettings settings;
         settings.clear();
@@ -219,8 +208,8 @@ void TestBackendRegistry::loadHandlesCorruptSettings()
     BackendRegistry registry;
     registry.load();
     QCOMPARE(registry.backends().size(), 1);
-    const auto& config = registry.backends().constFirst();
-    QVERIFY(!config.id.isNull()); // invalid UUID replaced with a fresh one
+    const auto &config = registry.backends().constFirst();
+    QVERIFY(!config.id.isNull());               // invalid UUID replaced with a fresh one
     QCOMPARE(config.kind, BackendKind::Ollama); // unknown kind falls back to Ollama
     QCOMPARE(config.baseUrl, BackendConfig::defaultBaseUrl(BackendKind::Ollama));
 }

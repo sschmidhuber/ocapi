@@ -6,7 +6,8 @@ set(OCAPI_TESTS
     tst_backendregistry
     tst_backendfactory
     tst_sseparser
-    tst_chatdatabase)
+    tst_chatdatabase
+    tst_textextractor)
 
 
 foreach(test_name ${OCAPI_TESTS})

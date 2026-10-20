@@ -44,7 +44,6 @@ public:
     void updateBackend(const BackendConfig &config);
     void deleteBackend(const QString &backendId);
     [[nodiscard]] QVector<BackendConfig> loadBackends() const;
-    [[nodiscard]] bool hasBackends() const;
 
     [[nodiscard]] QStringList sessionIds() const;
     bool insertSession(const ChatSession &session);

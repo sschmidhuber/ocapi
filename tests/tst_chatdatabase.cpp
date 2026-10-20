@@ -172,7 +172,7 @@ void TestChatDatabase::backendRoundTrip() {
     config.defaultModel = QStringLiteral("llama3.2");
     config.enabled = false;
     db().insertBackend(config);
-    QVERIFY(db().hasBackends());
+    QVERIFY(!db().loadBackends().isEmpty());
     const auto loaded = db().loadBackends();
     QCOMPARE(loaded.size(), 1);
     QCOMPARE(loaded.at(0).name, QStringLiteral("Ollama local"));
@@ -203,9 +203,9 @@ void TestChatDatabase::backendDeleteRemovesEntry() {
     BackendConfig config;
     config.name = QStringLiteral("doomed");
     db().insertBackend(config);
-    QVERIFY(db().hasBackends());
+    QVERIFY(!db().loadBackends().isEmpty());
     db().deleteBackend(config.id.toString(QUuid::WithoutBraces));
-    QVERIFY(!db().hasBackends());
+    QVERIFY(db().loadBackends().isEmpty());
     QVERIFY(db().loadBackends().isEmpty());
 }
 

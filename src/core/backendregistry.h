@@ -13,8 +13,6 @@ class BackendRegistry : public QObject {
 public:
     explicit BackendRegistry(QObject *parent = nullptr);
 
-    void loadFromSettings();
-    void saveToSettings() const;
     void load(ChatDatabase &database);
     void attachDatabase(ChatDatabase *database);
     void save() const;

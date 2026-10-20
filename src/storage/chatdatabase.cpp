@@ -242,13 +242,6 @@ QVector<BackendConfig> ChatDatabase::loadBackends() const {
     return result;
 }
 
-bool ChatDatabase::hasBackends() const {
-    QSqlQuery query(m_database);
-    if (!query.exec(QStringLiteral("SELECT EXISTS (SELECT 1 FROM backends)")))
-        return false;
-    return query.next() && query.value(0).toInt() != 0;
-}
-
 QVector<StoredMessage> ChatDatabase::messagesForSession(const QString &sessionId, int limit,
                                                         int offset) const {
     QVector<StoredMessage> result;

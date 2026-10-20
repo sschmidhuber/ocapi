@@ -16,7 +16,6 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QSettings>
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QStatusBar>
@@ -298,19 +297,8 @@ bool MainWindow::openDatabase() {
 }
 
 void MainWindow::loadBackendsFromDatabase() {
-    if (!m_database.isOpen()) {
-        m_registry.loadFromSettings();
-        return;
-    }
-    if (!m_database.hasBackends()) {
-        BackendRegistry legacy;
-        legacy.loadFromSettings();
-        if (!legacy.backends().isEmpty()) {
-            for (const auto &config : legacy.backends())
-                m_database.insertBackend(config);
-        }
-    }
-    m_registry.load(m_database);
+    if (m_database.isOpen())
+        m_registry.load(m_database);
 }
 
 void MainWindow::loadOlderMessages(ChatSession *session) {

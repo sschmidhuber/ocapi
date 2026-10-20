@@ -136,11 +136,11 @@ void TestMcpRegistry::databaseRoundTripPreservesAllFields() {
         registry.load(database);
         QCOMPARE(registry.servers().size(), 2);
 
-        const auto *fs = registry.find(QStringLiteral("Filesystem"));
-        QVERIFY(fs == nullptr); // find takes an id, not a name
-        McpServerConfig *stdio = nullptr;
-        McpServerConfig *http = nullptr;
-        for (auto &config : registry.servers()) {
+        // find() takes an id, not a name.
+        QVERIFY(registry.find(QStringLiteral("Filesystem")) == nullptr);
+        const McpServerConfig *stdio = nullptr;
+        const McpServerConfig *http = nullptr;
+        for (const auto &config : registry.servers()) {
             if (config.transport == McpTransport::Stdio)
                 stdio = &config;
             else
@@ -164,7 +164,6 @@ void TestMcpRegistry::databaseRoundTripPreservesAllFields() {
         QCOMPARE(http->url, QStringLiteral("https://mcp.example.com/mcp"));
         QCOMPARE(http->headers, QStringList({QStringLiteral("Authorization: Bearer token")}));
         QVERIFY(!http->enabled);
-        Q_UNUSED(fs)
     }
 }
 

@@ -19,7 +19,8 @@ Checks: >
   -performance-enum-size,
   -cppcoreguidelines-owning-memory,
   -cppcoreguidelines-prefer-member-initializer,
-  -bugprone-easily-swappable-parameters
+  -bugprone-easily-swappable-parameters,
+  -readability-redundant-access-specifiers
 WarningsAsErrors: ''
 HeaderFilterRegex: '.*ocapi/.*(core|backends|ui)/.*'
 FormatStyle: file

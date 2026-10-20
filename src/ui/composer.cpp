@@ -48,7 +48,7 @@ bool MessageTextEdit::canInsertFromMimeData(const QMimeData *source) const {
 
 void MessageTextEdit::insertFromMimeData(const QMimeData *source) {
     if (source->hasImage()) {
-        const QImage image = qvariant_cast<QImage>(source->imageData());
+        const auto image = qvariant_cast<QImage>(source->imageData());
         QString error;
         auto attachment = ImagePreprocessor::processImage(image, QStringLiteral("image/png"),
                                                           tr("pasted-image.png"), &error);
@@ -120,7 +120,7 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
 
 bool Composer::eventFilter(QObject *watched, QEvent *event) {
     if (watched == m_textEdit && event->type() == QEvent::KeyPress) {
-        auto *keyEvent = static_cast<QKeyEvent *>(event);
+        auto *keyEvent = dynamic_cast<QKeyEvent *>(event);
         if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
             if (keyEvent->modifiers() & Qt::ShiftModifier)
                 return false;

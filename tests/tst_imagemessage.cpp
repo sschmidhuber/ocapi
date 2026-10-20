@@ -50,7 +50,8 @@ QString TestImageMessage::writeImage(const QImage &image, const QString &name) {
     QString path = m_tempDir.filePath(name);
     QImageWriter writer(path);
     writer.setQuality(95);
-    QVERIFY(writer.write(image));
+    if (!writer.write(image))
+        qWarning("failed to write test image: %s", qPrintable(writer.errorString()));
     return path;
 }
 

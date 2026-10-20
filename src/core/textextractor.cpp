@@ -5,7 +5,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImageReader>
+#include <QRegularExpression>
 #include <QStringDecoder>
+#include <QTemporaryDir>
 #include <QXmlStreamReader>
 
 #include <cstring>
@@ -304,6 +306,97 @@ QString extractXmlText(QByteArray xml, bool odfMode) {
 } // namespace
 #endif
 
+// HTML -> readable text: strip script/style blocks, then all tags, keep
+// block-level structure as line breaks and collapse runs of whitespace.
+QString TextExtractor::htmlToText(const QByteArray &html) {
+    static const QRegularExpression kScriptStyle(
+        QStringLiteral("<(script|style)\\b[^>]*>.*?</\\1\\s*>"),
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    QString text = QString::fromUtf8(html);
+    text.remove(kScriptStyle);
+    static const QRegularExpression kComments(QStringLiteral("<!--.*?-->"),
+                                              QRegularExpression::DotMatchesEverythingOption);
+    text.remove(kComments);
+    QString out;
+    out.reserve(text.size());
+    static const QRegularExpression kTag(QStringLiteral("<[^>]*>"));
+    qsizetype pos = 0;
+    while (pos < text.size()) {
+        const auto match = kTag.match(text, pos);
+        if (!match.hasMatch()) {
+            out += text.mid(pos);
+            break;
+        }
+        out += text.mid(pos, match.capturedStart() - pos);
+        const QString tag = match.captured(0).toLower();
+        const bool isBlock =
+            tag.startsWith("<p") || tag.startsWith("<div") || tag.startsWith("<br") ||
+            tag.startsWith("<li") || tag.startsWith("<tr") || tag.startsWith("<h") ||
+            tag.startsWith("<table") || tag.startsWith("<section") || tag.startsWith("<article") ||
+            tag.startsWith("<header") || tag.startsWith("<footer") || tag.startsWith("<blockquote");
+        if (isBlock)
+            out += QLatin1Char('\n');
+        pos = match.capturedEnd();
+    }
+    static const QRegularExpression kBlankRuns(QStringLiteral("\n{3,}"));
+    out.replace(kBlankRuns, QStringLiteral("\n\n"));
+    static const QRegularExpression kSpacedNewlines(QStringLiteral("[ \\t]*\n[ \\t]*"));
+    out.replace(kSpacedNewlines, QStringLiteral("\n"));
+    return out.trimmed();
+}
+
+// One RFC 5322 message: headers of interest + text/plain body (or the text
+// stripped from a text/html alternative part).
+static QString emailMessageToText(const QByteArray &raw) {
+    // Header/body separator: CRLF (RFC 5322) or bare LF (common in mbox).
+    qsizetype headerEnd = raw.indexOf("\r\n\r\n");
+    qsizetype sepLen = 4;
+    if (headerEnd < 0) {
+        headerEnd = raw.indexOf("\n\n");
+        sepLen = 2;
+    }
+    if (headerEnd < 0)
+        return {};
+    const QByteArray headerBlock = raw.left(headerEnd);
+    const QByteArray body = raw.mid(headerEnd + sepLen);
+    const auto headerValue = [&headerBlock](const char *name) {
+        const QByteArray prefix = QByteArray(name) + ":";
+        const qsizetype start = headerBlock.indexOf(prefix);
+        if (start < 0)
+            return QString();
+        qsizetype end = headerBlock.indexOf('\n', start);
+        if (end < 0)
+            end = headerBlock.size();
+        QString value =
+            QString::fromUtf8(headerBlock.mid(start + prefix.size(), end - start - prefix.size()));
+        value.remove(QLatin1String("\r"));
+        while (value.startsWith(QLatin1Char(' ')))
+            value.remove(0, 1);
+        return value.trimmed();
+    };
+    QString out;
+    const QString subject = headerValue("Subject");
+    const QString from = headerValue("From");
+    const QString to = headerValue("To");
+    const QString date = headerValue("Date");
+    if (!subject.isEmpty())
+        out += QStringLiteral("Subject: %1\n").arg(subject);
+    if (!from.isEmpty())
+        out += QStringLiteral("From: %1\n").arg(from);
+    if (!to.isEmpty())
+        out += QStringLiteral("To: %1\n").arg(to);
+    if (!date.isEmpty())
+        out += QStringLiteral("Date: %1\n").arg(date);
+    if (!out.isEmpty())
+        out += QLatin1Char('\n');
+    const bool isHtml =
+        headerValue("Content-Type").contains(QLatin1String("text/html"), Qt::CaseInsensitive);
+    const QString bodyText =
+        isHtml ? ocapi::TextExtractor::htmlToText(body) : QString::fromUtf8(body);
+    out += bodyText;
+    return out;
+}
+
 QString TextExtractor::extractFromOffice(const QString &path, QString *error) {
 #if OCAPI_HAVE_LIBARCHIVE
     if (!QFileInfo::exists(path)) {
@@ -383,10 +476,156 @@ QString TextExtractor::extractFromOffice(const QString &path, QString *error) {
 #endif
 }
 
+QString TextExtractor::extractFromEmail(const QString &path, QString *error) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        if (error)
+            *error = QObject::tr("Could not read file: %1").arg(path);
+        return {};
+    }
+    const QByteArray raw = file.readAll();
+    file.close();
+    const bool isMbox = raw.startsWith("From ");
+    QString extracted;
+    if (isMbox) {
+        // mbox: messages separated by lines starting with "From ".
+        qsizetype pos = 0;
+        while (pos < raw.size()) {
+            qsizetype next = raw.indexOf("\nFrom ", pos + 1);
+            if (next < 0)
+                next = raw.size();
+            // skip the mbox "From " line itself
+            qsizetype lineEnd = raw.indexOf('\n', pos);
+            if (lineEnd < 0)
+                lineEnd = raw.size();
+            const QByteArray message = raw.mid(lineEnd + 1, next - lineEnd - 1);
+            const QString text = emailMessageToText(message);
+            if (!text.isEmpty())
+                extracted += text + "\n\n";
+            pos = next;
+        }
+    } else {
+        extracted = emailMessageToText(raw);
+    }
+    if (extracted.isEmpty() && error)
+        *error = QObject::tr("No e-mail content found in: %1").arg(QFileInfo(path).fileName());
+    return extracted;
+}
+
+#if OCAPI_HAVE_LIBARCHIVE
+QString TextExtractor::extractFromArchive(const QString &path, QString *error) {
+    archive *arch = archive_read_new();
+    if (!arch) {
+        if (error)
+            *error = QObject::tr("Could not open archive: %1").arg(QFileInfo(path).fileName());
+        return {};
+    }
+    archive_read_support_format_all(arch);
+    archive_read_support_filter_all(arch);
+    struct ArchiveGuard {
+        archive *handle;
+        ~ArchiveGuard() {
+            if (handle)
+                archive_read_free(handle);
+        }
+    } guard{arch};
+
+    if (archive_read_open_filename(arch, path.toUtf8().constData(), 10240) != ARCHIVE_OK) {
+        if (error)
+            *error =
+                QObject::tr("Could not open archive: %1 (%2)")
+                    .arg(QFileInfo(path).fileName(), QString::fromUtf8(archive_error_string(arch)));
+        return {};
+    }
+
+    QTemporaryDir tempDir;
+    if (!tempDir.isValid()) {
+        if (error)
+            *error = QObject::tr("Could not create a temporary directory for archive extraction.");
+        return {};
+    }
+
+    QString extracted;
+    int entryCount = 0;
+    qint64 totalBytes = 0;
+    archive_entry *entry = nullptr;
+    while (archive_read_next_header(arch, &entry) == ARCHIVE_OK) {
+        if (++entryCount > maxArchiveEntries()) {
+            if (error)
+                *error = QObject::tr("Archive has too many entries (limit: %1): %2")
+                             .arg(maxArchiveEntries())
+                             .arg(QFileInfo(path).fileName());
+            return {};
+        }
+        const char *entryNameRaw = archive_entry_pathname(entry);
+        if (!entryNameRaw)
+            continue;
+        const QString entryName = QString::fromUtf8(entryNameRaw);
+        // Reject absolute paths and ".." traversal for safe extraction.
+        if (entryName.startsWith(QLatin1Char('/')) || entryName.contains(QLatin1String("..")))
+            continue;
+        const la_int64_t entrySize = archive_entry_size(entry);
+        if (entrySize < 0)
+            continue;
+        totalBytes += entrySize;
+        if (totalBytes > maxArchiveTotalBytes()) {
+            if (error)
+                *error = QObject::tr("Archive expands beyond the size limit of %1 MB: %2")
+                             .arg(maxArchiveTotalBytes() / (1024 * 1024))
+                             .arg(QFileInfo(path).fileName());
+            return {};
+        }
+        const QString targetPath = tempDir.path() + QLatin1Char('/') + entryName;
+        QDir().mkpath(QFileInfo(targetPath).absolutePath());
+        QFile out(targetPath);
+        if (!out.open(QIODevice::WriteOnly))
+            continue;
+        const void *chunk = nullptr;
+        size_t size = 0;
+        la_int64_t offset = 0;
+        bool writeFailed = false;
+        while (archive_read_data_block(arch, &chunk, &size, &offset) == ARCHIVE_OK) {
+            if (out.write(static_cast<const char *>(chunk), static_cast<qint64>(size)) <
+                static_cast<qint64>(size)) {
+                writeFailed = true;
+                break;
+            }
+        }
+        out.close();
+        if (writeFailed)
+            continue;
+        QString entryError;
+        const QString text = extractFromFile(targetPath, &entryError);
+        if (!text.isEmpty())
+            extracted +=
+                QStringLiteral("[Archive entry: %1]\n%2\n\n").arg(entryName, text.trimmed());
+    }
+    if (extracted.isEmpty() && error)
+        *error =
+            QObject::tr("No readable content found in archive: %1").arg(QFileInfo(path).fileName());
+    return extracted;
+}
+#else
+QString TextExtractor::extractFromArchive(const QString &path, QString *error) {
+    Q_UNUSED(path);
+    if (error)
+        *error =
+            QObject::tr("Archive support is not available in this build (libarchive is missing).");
+    return {};
+}
+#endif
+
 QString TextExtractor::extractFromFile(const QString &path, QString *error) {
     const QString suffix = QFileInfo(path).suffix().toLower();
     if (suffix == QLatin1String("pdf"))
         return extractFromPdf(path, error);
+    if (suffix == QLatin1String("eml") || suffix == QLatin1String("mbox"))
+        return extractFromEmail(path, error);
+    if (hasLibArchive() && (suffix == QLatin1String("zip") || suffix == QLatin1String("tar") ||
+                            suffix == QLatin1String("gz") || suffix == QLatin1String("tgz") ||
+                            suffix == QLatin1String("bz2") || suffix == QLatin1String("xz") ||
+                            suffix == QLatin1String("7z")))
+        return extractFromArchive(path, error);
     if (hasLibArchive() && (suffix == QLatin1String("docx") || suffix == QLatin1String("xlsx") ||
                             suffix == QLatin1String("pptx") || suffix == QLatin1String("odt") ||
                             suffix == QLatin1String("ods") || suffix == QLatin1String("odp")))
@@ -398,6 +637,21 @@ QString TextExtractor::extractFromFile(const QString &path, QString *error) {
                                                   QStringLiteral("bmp"), QStringLiteral("gif")};
         if (imageSuffixes.contains(suffix))
             return extractFromImageFile(path, error);
+    }
+    if (suffix == QLatin1String("html") || suffix == QLatin1String("htm")) {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly)) {
+            if (error)
+                *error = QObject::tr("Could not read file: %1").arg(path);
+            return {};
+        }
+        const QByteArray raw = file.readAll();
+        file.close();
+        const QString text = htmlToText(raw);
+        if (text.isEmpty() && error)
+            *error = QObject::tr("No readable text found in HTML file: %1")
+                         .arg(QFileInfo(path).fileName());
+        return text;
     }
     if (isTextFile(path))
         return extractFromTextFile(path, error);

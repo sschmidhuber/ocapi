@@ -29,6 +29,14 @@ QString geminiRole(Role role) {
 
 } // namespace
 
+QStringList fallbackModels() {
+    return {
+        QStringLiteral("gemini-2.5-pro"),
+        QStringLiteral("gemini-2.5-flash"),
+        QStringLiteral("gemini-2.0-flash"),
+    };
+}
+
 GeminiBackend::GeminiBackend(BackendConfig config, QObject *parent)
     : IBackend(std::move(config), parent), m_nam(new QNetworkAccessManager(this)) {}
 
@@ -48,7 +56,9 @@ void GeminiBackend::listModels() {
         m_modelsReply = nullptr;
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
-            emit modelsFailed(reply->errorString());
+            // Fall back to the well-known models when listing is unavailable
+            // (invalid key, restricted access or network issues).
+            emit modelsReady(fallbackModels());
             return;
         }
         const auto models = QJsonDocument::fromJson(reply->readAll())
@@ -64,6 +74,8 @@ void GeminiBackend::listModels() {
                 name.remove(0, 7);
             names.append(name);
         }
+        if (names.isEmpty())
+            names = fallbackModels();
         emit modelsReady(names);
     });
 }

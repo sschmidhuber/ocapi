@@ -5,6 +5,7 @@
 #include <memory>
 
 class QNetworkAccessManager;
+class QNetworkReply;
 
 namespace ocapi {
 
@@ -24,6 +25,7 @@ public:
 private:
     QNetworkAccessManager *m_nam;
     std::unique_ptr<SseClient> m_stream;
+    QNetworkReply *m_modelsReply = nullptr;
     QUuid m_currentMessageId;
     QString m_accumulated;
 };

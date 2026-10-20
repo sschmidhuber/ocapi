@@ -45,6 +45,61 @@ QByteArray minimalPdf() {
 
 } // namespace
 
+namespace {
+
+// clang-format off
+QByteArray docxZip() {
+    return QByteArray::fromBase64(
+        QByteArrayLiteral("UEsDBBQAAAAIAJWQVF3uR1hmHwAAAB0AAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbLOxr8jNUShL") +
+        QByteArrayLiteral("LSrOzM+zVTLUM1Cyt7MJqSxILda3AwBQSwMEFAAAAAgAlZBUXU5LWUmfAAAAFAEAABEAAAB3b3Jk") +
+        QByteArrayLiteral("L2RvY3VtZW50LnhtbHWPSw7CMAxErxLlALiwYFH1s2XPCUwS2khJHDmBltuTSCCKBJuxR08ejbtx") +
+        QByteArrayLiteral("9U7cDSdLoZf7XSPHoVtaTermTcii4JDapZdzzrEFSGo2HtOOogmFXYk95mJ5goVYRyZlUrJh8g4O") +
+        QByteArrayLiteral("TXMEjzbIGnkh/agzVuEqeTgZ50h0UPeqvGGkMNo/rNRbvwi8crfhZ6MoaBGRcWKM848DeNeCz8vD") +
+        QByteArrayLiteral("E1BLAQIUAxQAAAAIAJWQVF3uR1hmHwAAAB0AAAATAAAAAAAAAAAAAACAAQAAAABbQ29udGVudF9U") +
+        QByteArrayLiteral("eXBlc10ueG1sUEsBAhQDFAAAAAgAlZBUXU5LWUmfAAAAFAEAABEAAAAAAAAAAAAAAIABUAAAAHdv") +
+        QByteArrayLiteral("cmQvZG9jdW1lbnQueG1sUEsFBgAAAAACAAIAgAAAAB4BAAAAAA=="));
+}
+// clang-format on
+
+// clang-format off
+QByteArray xlsxZip() {
+    return QByteArray::fromBase64(
+        QByteArrayLiteral("UEsDBBQAAAAIAJWQVF3uR1hmHwAAAB0AAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbLOxr8jNUShL") +
+        QByteArrayLiteral("LSrOzM+zVTLUM1Cyt7MJqSxILda3AwBQSwMEFAAAAAgAlZBUXd7JrhdxAAAAiwAAABQAAAB4bC9z") +
+        QByteArrayLiteral("aGFyZWRTdHJpbmdzLnhtbE2NMQ7CMAxFr1LlAHVgYEBuegNGdosaEilOothFHJ+gLozvfel9XD+S") +
+        QByteArrayLiteral("pzd3TbUs7jR7twZUtWn4oouLZu0KoI/IQjrXxmUsz9qFbGB/gbbOtGlkNslw9v4CQqm4kUkBLdxI") +
+        QByteArrayLiteral("GMECwo8Pd6e8/0kYh+ELUEsDBBQAAAAIAJWQVF0Vy+O4gAAAALoAAAAYAAAAeGwvd29ya3NoZWV0") +
+        QByteArrayLiteral("cy9zaGVldDEueG1sVY5LDsIwDESvUuUAdcqCBXLcDReJgiEVzUdxlHJ8oiwqWPq9mZFx/YR9alxk") +
+        QByteArrayLiteral("S9GoZdZqJTxSeYtnrlO3UYzyteYbgDjPwcqcMsdunqkEW/tZXiC5sH2MUtjhovUVgt2iIhzsbqsl") +
+        QByteArrayLiteral("LOkgdFM1SrpopBEaIbg/uJwQRh5+BuD8jL5QSwECFAMUAAAACACVkFRd7kdYZh8AAAAdAAAAEwAA") +
+        QByteArrayLiteral("AAAAAAAAAAAAgAEAAAAAW0NvbnRlbnRfVHlwZXNdLnhtbFBLAQIUAxQAAAAIAJWQVF3eya4XcQAA") +
+        QByteArrayLiteral("AIsAAAAUAAAAAAAAAAAAAACAAVAAAAB4bC9zaGFyZWRTdHJpbmdzLnhtbFBLAQIUAxQAAAAIAJWQ") +
+        QByteArrayLiteral("VF0Vy+O4gAAAALoAAAAYAAAAAAAAAAAAAACAAfMAAAB4bC93b3Jrc2hlZXRzL3NoZWV0MS54bWxQ") +
+        QByteArrayLiteral("SwUGAAAAAAMAAwDJAAAAqQEAAAAA"));
+}
+// clang-format on
+
+// clang-format off
+QByteArray pptxZip() {
+    return QByteArray::fromBase64(
+        QByteArrayLiteral("UEsDBBQAAAAIAJWQVF3uR1hmHwAAAB0AAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbLOxr8jNUShL") +
+        QByteArrayLiteral("LSrOzM+zVTLUM1Cyt7MJqSxILda3AwBQSwMEFAAAAAgAlZBUXbDh0OqmAAAAIAEAABUAAABwcHQv") +
+        QByteArrayLiteral("c2xpZGVzL3NsaWRlMS54bWyNkE0OwiAQha/ScIBOdeGCUJp4hXoBUsaWhL/AROvthVbTuHPzBebx") +
+        QByteArrayLiteral("3rwghtXZ5oEpm+B7dmo7NkgReba6KYrPXPVsIYocIE8LOpXbENEX7R6SU1SuaQad1NP42Vk4d90F") +
+        QByteArrayLiteral("nDKeffzxH39MmNGTotLiJ6R2mUart07xlhD3UyWt16BfUigeK1IFydEajU3w2BCuJKDOKtPG8hIO") +
+        QByteArrayLiteral("J+xRcGTDdx1sfyDfUEsDBBQAAAAIAJWQVF1O3XE0pwAAACABAAAVAAAAcHB0L3NsaWRlcy9zbGlk") +
+        QByteArrayLiteral("ZTIueG1sjZBNDsIgEIWv0nCATnXhglCaeAW9ACljS8JfYGLr7YVW07hz8wXm8d68IIbV2eaJKZvg") +
+        QByteArrayLiteral("e3ZqOzZIEXm2uimKz1z1bCaKHCCPMzqV2xDRF+0RklNUrmkCndRi/OQsnLvuAk4Zzz7++I8/Jszo") +
+        QByteArrayLiteral("SVFp8RNSu4w3q7dO8Z4Q91MlrdegX1IoHitSBcmbNRobWkJDuJKAOqtMG8tLOJywR8GRDd91sP2B") +
+        QByteArrayLiteral("fANQSwECFAMUAAAACACVkFRd7kdYZh8AAAAdAAAAEwAAAAAAAAAAAAAAgAEAAAAAW0NvbnRlbnRf") +
+        QByteArrayLiteral("VHlwZXNdLnhtbFBLAQIUAxQAAAAIAJWQVF2w4dDqpgAAACABAAAVAAAAAAAAAAAAAACAAVAAAABw") +
+        QByteArrayLiteral("cHQvc2xpZGVzL3NsaWRlMS54bWxQSwECFAMUAAAACACVkFRdTt1xNKcAAAAgAQAAFQAAAAAAAAAA") +
+        QByteArrayLiteral("AAAAgAEpAQAAcHB0L3NsaWRlcy9zbGlkZTIueG1sUEsFBgAAAAADAAMAxwAAAAMCAAAAAA=="));
+}
+// clang-format on
+
+} // namespace
+
 class TestTextExtractor : public QObject {
     Q_OBJECT
 private slots:
@@ -58,6 +113,10 @@ private slots:
     void isTextFileAcceptsPlainTextFormats();
     void isTextFileRejectsBinaryFiles();
     void extractFromFileRoutesTextFiles();
+    void extractFromOoxmlHandlesDocx();
+    void extractFromOoxmlHandlesXlsx();
+    void extractFromOoxmlHandlesPptx();
+    void extractFromOoxmlRejectsMissingFile();
 };
 
 void TestTextExtractor::availabilityFlagsAreConsistent() {
@@ -181,6 +240,68 @@ void TestTextExtractor::extractFromFileRoutesTextFiles() {
     const QString text = TextExtractor::extractFromFile(path, &error);
     QCOMPARE(text, QStringLiteral("- first\n- second"));
     QFile::remove(path);
+}
+
+void writeFixture(const QString &path, const QByteArray &zip) {
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(zip);
+    file.close();
+}
+
+void TestTextExtractor::extractFromOoxmlHandlesDocx() {
+    if (!TextExtractor::hasLibArchive())
+        QSKIP("libarchive not available in this build");
+
+    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.docx"));
+    writeFixture(path, docxZip());
+    QString error;
+    const QString text = TextExtractor::extractFromOoxml(path, &error);
+    QVERIFY2(!text.isEmpty(), qPrintable(error));
+    QVERIFY(text.contains(QStringLiteral("Hello"), Qt::CaseInsensitive));
+    QVERIFY(text.contains(QStringLiteral("ocapi"), Qt::CaseInsensitive));
+    QVERIFY(text.contains(QStringLiteral("docx"), Qt::CaseInsensitive));
+    QVERIFY(text.contains(QStringLiteral("Second paragraph"), Qt::CaseInsensitive));
+    QFile::remove(path);
+}
+
+void TestTextExtractor::extractFromOoxmlHandlesXlsx() {
+    if (!TextExtractor::hasLibArchive())
+        QSKIP("libarchive not available in this build");
+
+    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.xlsx"));
+    writeFixture(path, xlsxZip());
+    QString error;
+    const QString text = TextExtractor::extractFromOoxml(path, &error);
+    QVERIFY2(!text.isEmpty(), qPrintable(error));
+    QVERIFY(text.contains(QStringLiteral("Name"), Qt::CaseInsensitive));
+    QVERIFY(text.contains(QStringLiteral("Value"), Qt::CaseInsensitive));
+    QFile::remove(path);
+}
+
+void TestTextExtractor::extractFromOoxmlHandlesPptx() {
+    if (!TextExtractor::hasLibArchive())
+        QSKIP("libarchive not available in this build");
+
+    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.pptx"));
+    writeFixture(path, pptxZip());
+    QString error;
+    const QString text = TextExtractor::extractFromOoxml(path, &error);
+    QVERIFY2(!text.isEmpty(), qPrintable(error));
+    QVERIFY(text.contains(QStringLiteral("Slide one text"), Qt::CaseInsensitive));
+    QVERIFY(text.contains(QStringLiteral("Slide two text"), Qt::CaseInsensitive));
+    QFile::remove(path);
+}
+
+void TestTextExtractor::extractFromOoxmlRejectsMissingFile() {
+    if (!TextExtractor::hasLibArchive())
+        QSKIP("libarchive not available in this build");
+
+    QString error;
+    const QString text = TextExtractor::extractFromOoxml(
+        QDir::temp().filePath(QStringLiteral("ocapi-missing-file.docx")), &error);
+    QVERIFY(text.isEmpty());
+    QVERIFY(!error.isEmpty());
 }
 
 void TestTextExtractor::extractFromFileRejectsUnsupportedSuffix() {

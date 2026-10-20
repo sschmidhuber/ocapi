@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QImageReader>
 #include <QStringDecoder>
+#include <QXmlStreamReader>
 
 #include <cstring>
 #include <memory>
@@ -20,6 +21,11 @@
 #if OCAPI_HAVE_TESSERACT
 #include <leptonica/allheaders.h>
 #include <tesseract/baseapi.h>
+#endif
+
+#if OCAPI_HAVE_LIBARCHIVE
+#include <archive.h>
+#include <archive_entry.h>
 #endif
 
 namespace ocapi {
@@ -72,6 +78,14 @@ bool TextExtractor::hasTesseract() {
 #endif
 }
 
+bool TextExtractor::hasLibArchive() {
+#if OCAPI_HAVE_LIBARCHIVE
+    return true;
+#else
+    return false;
+#endif
+}
+
 QStringList TextExtractor::supportedMimeTypes() {
     QStringList types;
     if (hasPoppler())
@@ -81,6 +95,14 @@ QStringList TextExtractor::supportedMimeTypes() {
         types.push_back(QStringLiteral("image/png"));
         types.push_back(QStringLiteral("image/webp"));
         types.push_back(QStringLiteral("image/tiff"));
+    }
+    if (hasLibArchive()) {
+        types.push_back(QStringLiteral("application/vnd.openxmlformats-officedocument."
+                                       "wordprocessingml.document"));
+        types.push_back(QStringLiteral("application/vnd.openxmlformats-officedocument."
+                                       "spreadsheetml.sheet"));
+        types.push_back(QStringLiteral("application/vnd.openxmlformats-officedocument."
+                                       "presentationml.presentation"));
     }
     return types;
 }
@@ -226,10 +248,129 @@ bool TextExtractor::isTextFile(const QString &path) {
     return validUtf8 && static_cast<double>(printable) / total >= kMinPrintableRatio;
 }
 
+#if OCAPI_HAVE_LIBARCHIVE
+namespace {
+
+// Text runs in OOXML payload XML live in <w:t> (Word), <t> (Excel shared
+// strings and sheet cells) and <a:t> (PowerPoint) elements. Paragraph ends
+// are marked with <w:p>/<a:p>; Excel cell values are separated by tabs.
+QString extractXmlText(QByteArray xml, bool slideMode) {
+    QString out;
+    QXmlStreamReader xmlReader(xml);
+    QString currentText;
+    bool inText = false;
+    while (!xmlReader.atEnd()) {
+        const auto token = xmlReader.readNext();
+        const QStringView name = xmlReader.name();
+        if (token == QXmlStreamReader::StartElement) {
+            if (name == QLatin1String("t") || name == QLatin1String("w:t") ||
+                name == QLatin1String("a:t")) {
+                inText = true;
+                currentText.clear();
+            }
+        } else if (token == QXmlStreamReader::Characters) {
+            if (inText)
+                currentText += xmlReader.text();
+        } else if (token == QXmlStreamReader::EndElement) {
+            if (inText && (name == QLatin1String("t") || name == QLatin1String("w:t") ||
+                           name == QLatin1String("a:t"))) {
+                inText = false;
+                if (!currentText.isEmpty()) {
+                    if (!out.isEmpty())
+                        out += slideMode ? QString(QLatin1Char('\n')) : QString(QLatin1Char(' '));
+                    out += currentText;
+                }
+            }
+        }
+    }
+    return out;
+}
+
+} // namespace
+#endif
+
+QString TextExtractor::extractFromOoxml(const QString &path, QString *error) {
+#if OCAPI_HAVE_LIBARCHIVE
+    if (!QFileInfo::exists(path)) {
+        if (error)
+            *error = QObject::tr("File does not exist: %1").arg(path);
+        return {};
+    }
+    archive *arch = archive_read_new();
+    if (!arch) {
+        if (error)
+            *error = QObject::tr("Could not open archive: %1").arg(QFileInfo(path).fileName());
+        return {};
+    }
+    archive_read_support_format_zip(arch);
+    archive_read_support_format_empty(arch);
+    struct ArchiveGuard {
+        archive *handle;
+        ~ArchiveGuard() {
+            if (handle)
+                archive_read_free(handle);
+        }
+    } guard{arch};
+
+    if (archive_read_open_filename(arch, path.toUtf8().constData(), 10240) != ARCHIVE_OK) {
+        if (error)
+            *error =
+                QObject::tr("Could not open Office document: %1 (%2)")
+                    .arg(QFileInfo(path).fileName(), QString::fromUtf8(archive_error_string(arch)));
+        return {};
+    }
+
+    const QString suffix = QFileInfo(path).suffix().toLower();
+    QString extracted;
+    archive_entry *entry = nullptr;
+    while (archive_read_next_header(arch, &entry) == ARCHIVE_OK) {
+        const QString entryName = QString::fromUtf8(archive_entry_pathname_utf8(entry));
+        QByteArray payload;
+        bool wanted = false;
+        bool slideMode = false;
+        if (suffix == QLatin1String("docx")) {
+            wanted = entryName == QLatin1String("word/document.xml");
+        } else if (suffix == QLatin1String("xlsx")) {
+            wanted = entryName == QLatin1String("xl/sharedStrings.xml") ||
+                     entryName.startsWith(QLatin1String("xl/worksheets/sheet"));
+        } else if (suffix == QLatin1String("pptx")) {
+            wanted = entryName.startsWith(QLatin1String("ppt/slides/slide"));
+            slideMode = true;
+        }
+        if (!wanted)
+            continue;
+        payload.reserve(static_cast<int>(archive_entry_size(entry)));
+        const void *chunk = nullptr;
+        size_t size = 0;
+        la_int64_t offset = 0;
+        while (archive_read_data_block(arch, &chunk, &size, &offset) == ARCHIVE_OK)
+            payload.append(static_cast<const char *>(chunk), static_cast<int>(size));
+        if (payload.isEmpty())
+            continue;
+        const QString part = extractXmlText(payload, slideMode);
+        if (!part.isEmpty())
+            extracted += part + "\n";
+    }
+    if (extracted.isEmpty() && error)
+        *error =
+            QObject::tr("No text found in Office document: %1").arg(QFileInfo(path).fileName());
+    return extracted;
+#else
+    Q_UNUSED(path);
+    if (error)
+        *error = QObject::tr(
+            "Office document support is not available in this build (libarchive is missing).");
+    return {};
+#endif
+}
+
 QString TextExtractor::extractFromFile(const QString &path, QString *error) {
     const QString suffix = QFileInfo(path).suffix().toLower();
     if (suffix == QLatin1String("pdf"))
         return extractFromPdf(path, error);
+    if (hasLibArchive() && (suffix == QLatin1String("docx") || suffix == QLatin1String("xlsx") ||
+                            suffix == QLatin1String("pptx")))
+        return extractFromOoxml(path, error);
     if (hasTesseract()) {
         static const QStringList imageSuffixes = {QStringLiteral("jpg"), QStringLiteral("jpeg"),
                                                   QStringLiteral("png"), QStringLiteral("webp"),

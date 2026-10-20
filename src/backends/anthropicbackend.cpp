@@ -93,10 +93,27 @@ void AnthropicBackend::sendMessage(ChatSession *session, const QString &model) {
             systemPrompt.append(message.content).append(QLatin1Char('\n'));
             continue;
         }
+        QJsonArray contentParts;
+        if (!message.content.isEmpty())
+            contentParts.append(QJsonObject{{QStringLiteral("type"), QStringLiteral("text")},
+                                            {QStringLiteral("text"), message.content}});
+        for (const auto &image : message.images) {
+            contentParts.append(QJsonObject{
+                {QStringLiteral("type"), QStringLiteral("image")},
+                {QStringLiteral("source"),
+                 QJsonObject{
+                     {QStringLiteral("type"), QStringLiteral("base64")},
+                     {QStringLiteral("media_type"), image.mimeType},
+                     {QStringLiteral("data"), image.base64Data()},
+                 }},
+            });
+        }
+        if (contentParts.isEmpty())
+            continue;
         messages.append(QJsonObject{
             {QStringLiteral("role"), message.role == Role::Assistant ? QStringLiteral("assistant")
                                                                      : QStringLiteral("user")},
-            {QStringLiteral("content"), message.content},
+            {QStringLiteral("content"), contentParts},
         });
     }
     systemPrompt = systemPrompt.trimmed();

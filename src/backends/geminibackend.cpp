@@ -96,11 +96,23 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model) {
             systemPrompt.append(message.content).append(QLatin1Char('\n'));
             continue;
         }
+        QJsonArray parts;
+        if (!message.content.isEmpty())
+            parts.append(QJsonObject{{QStringLiteral("text"), message.content}});
+        for (const auto &image : message.images) {
+            parts.append(QJsonObject{
+                {QStringLiteral("inlineData"),
+                 QJsonObject{
+                     {QStringLiteral("mimeType"), image.mimeType},
+                     {QStringLiteral("data"), image.base64Data()},
+                 }},
+            });
+        }
+        if (parts.isEmpty())
+            continue;
         contents.append(QJsonObject{
             {QStringLiteral("role"), geminiRole(message.role)},
-            {QStringLiteral("parts"), QJsonArray{QJsonObject{
-                                          {QStringLiteral("text"), message.content},
-                                      }}},
+            {QStringLiteral("parts"), parts},
         });
     }
     systemPrompt = systemPrompt.trimmed();

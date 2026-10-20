@@ -120,7 +120,7 @@ void OpenAiApiBackend::listModels() {
 
 namespace {
 
-QJsonArray conversationToJson(ChatSession *session, const QUuid &currentMessageId) {
+QJsonArray conversationToJson(const ChatSession *session, const QUuid &currentMessageId) {
     QJsonArray messages;
     for (const auto &message : session->messages()) {
         if (message.id == currentMessageId)

@@ -3,6 +3,7 @@
 #include <QtTest>
 
 #include <array>
+#include <numeric>
 
 using namespace ocapi;
 
@@ -157,8 +158,7 @@ void TestTextExtractor::isTextFileRejectsBinaryFiles() {
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     std::array<char, 64> binary{};
-    for (std::size_t i = 0; i < binary.size(); ++i)
-        binary[i] = static_cast<char>(i * 3);
+    std::iota(binary.begin(), binary.end(), static_cast<char>(0));
     file.write(binary.data(), static_cast<qint64>(binary.size()));
     file.close();
     QVERIFY(!TextExtractor::isTextFile(path));
@@ -188,8 +188,7 @@ void TestTextExtractor::extractFromFileRejectsUnsupportedSuffix() {
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     std::array<char, 48> binary{};
-    for (std::size_t i = 0; i < binary.size(); ++i)
-        binary[i] = static_cast<char>(i * 5);
+    std::iota(binary.begin(), binary.end(), static_cast<char>(0));
     file.write(binary.data(), static_cast<qint64>(binary.size()));
     file.close();
     QString error;

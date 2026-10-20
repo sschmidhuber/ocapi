@@ -1,10 +1,10 @@
 #pragma once
 
 #include "core/backendconfig.h"
-#include <QDialog>
+
+#include <QWidget>
 
 class QComboBox;
-class QDialogButtonBox;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -16,11 +16,14 @@ namespace ocapi {
 class BackendRegistry;
 class IBackend;
 
-class BackendDialog : public QDialog {
+// Embedded settings page for model backends: add/remove backends, edit
+// connection settings (type, base URL, API key, default model, enabled) and
+// test the connection by listing the backend's models.
+class BackendPage : public QWidget {
     Q_OBJECT
 
 public:
-    explicit BackendDialog(BackendRegistry *registry, QWidget *parent = nullptr);
+    explicit BackendPage(BackendRegistry *registry, QWidget *parent = nullptr);
 
 private slots:
     void onAddBackend();
@@ -49,7 +52,6 @@ private:
     QCheckBox *m_enabledBox;
     QPushButton *m_testButton;
     QLabel *m_testResultLabel;
-    QDialogButtonBox *m_buttonBox;
     IBackend *m_testBackend = nullptr;
     bool m_updatingForm = false;
 };

@@ -1,11 +1,10 @@
-#include "ui/mcpdialog.h"
+#include "ui/mcppage.h"
 
 #include "backends/mcpclient.h"
 #include "core/mcpregistry.h"
 
 #include <QCheckBox>
 #include <QComboBox>
-#include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -21,11 +20,8 @@
 
 namespace ocapi {
 
-McpDialog::McpDialog(McpRegistry *registry, McpManager *manager, QWidget *parent)
-    : QDialog(parent), m_registry(registry), m_manager(manager) {
-    setWindowTitle(tr("Manage MCP servers"));
-    resize(860, 560);
-
+McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
+    : QWidget(parent), m_registry(registry), m_manager(manager) {
     auto *splitter = new QSplitter(this);
     m_list = new QListWidget(splitter);
     m_list->setMinimumWidth(180);
@@ -116,25 +112,22 @@ McpDialog::McpDialog(McpRegistry *registry, McpManager *manager, QWidget *parent
     splitter->setStretchFactor(1, 2);
 
     auto *outerLayout = new QVBoxLayout(this);
+    outerLayout->setContentsMargins(0, 0, 0, 0);
     outerLayout->addWidget(splitter);
-    m_buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, this);
-    outerLayout->addWidget(m_buttonBox);
 
-    connect(addButton, &QPushButton::clicked, this, &McpDialog::onAddServer);
-    connect(removeButton, &QPushButton::clicked, this, &McpDialog::onRemoveServer);
+    connect(addButton, &QPushButton::clicked, this, &McpPage::onAddServer);
+    connect(removeButton, &QPushButton::clicked, this, &McpPage::onRemoveServer);
     connect(m_list, &QListWidget::currentRowChanged, this, [this](int) { onSelectionChanged(); });
-    connect(m_transportCombo, &QComboBox::currentIndexChanged, this,
-            &McpDialog::onTransportChanged);
-    connect(m_buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    connect(m_testButton, &QPushButton::clicked, this, &McpDialog::onTestConnection);
+    connect(m_transportCombo, &QComboBox::currentIndexChanged, this, &McpPage::onTransportChanged);
+    connect(m_testButton, &QPushButton::clicked, this, &McpPage::onTestConnection);
     for (auto *edit : {m_nameEdit, m_urlEdit, m_commandEdit, m_argumentsEdit, m_environmentEdit,
                        m_headersEdit}) {
-        connect(edit, &QLineEdit::textEdited, this, &McpDialog::onFieldEdited);
+        connect(edit, &QLineEdit::textEdited, this, &McpPage::onFieldEdited);
     }
     connect(m_defaultPermissionCombo, &QComboBox::currentIndexChanged, this,
-            &McpDialog::onFieldEdited);
-    connect(m_enabledBox, &QCheckBox::toggled, this, &McpDialog::onFieldEdited);
-    connect(m_toolsTable, &QTableWidget::cellChanged, this, &McpDialog::onPermissionChanged);
+            &McpPage::onFieldEdited);
+    connect(m_enabledBox, &QCheckBox::toggled, this, &McpPage::onFieldEdited);
+    connect(m_toolsTable, &QTableWidget::cellChanged, this, &McpPage::onPermissionChanged);
 
     populateList();
     if (!m_registry->servers().isEmpty())
@@ -143,7 +136,7 @@ McpDialog::McpDialog(McpRegistry *registry, McpManager *manager, QWidget *parent
         onSelectionChanged();
 }
 
-void McpDialog::populateList() {
+void McpPage::populateList() {
     m_list->clear();
     for (const auto &config : m_registry->servers()) {
         auto *item = new QListWidgetItem(
@@ -152,7 +145,7 @@ void McpDialog::populateList() {
     }
 }
 
-void McpDialog::onAddServer() {
+void McpPage::onAddServer() {
     auto &config = m_registry->add(tr("New MCP server"), McpTransport::StreamableHttp);
     m_registry->save();
     populateList();
@@ -166,7 +159,7 @@ void McpDialog::onAddServer() {
     m_nameEdit->selectAll();
 }
 
-void McpDialog::onRemoveServer() {
+void McpPage::onRemoveServer() {
     auto *item = m_list->currentItem();
     if (!item)
         return;
@@ -181,7 +174,7 @@ void McpDialog::onRemoveServer() {
     onSelectionChanged();
 }
 
-void McpDialog::onSelectionChanged() {
+void McpPage::onSelectionChanged() {
     m_updatingForm = true;
     auto *item = m_list->currentItem();
     const bool hasSelection = item != nullptr;
@@ -213,7 +206,7 @@ void McpDialog::onSelectionChanged() {
     m_updatingForm = false;
 }
 
-void McpDialog::onTransportChanged(int index) {
+void McpPage::onTransportChanged(int index) {
     if (m_updatingForm)
         return;
     const auto transport = static_cast<McpTransport>(m_transportCombo->itemData(index).toInt());
@@ -222,12 +215,12 @@ void McpDialog::onTransportChanged(int index) {
     onFieldEdited();
 }
 
-void McpDialog::updateTransportVisibility() {
+void McpPage::updateTransportVisibility() {
     const auto transport = static_cast<McpTransport>(m_transportCombo->currentData().toInt());
     m_connectionStack->setCurrentIndex(transport == McpTransport::Stdio ? 1 : 0);
 }
 
-void McpDialog::onFieldEdited() {
+void McpPage::onFieldEdited() {
     if (m_updatingForm)
         return;
     auto *config = currentConfig();
@@ -240,14 +233,14 @@ void McpDialog::onFieldEdited() {
     emit m_registry->changed();
 }
 
-McpServerConfig *McpDialog::currentConfig() {
+McpServerConfig *McpPage::currentConfig() {
     auto *item = m_list->currentItem();
     if (!item)
         return nullptr;
     return m_registry->find(QUuid(item->data(Qt::UserRole).toString()));
 }
 
-void McpDialog::onTestConnection() {
+void McpPage::onTestConnection() {
     auto *config = currentConfig();
     if (!config)
         return;
@@ -257,9 +250,9 @@ void McpDialog::onTestConnection() {
     delete m_testClient;
     m_testTools.clear();
     m_testClient = new McpClient(*config, this);
-    connect(m_testClient, &McpClient::connected, this, &McpDialog::onTestConnected);
-    connect(m_testClient, &McpClient::connectionFailed, this, &McpDialog::onTestFailed);
-    connect(m_testClient, &McpClient::toolsReady, this, &McpDialog::onTestToolsReady);
+    connect(m_testClient, &McpClient::connected, this, &McpPage::onTestConnected);
+    connect(m_testClient, &McpClient::connectionFailed, this, &McpPage::onTestFailed);
+    connect(m_testClient, &McpClient::toolsReady, this, &McpPage::onTestToolsReady);
 
     m_testButton->setEnabled(false);
     m_testResultLabel->setText(tr("Testing connection…"));
@@ -269,14 +262,14 @@ void McpDialog::onTestConnection() {
     m_testClient->connectToServer();
 }
 
-void McpDialog::onTestConnected(const McpServerInfo &info) {
+void McpPage::onTestConnected(const McpServerInfo &info) {
     m_testButton->setEnabled(true);
     m_testResultLabel->setText(tr("Connection successful."));
     m_testResultLabel->show();
     refreshCapabilities(info, m_testTools);
 }
 
-void McpDialog::onTestFailed(const QString &error) {
+void McpPage::onTestFailed(const QString &error) {
     m_testButton->setEnabled(true);
     m_testResultLabel->setText(tr("Connection failed: %1").arg(error));
     m_testResultLabel->show();
@@ -286,7 +279,7 @@ void McpDialog::onTestFailed(const QString &error) {
     }
 }
 
-void McpDialog::onTestToolsReady(const QVector<McpTool> &tools) {
+void McpPage::onTestToolsReady(const QVector<McpTool> &tools) {
     m_testTools = tools;
     McpServerInfo info;
     if (m_testClient)
@@ -299,7 +292,7 @@ void McpDialog::onTestToolsReady(const QVector<McpTool> &tools) {
     }
 }
 
-void McpDialog::refreshCapabilities(const McpServerInfo &info, const QVector<McpTool> &tools) {
+void McpPage::refreshCapabilities(const McpServerInfo &info, const QVector<McpTool> &tools) {
     QStringList lines;
     if (!info.name.isEmpty())
         lines.append(tr("Server: %1 %2").arg(info.name, info.version));
@@ -319,7 +312,7 @@ void McpDialog::refreshCapabilities(const McpServerInfo &info, const QVector<Mcp
     m_serverInfoLabel->show();
 }
 
-void McpDialog::refreshToolPermissions(const McpServerConfig &config) {
+void McpPage::refreshToolPermissions(const McpServerConfig &config) {
     const QSignalBlocker blocker(m_toolsTable);
     // Prefer the tools discovered by the manager (live connection); fall back
     // to the tools found during the last connection test.
@@ -365,7 +358,7 @@ void McpDialog::refreshToolPermissions(const McpServerConfig &config) {
     }
 }
 
-void McpDialog::onPermissionChanged(int row, int column) {
+void McpPage::onPermissionChanged(int row, int column) {
     Q_UNUSED(column)
     if (m_updatingForm || row < 0 || row >= m_toolsTable->rowCount())
         return;
@@ -380,7 +373,7 @@ void McpDialog::onPermissionChanged(int row, int column) {
     m_registry->save();
 }
 
-void McpDialog::loadConfigIntoForm(const McpServerConfig &config) {
+void McpPage::loadConfigIntoForm(const McpServerConfig &config) {
     m_nameEdit->setText(config.name);
     const int transportIndex =
         m_transportCombo->findData(QVariant::fromValue(static_cast<int>(config.transport)));
@@ -397,7 +390,7 @@ void McpDialog::loadConfigIntoForm(const McpServerConfig &config) {
     updateTransportVisibility();
 }
 
-void McpDialog::saveFormIntoConfig(McpServerConfig &config) {
+void McpPage::saveFormIntoConfig(McpServerConfig &config) {
     config.name =
         m_nameEdit->text().trimmed().isEmpty() ? tr("MCP server") : m_nameEdit->text().trimmed();
     config.transport = static_cast<McpTransport>(m_transportCombo->currentData().toInt());

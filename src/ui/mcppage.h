@@ -3,12 +3,11 @@
 #include "core/mcpmanager.h"
 #include "core/mcpserverconfig.h"
 
-#include <QDialog>
 #include <QUuid>
+#include <QWidget>
 
 class QCheckBox;
 class QComboBox;
-class QDialogButtonBox;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -25,11 +24,11 @@ class McpRegistry;
 // (transport, URL or stdio command, arguments, environment, headers), test
 // the connection (initialize handshake + feature listing) and manage
 // per-tool permissions (off / ask / allow).
-class McpDialog : public QDialog {
+class McpPage : public QWidget {
     Q_OBJECT
 
 public:
-    explicit McpDialog(McpRegistry *registry, McpManager *manager, QWidget *parent = nullptr);
+    explicit McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent = nullptr);
 
 private slots:
     void onAddServer();
@@ -70,7 +69,6 @@ private:
     QLabel *m_testResultLabel = nullptr;
     QLabel *m_serverInfoLabel = nullptr;
     QTableWidget *m_toolsTable = nullptr;
-    QDialogButtonBox *m_buttonBox = nullptr;
 
     McpClient *m_testClient = nullptr;
     QVector<McpTool> m_testTools;

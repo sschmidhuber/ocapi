@@ -1,11 +1,10 @@
-#include "ui/backenddialog.h"
+#include "ui/backendpage.h"
 
 #include "backends/backendfactory.h"
 #include "backends/ibackend.h"
 #include "core/backendregistry.h"
 #include <QCheckBox>
 #include <QComboBox>
-#include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -18,11 +17,8 @@
 
 namespace ocapi {
 
-BackendDialog::BackendDialog(BackendRegistry *registry, QWidget *parent)
-    : QDialog(parent), m_registry(registry) {
-    setWindowTitle(tr("Manage backends"));
-    resize(720, 480);
-
+BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
+    : QWidget(parent), m_registry(registry) {
     auto *splitter = new QSplitter(this);
     m_list = new QListWidget(splitter);
     m_list->setMinimumWidth(200);
@@ -76,20 +72,18 @@ BackendDialog::BackendDialog(BackendRegistry *registry, QWidget *parent)
     splitter->setStretchFactor(1, 1);
 
     auto *outerLayout = new QVBoxLayout(this);
+    outerLayout->setContentsMargins(0, 0, 0, 0);
     outerLayout->addWidget(splitter);
-    m_buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, this);
-    outerLayout->addWidget(m_buttonBox);
 
-    connect(addButton, &QPushButton::clicked, this, &BackendDialog::onAddBackend);
-    connect(removeButton, &QPushButton::clicked, this, &BackendDialog::onRemoveBackend);
+    connect(addButton, &QPushButton::clicked, this, &BackendPage::onAddBackend);
+    connect(removeButton, &QPushButton::clicked, this, &BackendPage::onRemoveBackend);
     connect(m_list, &QListWidget::currentRowChanged, this, [this](int) { onSelectionChanged(); });
-    connect(m_kindCombo, &QComboBox::currentIndexChanged, this, &BackendDialog::onKindChanged);
-    connect(m_buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    connect(m_testButton, &QPushButton::clicked, this, &BackendDialog::onTestConnection);
+    connect(m_kindCombo, &QComboBox::currentIndexChanged, this, &BackendPage::onKindChanged);
+    connect(m_testButton, &QPushButton::clicked, this, &BackendPage::onTestConnection);
     for (auto *edit : {m_nameEdit, m_urlEdit, m_apiKeyEdit, m_modelEdit}) {
-        connect(edit, &QLineEdit::textEdited, this, &BackendDialog::onFieldEdited);
+        connect(edit, &QLineEdit::textEdited, this, &BackendPage::onFieldEdited);
     }
-    connect(m_enabledBox, &QCheckBox::toggled, this, &BackendDialog::onFieldEdited);
+    connect(m_enabledBox, &QCheckBox::toggled, this, &BackendPage::onFieldEdited);
 
     populateList();
     if (!m_registry->backends().isEmpty())
@@ -98,7 +92,7 @@ BackendDialog::BackendDialog(BackendRegistry *registry, QWidget *parent)
         onSelectionChanged();
 }
 
-void BackendDialog::populateList() {
+void BackendPage::populateList() {
     m_list->clear();
     for (const auto &config : m_registry->backends()) {
         auto *item = new QListWidgetItem(
@@ -107,7 +101,7 @@ void BackendDialog::populateList() {
     }
 }
 
-void BackendDialog::onAddBackend() {
+void BackendPage::onAddBackend() {
     auto &config = m_registry->add(tr("New backend"), BackendKind::Ollama);
     m_registry->save();
     populateList();
@@ -121,7 +115,7 @@ void BackendDialog::onAddBackend() {
     m_nameEdit->selectAll();
 }
 
-void BackendDialog::onRemoveBackend() {
+void BackendPage::onRemoveBackend() {
     auto *item = m_list->currentItem();
     if (!item)
         return;
@@ -136,7 +130,7 @@ void BackendDialog::onRemoveBackend() {
     onSelectionChanged();
 }
 
-void BackendDialog::onSelectionChanged() {
+void BackendPage::onSelectionChanged() {
     m_updatingForm = true;
     auto *item = m_list->currentItem();
     const bool hasSelection = item != nullptr;
@@ -164,7 +158,7 @@ void BackendDialog::onSelectionChanged() {
     m_updatingForm = false;
 }
 
-void BackendDialog::onKindChanged(int index) {
+void BackendPage::onKindChanged(int index) {
     if (m_updatingForm || !m_urlEdit->isEnabled())
         return;
     const auto kind = static_cast<BackendKind>(m_kindCombo->itemData(index).toInt());
@@ -176,7 +170,7 @@ void BackendDialog::onKindChanged(int index) {
     onFieldEdited();
 }
 
-void BackendDialog::onFieldEdited() {
+void BackendPage::onFieldEdited() {
     if (m_updatingForm)
         return;
     auto *item = m_list->currentItem();
@@ -191,7 +185,7 @@ void BackendDialog::onFieldEdited() {
     emit m_registry->changed();
 }
 
-void BackendDialog::onTestConnection() {
+void BackendPage::onTestConnection() {
     auto *item = m_list->currentItem();
     if (!item)
         return;
@@ -211,8 +205,8 @@ void BackendDialog::onTestConnection() {
     delete m_testBackend;
     m_testBackend = createBackend(*config).release();
     m_testBackend->setParent(this);
-    connect(m_testBackend, &IBackend::modelsReady, this, &BackendDialog::onTestModelsReady);
-    connect(m_testBackend, &IBackend::modelsFailed, this, &BackendDialog::onTestModelsFailed);
+    connect(m_testBackend, &IBackend::modelsReady, this, &BackendPage::onTestModelsReady);
+    connect(m_testBackend, &IBackend::modelsFailed, this, &BackendPage::onTestModelsFailed);
 
     m_testButton->setEnabled(false);
     m_testResultLabel->setText(tr("Testing connection…"));
@@ -220,7 +214,7 @@ void BackendDialog::onTestConnection() {
     m_testBackend->listModels();
 }
 
-void BackendDialog::onTestModelsReady(const QStringList &models) {
+void BackendPage::onTestModelsReady(const QStringList &models) {
     m_testButton->setEnabled(true);
     if (models.isEmpty()) {
         m_testResultLabel->setText(tr("Connection successful, but no models were reported."));
@@ -240,12 +234,12 @@ void BackendDialog::onTestModelsReady(const QStringList &models) {
     }
 }
 
-void BackendDialog::onTestModelsFailed(const QString &error) {
+void BackendPage::onTestModelsFailed(const QString &error) {
     m_testButton->setEnabled(true);
     m_testResultLabel->setText(tr("Connection failed: %1").arg(error));
 }
 
-void BackendDialog::loadConfigIntoForm(const BackendConfig &config) {
+void BackendPage::loadConfigIntoForm(const BackendConfig &config) {
     m_nameEdit->setText(config.name);
     const int kindIndex = m_kindCombo->findData(QVariant::fromValue(static_cast<int>(config.kind)));
     m_kindCombo->setCurrentIndex(kindIndex < 0 ? 0 : kindIndex);
@@ -255,7 +249,7 @@ void BackendDialog::loadConfigIntoForm(const BackendConfig &config) {
     m_enabledBox->setChecked(config.enabled);
 }
 
-void BackendDialog::saveFormIntoConfig(BackendConfig &config) {
+void BackendPage::saveFormIntoConfig(BackendConfig &config) {
     config.name = m_nameEdit->text().trimmed().isEmpty() ? BackendConfig::kindName(config.kind)
                                                          : m_nameEdit->text().trimmed();
     config.kind = currentKind();
@@ -268,7 +262,7 @@ void BackendDialog::saveFormIntoConfig(BackendConfig &config) {
     config.enabled = m_enabledBox->isChecked();
 }
 
-void BackendDialog::updateUrlVisibility() {
+void BackendPage::updateUrlVisibility() {
     const bool cloud = BackendConfig::isCloud(currentKind());
     // For cloud providers the base URL is optional (provider default is used);
     // keep the row visible only when the user set a custom endpoint.
@@ -281,7 +275,7 @@ void BackendDialog::updateUrlVisibility() {
             label->setVisible(visible);
 }
 
-BackendKind BackendDialog::currentKind() const {
+BackendKind BackendPage::currentKind() const {
     return static_cast<BackendKind>(m_kindCombo->currentData().toInt());
 }
 

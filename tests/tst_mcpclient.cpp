@@ -165,10 +165,13 @@ void TestMcpClient::stdioServerCallsTool() {
 void TestMcpClient::stdioFailureReportsError() {
     McpClient client(stdioConfig(QStringLiteral("/nonexistent/mcp-server-binary")));
     QSignalSpy failedSpy(&client, &McpClient::connectionFailed);
+    QSignalSpy stateSpy(&client, &McpClient::stateChanged);
     client.connectToServer();
-    QVERIFY(failedSpy.wait(10000));
-    QCOMPARE(client.state(), McpClient::State::Failed);
+    // The process fails to start asynchronously (errorOccurred + finished).
+    QTRY_COMPARE_WITH_TIMEOUT(client.state(), McpClient::State::Failed, 10000);
+    QVERIFY(failedSpy.count() >= 1);
     QVERIFY(!client.lastError().isEmpty());
+    Q_UNUSED(stateSpy)
 }
 
 void TestMcpClient::httpWithoutUrlFailsImmediately() {

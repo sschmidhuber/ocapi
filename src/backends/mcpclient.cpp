@@ -53,11 +53,15 @@ void McpClient::setState(State state) {
 
 void McpClient::fail(const QString &error) {
     m_lastError = error;
-    if (m_state != State::Failed) {
+    const bool wasFailed = m_state == State::Failed;
+    if (!wasFailed) {
         stopTransport();
         setState(State::Failed);
     }
-    emit connectionFailed(error);
+    // Always report: a process that fails to start reports FailedToStart via
+    // errorOccurred and then exits, which would otherwise emit twice.
+    if (!wasFailed)
+        emit connectionFailed(error);
 }
 
 void McpClient::connectToServer() {
@@ -126,8 +130,8 @@ void McpClient::startStdio() {
     m_process->start();
     // errorOccurred(FailedToStart) fires asynchronously when the binary is
     // missing; onProcessErrorOccurred reports the failure. Kick off the
-    // initialize handshake once the process is actually running.
-    if (m_process->state() != QProcess::NotRunning || m_process->error() != QProcess::FailedToStart)
+    // initialize handshake unless the process already failed to start.
+    if (m_process->error() != QProcess::FailedToStart)
         sendRequest(QStringLiteral("initialize"), initializeParamsJson());
 }
 
@@ -344,7 +348,7 @@ void McpClient::handleResponse(const QJsonObject &message) {
         return;
     const QString method = it->method;
     m_pending.erase(it);
-    m_toolCallIds.remove(requestId);
+    const QString toolName = m_toolCallIds.take(requestId);
 
     if (isJsonRpcError(message)) {
         emit requestFailed(method, jsonRpcErrorText(message));
@@ -423,14 +427,9 @@ void McpClient::handleResponse(const QJsonObject &message) {
         emit promptReady(m_pendingPromptNames.take(requestId), content);
         return;
     }
-    const auto toolIt = m_toolCallIds.constFind(requestId);
-    // tools/call responses carry the tool name in m_toolCallIds.
-    if (toolIt != m_toolCallIds.constEnd()) {
-        emit toolResult(toolIt.value(), toolResultFromJson(result));
-        return;
-    }
+    // tools/call responses carry the tool name recorded at call time.
     if (method == QLatin1String("tools/call")) {
-        emit toolResult(QString(), toolResultFromJson(result));
+        emit toolResult(toolName, toolResultFromJson(result));
         return;
     }
 }

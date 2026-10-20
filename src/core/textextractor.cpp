@@ -103,6 +103,9 @@ QStringList TextExtractor::supportedMimeTypes() {
                                        "spreadsheetml.sheet"));
         types.push_back(QStringLiteral("application/vnd.openxmlformats-officedocument."
                                        "presentationml.presentation"));
+        types.push_back(QStringLiteral("application/vnd.oasis.opendocument.text"));
+        types.push_back(QStringLiteral("application/vnd.oasis.opendocument.spreadsheet"));
+        types.push_back(QStringLiteral("application/vnd.oasis.opendocument.presentation"));
     }
     return types;
 }
@@ -251,10 +254,12 @@ bool TextExtractor::isTextFile(const QString &path) {
 #if OCAPI_HAVE_LIBARCHIVE
 namespace {
 
-// Text runs in OOXML payload XML live in <w:t> (Word), <t> (Excel shared
-// strings and sheet cells) and <a:t> (PowerPoint) elements. Paragraph ends
-// are marked with <w:p>/<a:p>; Excel cell values are separated by tabs.
-QString extractXmlText(QByteArray xml, bool slideMode) {
+// Text in office payload XML: OOXML stores it in dedicated run elements
+// (<w:t> Word, <t> Excel, <a:t> PowerPoint). OpenDocument instead nests the
+// character data directly inside paragraph elements (<text:p>, <text:h>) and
+// inline spans (<text:span>), so for ODF the paragraph end marks a text
+// boundary. Both variants are handled by the same token scan.
+QString extractXmlText(QByteArray xml, bool odfMode) {
     QString out;
     QXmlStreamReader xmlReader(xml);
     QString currentText;
@@ -267,17 +272,27 @@ QString extractXmlText(QByteArray xml, bool slideMode) {
                 name == QLatin1String("a:t")) {
                 inText = true;
                 currentText.clear();
+            } else if (odfMode && name == QLatin1String("p")) {
+                // ODF paragraph: <text:p>text...</text:p>
+                inText = true;
+                currentText.clear();
+            } else if (odfMode && name == QLatin1String("h")) {
+                inText = true;
+                currentText.clear();
             }
         } else if (token == QXmlStreamReader::Characters) {
             if (inText)
                 currentText += xmlReader.text();
         } else if (token == QXmlStreamReader::EndElement) {
-            if (inText && (name == QLatin1String("t") || name == QLatin1String("w:t") ||
-                           name == QLatin1String("a:t"))) {
+            const bool textRun = name == QLatin1String("t") || name == QLatin1String("w:t") ||
+                                 name == QLatin1String("a:t");
+            const bool odfBlock =
+                odfMode && (name == QLatin1String("p") || name == QLatin1String("h"));
+            if (inText && (textRun || odfBlock)) {
                 inText = false;
                 if (!currentText.isEmpty()) {
                     if (!out.isEmpty())
-                        out += slideMode ? QString(QLatin1Char('\n')) : QString(QLatin1Char(' '));
+                        out += QString(QLatin1Char('\n'));
                     out += currentText;
                 }
             }
@@ -289,7 +304,7 @@ QString extractXmlText(QByteArray xml, bool slideMode) {
 } // namespace
 #endif
 
-QString TextExtractor::extractFromOoxml(const QString &path, QString *error) {
+QString TextExtractor::extractFromOffice(const QString &path, QString *error) {
 #if OCAPI_HAVE_LIBARCHIVE
     if (!QFileInfo::exists(path)) {
         if (error)
@@ -327,7 +342,7 @@ QString TextExtractor::extractFromOoxml(const QString &path, QString *error) {
         const QString entryName = QString::fromUtf8(archive_entry_pathname_utf8(entry));
         QByteArray payload;
         bool wanted = false;
-        bool slideMode = false;
+        bool odfMode = false;
         if (suffix == QLatin1String("docx")) {
             wanted = entryName == QLatin1String("word/document.xml");
         } else if (suffix == QLatin1String("xlsx")) {
@@ -335,7 +350,11 @@ QString TextExtractor::extractFromOoxml(const QString &path, QString *error) {
                      entryName.startsWith(QLatin1String("xl/worksheets/sheet"));
         } else if (suffix == QLatin1String("pptx")) {
             wanted = entryName.startsWith(QLatin1String("ppt/slides/slide"));
-            slideMode = true;
+        } else if (suffix == QLatin1String("odt") || suffix == QLatin1String("ods") ||
+                   suffix == QLatin1String("odp")) {
+            // OpenDocument keeps all text content in content.xml.
+            wanted = entryName == QLatin1String("content.xml");
+            odfMode = true;
         }
         if (!wanted)
             continue;
@@ -347,7 +366,7 @@ QString TextExtractor::extractFromOoxml(const QString &path, QString *error) {
             payload.append(static_cast<const char *>(chunk), static_cast<int>(size));
         if (payload.isEmpty())
             continue;
-        const QString part = extractXmlText(payload, slideMode);
+        const QString part = extractXmlText(payload, odfMode);
         if (!part.isEmpty())
             extracted += part + "\n";
     }
@@ -369,8 +388,9 @@ QString TextExtractor::extractFromFile(const QString &path, QString *error) {
     if (suffix == QLatin1String("pdf"))
         return extractFromPdf(path, error);
     if (hasLibArchive() && (suffix == QLatin1String("docx") || suffix == QLatin1String("xlsx") ||
-                            suffix == QLatin1String("pptx")))
-        return extractFromOoxml(path, error);
+                            suffix == QLatin1String("pptx") || suffix == QLatin1String("odt") ||
+                            suffix == QLatin1String("ods") || suffix == QLatin1String("odp")))
+        return extractFromOffice(path, error);
     if (hasTesseract()) {
         static const QStringList imageSuffixes = {QStringLiteral("jpg"), QStringLiteral("jpeg"),
                                                   QStringLiteral("png"), QStringLiteral("webp"),

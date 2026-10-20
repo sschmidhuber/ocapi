@@ -9,8 +9,9 @@ namespace ocapi {
 // Extracts text from input files for the chat: text from PDF files via
 // Poppler (with automatic OCR of scanned pages via Tesseract), text from
 // image files (e.g. scanned documents) via Tesseract, plain text files
-// (CSV, Markdown, HTML, source code, ...) and MS Office documents
-// (.docx/.xlsx/.pptx OOXML packages) via libarchive + QXmlStreamReader.
+// (CSV, Markdown, HTML, source code, ...), MS Office documents
+// (.docx/.xlsx/.pptx OOXML packages) and OpenDocument documents
+// (.odt/.ods/.odp ODF packages) via libarchive + QXmlStreamReader.
 // Poppler, Tesseract and libarchive are optional at build time;
 // availability is reported by hasPoppler(), hasTesseract() and
 // hasLibArchive().
@@ -43,10 +44,11 @@ public:
     // truncated to maxTextFileChars().
     [[nodiscard]] static QString extractFromTextFile(const QString &path, QString *error = nullptr);
 
-    // Extracts text from an OOXML package (.docx, .xlsx, .pptx) by reading
-    // the container with libarchive and pulling the text runs out of the
-    // payload XML with QXmlStreamReader.
-    [[nodiscard]] static QString extractFromOoxml(const QString &path, QString *error = nullptr);
+    // Extracts text from an office package (.docx/.xlsx/.pptx OOXML or
+    // .odt/.ods/.odp OpenDocument) by reading the ZIP container with
+    // libarchive and pulling the text out of the payload XML with
+    // QXmlStreamReader.
+    [[nodiscard]] static QString extractFromOffice(const QString &path, QString *error = nullptr);
 
     // Extracts text from any supported file (PDF, image, text file or
     // OOXML document). Returns an empty result with \p error set for

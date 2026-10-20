@@ -54,10 +54,10 @@ and chats.
 
 ## Attachments
 
-Besides images (JPEG, PNG, WebP, JPEG XL, AVIF, TIFF, GIF), PDF documents, MS
-Office documents (.docx, .xlsx, .pptx) and any kind of text file (CSV,
-plaintext, Markdown, HTML, JSON, logs, source code, …) can be attached to chat
-messages. PDF text is extracted with Poppler; scanned pages and image files
+Besides images (JPEG, PNG, WebP, JPEG XL, AVIF, TIFF, GIF), PDF documents,
+office documents (.docx, .xlsx, .pptx MS Office and .odt, .ods, .odp
+OpenDocument) and any kind of text file (CSV, plaintext, Markdown, HTML,
+JSON, logs, source code, …) can be attached to chat messages. PDF text is extracted with Poppler; scanned pages and image files
 are recognized with Tesseract OCR; Office documents are unpacked with
 libarchive and their XML text runs are read with QXmlStreamReader. Text files
 are detected by content (UTF-8, printable characters) regardless of their

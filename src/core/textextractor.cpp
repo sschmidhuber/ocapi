@@ -5,6 +5,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImageReader>
+#include <QStringDecoder>
 
 #include <cstring>
 #include <memory>
@@ -180,6 +181,51 @@ QString TextExtractor::extractFromImageFile(const QString &path, QString *error)
     return extractFromImage(image, error);
 }
 
+QString TextExtractor::extractFromTextFile(const QString &path, QString *error) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        if (error)
+            *error = QObject::tr("Could not read file: %1").arg(path);
+        return {};
+    }
+    const QByteArray raw = file.readAll();
+    file.close();
+    QString text = QString::fromUtf8(raw);
+    if (text.isEmpty() && !raw.isEmpty())
+        text = QString::fromLatin1(raw);
+    if (text.size() > maxTextFileChars()) {
+        text.truncate(maxTextFileChars());
+        text += QStringLiteral("\n[... file truncated ...]");
+    }
+    return text;
+}
+
+bool TextExtractor::isTextFile(const QString &path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return false;
+    static constexpr qint64 kProbeSize = 8192;
+    const QByteArray probe = file.read(kProbeSize);
+    file.close();
+    if (probe.isEmpty())
+        return false;
+    if (probe.contains('\0'))
+        return false;
+    QStringDecoder utf8Decoder(QStringConverter::Utf8);
+    const QString decoded = utf8Decoder.decode(probe);
+    const bool validUtf8 = !utf8Decoder.hasError();
+    Q_UNUSED(decoded);
+    int printable = 0;
+    const auto total = static_cast<double>(probe.size());
+    for (const char c : probe) {
+        const auto uc = static_cast<unsigned char>(c);
+        if (uc == '\t' || uc == '\n' || uc == '\r' || (uc >= 0x20 && uc != 0x7F))
+            ++printable;
+    }
+    static constexpr double kMinPrintableRatio = 0.85;
+    return validUtf8 && static_cast<double>(printable) / total >= kMinPrintableRatio;
+}
+
 QString TextExtractor::extractFromFile(const QString &path, QString *error) {
     const QString suffix = QFileInfo(path).suffix().toLower();
     if (suffix == QLatin1String("pdf"))
@@ -192,6 +238,8 @@ QString TextExtractor::extractFromFile(const QString &path, QString *error) {
         if (imageSuffixes.contains(suffix))
             return extractFromImageFile(path, error);
     }
+    if (isTextFile(path))
+        return extractFromTextFile(path, error);
     if (error)
         *error = QObject::tr("Unsupported file type for text extraction: %1")
                      .arg(QFileInfo(path).fileName());

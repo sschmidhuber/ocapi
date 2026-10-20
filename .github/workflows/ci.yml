@@ -12,11 +12,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Qt6 and tools
+      - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y qt6-base-dev qt6-base-dev-tools libgl1-mesa-dev \
-            cmake ninja-build clang-tidy cppcheck clang-format
+          sudo apt-get install -y libgl1-mesa-dev cmake ninja-build clang-tidy cppcheck clang-format
+
+      - name: Install Qt6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.8.2
 
       - name: Configure
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DOCAPI_ENABLE_CLANG_TIDY=ON
@@ -58,11 +62,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Qt6 and tools
+      - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y qt6-base-dev qt6-base-dev-tools libgl1-mesa-dev \
-            cmake ninja-build clang-tidy
+          sudo apt-get install -y libgl1-mesa-dev cmake ninja-build clang-tidy
+
+      - name: Install Qt6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.8.2
+
       - name: Configure
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DOCAPI_ENABLE_CLANG_TIDY=ON
       - name: Run clang-tidy

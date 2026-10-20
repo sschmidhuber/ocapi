@@ -1,6 +1,4 @@
-set(OCAPI_SOURCES
-    main.cpp
-
+set(OCAPI_CORE_SOURCES
     core/message.h
     core/chatsession.h
     core/chatsession.cpp
@@ -10,6 +8,8 @@ set(OCAPI_SOURCES
     core/backendregistry.cpp
 
     backends/ibackend.h
+    backends/sseparser.h
+    backends/sseparser.cpp
     backends/sseclient.h
     backends/sseclient.cpp
     backends/ollamabackend.h
@@ -22,7 +22,13 @@ set(OCAPI_SOURCES
     backends/geminibackend.cpp
     backends/backendfactory.h
     backends/backendfactory.cpp
+)
 
+add_library(ocapi-core STATIC ${OCAPI_CORE_SOURCES})
+target_include_directories(ocapi-core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(ocapi-core PUBLIC Qt6::Core Qt6::Network)
+
+set(OCAPI_UI_SOURCES
     ui/mainwindow.h
     ui/mainwindow.cpp
     ui/chatview.h
@@ -37,11 +43,12 @@ set(OCAPI_SOURCES
     ui/backenddialog.cpp
 )
 
-qt_add_executable(ocapi ${OCAPI_SOURCES})
+qt_add_executable(ocapi
+    main.cpp
+    ${OCAPI_UI_SOURCES}
+)
 
-target_include_directories(ocapi PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-
-target_link_libraries(ocapi PRIVATE Qt6::Widgets Qt6::Network)
+target_link_libraries(ocapi PRIVATE ocapi-core Qt6::Widgets)
 
 qt_add_resources(ocapi "ocapi_resources"
     PREFIX "/"

@@ -1,4 +1,5 @@
 #include "backends/sseclient.h"
+#include "backends/sseparser.h"
 
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -37,46 +38,10 @@ void SseClient::onReadyRead()
         return;
     m_buffer.append(m_reply->readAll());
 
-    // SSE events are separated by a blank line ("\n\n" or "\r\n\r\n").
-    int pos = 0;
-    while (true) {
-        int idx = m_buffer.indexOf("\n\n", pos);
-        int sepLen = 2;
-        if (idx < 0) {
-            idx = m_buffer.indexOf("\r\n\r\n", pos);
-            sepLen = 4;
-        }
-        if (idx < 0)
-            break;
-
-        const QByteArray rawEvent = m_buffer.mid(pos, idx - pos);
-        m_buffer.remove(0, idx + sepLen - pos);
-        pos = 0;
-
-        QByteArray event = QStringLiteral("message").toUtf8();
-        QByteArray data;
-        const auto lines = rawEvent.split('\n');
-        for (const auto& line : lines) {
-            const QByteArray trimmed = line.trimmed();
-            if (trimmed.startsWith(':'))
-                continue; // comment / heartbeat
-            const int colon = trimmed.indexOf(':');
-            if (colon < 0)
-                continue;
-            const QByteArray field = trimmed.left(colon);
-            QByteArray value = trimmed.mid(colon + 1);
-            if (value.startsWith(' '))
-                value.remove(0, 1);
-            if (field == "event")
-                event = value;
-            else if (field == "data")
-                data.append(value).append('\n');
-        }
-        if (!data.isEmpty() && data.endsWith('\n'))
-            data.chop(1);
-        if (rawEvent.trimmed().isEmpty())
-            continue;
-        emit eventReceived(event, data);
+    for (const auto& rawEvent : extractCompleteEvents(m_buffer)) {
+        const auto parsed = parseSseEventBlock(rawEvent);
+        if (parsed)
+            emit eventReceived(parsed->event, parsed->data);
     }
 }
 

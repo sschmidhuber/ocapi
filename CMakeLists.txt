@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.21)
-
 project(ocapi
     VERSION 0.1.0
     DESCRIPTION "A desktop chat client for local and cloud LLM inference backends"
@@ -15,7 +14,15 @@ set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Network)
 
+option(OCAPI_BUILD_TESTS "Build the unit tests" ON)
+
 add_subdirectory(src)
+
+if(OCAPI_BUILD_TESTS)
+    enable_testing()
+    find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
+    add_subdirectory(tests)
+endif()
 
 include(GNUInstallDirs)
 install(TARGETS ocapi RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

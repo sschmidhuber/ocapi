@@ -155,14 +155,14 @@ StoredMessage storedMessageFrom(const QSqlQuery &query) {
 
 ImageAttachment imageFrom(const QSqlQuery &query) {
     ImageAttachment image;
-    image.id = QUuid(query.value(0).toString());
-    image.mimeType = query.value(1).toString();
-    image.fileName = query.value(2).toString();
-    image.sourcePath = query.value(3).toString();
-    image.width = query.value(4).toInt();
-    image.height = query.value(5).toInt();
-    image.resized = query.value(6).toInt() != 0;
-    image.data = query.value(7).toByteArray();
+    image.id = QUuid(query.value(1).toString());
+    image.mimeType = query.value(2).toString();
+    image.fileName = query.value(3).toString();
+    image.sourcePath = query.value(4).toString();
+    image.width = query.value(5).toInt();
+    image.height = query.value(6).toInt();
+    image.resized = query.value(7).toInt() != 0;
+    image.data = query.value(8).toByteArray();
     return image;
 }
 
@@ -319,8 +319,8 @@ void ChatDatabase::loadAttachmentsFor(QVector<StoredMessage> &messages) const {
     for (auto &message : messages)
         byId.insert(message.id, &message);
     QSqlQuery query(m_database);
-    if (!query.exec(QStringLiteral("SELECT id, mime_type, file_name, source_path, width, "
-                                   "height, resized, data FROM message_images "
+    if (!query.exec(QStringLiteral("SELECT message_id, id, mime_type, file_name, source_path, "
+                                   "width, height, resized, data FROM message_images "
                                    "ORDER BY position ASC"))) {
         m_lastError = query.lastError().text();
         return;
@@ -353,7 +353,7 @@ bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messag
                                     messageId,
                                     sessionId,
                                     role,
-                                    content,
+                                    nullToEmpty(content),
                                     timestamp.isValid() ? timestamp.toSecsSinceEpoch() : 0,
                                     position.value(0),
                                 });
@@ -365,8 +365,10 @@ bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messag
                                       {messageId});
         if (!inserted)
             return false;
-        for (const auto &image : images)
-            insertImage(messageId, image);
+        for (const auto &image : images) {
+            if (!insertImage(messageId, image))
+                return false;
+        }
     }
     return true;
 }

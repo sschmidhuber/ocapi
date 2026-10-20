@@ -1,5 +1,7 @@
 #include "core/backendconfig.h"
 
+#include <QHash>
+
 namespace ocapi {
 
 QString BackendConfig::kindName(BackendKind kind) {
@@ -28,6 +30,51 @@ QString BackendConfig::kindName(BackendKind kind) {
         return QStringLiteral("Groq");
     }
     return QStringLiteral("Unknown");
+}
+
+QString BackendConfig::kindKey(BackendKind kind) {
+    switch (kind) {
+    case BackendKind::Ollama:
+        return QStringLiteral("ollama");
+    case BackendKind::LlamaCpp:
+        return QStringLiteral("llamacpp");
+    case BackendKind::Vllm:
+        return QStringLiteral("vllm");
+    case BackendKind::OpenAi:
+        return QStringLiteral("openai");
+    case BackendKind::Anthropic:
+        return QStringLiteral("anthropic");
+    case BackendKind::Gemini:
+        return QStringLiteral("gemini");
+    case BackendKind::Mistral:
+        return QStringLiteral("mistral");
+    case BackendKind::Zai:
+        return QStringLiteral("zai");
+    case BackendKind::Qwen:
+        return QStringLiteral("qwen");
+    case BackendKind::DeepSeek:
+        return QStringLiteral("deepseek");
+    case BackendKind::Groq:
+        return QStringLiteral("groq");
+    }
+    return {};
+}
+
+BackendKind BackendConfig::kindFromString(const QString &key) {
+    static const QHash<QString, BackendKind> map{
+        {QStringLiteral("ollama"), BackendKind::Ollama},
+        {QStringLiteral("llamacpp"), BackendKind::LlamaCpp},
+        {QStringLiteral("vllm"), BackendKind::Vllm},
+        {QStringLiteral("openai"), BackendKind::OpenAi},
+        {QStringLiteral("anthropic"), BackendKind::Anthropic},
+        {QStringLiteral("gemini"), BackendKind::Gemini},
+        {QStringLiteral("mistral"), BackendKind::Mistral},
+        {QStringLiteral("zai"), BackendKind::Zai},
+        {QStringLiteral("qwen"), BackendKind::Qwen},
+        {QStringLiteral("deepseek"), BackendKind::DeepSeek},
+        {QStringLiteral("groq"), BackendKind::Groq},
+    };
+    return map.value(key, BackendKind::Ollama);
 }
 
 QString BackendConfig::kindDescription(BackendKind kind) {

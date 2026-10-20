@@ -40,6 +40,13 @@ Message &ChatSession::appendMessage(const Message &message) {
     return m_messages.last();
 }
 
+void ChatSession::prependMessages(const QVector<Message> &messages) {
+    if (messages.isEmpty())
+        return;
+    // Keep any live (streaming) tail intact while splicing in older history.
+    m_messages = messages + m_messages;
+}
+
 void ChatSession::updateMessage(const QUuid &id, const QString &content, bool streaming) {
     for (auto &message : m_messages) {
         if (message.id == id) {

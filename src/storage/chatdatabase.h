@@ -7,6 +7,8 @@
 #include <QVariant>
 #include <QVector>
 
+#include "core/backendconfig.h"
+
 namespace ocapi {
 
 class ChatSession;
@@ -38,6 +40,12 @@ public:
     [[nodiscard]] bool setValue(const QString &key, const QString &value);
     [[nodiscard]] QString value(const QString &key, const QString &defaultValue = {}) const;
 
+    void insertBackend(const BackendConfig &config);
+    void updateBackend(const BackendConfig &config);
+    void deleteBackend(const QString &backendId);
+    [[nodiscard]] QVector<BackendConfig> loadBackends() const;
+    [[nodiscard]] bool hasBackends() const;
+
     [[nodiscard]] QStringList sessionIds() const;
     bool insertSession(const ChatSession &session);
     bool updateSession(const ChatSession &session);
@@ -50,7 +58,9 @@ public:
     [[nodiscard]] QString sessionTitle(const QString &sessionId) const;
     [[nodiscard]] QString sessionBackendId(const QString &sessionId) const;
     [[nodiscard]] QString sessionModel(const QString &sessionId) const;
-    [[nodiscard]] QVector<StoredMessage> messagesForSession(const QString &sessionId) const;
+    [[nodiscard]] QVector<StoredMessage> messagesForSession(const QString &sessionId,
+                                                            int limit = -1, int offset = 0) const;
+    [[nodiscard]] int messageCount(const QString &sessionId) const;
 
 private:
     bool execute(const QString &query, const QVariantList &bindings);

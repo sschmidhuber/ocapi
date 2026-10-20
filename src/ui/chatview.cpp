@@ -53,6 +53,15 @@ public:
         endResetModel();
     }
 
+    void prependMessages(const QVector<Message> &messages) {
+        if (messages.isEmpty())
+            return;
+        const int added = static_cast<int>(messages.size());
+        beginInsertRows(QModelIndex(), 0, added - 1);
+        m_messages = messages + m_messages;
+        endInsertRows();
+    }
+
     void updateMessage(const Message &message) {
         for (qsizetype i = 0; i < m_messages.size(); ++i) {
             if (m_messages.at(i).id == message.id) {
@@ -64,6 +73,9 @@ public:
         }
     }
 
+    [[nodiscard]] const QVector<Message> &messages() const { return m_messages; }
+
+private:
     QVector<Message> m_messages;
 };
 
@@ -73,12 +85,29 @@ ChatView::ChatView(QWidget *parent) : QListView(parent) {
     auto *model = new ChatModel(this);
     setModel(model);
     setItemDelegate(new ChatDelegate(this));
+    connect(verticalScrollBar(), &QAbstractSlider::valueChanged, this, &ChatView::checkScrollTop);
     setSelectionMode(QAbstractItemView::NoSelection);
     setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     setWordWrap(true);
     setUniformItemSizes(false);
     setSpacing(2);
     viewport()->setAutoFillBackground(false);
+}
+
+void ChatView::prependMessages(const QVector<Message> &messages) {
+    if (messages.isEmpty())
+        return;
+    const int anchor = verticalScrollBar()->value();
+    m_messages = messages + m_messages;
+    qobject_cast<ChatModel *>(model())->prependMessages(messages);
+    // Keep the previously topmost message in view after prepending.
+    if (anchor > 0)
+        verticalScrollBar()->setValue(anchor + static_cast<int>(messages.size()));
+}
+
+void ChatView::checkScrollTop() {
+    if (verticalScrollBar()->value() <= 0 && m_session)
+        emit olderMessagesRequested();
 }
 
 void ChatView::setSession(ChatSession *session) {

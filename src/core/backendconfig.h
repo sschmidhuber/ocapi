@@ -29,6 +29,8 @@ struct BackendConfig {
     bool enabled = true;
 
     [[nodiscard]] static QString kindName(BackendKind kind);
+    [[nodiscard]] static QString kindKey(BackendKind kind);
+    [[nodiscard]] static BackendKind kindFromString(const QString &key);
     [[nodiscard]] static QString kindDescription(BackendKind kind);
     [[nodiscard]] static QString defaultBaseUrl(BackendKind kind);
     [[nodiscard]] static bool isCloud(BackendKind kind);

@@ -31,6 +31,7 @@ public:
 
     Message &appendMessage(Role role, const QString &content = {});
     Message &appendMessage(const Message &message);
+    void prependMessages(const QVector<Message> &messages);
     void updateMessage(const QUuid &id, const QString &content, bool streaming);
     void failMessage(const QUuid &id, const QString &error);
     void clear();

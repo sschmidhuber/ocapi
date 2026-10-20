@@ -26,6 +26,8 @@ namespace ocapi {
 
 namespace {
 
+constexpr int kMessagesPerPage = 50;
+
 QString defaultDatabasePath() {
     const QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     if (!QDir().mkpath(dataDir))
@@ -49,7 +51,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     setWindowTitle(tr("ocapi"));
     resize(1100, 720);
 
-    m_registry.load();
+    if (!openDatabase())
+        statusBar()->showMessage(tr("Warning: chat storage unavailable, chats will not be "
+                                    "persisted."));
+    loadBackendsFromDatabase();
 
     auto *central = new QWidget(this);
     auto *centralLayout = new QHBoxLayout(central);
@@ -122,6 +127,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
             &MainWindow::onSessionDeleteRequested);
     connect(m_sidebar, &Sidebar::manageBackendsRequested, this, &MainWindow::onManageBackends);
     connect(m_composer, &Composer::sendRequested, this, &MainWindow::onSend);
+    connect(m_chatView, &ChatView::olderMessagesRequested, this,
+            [this]() { loadOlderMessages(m_currentSession); });
     connect(m_sendButton, &QPushButton::clicked, this, [this]() {
         const QString text = m_composer->toPlainText().trimmed();
         if (!text.isEmpty())
@@ -149,13 +156,11 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     onBackendChanged();
     refreshSidebar();
 
-    if (!openDatabase())
-        statusBar()->showMessage(tr("Warning: chat storage unavailable, chats will not be "
-                                    "persisted."));
     if (m_sessions.isEmpty())
-        createSession();
-    else
-        onSessionSelected(m_sessions.first()->id());
+        if (m_sessions.isEmpty())
+            createSession();
+        else
+            onSessionSelected(m_sessions.first()->id());
 }
 
 MainWindow::~MainWindow() {
@@ -262,23 +267,74 @@ bool MainWindow::openDatabase() {
         auto *session = new ChatSession(id, m_database.sessionTitle(sessionId),
                                         m_database.sessionBackendId(sessionId), this);
         session->setModel(m_database.sessionModel(sessionId));
-        for (const auto &stored : m_database.messagesForSession(sessionId)) {
-            Message message;
-            message.id = QUuid(stored.id);
-            message.role = roleFromName(stored.role);
-            message.content = stored.content;
-            message.timestamp = stored.timestamp;
-            message.streaming = false;
-            message.error = stored.error;
-            if (!message.id.isNull())
-                session->appendMessage(message);
-        }
+        const int total = m_database.messageCount(sessionId);
+        const int initial = qMin(total, kMessagesPerPage);
+        for (const auto &stored : m_database.messagesForSession(sessionId, initial, 0))
+            appendStoredMessage(session, stored);
+        session->setProperty("ocapi_loadedCount", initial);
         connect(session, &ChatSession::messageAdded, this, [this, session](const Message &message) {
             persistMessageForSession(session, message);
         });
         m_sessions.push_back(session);
     }
     return true;
+}
+
+void MainWindow::loadBackendsFromDatabase() {
+    if (!m_database.isOpen()) {
+        m_registry.loadFromSettings();
+        return;
+    }
+    if (!m_database.hasBackends()) {
+        BackendRegistry legacy;
+        legacy.loadFromSettings();
+        if (!legacy.backends().isEmpty()) {
+            for (const auto &config : legacy.backends())
+                m_database.insertBackend(config);
+        }
+    }
+    m_registry.load(m_database);
+}
+
+void MainWindow::loadOlderMessages(ChatSession *session) {
+    if (!m_database.isOpen() || !session || m_loadingOlder)
+        return;
+    const QString sessionId = session->id().toString(QUuid::WithoutBraces);
+    const int total = m_database.messageCount(sessionId);
+    const int loaded = session->property("ocapi_loadedCount").toInt();
+    if (loaded >= total)
+        return;
+    m_loadingOlder = true;
+    const int pageSize = qMin(kMessagesPerPage, total - loaded);
+    QVector<Message> older;
+    for (const auto &stored : m_database.messagesForSession(sessionId, pageSize, loaded)) {
+        Message message = storedToMessage(stored);
+        if (!message.id.isNull())
+            older.push_back(message);
+    }
+    if (!older.isEmpty()) {
+        session->prependMessages(older);
+        m_chatView->prependMessages(older);
+        session->setProperty("ocapi_loadedCount", loaded + static_cast<int>(older.size()));
+    }
+    m_loadingOlder = false;
+}
+
+Message MainWindow::storedToMessage(const StoredMessage &stored) const {
+    Message message;
+    message.id = QUuid(stored.id);
+    message.role = roleFromName(stored.role);
+    message.content = stored.content;
+    message.timestamp = stored.timestamp;
+    message.streaming = false;
+    message.error = stored.error;
+    return message;
+}
+
+void MainWindow::appendStoredMessage(ChatSession *session, const StoredMessage &stored) {
+    const Message message = storedToMessage(stored);
+    if (!message.id.isNull())
+        session->appendMessage(message);
 }
 
 void MainWindow::persistSession(ChatSession *session) {

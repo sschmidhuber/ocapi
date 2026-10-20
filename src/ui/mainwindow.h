@@ -44,6 +44,10 @@ private:
     void refreshBackendSelector();
     void updateEmptyState();
     [[nodiscard]] bool openDatabase();
+    void loadBackendsFromDatabase();
+    void loadOlderMessages(ChatSession *session);
+    [[nodiscard]] Message storedToMessage(const StoredMessage &stored) const;
+    void appendStoredMessage(ChatSession *session, const StoredMessage &stored);
     void persistSession(ChatSession *session);
     void persistMessageForSession(ChatSession *session, const Message &message);
     void syncSessionToDatabase(ChatSession *session);
@@ -61,6 +65,7 @@ private:
     std::unique_ptr<IBackend> m_backend;
     std::unique_ptr<IBackend> m_detectorBackend;
     bool m_streaming = false;
+    bool m_loadingOlder = false;
     QString m_detectedBackendId;
 
     Sidebar *m_sidebar = nullptr;

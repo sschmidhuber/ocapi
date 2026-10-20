@@ -54,18 +54,21 @@ and chats.
 
 ## Attachments
 
-Besides images (JPEG, PNG, WebP, JPEG XL, AVIF, TIFF, GIF), PDF documents and
-any kind of text file (CSV, plaintext, Markdown, HTML, JSON, logs, source
-code, …) can be attached to chat messages. PDF text is extracted with
-Poppler; scanned pages and image files are recognized with Tesseract OCR.
-Text files are detected by content (UTF-8, printable characters) regardless of
-their extension. Poppler and Tesseract are optional at build time (detected
-via pkg-config) — the features are disabled gracefully when they are missing.
+Besides images (JPEG, PNG, WebP, JPEG XL, AVIF, TIFF, GIF), PDF documents, MS
+Office documents (.docx, .xlsx, .pptx) and any kind of text file (CSV,
+plaintext, Markdown, HTML, JSON, logs, source code, …) can be attached to chat
+messages. PDF text is extracted with Poppler; scanned pages and image files
+are recognized with Tesseract OCR; Office documents are unpacked with
+libarchive and their XML text runs are read with QXmlStreamReader. Text files
+are detected by content (UTF-8, printable characters) regardless of their
+extension. Poppler, Tesseract and libarchive are optional at build time
+(detected via pkg-config) — the features are disabled gracefully when they
+are missing.
 
 Install the dependencies, e.g. on Debian/Ubuntu:
 
 ```sh
-sudo apt install libpoppler-cpp-dev libtesseract-dev tesseract-ocr-eng
+sudo apt install libpoppler-cpp-dev libtesseract-dev tesseract-ocr-eng libarchive-dev
 ```
 
 ## Building

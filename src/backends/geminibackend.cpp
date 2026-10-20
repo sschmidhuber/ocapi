@@ -39,7 +39,7 @@ void GeminiBackend::listModels() {
         m_modelsReply->disconnect(this);
         m_modelsReply->deleteLater();
     }
-    QUrl url(m_config.baseUrl + QStringLiteral("/models"));
+    QUrl url(m_config.effectiveBaseUrl() + QStringLiteral("/models"));
     if (!m_config.apiKey.isEmpty())
         url.setQuery(QUrlQuery({{QStringLiteral("key"), m_config.apiKey}}));
     m_modelsReply = m_nam->get(QNetworkRequest(url));
@@ -105,7 +105,7 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model) {
                        });
     }
 
-    QUrl url(m_config.baseUrl + QStringLiteral("/models/") + model +
+    QUrl url(m_config.effectiveBaseUrl() + QStringLiteral("/models/") + model +
              QStringLiteral(":streamGenerateContent?alt=sse"));
     if (!m_config.apiKey.isEmpty())
         url.setQuery(QUrlQuery({{QStringLiteral("key"), m_config.apiKey}}));

@@ -14,7 +14,7 @@ namespace ocapi {
 namespace {
 
 QUrl endpoint(const BackendConfig &config, const QString &path) {
-    QUrl url(config.baseUrl);
+    QUrl url(config.effectiveBaseUrl());
     QString basePath = url.path();
     if (!basePath.endsWith('/'))
         basePath.append('/');

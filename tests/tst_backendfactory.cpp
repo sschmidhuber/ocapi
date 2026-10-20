@@ -28,6 +28,10 @@ void TestBackendFactory::createsCorrectBackendTypeForEachKind() {
         {BackendKind::Vllm, "ocapi::OpenAiApiBackend"},
         {BackendKind::OpenAi, "ocapi::OpenAiApiBackend"},
         {BackendKind::Mistral, "ocapi::OpenAiApiBackend"},
+        {BackendKind::Zai, "ocapi::OpenAiApiBackend"},
+        {BackendKind::Qwen, "ocapi::OpenAiApiBackend"},
+        {BackendKind::DeepSeek, "ocapi::OpenAiApiBackend"},
+        {BackendKind::Groq, "ocapi::OpenAiApiBackend"},
         {BackendKind::Anthropic, "ocapi::AnthropicBackend"},
         {BackendKind::Gemini, "ocapi::GeminiBackend"},
     };

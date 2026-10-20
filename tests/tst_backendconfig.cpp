@@ -13,6 +13,9 @@ private slots:
     void defaultBaseUrlIsValidHttpUrl();
     void defaultConstructedConfigIsEnabledWithUniqueId();
     void everyKindHasMatchingRoundTripName();
+    void cloudKindsDoNotRequireBaseUrl();
+    void effectiveBaseUrlPrefersUserValue();
+    void allKindsAreKnown();
 };
 
 void TestBackendConfig::kindNameIsUniqueAndNonEmpty() {
@@ -76,6 +79,45 @@ void TestBackendConfig::everyKindHasMatchingRoundTripName() {
     QCOMPARE(BackendConfig::kindName(BackendKind::Anthropic), QStringLiteral("Anthropic"));
     QCOMPARE(BackendConfig::kindName(BackendKind::Gemini), QStringLiteral("Google Gemini"));
     QCOMPARE(BackendConfig::kindName(BackendKind::Mistral), QStringLiteral("Mistral AI"));
+    QCOMPARE(BackendConfig::kindName(BackendKind::Zai), QStringLiteral("Z.ai (GLM)"));
+    QCOMPARE(BackendConfig::kindName(BackendKind::Qwen), QStringLiteral("Alibaba Qwen"));
+    QCOMPARE(BackendConfig::kindName(BackendKind::DeepSeek), QStringLiteral("DeepSeek"));
+    QCOMPARE(BackendConfig::kindName(BackendKind::Groq), QStringLiteral("Groq"));
+}
+
+void TestBackendConfig::cloudKindsDoNotRequireBaseUrl() {
+    for (const auto kind : BackendConfig::allKinds()) {
+        BackendConfig config;
+        config.kind = kind;
+        config.baseUrl.clear();
+        // With an empty baseUrl every kind resolves to its provider default,
+        // so cloud providers never require a user-entered URL.
+        QCOMPARE(config.effectiveBaseUrl(), BackendConfig::defaultBaseUrl(kind));
+    }
+    QVERIFY(BackendConfig::isCloud(BackendKind::OpenAi));
+    QVERIFY(BackendConfig::isCloud(BackendKind::Zai));
+    QVERIFY(BackendConfig::isCloud(BackendKind::Qwen));
+    QVERIFY(!BackendConfig::isCloud(BackendKind::Ollama));
+    QVERIFY(!BackendConfig::isCloud(BackendKind::LlamaCpp));
+    QVERIFY(!BackendConfig::isCloud(BackendKind::Vllm));
+}
+
+void TestBackendConfig::effectiveBaseUrlPrefersUserValue() {
+    BackendConfig config;
+    config.kind = BackendKind::OpenAi;
+    config.baseUrl = QStringLiteral("https://example.com/v1");
+    QCOMPARE(config.effectiveBaseUrl(), QStringLiteral("https://example.com/v1"));
+    config.baseUrl = QStringLiteral("  https://api.openai.com/v1  ");
+    QCOMPARE(config.effectiveBaseUrl(), QStringLiteral("https://api.openai.com/v1"));
+}
+
+void TestBackendConfig::allKindsAreKnown() {
+    const auto kinds = BackendConfig::allKinds();
+    QVERIFY(kinds.size() >= 11);
+    for (const auto kind : kinds) {
+        QVERIFY2(!BackendConfig::kindName(kind).isEmpty(), "every kind has a name");
+        QVERIFY2(!BackendConfig::defaultBaseUrl(kind).isEmpty(), "every kind has a default URL");
+    }
 }
 
 QTEST_GUILESS_MAIN(TestBackendConfig)

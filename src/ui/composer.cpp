@@ -13,6 +13,8 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace ocapi {
 
 namespace {
@@ -31,6 +33,16 @@ bool isImageFile(const QUrl &url) {
     return allowed.contains(suffix);
 }
 
+bool isPdfFile(const QUrl &url) {
+    if (!url.isLocalFile())
+        return false;
+    return QFileInfo(url.toLocalFile()).suffix().toLower() == QLatin1String("pdf");
+}
+
+QString nameFilter() {
+    return ImagePreprocessor::supportedNameFilter() + QStringLiteral(";;PDF documents (*.pdf)");
+}
+
 } // namespace
 
 MessageTextEdit::MessageTextEdit(QWidget *parent) : QPlainTextEdit(parent) {}
@@ -40,7 +52,7 @@ bool MessageTextEdit::canInsertFromMimeData(const QMimeData *source) const {
         return true;
     if (source->hasUrls()) {
         for (const QUrl &url : source->urls())
-            if (isImageFile(url))
+            if (isImageFile(url) || isPdfFile(url))
                 return true;
     }
     return QPlainTextEdit::canInsertFromMimeData(source);
@@ -61,15 +73,18 @@ void MessageTextEdit::insertFromMimeData(const QMimeData *source) {
     if (source->hasUrls()) {
         bool handled = false;
         for (const QUrl &url : source->urls()) {
-            if (!isImageFile(url))
-                continue;
-            QString error;
-            auto attachment = ImagePreprocessor::processFile(url.toLocalFile(), &error);
-            if (attachment) {
-                emit imagePasted(*attachment);
+            if (isImageFile(url)) {
+                QString error;
+                auto attachment = ImagePreprocessor::processFile(url.toLocalFile(), &error);
+                if (attachment) {
+                    emit imagePasted(*attachment);
+                    handled = true;
+                } else {
+                    emit imagePasteFailed(error);
+                }
+            } else if (isPdfFile(url)) {
+                emit pdfDropped(url.toLocalFile());
                 handled = true;
-            } else {
-                emit imagePasteFailed(error);
             }
         }
         if (handled)
@@ -98,7 +113,8 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     m_textEdit = new MessageTextEdit(row);
     m_attachButton = new QToolButton(row);
     m_attachButton->setText(QStringLiteral("+"));
-    m_attachButton->setToolTip(tr("Attach images (JPEG, PNG, WebP, JPEG XL, AVIF, TIFF, GIF)"));
+    m_attachButton->setToolTip(
+        tr("Attach images (JPEG, PNG, WebP, JPEG XL, AVIF, TIFF, GIF) or PDF documents"));
     m_attachButton->setAutoRaise(true);
     m_attachButton->setFixedSize(28, 28);
     rowLayout->addWidget(m_textEdit, 1);
@@ -111,11 +127,13 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     m_textEdit->setAcceptDrops(true);
 
     m_textEdit->installEventFilter(this);
-    connect(m_attachButton, &QToolButton::clicked, this, &Composer::attachImages);
+    connect(m_attachButton, &QToolButton::clicked, this, &Composer::attachFiles);
     connect(m_textEdit, &MessageTextEdit::imagePasted, this,
             [this](const ImageAttachment &attachment) { addAttachment(attachment); });
     connect(m_textEdit, &MessageTextEdit::imagePasteFailed, this,
             [this](const QString &error) { QMessageBox::warning(this, tr("Image error"), error); });
+    connect(m_textEdit, &MessageTextEdit::pdfDropped, this,
+            [this](const QString &path) { addPdf(path); });
 }
 
 bool Composer::eventFilter(QObject *watched, QEvent *event) {
@@ -125,7 +143,7 @@ bool Composer::eventFilter(QObject *watched, QEvent *event) {
             if (keyEvent->modifiers() & Qt::ShiftModifier)
                 return false;
             if (!m_busy) {
-                emit sendRequested(m_textEdit->toPlainText().trimmed(), m_attachments);
+                emit sendRequested(composedText(), m_attachments);
                 return true;
             }
         }
@@ -159,13 +177,18 @@ void Composer::clearText() {
 }
 
 bool Composer::isEmpty() const {
-    return m_textEdit->toPlainText().trimmed().isEmpty() && m_attachments.isEmpty();
+    return m_textEdit->toPlainText().trimmed().isEmpty() && m_attachments.isEmpty() &&
+           m_textBlocks.isEmpty();
 }
 
-void Composer::attachImages() {
-    const QStringList files = QFileDialog::getOpenFileNames(
-        this, tr("Attach images"), QString(), ImagePreprocessor::supportedNameFilter());
+void Composer::attachFiles() {
+    const QStringList files =
+        QFileDialog::getOpenFileNames(this, tr("Attach files"), QString(), nameFilter());
     for (const QString &file : files) {
+        if (QFileInfo(file).suffix().toLower() == QLatin1String("pdf")) {
+            addPdf(file);
+            continue;
+        }
         if (m_attachments.size() >= kMaxAttachmentsPerMessage)
             break;
         QString error;
@@ -177,8 +200,34 @@ void Composer::attachImages() {
     }
 }
 
+void Composer::addPdf(const QString &path) {
+    QString error;
+    const QString text = TextExtractor::extractFromPdf(path, &error);
+    if (text.isEmpty()) {
+        QMessageBox::warning(this, tr("PDF error"), error);
+        return;
+    }
+    addTextBlock(QFileInfo(path).fileName(), text);
+}
+
+void Composer::addTextBlock(const QString &fileName, const QString &text) {
+    m_textBlocks.push_back(qMakePair(fileName, text.trimmed()));
+    refreshAttachmentStrip();
+}
+
+QString Composer::composedText() const {
+    QStringList parts;
+    const QString typed = m_textEdit->toPlainText().trimmed();
+    if (!typed.isEmpty())
+        parts.push_back(typed);
+    for (const auto &block : m_textBlocks)
+        parts.push_back(tr("[Attached file: %1]\n%2").arg(block.first, block.second));
+    return parts.join(QStringLiteral("\n\n"));
+}
+
 void Composer::clearAttachments() {
     m_attachments.clear();
+    m_textBlocks.clear();
     refreshAttachmentStrip();
 }
 
@@ -219,7 +268,15 @@ void Composer::refreshAttachmentStrip() {
         thumb->setAlignment(Qt::AlignCenter);
         m_attachmentLayout->insertWidget(m_attachmentLayout->count() - 1, thumb);
     }
-    m_attachmentStrip->setVisible(!m_attachments.isEmpty());
+    for (const auto &block : m_textBlocks) {
+        auto *chip = new QLabel(m_attachmentStrip);
+        chip->setText(QString::fromUtf8("\U0001F4D1 ") + block.first);
+        chip->setToolTip(tr("Text extracted from %1").arg(block.first));
+        chip->setAlignment(Qt::AlignCenter);
+        chip->setStyleSheet(QStringLiteral("border: 1px solid palette(mid); padding: 2px 6px;"));
+        m_attachmentLayout->insertWidget(m_attachmentLayout->count() - 1, chip);
+    }
+    m_attachmentStrip->setVisible(!m_attachments.isEmpty() || !m_textBlocks.isEmpty());
     emit attachmentsChanged();
 }
 

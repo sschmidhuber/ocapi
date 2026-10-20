@@ -26,6 +26,20 @@ Any OpenAI-compatible server (LM Studio, LocalAI, text-generation-webui with
 the OpenAI extension, …) can be added as an "OpenAI" backend by setting its
 base URL — including remote machines, e.g. `http://192.168.1.10:8000/v1`.
 
+## Attachments
+
+Besides images (JPEG, PNG, WebP, JPEG XL, AVIF, TIFF, GIF), PDF documents can be
+attached to chat messages. Text is extracted with Poppler; scanned pages and
+image files are recognized with Tesseract OCR. Both libraries are optional at
+build time (detected via pkg-config) — the features are disabled gracefully
+when they are missing.
+
+Install the dependencies, e.g. on Debian/Ubuntu:
+
+```sh
+sudo apt install libpoppler-cpp-dev libtesseract-dev tesseract-ocr-eng
+```
+
 ## Building
 
 Requirements: CMake ≥ 3.21, a C++23 compiler (GCC 13+, Clang 17+), Qt 6.5+

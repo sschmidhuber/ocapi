@@ -153,7 +153,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(m_sendButton, &QPushButton::clicked, this, [this]() {
         if (m_composer->isEmpty())
             return;
-        onSend(m_composer->text().trimmed(), m_composer->attachments());
+        onSend(m_composer->composedText(), m_composer->attachments());
     });
     connect(m_stopButton, &QPushButton::clicked, this, &MainWindow::onStop);
     connect(m_backendCombo, &QComboBox::currentIndexChanged, this, [this]() {

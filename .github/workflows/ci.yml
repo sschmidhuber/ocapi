@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt6 and build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            qt6-base-dev \
+            qt6-base-dev-tools \
+            libgl1-mesa-dev \
+            libxkbcommon-dev
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Run unit tests
+        run: ctest --test-dir build --output-on-failure
+
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-tidy and build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang-tidy \
+            build-essential \
+            cmake \
+            ninja-build \
+            qt6-base-dev \
+            qt6-base-dev-tools \
+            libgl1-mesa-dev \
+            libxkbcommon-dev
+
+      - name: Configure with compile commands
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: Build (for compile_commands.json)
+        run: cmake --build build --target ocapi-core
+
+      - name: Run clang-tidy on core sources
+        run: |
+          find src/core src/backends -name '*.cpp' | while read -r file; do
+            echo "=== clang-tidy: $file ==="
+            clang-tidy "$file" \
+              -p build \
+              --checks='bugprone-*,performance-*,readability-*,modernize-*,-modernize-use-trailing-return-type,-readability-magic-numbers' \
+              --warnings-as-errors='' \
+              2>&1 || true
+          done

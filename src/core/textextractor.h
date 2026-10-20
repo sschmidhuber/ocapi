@@ -10,11 +10,13 @@ namespace ocapi {
 // Poppler (with automatic OCR of scanned pages via Tesseract), text from
 // image files (e.g. scanned documents) via Tesseract, plain text files
 // (CSV, Markdown, HTML, source code, ...), MS Office documents
-// (.docx/.xlsx/.pptx OOXML packages) and OpenDocument documents
-// (.odt/.ods/.odp ODF packages) via libarchive + QXmlStreamReader.
-// Poppler, Tesseract and libarchive are optional at build time;
-// availability is reported by hasPoppler(), hasTesseract() and
-// hasLibArchive().
+// (.docx/.xlsx/.pptx OOXML packages), OpenDocument documents
+// (.odt/.ods/.odp ODF packages) and archive files (.zip and everything
+// libarchive supports, recursed into per-entry) via libarchive +
+// QXmlStreamReader, plus RFC 5322 e-mail messages (.eml/.mbox) and
+// HTML files (rendered to readable text). Poppler, Tesseract and
+// libarchive are optional at build time; availability is reported by
+// hasPoppler(), hasTesseract() and hasLibArchive().
 class TextExtractor {
 public:
     [[nodiscard]] static bool hasPoppler();
@@ -50,12 +52,30 @@ public:
     // QXmlStreamReader.
     [[nodiscard]] static QString extractFromOffice(const QString &path, QString *error = nullptr);
 
+    // Extracts text from an archive (.zip, .tar, .tar.gz, ...) by recursing
+    // into every entry and applying the appropriate extraction per file type.
+    // Guards against decompression bombs via maxArchiveEntries() and
+    // maxArchiveTotalChars().
+    [[nodiscard]] static QString extractFromArchive(const QString &path, QString *error = nullptr);
+
+    // Extracts the readable text of an RFC 5322 e-mail message (.eml) or an
+    // mbox file (multiple concatenated messages): headers of interest plus
+    // the text/plain body (or the text stripped from a text/html part).
+    [[nodiscard]] static QString extractFromEmail(const QString &path, QString *error = nullptr);
+
+    // Converts an HTML document to readable text: drops script/style blocks
+    // and markup, collapses whitespace and adds line breaks at block
+    // boundaries.
+    [[nodiscard]] static QString htmlToText(const QByteArray &html);
+
     // Extracts text from any supported file (PDF, image, text file or
     // OOXML document). Returns an empty result with \p error set for
     // unsupported inputs.
     [[nodiscard]] static QString extractFromFile(const QString &path, QString *error = nullptr);
 
     [[nodiscard]] static int maxTextFileChars() { return 200000; }
+    [[nodiscard]] static int maxArchiveEntries() { return 500; }
+    [[nodiscard]] static qint64 maxArchiveTotalBytes() { return qint64(256) * 1024 * 1024; }
 };
 
 } // namespace ocapi

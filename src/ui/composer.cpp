@@ -47,7 +47,9 @@ bool isDocumentFile(const QUrl &url) {
 QString nameFilter() {
     return ImagePreprocessor::supportedNameFilter() +
            QStringLiteral(";;PDF documents (*.pdf);;Office documents "
-                          "(*.docx *.xlsx *.pptx *.odt *.ods *.odp);;Text files (*)");
+                          "(*.docx *.xlsx *.pptx *.odt *.ods *.odp);;Archives "
+                          "(*.zip *.tar *.tar.gz *.tgz *.tar.bz2 *.tar.xz *.7z);;E-mail "
+                          "(*.eml *.mbox);;Text files (*)");
 }
 
 } // namespace

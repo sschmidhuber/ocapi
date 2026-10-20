@@ -6,6 +6,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QUrl>
 
@@ -20,6 +21,14 @@ QUrl endpoint(const BackendConfig &config, const QString &path) {
         basePath.append('/');
     url.setPath(basePath + path);
     return url;
+}
+
+QStringList fallbackModels() {
+    return {
+        QStringLiteral("claude-sonnet-4-5"),
+        QStringLiteral("claude-opus-4-1"),
+        QStringLiteral("claude-haiku-4-5"),
+    };
 }
 
 QNetworkRequest makeRequest(const QUrl &url, const QString &apiKey) {
@@ -38,11 +47,33 @@ AnthropicBackend::AnthropicBackend(BackendConfig config, QObject *parent)
 AnthropicBackend::~AnthropicBackend() = default;
 
 void AnthropicBackend::listModels() {
-    // Anthropic has no public model-listing endpoint; offer the well-known models.
-    emit modelsReady({
-        QStringLiteral("claude-sonnet-4-5"),
-        QStringLiteral("claude-opus-4-1"),
-        QStringLiteral("claude-haiku-4-5"),
+    if (m_modelsReply) {
+        m_modelsReply->disconnect(this);
+        m_modelsReply->deleteLater();
+    }
+    m_modelsReply =
+        m_nam->get(makeRequest(endpoint(m_config, QStringLiteral("models")), m_config.apiKey));
+    connect(m_modelsReply, &QNetworkReply::finished, this, [this]() {
+        auto *reply = m_modelsReply;
+        m_modelsReply = nullptr;
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) {
+            // Fall back to the well-known models when listing is unavailable
+            // (older API versions, restricted keys or network issues).
+            emit modelsReady(fallbackModels());
+            return;
+        }
+        const auto data = QJsonDocument::fromJson(reply->readAll())
+                              .object()
+                              .value(QStringLiteral("data"))
+                              .toArray();
+        QStringList names;
+        names.reserve(data.size());
+        for (const auto &value : data)
+            names.append(value.toObject().value(QStringLiteral("id")).toString());
+        if (names.isEmpty())
+            names = fallbackModels();
+        emit modelsReady(names);
     });
 }
 

@@ -52,6 +52,7 @@ Message storedToMessage(const StoredMessage &stored) {
     message.timestamp = stored.timestamp;
     message.streaming = false;
     message.error = stored.error;
+    message.tokensPerSecond = stored.tokensPerSecond;
     return message;
 }
 
@@ -434,6 +435,15 @@ void MainWindow::onModelsDetected(const QStringList &models) {
     m_modelCombo->setCurrentText(current);
 }
 
+double MainWindow::throughputFor(const QUuid &messageId) {
+    if (messageId != m_streamedMessageId || m_streamedTokens <= 0 || !m_firstToken.isValid())
+        return -1.0;
+    const qint64 elapsedMs = m_firstToken.msecsTo(QDateTime::currentDateTime());
+    if (elapsedMs <= 0)
+        return -1.0;
+    return m_streamedTokens * 1000.0 / static_cast<double>(elapsedMs);
+}
+
 void MainWindow::onSend(const QString &text) {
     if (!m_currentSession || m_streaming)
         return;
@@ -464,6 +474,8 @@ void MainWindow::onSend(const QString &text) {
     m_composer->clear();
 
     m_backend = createBackend(*config);
+    m_streamedTokens = 0;
+    m_firstToken = QDateTime();
     connectBackend(m_backend.get());
     m_streaming = true;
     m_composer->setBusy(true);
@@ -471,7 +483,14 @@ void MainWindow::onSend(const QString &text) {
     m_stopButton->setVisible(true);
     statusBar()->showMessage(tr("Generating…"));
 
+    const qsizetype count = m_currentSession->messages().size();
     m_backend->sendMessage(m_currentSession, model);
+    // The backend appends the assistant message inside sendMessage().
+    if (m_currentSession->messages().size() > count) {
+        const Message &assistant = m_currentSession->messages().constLast();
+        if (assistant.role == Role::Assistant)
+            m_streamedMessageId = assistant.id;
+    }
 }
 
 void MainWindow::onStop() {
@@ -486,6 +505,11 @@ IBackend *MainWindow::activeBackend() {
 void MainWindow::connectBackend(IBackend *backend) {
     connect(backend, &IBackend::tokenReceived, this,
             [this](const QUuid &messageId, const QString &text) {
+                if (messageId == m_streamedMessageId) {
+                    ++m_streamedTokens;
+                    if (!m_firstToken.isValid())
+                        m_firstToken = QDateTime::currentDateTime();
+                }
                 if (m_currentSession)
                     m_currentSession->updateMessage(messageId, text, true);
                 if (m_database.isOpen())
@@ -495,8 +519,13 @@ void MainWindow::connectBackend(IBackend *backend) {
         const QString content = messageContent(messageId);
         if (m_currentSession)
             m_currentSession->updateMessage(messageId, content, false);
+        const double tokensPerSecond = throughputFor(messageId);
+        if (tokensPerSecond > 0.0 && m_currentSession)
+            m_currentSession->setThroughput(messageId, tokensPerSecond);
         if (m_database.isOpen()) {
             m_database.updateMessage(messageId.toString(QUuid::WithoutBraces), content, false);
+            if (tokensPerSecond > 0.0)
+                m_database.setThroughput(messageId.toString(QUuid::WithoutBraces), tokensPerSecond);
             syncSessionToDatabase(m_currentSession);
         }
         endStreaming(tr("Ready"));

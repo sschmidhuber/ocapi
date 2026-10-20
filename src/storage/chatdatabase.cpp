@@ -45,6 +45,7 @@ void createTables(QSqlDatabase &database) {
                        "role TEXT NOT NULL, "
                        "content TEXT NOT NULL, "
                        "streaming INTEGER NOT NULL DEFAULT 0, "
+                       "tokens_per_second REAL NOT NULL DEFAULT -1, "
                        "error TEXT NOT NULL DEFAULT '', "
                        "timestamp INTEGER NOT NULL, "
                        "position INTEGER NOT NULL, "
@@ -74,6 +75,9 @@ bool ChatDatabase::open(const QString &filePath) {
     QSqlQuery pragma(m_database);
     pragma.exec(QStringLiteral("PRAGMA foreign_keys = ON"));
     createTables(m_database);
+    // Schema evolution: older databases lack the throughput column.
+    pragma.exec(QStringLiteral("ALTER TABLE messages ADD COLUMN tokens_per_second REAL "
+                               "NOT NULL DEFAULT -1"));
     if (m_database.lastError().isValid() && m_database.lastError().type() != QSqlError::NoError)
         m_lastError = m_database.lastError().text();
     return true;
@@ -131,6 +135,7 @@ StoredMessage storedMessageFrom(const QSqlQuery &query) {
     message.streaming = query.value(3).toInt() != 0;
     message.error = query.value(4).toString();
     message.timestamp = QDateTime::fromSecsSinceEpoch(query.value(5).toLongLong());
+    message.tokensPerSecond = query.value(6).toDouble();
     return message;
 }
 
@@ -247,8 +252,8 @@ QVector<StoredMessage> ChatDatabase::messagesForSession(const QString &sessionId
     QVector<StoredMessage> result;
     QSqlQuery query(m_database);
     if (limit >= 0) {
-        query.prepare(QStringLiteral("SELECT id, role, content, streaming, error, timestamp "
-                                     "FROM messages WHERE session_id = ? "
+        query.prepare(QStringLiteral("SELECT id, role, content, streaming, error, timestamp, "
+                                     "tokens_per_second FROM messages WHERE session_id = ? "
                                      "ORDER BY position DESC LIMIT ? OFFSET ?"));
         query.addBindValue(sessionId);
         query.addBindValue(limit);
@@ -262,8 +267,9 @@ QVector<StoredMessage> ChatDatabase::messagesForSession(const QString &sessionId
         std::reverse(result.begin(), result.end());
         return result;
     }
-    query.prepare(QStringLiteral("SELECT id, role, content, streaming, error, timestamp "
-                                 "FROM messages WHERE session_id = ? ORDER BY position ASC"));
+    query.prepare(
+        QStringLiteral("SELECT id, role, content, streaming, error, timestamp, tokens_per_second "
+                       "FROM messages WHERE session_id = ? ORDER BY position ASC"));
     query.addBindValue(sessionId);
     if (!query.exec()) {
         m_lastError = query.lastError().text();
@@ -304,6 +310,11 @@ bool ChatDatabase::updateMessage(const QString &messageId, const QString &conten
     return execute(QStringLiteral("UPDATE messages SET content = ?, streaming = ?, "
                                   "error = '' WHERE id = ?"),
                    {content, streaming ? 1 : 0, messageId});
+}
+
+bool ChatDatabase::setThroughput(const QString &messageId, double tokensPerSecond) {
+    return execute(QStringLiteral("UPDATE messages SET tokens_per_second = ? WHERE id = ?"),
+                   {tokensPerSecond, messageId});
 }
 
 bool ChatDatabase::failMessage(const QString &messageId, const QString &error) {

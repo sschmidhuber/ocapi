@@ -20,6 +20,7 @@ struct Message {
     QDateTime timestamp = QDateTime::currentDateTime();
     bool streaming = false;
     QString error;
+    double tokensPerSecond = -1.0; // output tokens/s; negative when unknown
 
     [[nodiscard]] QString roleName() const {
         switch (role) {

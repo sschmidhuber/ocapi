@@ -30,6 +30,7 @@ private slots:
     void messagePaginationSecondPageIsOlderMessages();
     void messagePaginationBeyondEndIsEmpty();
     void messageCountMatchesStoredMessages();
+    void throughputRoundTrip();
 
 private:
     ChatDatabase &db() { return m_database; }
@@ -260,6 +261,20 @@ void TestChatDatabase::messageCountMatchesStoredMessages() {
                                    message.roleName(), message.content, message.timestamp));
     }
     QCOMPARE(db().messageCount(sessionId), 3);
+}
+
+void TestChatDatabase::throughputRoundTrip() {
+    ChatSession session(QStringLiteral("Chat"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+    const auto &message = session.appendMessage(Role::Assistant, QStringLiteral("hi"));
+    const auto messageId = message.id.toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertMessage(sessionId, messageId, message.roleName(), message.content,
+                               message.timestamp));
+    QVERIFY(db().setThroughput(messageId, 37.4));
+    const auto stored = db().messagesForSession(sessionId);
+    QCOMPARE(stored.size(), 1);
+    QCOMPARE(stored.at(0).tokensPerSecond, 37.4);
 }
 
 QTEST_GUILESS_MAIN(TestChatDatabase)

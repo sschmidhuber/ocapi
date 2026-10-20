@@ -98,6 +98,48 @@ QByteArray pptxZip() {
 }
 // clang-format on
 
+// clang-format off
+QByteArray odtZip() {
+    return QByteArray::fromBase64(
+        QByteArrayLiteral("UEsDBBQAAAAIAM2SVF1exjIMKQAAACcAAAAIAAAAbWltZXR5cGVLLCjIyUxOLMnMz9Mvy0vRy08s") +
+        QByteArrayLiteral("zizWyy9IzUvJTy7NTc0r0StJrSgBAFBLAwQUAAAACADNklRdKW84Wa0AAAC8AQAACwAAAGNvbnRl") +
+        QByteArrayLiteral("bnQueG1sjZHBDoMgDEB/hXjf2K6Nsuvu+wIEdCRICeB0fz9h6vSwxFND+17blPI2doa8lA8abVVc") +
+        QByteArrayLiteral("z5fixkpsGi0USBR9p2w8CbRximRibYBvtSp6bwF50AEs71SAKACdsosFWxpS59mPaoxH7cTuXF6b") +
+        QByteArrayLiteral("w6MzvLWl58NRObHatllfL1KjfK+PtBsr84aO3ZUxSFBGMqA3sqRzfqk/1HREmQHHPW89d88fRHct") +
+        QByteArrayLiteral("6W4a/fMb7ANQSwECFAMUAAAACADNklRdXsYyDCkAAAAnAAAACAAAAAAAAAAAAAAAgAEAAAAAbWlt") +
+        QByteArrayLiteral("ZXR5cGVQSwECFAMUAAAACADNklRdKW84Wa0AAAC8AQAACwAAAAAAAAAAAAAAgAFPAAAAY29udGVu") +
+        QByteArrayLiteral("dC54bWxQSwUGAAAAAAIAAgBvAAAAJQEAAAAA"));
+}
+// clang-format on
+
+// clang-format off
+QByteArray odsZip() {
+    return QByteArray::fromBase64(
+        QByteArrayLiteral("UEsDBBQAAAAIAM2SVF2FbDmKLAAAAC4AAAAIAAAAbWltZXR5cGUFwYEJACAIBMCNbCbRh4RSSWv+") +
+        QByteArrayLiteral("7jhzmXBb+HiuFFxWFAnXkLvhTZUHrDWB/lBLAwQUAAAACADNklRdUbx+DrsAAAA4AgAACwAAAGNv") +
+        QByteArrayLiteral("bnRlbnQueG1sjZJBDoMgEEWv0ri3tFuCeIMuu0cYWxIEA1jt7QtqjcTauAFm+G9mPoGUQ6NOL7BO") +
+        QByteArrayLiteral("Gl1k1/MlKykxdS05YGF414D2OTfah/0UtNrh6bbIOquxYU46rFkDDnuOTQv6S+G1GsfKM+9h8Efp") +
+        QByteArrayLiteral("qE1YVqnDrUfxmhaW9UfhqJX6MeLLi1RGvJfAtRaYcE8AT8nUa1yTILemTxMclAqZaKyltzABQXMQ") +
+        QByteArrayLiteral("DlvdHnlnqvuPos0YKJkS/fKBEqdo5yfQD1BLAQIUAxQAAAAIAM2SVF2FbDmKLAAAAC4AAAAIAAAA") +
+        QByteArrayLiteral("AAAAAAAAAACAAQAAAABtaW1ldHlwZVBLAQIUAxQAAAAIAM2SVF1RvH4OuwAAADgCAAALAAAAAAAA") +
+        QByteArrayLiteral("AAAAAACAAVIAAABjb250ZW50LnhtbFBLBQYAAAAAAgACAG8AAAA2AQAAAAA="));
+}
+// clang-format on
+
+// clang-format off
+QByteArray odpZip() {
+    return QByteArray::fromBase64(
+        QByteArrayLiteral("UEsDBBQAAAAIAM2SVF0zJqyoLAAAAC8AAAAIAAAAbWltZXR5cGVLLCjIyUxOLMnMz9Mvy0vRy08s") +
+        QByteArrayLiteral("zizWyy9IzUvJTy7NTc0r0SsoSi0G0mA1AFBLAwQUAAAACADNklRdMWYI2cQAAABjAgAACwAAAGNv") +
+        QByteArrayLiteral("bnRlbnQueG1snZLRDoIwDEV/hfCu09dmjI/wCwYUswRasg3Fv3dDJEA0QZ/WdefemzaT+dA2yQ2t") +
+        QByteArrayLiteral("M0xZej6e0lxJrmtTIlRc9i2SP5RMPpxJYMnB6zVLe0vA2hkHpFt04EvgDumtgiUN0XnSexz8XnVk") +
+        QByteArrayLiteral("V1pdNLujR3iprqy+7xVH1tB1lM8bKbh6zJfOogu89mF1SkYeOn3FqaxtMJ/qOMWh4EHJcZ5OXRpT") +
+        QByteArrayLiteral("YcKESWxIMbWl2OBiaSW2Eb+l+Tv/myY+TixWSxFfPo16AlBLAQIUAxQAAAAIAM2SVF0zJqyoLAAA") +
+        QByteArrayLiteral("AC8AAAAIAAAAAAAAAAAAAACAAQAAAABtaW1ldHlwZVBLAQIUAxQAAAAIAM2SVF0xZgjZxAAAAGMC") +
+        QByteArrayLiteral("AAALAAAAAAAAAAAAAACAAVIAAABjb250ZW50LnhtbFBLBQYAAAAAAgACAG8AAAA/AQAAAAA="));
+}
+// clang-format on
+
 } // namespace
 
 class TestTextExtractor : public QObject {
@@ -117,6 +159,9 @@ private slots:
     void extractFromOoxmlHandlesXlsx();
     void extractFromOoxmlHandlesPptx();
     void extractFromOoxmlRejectsMissingFile();
+    void extractFromOfficeHandlesOdt();
+    void extractFromOfficeHandlesOds();
+    void extractFromOfficeHandlesOdp();
 };
 
 void TestTextExtractor::availabilityFlagsAreConsistent() {
@@ -256,7 +301,7 @@ void TestTextExtractor::extractFromOoxmlHandlesDocx() {
     const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.docx"));
     writeFixture(path, docxZip());
     QString error;
-    const QString text = TextExtractor::extractFromOoxml(path, &error);
+    const QString text = TextExtractor::extractFromOffice(path, &error);
     QVERIFY2(!text.isEmpty(), qPrintable(error));
     QVERIFY(text.contains(QStringLiteral("Hello"), Qt::CaseInsensitive));
     QVERIFY(text.contains(QStringLiteral("ocapi"), Qt::CaseInsensitive));
@@ -272,7 +317,7 @@ void TestTextExtractor::extractFromOoxmlHandlesXlsx() {
     const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.xlsx"));
     writeFixture(path, xlsxZip());
     QString error;
-    const QString text = TextExtractor::extractFromOoxml(path, &error);
+    const QString text = TextExtractor::extractFromOffice(path, &error);
     QVERIFY2(!text.isEmpty(), qPrintable(error));
     QVERIFY(text.contains(QStringLiteral("Name"), Qt::CaseInsensitive));
     QVERIFY(text.contains(QStringLiteral("Value"), Qt::CaseInsensitive));
@@ -286,7 +331,49 @@ void TestTextExtractor::extractFromOoxmlHandlesPptx() {
     const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.pptx"));
     writeFixture(path, pptxZip());
     QString error;
-    const QString text = TextExtractor::extractFromOoxml(path, &error);
+    const QString text = TextExtractor::extractFromOffice(path, &error);
+    QVERIFY2(!text.isEmpty(), qPrintable(error));
+    QVERIFY(text.contains(QStringLiteral("Slide one text"), Qt::CaseInsensitive));
+    QVERIFY(text.contains(QStringLiteral("Slide two text"), Qt::CaseInsensitive));
+    QFile::remove(path);
+}
+
+void TestTextExtractor::extractFromOfficeHandlesOdt() {
+    if (!TextExtractor::hasLibArchive())
+        QSKIP("libarchive not available in this build");
+
+    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.odt"));
+    writeFixture(path, odtZip());
+    QString error;
+    const QString text = TextExtractor::extractFromOffice(path, &error);
+    QVERIFY2(!text.isEmpty(), qPrintable(error));
+    QVERIFY(text.contains(QStringLiteral("Hello odt world"), Qt::CaseInsensitive));
+    QVERIFY(text.contains(QStringLiteral("Second odt paragraph"), Qt::CaseInsensitive));
+    QFile::remove(path);
+}
+
+void TestTextExtractor::extractFromOfficeHandlesOds() {
+    if (!TextExtractor::hasLibArchive())
+        QSKIP("libarchive not available in this build");
+
+    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.ods"));
+    writeFixture(path, odsZip());
+    QString error;
+    const QString text = TextExtractor::extractFromOffice(path, &error);
+    QVERIFY2(!text.isEmpty(), qPrintable(error));
+    QVERIFY(text.contains(QStringLiteral("Name"), Qt::CaseInsensitive));
+    QVERIFY(text.contains(QStringLiteral("Value"), Qt::CaseInsensitive));
+    QFile::remove(path);
+}
+
+void TestTextExtractor::extractFromOfficeHandlesOdp() {
+    if (!TextExtractor::hasLibArchive())
+        QSKIP("libarchive not available in this build");
+
+    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.odp"));
+    writeFixture(path, odpZip());
+    QString error;
+    const QString text = TextExtractor::extractFromOffice(path, &error);
     QVERIFY2(!text.isEmpty(), qPrintable(error));
     QVERIFY(text.contains(QStringLiteral("Slide one text"), Qt::CaseInsensitive));
     QVERIFY(text.contains(QStringLiteral("Slide two text"), Qt::CaseInsensitive));
@@ -298,7 +385,7 @@ void TestTextExtractor::extractFromOoxmlRejectsMissingFile() {
         QSKIP("libarchive not available in this build");
 
     QString error;
-    const QString text = TextExtractor::extractFromOoxml(
+    const QString text = TextExtractor::extractFromOffice(
         QDir::temp().filePath(QStringLiteral("ocapi-missing-file.docx")), &error);
     QVERIFY(text.isEmpty());
     QVERIFY(!error.isEmpty());

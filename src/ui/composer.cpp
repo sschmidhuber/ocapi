@@ -46,7 +46,8 @@ bool isDocumentFile(const QUrl &url) {
 
 QString nameFilter() {
     return ImagePreprocessor::supportedNameFilter() +
-           QStringLiteral(";;PDF documents (*.pdf);;Text files (*)");
+           QStringLiteral(";;PDF documents (*.pdf);;Office documents "
+                          "(*.docx *.xlsx *.pptx *.odt *.ods *.odp);;Text files (*)");
 }
 
 } // namespace
@@ -119,7 +120,7 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     m_textEdit = new MessageTextEdit(row);
     m_attachButton = new QToolButton(row);
     m_attachButton->setText(QStringLiteral("+"));
-    m_attachButton->setToolTip(tr("Attach images, PDF documents or text files"));
+    m_attachButton->setToolTip(tr("Attach images, documents or text files"));
     m_attachButton->setAutoRaise(true);
     m_attachButton->setFixedSize(28, 28);
     rowLayout->addWidget(m_textEdit, 1);

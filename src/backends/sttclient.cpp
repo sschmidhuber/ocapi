@@ -40,7 +40,7 @@ void SttClient::transcribeChunk(const QByteArray &wav, bool emitReady) {
     if (wav.isEmpty())
         return;
 
-    QHttpMultiPart *multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType, this);
+    auto *multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType, this);
 
     QHttpPart filePart;
     filePart.setHeader(QNetworkRequest::ContentTypeHeader, QVariant(QStringLiteral("audio/wav")));
@@ -89,7 +89,7 @@ void SttClient::transcribeChunk(const QByteArray &wav, bool emitReady) {
             const QJsonDocument document = QJsonDocument::fromJson(payload);
             const QString text =
                 document.object().value(QStringLiteral("text")).toString().trimmed();
-            onChunkDone(text, !m_finishing && emitReady);
+            onChunkDone(text, emitReady);
         }
         maybeFlush();
     });
@@ -104,13 +104,13 @@ void SttClient::cancel() {
     m_finishing = false;
 }
 
-void SttClient::onChunkDone(const QString &text, bool emitIntermediate) {
+void SttClient::onChunkDone(const QString &text, bool live) {
     if (text.isEmpty())
         return;
     if (!m_accumulated.isEmpty() && !m_accumulated.endsWith(' '))
         m_accumulated += ' ';
     m_accumulated += text;
-    if (emitIntermediate)
+    if (live && !m_finishing)
         emit intermediateTranscription(m_accumulated);
     else
         emit transcriptionUpdated(m_accumulated);

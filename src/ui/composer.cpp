@@ -163,7 +163,7 @@ void Composer::setDictationActive(bool active) {
     m_dictationActive = active;
     m_micButton->setChecked(active);
     if (active) {
-        m_dictationStart = m_textEdit->toPlainText().size();
+        m_dictationStart = static_cast<int>(m_textEdit->toPlainText().size());
         m_dictatedLength = 0;
         m_textEdit->setPlaceholderText(tr("Listening… speak now, press the microphone button "
                                           "again to stop"));
@@ -215,7 +215,7 @@ void Composer::clearText() {
 void Composer::setDictatedText(const QString &text) {
     // Preserve the user-typed prefix; replace any previously dictated text.
     const QString typed = m_textEdit->toPlainText().left(m_dictationStart);
-    m_dictatedLength = text.size();
+    m_dictatedLength = static_cast<int>(text.size());
     m_textEdit->setPlainText(typed + text);
     m_textEdit->moveCursor(QTextCursor::End);
 }
@@ -223,7 +223,7 @@ void Composer::setDictatedText(const QString &text) {
 void Composer::finishDictation(const QString &text) {
     const QString typed = m_textEdit->toPlainText().left(m_dictationStart);
     QString rest = m_textEdit->toPlainText().mid(m_dictationStart);
-    rest = rest.left(std::max<int>(0, rest.size() - m_dictatedLength));
+    rest = rest.left(std::max<int>(0, static_cast<int>(rest.size()) - m_dictatedLength));
     m_textEdit->setPlainText(typed + text + rest);
     m_textEdit->moveCursor(QTextCursor::End);
     m_dictatedLength = 0;

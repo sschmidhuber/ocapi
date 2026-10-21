@@ -66,7 +66,7 @@ QByteArray AudioChunker::wavFromPcm(const QByteArray &pcmSamples, int sampleRate
     const quint32 byteRate = static_cast<quint32>(sampleRate * kBytesPerFrame);
 
     QByteArray wav;
-    wav.reserve(static_cast<qsizetype>(44 + dataSize));
+    wav.reserve(44 + static_cast<qsizetype>(dataSize));
     wav.append("RIFF", 4);
     appendUint32(wav, 36 + dataSize);
     wav.append("WAVE", 4);
@@ -76,7 +76,7 @@ QByteArray AudioChunker::wavFromPcm(const QByteArray &pcmSamples, int sampleRate
     appendUint16(wav, 1); // mono
     appendUint32(wav, static_cast<quint32>(sampleRate));
     appendUint32(wav, byteRate);
-    appendUint16(wav, kBytesPerFrame);
+    appendUint16(wav, static_cast<quint16>(kBytesPerFrame));
     appendUint16(wav, 16); // bits per sample
     wav.append("data", 4);
     appendUint32(wav, dataSize);
@@ -85,7 +85,8 @@ QByteArray AudioChunker::wavFromPcm(const QByteArray &pcmSamples, int sampleRate
 }
 
 int AudioChunker::chunkSizeBytes() const {
-    return m_sampleRate * kBytesPerFrame * m_chunkDurationMs / 1000;
+    return static_cast<int>(static_cast<qint64>(m_sampleRate) * kBytesPerFrame * m_chunkDurationMs /
+                            1000);
 }
 
 qint64 AudioChunker::bytesToMs(qsizetype bytes) const {

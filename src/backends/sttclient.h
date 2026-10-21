@@ -40,7 +40,7 @@ signals:
     void finished();
 
 private:
-    void onChunkDone(const QString &text, bool finalChunk);
+    void onChunkDone(const QString &text, bool live);
     void maybeFlush();
 
     SttServiceConfig m_config;

@@ -33,7 +33,7 @@ void TestSttRegistry::init() {
 }
 
 QSettings TestSttRegistry::settings() const {
-    return QSettings(m_filePath, QSettings::IniFormat);
+    return {m_filePath, QSettings::IniFormat};
 }
 
 void TestSttRegistry::addAppendsServiceWithDefaults() {

@@ -42,11 +42,11 @@ public:
 private:
     void respondIfComplete(QTcpSocket *socket) {
         const QByteArray &buffer = m_requests[socket];
-        const int headerEnd = buffer.indexOf("\r\n\r\n");
+        const auto headerEnd = buffer.indexOf("\r\n\r\n");
         if (headerEnd < 0)
             return;
         const QString headers = QString::fromLatin1(buffer.left(headerEnd)).toLower();
-        const int lengthIndex = headers.indexOf("content-length:");
+        const auto lengthIndex = headers.indexOf("content-length:");
         if (lengthIndex < 0)
             return;
         const int contentLength =
@@ -55,17 +55,19 @@ private:
             return;
 
         m_lastBody = QString::fromUtf8(buffer.mid(headerEnd + 4, contentLength));
-        m_lastHadAuth = headers.contains("authorization: bearer");
+        // QNetworkAccessManager sends lowercased header names.
+        m_lastHadAuth = headers.contains("authorization: bearer ");
 
         const QByteArray body = QJsonDocument(QJsonObject{{QStringLiteral("text"), m_responseText}})
                                     .toJson(QJsonDocument::Compact);
         QByteArray response = "HTTP/1.1 200 OK\r\n";
         response += "Content-Type: application/json\r\n";
         response += "Content-Length: " + QByteArray::number(body.size()) + "\r\n";
+        response += "Connection: keep-alive\r\n";
         response += "\r\n";
         response += body;
         socket->write(response);
-        socket->disconnectFromHost();
+        m_requests[socket].clear();
     }
 
     QTcpServer m_server;
@@ -125,13 +127,18 @@ void TestSttClient::accumulatesTextAcrossChunks() {
     QSignalSpy updated(&client, &SttClient::transcriptionUpdated);
 
     client.start();
-    client.transcribeChunk(AudioChunker::wavFromPcm(QByteArray(320, 0), 16000), false);
     m_server.setResponseText(QStringLiteral("first"));
-    QVERIFY(updated.wait(5000));
     client.transcribeChunk(AudioChunker::wavFromPcm(QByteArray(320, 0), 16000), false);
-    m_server.setResponseText(QStringLiteral("second"));
     QVERIFY(updated.wait(5000));
-
+    m_server.setResponseText(QStringLiteral("second"));
+    client.transcribeChunk(AudioChunker::wavFromPcm(QByteArray(320, 0), 16000), false);
+    // wait() only returns for NEW signals; the accumulated text may already
+    // have arrived while processing the first response. Poll until the
+    // expected text shows up.
+    for (int i = 0; i < 50 && updated.last().first().toString() != QStringLiteral("first second");
+         ++i) {
+        updated.wait(100);
+    }
     QCOMPARE(updated.last().first().toString(), QStringLiteral("first second"));
 }
 

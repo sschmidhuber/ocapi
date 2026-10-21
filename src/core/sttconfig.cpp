@@ -89,7 +89,6 @@ QString SttServiceConfig::defaultModel(SttServiceKind kind) {
     case SttServiceKind::Mistral:
         return QStringLiteral("mistral-large-latest");
     case SttServiceKind::WhisperApi:
-        return QStringLiteral("whisper-1");
     case SttServiceKind::WhisperCpp:
         return QStringLiteral("whisper-1");
     }

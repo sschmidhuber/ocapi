@@ -8,7 +8,7 @@ using namespace ocapi;
 namespace {
 
 QByteArray pcm(qsizetype bytes, char fill = 0) {
-    return QByteArray(bytes, fill);
+    return {bytes, fill};
 }
 
 } // namespace
@@ -48,25 +48,25 @@ void TestAudioChunker::wavHeaderIsWellFormed() {
 
 void TestAudioChunker::feedEmitsNothingBelowChunkSize() {
     AudioChunker chunker(kSampleRate, 6000);
-    QVERIFY(chunker.feed(pcm(16000)).isEmpty());
+    QVERIFY(chunker.feed(pcm(qsizetype{16000})).isEmpty());
 }
 
 void TestAudioChunker::feedEmitsOneChunkAtExactSize() {
     AudioChunker chunker(kSampleRate, 6000);
-    const auto chunks = chunker.feed(pcm(16000 * 2 * 6));
+    const auto chunks = chunker.feed(pcm(qsizetype{16000} * 2 * 6));
     QCOMPARE(chunks.size(), 1);
-    QCOMPARE(chunks.first().size(), 44 + 16000 * 2 * 6);
+    QCOMPARE(chunks.first().size(), qsizetype(44 + 16000 * 2 * 6));
 }
 
 void TestAudioChunker::feedEmitsMultipleChunks() {
     AudioChunker chunker(kSampleRate, 1000);
-    const auto chunks = chunker.feed(pcm(16000 * 2 * 3));
+    const auto chunks = chunker.feed(pcm(qsizetype{16000} * 2 * 3));
     QCOMPARE(chunks.size(), 3);
 }
 
 void TestAudioChunker::flushReturnsRemainder() {
     AudioChunker chunker(kSampleRate, 6000);
-    chunker.feed(pcm(16000 * 2 * 2));
+    chunker.feed(pcm(qsizetype{16000} * 2 * 2));
     const QByteArray tail = chunker.flush();
     QVERIFY(!tail.isEmpty());
     QCOMPARE(tail.size(), 44 + 16000 * 2 * 2);
@@ -95,7 +95,7 @@ void TestAudioChunker::setSampleRateClearsBuffer() {
 
 void TestAudioChunker::bufferedMsTracksBuffer() {
     AudioChunker chunker(kSampleRate, 6000);
-    chunker.feed(pcm(16000 * 2));
+    chunker.feed(pcm(qsizetype{16000} * 2));
     QCOMPARE(chunker.bufferedMs(), 1000);
 }
 

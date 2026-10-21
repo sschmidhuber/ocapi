@@ -24,7 +24,7 @@
 import json
 import sys
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MODEL_NAME = "mock-model"
 REPLY_TEXT = "Hello from the mock backend!"
@@ -131,7 +131,7 @@ class OllamaMockHandler(BaseHTTPRequestHandler):
 
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 11434
-    server = HTTPServer(("127.0.0.1", port), OllamaMockHandler)
+    server = ThreadingHTTPServer(("127.0.0.1", port), OllamaMockHandler)
     print(f"[mock-ollama] listening on http://127.0.0.1:{port}", flush=True)
     server.serve_forever()
 

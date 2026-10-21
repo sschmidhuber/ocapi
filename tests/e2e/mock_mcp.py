@@ -20,7 +20,7 @@
 
 import json
 import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 TOOL_RESULT_PREFIX = "echo: "
 
@@ -111,7 +111,7 @@ class McpMockHandler(BaseHTTPRequestHandler):
 
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 11435
-    server = HTTPServer(("127.0.0.1", port), McpMockHandler)
+    server = ThreadingHTTPServer(("127.0.0.1", port), McpMockHandler)
     print(f"[mock-mcp] listening on http://127.0.0.1:{port}", flush=True)
     server.serve_forever()
 

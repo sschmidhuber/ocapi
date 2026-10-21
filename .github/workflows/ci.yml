@@ -15,7 +15,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev cmake ninja-build clang-tidy cppcheck clang-format
+          sudo apt-get install -y libgl1-mesa-dev cmake ninja-build clang-tidy cppcheck clang-format ccache
 
       - name: Install Qt6
         uses: jurplel/install-qt-action@v4
@@ -23,11 +23,24 @@ jobs:
           version: 6.8.2
           modules: qtmultimedia
 
+      # Caches compiled object files so unchanged sources are not recompiled.
+      # The action evicts stale entries on every save (max-size + cleanup).
+      - name: Cache compiled objects (ccache)
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: build-test-${{ runner.os }}-qt6.8.2
+          max-size: 500M
+
       - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DOCAPI_ENABLE_CLANG_TIDY=ON
+        run: >-
+          cmake -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DOCAPI_ENABLE_CLANG_TIDY=ON
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
-        run: cmake --build build
+        run: cmake --build build --parallel
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure

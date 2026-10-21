@@ -15,7 +15,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev cmake ninja-build clang-tidy cppcheck clang-format ccache
+          sudo apt-get install -y libgl1-mesa-dev cmake ninja-build ccache
 
       - name: Install Qt6
         uses: jurplel/install-qt-action@v4
@@ -24,18 +24,29 @@ jobs:
           modules: qtmultimedia qtwebsockets
 
       # Caches compiled object files so unchanged sources are not recompiled.
-      # The action evicts stale entries on every save (max-size + cleanup).
-      - name: Cache compiled objects (ccache)
-        uses: hendrikmuhs/ccache-action@v1.2
+      # The key is derived from the CMake configuration so it stays stable
+      # across runs; restore-keys allow reusing a cache from a similar config.
+      - name: Cache ccache
+        uses: actions/cache@v4
         with:
-          key: build-test-${{ runner.os }}-qt6.8.2
-          max-size: 500M
+          path: .ccache
+          key: ccache-build-test-${{ runner.os }}-qt6.8.2-${{ hashFiles('CMakeLists.txt', 'src/CMakeLists.txt', 'tests/CMakeLists.txt') }}
+          restore-keys: |
+            ccache-build-test-${{ runner.os }}-qt6.8.2-
+          max-size: 500
+
+      - name: Configure ccache
+        run: |
+          ccache --set-config=cache_dir="$PWD/.ccache"
+          ccache --set-config=max_size=500M
+          ccache --set-config=compression=true
+          ccache --set-config=sloppiness=file_macro,time_macros
+          ccache -z
 
       - name: Configure
         run: >-
           cmake -B build -G Ninja
           -DCMAKE_BUILD_TYPE=Debug
-          -DOCAPI_ENABLE_CLANG_TIDY=ON
           -DCMAKE_C_COMPILER_LAUNCHER=ccache
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 

@@ -1,6 +1,7 @@
 #include "core/voiceinput.h"
 
 #include "backends/sttclient.h"
+#include "backends/sttstreamclient.h"
 #include "core/audiorecorder.h"
 
 namespace ocapi {
@@ -30,7 +31,7 @@ bool VoiceInput::isActive() const {
 bool VoiceInput::start() {
     if (m_active)
         return true;
-    if (!m_client) {
+    if (!m_client && !m_streamClient) {
         emit error(tr("No speech-to-text service configured."));
         return false;
     }
@@ -38,9 +39,13 @@ bool VoiceInput::start() {
         emit error(tr("Could not open the audio input device."));
         return false;
     }
-    m_chunker.setSampleRate(m_recorder->sampleRate());
-    m_chunker.setChunkDurationMs(m_client->config().effectiveChunkDurationMs());
-    m_client->start();
+    if (m_streamClient) {
+        m_streamClient->start(m_recorder->sampleRate());
+    } else {
+        m_chunker.setSampleRate(m_recorder->sampleRate());
+        m_chunker.setChunkDurationMs(m_client->config().effectiveChunkDurationMs());
+        m_client->start();
+    }
     m_active = true;
     emit started();
     return true;
@@ -50,10 +55,14 @@ void VoiceInput::stop() {
     if (!m_active)
         return;
     m_recorder->stop();
-    const QByteArray tail = m_chunker.flush();
-    if (!tail.isEmpty())
-        m_client->transcribeChunk(tail, false);
-    m_client->finish();
+    if (m_streamClient) {
+        m_streamClient->stop();
+    } else {
+        const QByteArray tail = m_chunker.flush();
+        if (!tail.isEmpty())
+            m_client->transcribeChunk(tail, false);
+        m_client->finish();
+    }
     m_active = false;
     emit stopped();
 }
@@ -66,7 +75,13 @@ void VoiceInput::toggle() {
 }
 
 void VoiceInput::onSamplesCaptured(const QByteArray &pcm) {
-    if (!m_active || !m_client)
+    if (!m_active)
+        return;
+    if (m_streamClient) {
+        m_streamClient->sendAudio(pcm);
+        return;
+    }
+    if (!m_client)
         return;
     const auto chunks = m_chunker.feed(pcm);
     for (const auto &chunk : chunks)

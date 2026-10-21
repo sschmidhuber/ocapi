@@ -316,6 +316,14 @@ void SttPage::updateUrlVisibility() {
     if (auto *form = qobject_cast<QFormLayout *>(m_urlEdit->parentWidget()->layout()))
         if (auto *label = form->labelForField(m_urlEdit))
             label->setVisible(visible);
+
+    // Streaming services transcribe word-by-word over a WebSocket; the
+    // chunk interval only applies to the chunked HTTP fallback.
+    const bool streaming = SttServiceConfig::isStreaming(currentKind());
+    m_chunkDurationSpin->setVisible(!streaming);
+    if (auto *form = qobject_cast<QFormLayout *>(m_chunkDurationSpin->parentWidget()->layout()))
+        if (auto *label = form->labelForField(m_chunkDurationSpin))
+            label->setVisible(!streaming);
 }
 
 SttServiceKind SttPage::currentKind() const {

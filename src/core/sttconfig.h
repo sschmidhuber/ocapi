@@ -8,11 +8,13 @@
 namespace ocapi {
 
 enum class SttServiceKind {
-    OpenAiApi,  // OpenAI transcription API
-    Groq,       // Groq whisper models (OpenAI-compatible)
-    Mistral,    // Mistral audio transcription (OpenAI-compatible)
-    WhisperApi, // any other OpenAI-compatible server, local or remote
-    WhisperCpp, // whisper.cpp server, local or remote
+    OpenAiApi,       // OpenAI transcription API
+    Groq,            // Groq whisper models (OpenAI-compatible)
+    Mistral,         // Mistral audio transcription (OpenAI-compatible)
+    WhisperApi,      // any other OpenAI-compatible server, local or remote
+    WhisperCpp,      // whisper.cpp server, local or remote
+    OpenAiRealtime,  // OpenAI Realtime transcription API (streaming)
+    MistralRealtime, // Mistral Voxtral realtime transcription (streaming)
 };
 
 // Configuration of one speech-to-text service, analogous to BackendConfig.
@@ -41,6 +43,10 @@ struct SttServiceConfig {
     [[nodiscard]] int effectiveChunkDurationMs() const {
         return clampChunkDurationMs(chunkDurationMs);
     }
+    // True when the service speaks a streaming (WebSocket) protocol that
+    // delivers transcript deltas while audio is being sent.
+    [[nodiscard]] static bool isStreaming(SttServiceKind kind);
+    [[nodiscard]] bool isStreaming() const { return isStreaming(kind); }
 
     [[nodiscard]] bool isCloud() const { return isCloud(kind); }
     [[nodiscard]] QString kindName() const { return kindName(kind); }

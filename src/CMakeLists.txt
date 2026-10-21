@@ -71,11 +71,13 @@ set(OCAPI_CORE_SOURCES
     backends/mcpclient.cpp
     backends/sttclient.h
     backends/sttclient.cpp
+    backends/sttstreamclient.h
+    backends/sttstreamclient.cpp
 )
 
 add_library(ocapi-core STATIC ${OCAPI_CORE_SOURCES})
 target_include_directories(ocapi-core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(ocapi-core PUBLIC Qt6::Core Qt6::Network Qt6::Sql Qt6::Gui Qt6::Multimedia)
+target_link_libraries(ocapi-core PUBLIC Qt6::Core Qt6::Network Qt6::Sql Qt6::Gui Qt6::Multimedia Qt6::WebSockets)
 
 if(POPPLER_CPP_FOUND)
     target_compile_definitions(ocapi-core PUBLIC OCAPI_HAVE_POPPLER=1)

@@ -179,10 +179,15 @@ jobs:
         run: cat "$RUNNER_TEMP/webdriver.log" || true
 
   clang-tidy:
-    name: clang-tidy
+    name: clang-tidy (changed files)
     runs-on: ubuntu-latest
     steps:
+      # Fetch enough history to compute the merge base with the PR target
+      # branch; scripts/ci-changed-files.sh diffs against it.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Install tools
         run: |
           sudo apt-get update
@@ -193,12 +198,8 @@ jobs:
         with:
           version: 6.8.2
 
-      - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DOCAPI_ENABLE_CLANG_TIDY=ON
-      - name: Run clang-tidy
-        run: |
-          cmake --build build 2>&1 | tee tidy.log
-          if grep -E '(^| )(warning|error): ' tidy.log; then
-            echo "clang-tidy reported issues"
-            exit 1
-          fi
+      # Checks only the C++ translation units changed by this PR/push and
+      # runs clang-tidy on them in parallel (one process per core), using
+      # compile_commands.json instead of a full compile-time integration.
+      - name: Run clang-tidy on changed files
+        run: scripts/clang-tidy-changed.sh

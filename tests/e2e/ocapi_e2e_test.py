@@ -59,14 +59,17 @@ class OcapiE2E(unittest.TestCase):
         # it a moment to register before clicking its item. Match on a text
         # prefix so the ellipsis in the label cannot cause a mismatch.
         self.find_by_name("Tools").click()
+        print("==== a11y tree right after clicking Tools ====")
+        print(self.driver.page_source)
         item = "//*[contains(@name, 'Model backends')]"
         try:
             WebDriverWait(self.driver, 10).until(
                 lambda d: self.find_by_xpath(item))
         except TimeoutException:
-            print("==== AT-SPI tree after clicking Tools ====")
-            print(self.driver.page_source)
-            raise
+            print("==== menu not found, retrying the click ====")
+            self.find_by_name("Tools").click()
+            WebDriverWait(self.driver, 10).until(
+                lambda d: self.find_by_xpath(item))
         self.find_by_xpath(item).click()
 
     def find_reply(self):

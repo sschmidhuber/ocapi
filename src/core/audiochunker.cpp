@@ -34,6 +34,13 @@ void AudioChunker::setSampleRate(int sampleRate) {
     m_sampleRate = sampleRate;
 }
 
+void AudioChunker::setChunkDurationMs(int chunkDurationMs) {
+    const int clamped = std::max(chunkDurationMs, kMinChunkMs);
+    if (m_chunkDurationMs == clamped)
+        return;
+    m_chunkDurationMs = clamped;
+}
+
 QVector<QByteArray> AudioChunker::feed(const QByteArray &pcmSamples) {
     m_buffer.append(pcmSamples);
     QVector<QByteArray> chunks;

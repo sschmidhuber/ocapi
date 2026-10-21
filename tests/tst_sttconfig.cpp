@@ -15,6 +15,7 @@ private slots:
     void cloudAndApiKey();
     void effectiveBaseUrlFallsBackToDefault();
     void transcriptionPathPerKind();
+    void chunkDurationDefaultsAndClamps();
     void jsonRoundTrip();
 };
 
@@ -64,6 +65,16 @@ void TestSttConfig::transcriptionPathPerKind() {
     QCOMPARE(config.transcriptionPath(), QStringLiteral("/audio/transcriptions"));
 }
 
+void TestSttConfig::chunkDurationDefaultsAndClamps() {
+    SttServiceConfig config;
+    QCOMPARE(config.chunkDurationMs, 2500);
+    QCOMPARE(config.effectiveChunkDurationMs(), 2500);
+    config.chunkDurationMs = 500;
+    QCOMPARE(config.effectiveChunkDurationMs(), 1000);
+    config.chunkDurationMs = 60000;
+    QCOMPARE(config.effectiveChunkDurationMs(), 10000);
+}
+
 void TestSttConfig::jsonRoundTrip() {
     SttServiceConfig config;
     config.name = QStringLiteral("Local whisper");
@@ -72,6 +83,7 @@ void TestSttConfig::jsonRoundTrip() {
     config.apiKey = QStringLiteral("secret");
     config.model = QStringLiteral("whisper-1");
     config.language = QStringLiteral("de");
+    config.chunkDurationMs = 3000;
     config.enabled = false;
 
     const SttServiceConfig restored = SttServiceConfig::fromJson(config.toJson());
@@ -82,6 +94,7 @@ void TestSttConfig::jsonRoundTrip() {
     QCOMPARE(restored.apiKey, config.apiKey);
     QCOMPARE(restored.model, config.model);
     QCOMPARE(restored.language, config.language);
+    QCOMPARE(restored.chunkDurationMs, 3000);
     QCOMPARE(restored.enabled, false);
 }
 

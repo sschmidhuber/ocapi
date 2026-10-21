@@ -39,6 +39,7 @@ bool VoiceInput::start() {
         return false;
     }
     m_chunker.setSampleRate(m_recorder->sampleRate());
+    m_chunker.setChunkDurationMs(m_client->config().effectiveChunkDurationMs());
     m_client->start();
     m_active = true;
     emit started();

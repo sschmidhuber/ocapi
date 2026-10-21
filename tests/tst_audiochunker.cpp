@@ -25,6 +25,8 @@ private slots:
     void flushReturnsEmptyWhenBufferEmpty();
     void resetClearsBuffer();
     void setSampleRateClearsBuffer();
+    void setChunkDurationTakesEffect();
+    void defaultChunkDurationIsLowLatency();
     void bufferedMsTracksBuffer();
 
 private:
@@ -91,6 +93,25 @@ void TestAudioChunker::setSampleRateClearsBuffer() {
     chunker.setSampleRate(44100);
     QCOMPARE(chunker.sampleRate(), 44100);
     QVERIFY(chunker.flush().isEmpty());
+}
+
+void TestAudioChunker::setChunkDurationTakesEffect() {
+    AudioChunker chunker(kSampleRate, 6000);
+    QCOMPARE(chunker.chunkDurationMs(), 6000);
+    chunker.setChunkDurationMs(2000);
+    QCOMPARE(chunker.chunkDurationMs(), 2000);
+    // one second of audio is not enough for a 2 s chunk
+    QVERIFY(chunker.feed(pcm(qsizetype{16000} * 2)).isEmpty());
+    // two seconds produce exactly one chunk
+    const auto chunks = chunker.feed(pcm(qsizetype{16000} * 2));
+    QCOMPARE(chunks.size(), 1);
+}
+
+void TestAudioChunker::defaultChunkDurationIsLowLatency() {
+    AudioChunker chunker(kSampleRate);
+    QCOMPARE(chunker.chunkDurationMs(), 2500);
+    // 2 s of audio: below the default, so no chunk yet
+    QVERIFY(chunker.feed(pcm(qsizetype{16000} * 2)).isEmpty());
 }
 
 void TestAudioChunker::bufferedMsTracksBuffer() {

@@ -15,6 +15,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QSplitter>
 #include <QVBoxLayout>
 
@@ -43,6 +44,12 @@ SttPage::SttPage(SttRegistry *registry, QWidget *parent) : QWidget(parent), m_re
     m_modelEdit->setPlaceholderText(tr("Model (optional)"));
     m_languageEdit = new QLineEdit(formWidget);
     m_languageEdit->setPlaceholderText(tr("ISO 639-1 code, e.g. en, de (optional)"));
+    m_chunkDurationSpin = new QSpinBox(formWidget);
+    m_chunkDurationSpin->setRange(1, 10);
+    m_chunkDurationSpin->setSuffix(QStringLiteral(" s"));
+    m_chunkDurationSpin->setToolTip(
+        tr("How often audio is sent for live transcription while you speak. "
+           "Lower means text appears sooner but more requests are made."));
     m_enabledBox = new QCheckBox(tr("Enabled"), formWidget);
     m_enabledBox->setChecked(true);
     m_testButton = new QPushButton(tr("Test service with an audio file\u2026"), formWidget);
@@ -55,6 +62,7 @@ SttPage::SttPage(SttRegistry *registry, QWidget *parent) : QWidget(parent), m_re
     formLayout->addRow(tr("API key:"), m_apiKeyEdit);
     formLayout->addRow(tr("Model:"), m_modelEdit);
     formLayout->addRow(tr("Language:"), m_languageEdit);
+    formLayout->addRow(tr("Live transcription interval:"), m_chunkDurationSpin);
     formLayout->addRow(m_enabledBox);
     formLayout->addRow(m_testButton);
     formLayout->addRow(m_testResultLabel);
@@ -93,6 +101,7 @@ SttPage::SttPage(SttRegistry *registry, QWidget *parent) : QWidget(parent), m_re
     for (auto *edit : {m_nameEdit, m_urlEdit, m_apiKeyEdit, m_modelEdit, m_languageEdit}) {
         connect(edit, &QLineEdit::textEdited, this, &SttPage::onFieldEdited);
     }
+    connect(m_chunkDurationSpin, &QSpinBox::valueChanged, this, [this](int) { onFieldEdited(); });
     connect(m_enabledBox, &QCheckBox::toggled, this, &SttPage::onFieldEdited);
 
     populateList();
@@ -162,6 +171,7 @@ void SttPage::onSelectionChanged() {
     m_apiKeyEdit->setEnabled(hasSelection);
     m_modelEdit->setEnabled(hasSelection);
     m_languageEdit->setEnabled(hasSelection);
+    m_chunkDurationSpin->setEnabled(hasSelection);
     m_enabledBox->setEnabled(hasSelection);
     m_testButton->setEnabled(hasSelection);
     m_testResultLabel->clear();
@@ -176,6 +186,7 @@ void SttPage::onSelectionChanged() {
         m_apiKeyEdit->clear();
         m_modelEdit->clear();
         m_languageEdit->clear();
+        m_chunkDurationSpin->setValue(2500 / 1000);
         m_enabledBox->setChecked(true);
     }
     updateUrlVisibility();
@@ -278,6 +289,7 @@ void SttPage::loadConfigIntoForm(const SttServiceConfig &config) {
     m_apiKeyEdit->setText(config.apiKey);
     m_modelEdit->setText(config.model);
     m_languageEdit->setText(config.language);
+    m_chunkDurationSpin->setValue(config.effectiveChunkDurationMs() / 1000);
     m_enabledBox->setChecked(config.enabled);
 }
 
@@ -291,6 +303,7 @@ void SttPage::saveFormIntoConfig(SttServiceConfig &config) {
     config.apiKey = m_apiKeyEdit->text().trimmed();
     config.model = m_modelEdit->text().trimmed();
     config.language = m_languageEdit->text().trimmed();
+    config.chunkDurationMs = m_chunkDurationSpin->value() * 1000;
     config.enabled = m_enabledBox->isChecked();
 }
 

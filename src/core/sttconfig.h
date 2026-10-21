@@ -23,7 +23,8 @@ struct SttServiceConfig {
     QString baseUrl;
     QString apiKey;
     QString model;
-    QString language; // ISO 639-1 code, optional
+    QString language;           // ISO 639-1 code, optional
+    int chunkDurationMs = 2500; // live-transcription latency per request
     bool enabled = true;
 
     [[nodiscard]] static QString kindName(SttServiceKind kind);
@@ -35,6 +36,11 @@ struct SttServiceConfig {
     [[nodiscard]] static bool isCloud(SttServiceKind kind);
     [[nodiscard]] static bool requiresApiKey(SttServiceKind kind);
     [[nodiscard]] static const QVector<SttServiceKind> &allKinds();
+    // Clamps a live-chunk duration to the supported range (1-10 s).
+    [[nodiscard]] static int clampChunkDurationMs(int ms);
+    [[nodiscard]] int effectiveChunkDurationMs() const {
+        return clampChunkDurationMs(chunkDurationMs);
+    }
 
     [[nodiscard]] bool isCloud() const { return isCloud(kind); }
     [[nodiscard]] QString kindName() const { return kindName(kind); }

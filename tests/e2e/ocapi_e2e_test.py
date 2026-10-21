@@ -22,6 +22,7 @@ import unittest
 from appium import webdriver
 from appium.options.common.base import AppiumOptions
 from appium.webdriver.common.appiumby import AppiumBy
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.support.ui import WebDriverWait
 
 REPLY_TEXT = "Hello from the mock backend!"
@@ -49,6 +50,22 @@ class OcapiE2E(unittest.TestCase):
     def find_by_name(self, name):
         return self.driver.find_element(by=AppiumBy.NAME, value=name)
 
+    def open_backend_settings(self):
+        # The Tools button carries a popup menu. Its AT-SPI click action is
+        # \"Show Menu\", which selenium-webdriver-at-spi does not map, so the
+        # click only focuses the button; synthesize a Space key press to open
+        # the menu, then activate its item.
+        tools = self.find_by_name("Tools")
+        tools.click()
+        tools.send_keys(" ")
+        try:
+            self.find_by_name("Model backends…").click()
+        except NoSuchElementException:
+            # The menu may need a moment to register on the a11y bus.
+            WebDriverWait(self.driver, 10).until(
+                lambda d: self.find_by_name("Model backends…"))
+            self.find_by_name("Model backends…").click()
+
     def find_reply(self):
         # Chat bubbles are list items whose accessible name is the message
         # text; match on a prefix so trailing/painted text does not matter.
@@ -64,8 +81,7 @@ class OcapiE2E(unittest.TestCase):
     def test_02_backend_setup(self):
         # Tools -> Model backends -> add a backend, point it at the mock
         # server and test the connection.
-        self.find_by_name("Tools").click()
-        self.find_by_name("Model backends…").click()
+        self.open_backend_settings()
 
         self.find_by_name("Add").click()
         url_edit = self.find_by_name("Base URL")

@@ -14,6 +14,25 @@ Scripts and manifests to produce installable packages for ocapi.
 All artifacts are written to `dist/` by default (override with the second
 argument on the Linux scripts or `-OutDir` on the Windows scripts).
 
+If no version is passed, the scripts default to a **date-based version**
+(`YYYY.MM.DD`, UTC).
+
+## Automated builds (GitHub Actions)
+
+The repository has a manually triggered workflow,
+[`.github/workflows/release.yml`](../.github/workflows/release.yml), that
+builds all six package formats. It is **not** part of the CI pipeline
+(`ci.yml` only builds and tests); trigger it from the GitHub UI:
+**Actions → Release packages → Run workflow**.
+
+- The version defaults to the current UTC date (`YYYY.MM.DD`); override it
+  with the `version` input.
+- Artifacts (`.flatpak`, `.rpm`, `.deb`, `.msix`, `.msi`, `.exe`) are
+  uploaded to the workflow run as downloadable artifacts.
+- If the "attach to release" option is enabled (default) and a GitHub
+  release exists for the tag `v<version>`, the artifacts are attached to
+  that release; otherwise a draft release is created.
+
 ## Signing
 
 None of the produced packages are signed. Signing requires a
@@ -37,15 +56,15 @@ and therefore not automated here:
 ### Flatpak
 
 ```sh
-flatpak install flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
+flatpak install flathub org.kde.Platform//6.10 org.kde.Sdk//6.10
 packaging/flatpak/build-flatpak.sh 0.1.0 dist
 flatpak install dist/dev.sschmidhuber.ocapi-0.1.0.flatpak
 ```
 
 The manifest (`flatpak/dev.sschmidhuber.ocapi.yml`) builds from the git
-checkout. It uses the Freedesktop 24.08 runtime (Qt 6.8). The optional
-poppler/tesseract/libarchive integrations are not bundled; the app works
-without them (attachment text extraction is disabled).
+checkout. It uses the KDE Platform/Sdk 6.10 runtime (Qt 6.10). The
+optional poppler/tesseract/libarchive integrations are not bundled; the
+app works without them (attachment text extraction is disabled).
 
 ### RPM
 

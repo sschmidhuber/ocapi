@@ -10,6 +10,8 @@
 # Example:
 #   packaging/flatpak/build-flatpak.sh 0.1.0 dist
 #
+# If no version is given, a date-based version (YYYY.MM.DD) is used.
+#
 # Produces: <output-directory>/dev.sschmidhuber.ocapi-<version>.flatpak
 #
 # The resulting .flatpak is a single-file bundle that can be installed
@@ -21,7 +23,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MANIFEST="$REPO_ROOT/packaging/flatpak/dev.sschmidhuber.ocapi.yml"
-VERSION="${1:-$(git -C "$REPO_ROOT" describe --tags --abbrev=0 2>/dev/null || echo 0.1.0)}"
+VERSION="${1:-$(date -u +%Y.%m.%d)}"
 OUT_DIR="${2:-$REPO_ROOT/dist}"
 APP_ID="dev.sschmidhuber.ocapi"
 

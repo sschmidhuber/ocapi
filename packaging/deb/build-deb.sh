@@ -11,6 +11,8 @@
 # Example:
 #   packaging/deb/build-deb.sh 0.1.0 dist
 #
+# If no version is given, a date-based version (YYYY.MM.DD) is used.
+#
 # Produces: <output-directory>/ocapi_<version>-1_amd64.deb
 #
 # The DEB is unsigned (no dpkg-sig / debsign step). Signing a .deb for
@@ -19,7 +21,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-VERSION="${1:-$(git -C "$REPO_ROOT" describe --tags --abbrev=0 2>/dev/null || echo 0.1.0)}"
+VERSION="${1:-$(date -u +%Y.%m.%d)}"
 OUT_DIR="${2:-$REPO_ROOT/dist}"
 ARCH="$(dpkg --print-architecture)"
 PKG_DIR="$(mktemp -d /tmp/ocapi-deb.XXXXXX)"

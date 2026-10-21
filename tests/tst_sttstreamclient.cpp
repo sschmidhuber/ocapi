@@ -99,7 +99,7 @@ void TestSttStreamClient::mistralSessionUpdateAndAudio() {
 
     QCOMPARE(failed.count(), 0);
     // First message must be the session update with the audio format.
-    QVERIFY(m_server.receivedMessages().size() >= 1);
+    QVERIFY(!m_server.receivedMessages().isEmpty());
     const QJsonObject first =
         QJsonDocument::fromJson(m_server.receivedMessages().first().toUtf8()).object();
     QCOMPARE(first.value("type").toString(), QStringLiteral("session.update"));
@@ -155,7 +155,7 @@ void TestSttStreamClient::openAiSessionUpdateShape() {
     // Give the socket time to connect and queue the messages.
     QTest::qWait(500);
 
-    QVERIFY(m_server.receivedMessages().size() >= 1);
+    QVERIFY(!m_server.receivedMessages().isEmpty());
     const QJsonObject first =
         QJsonDocument::fromJson(m_server.receivedMessages().first().toUtf8()).object();
     QCOMPARE(first.value("type").toString(), QStringLiteral("session.update"));

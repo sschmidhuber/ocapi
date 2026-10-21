@@ -1,0 +1,33 @@
+# Flatpak manifest for ocapi.
+#
+# Build a local bundle with:
+#   packaging/flatpak/build-flatpak.sh
+#
+# The manifest builds ocapi from the git checkout that contains it (the
+# script passes the source directory). Qt 6.8 from the Freedesktop
+# 24.08 runtime provides Widgets, Network and Sql; the optional
+# poppler/tesseract/libarchive integrations are left out of the sandbox
+# on purpose (the app works without them, they only enable attachment
+# text extraction).
+id: dev.sschmidhuber.ocapi
+runtime: org.freedesktop.Platform
+runtime-version: "24.08"
+sdk: org.freedesktop.Sdk
+command: ocapi
+
+finish-args:
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --share=network
+  - --filesystem=xdg-data/sschmidhuber:create
+
+modules:
+  - name: ocapi
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DOCAPI_BUILD_TESTS=OFF
+    sources:
+      - type: dir
+        path: ../..

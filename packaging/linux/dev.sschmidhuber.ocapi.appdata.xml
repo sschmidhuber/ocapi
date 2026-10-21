@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>dev.sschmidhuber.ocapi</id>
+  <name>ocapi</name>
+  <summary>A desktop chat client for local and cloud LLM inference backends</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <description>
+    <p>
+      ocapi is a desktop chat client for agentic work. It talks to local
+      inference servers (Ollama, llama.cpp, vLLM) and cloud APIs (OpenAI,
+      Anthropic, Google Gemini, Mistral AI, and any OpenAI-compatible
+      endpoint), locally or on remote machines.
+    </p>
+    <p>
+      Features include streaming responses over Server-Sent Events, file
+      attachments with PDF/OCR/document text extraction, and MCP (Model
+      Context Protocol) server integration for tools, resources and prompts.
+    </p>
+  </description>
+  <launchable type="desktop-id">dev.sschmidhuber.ocapi.desktop</launchable>
+  <url type="homepage">https://github.com/sschmidhuber/ocapi</url>
+  <provides>
+    <binary>ocapi</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-10-21"/>
+  </releases>
+</component>

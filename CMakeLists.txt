@@ -40,3 +40,22 @@ install(FILES data/dev.sschmidhuber.ocapi.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES resources/icons/ocapi.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+install(FILES packaging/linux/dev.sschmidhuber.ocapi.appdata.xml
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
+
+if(WIN32)
+    set(CPACK_PACKAGE_NAME "ocapi")
+    set(CPACK_PACKAGE_VENDOR "sschmidhuber")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+        "A desktop chat client for local and cloud LLM inference backends")
+    set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+    set(CPACK_PACKAGE_INSTALL_DIRECTORY "ocapi")
+    set(CPACK_RESOURCE_FILE_LICENSE ${CMAKE_SOURCE_DIR}/LICENSE)
+    set(CPACK_NSIS_DISPLAY_NAME "ocapi")
+    set(CPACK_NSIS_URL_INFO_ABOUT "https://github.com/sschmidhuber/ocapi")
+    set(CPACK_NSIS_CONTACT "https://github.com/sschmidhuber/ocapi")
+    set(CPACK_NSIS_MODIFY_PATH ON)
+    set(CPACK_WIX_UPGRADE_GUID "3941672F-D06E-44CB-938F-F75357BBBDDC")
+    set(CPACK_WIX_PRODUCT_ICON ${CMAKE_SOURCE_DIR}/resources/icons/ocapi.ico)
+    include(CPack)
+endif()

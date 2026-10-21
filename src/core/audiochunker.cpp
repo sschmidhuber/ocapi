@@ -62,8 +62,8 @@ qint64 AudioChunker::bufferedMs() const {
 }
 
 QByteArray AudioChunker::wavFromPcm(const QByteArray &pcmSamples, int sampleRate) {
-    const quint32 dataSize = static_cast<quint32>(pcmSamples.size());
-    const quint32 byteRate = static_cast<quint32>(sampleRate * kBytesPerFrame);
+    const auto dataSize = static_cast<quint32>(pcmSamples.size());
+    const auto byteRate = static_cast<quint32>(sampleRate * kBytesPerFrame);
 
     QByteArray wav;
     wav.reserve(44 + static_cast<qsizetype>(dataSize));
@@ -90,7 +90,7 @@ int AudioChunker::chunkSizeBytes() const {
 }
 
 qint64 AudioChunker::bytesToMs(qsizetype bytes) const {
-    return static_cast<qint64>(bytes) * 1000 / (m_sampleRate * kBytesPerFrame);
+    return bytes * 1000 / static_cast<qint64>(m_sampleRate) / kBytesPerFrame;
 }
 
 } // namespace ocapi

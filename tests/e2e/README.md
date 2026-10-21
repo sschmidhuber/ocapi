@@ -10,10 +10,18 @@ the Linux accessibility API, never through pixel comparison.
 
 1. **Startup** — the main window comes up with the sidebar (new chat button),
    composer and send button.
-2. **Backend setup** — Tools → Model backends → add a backend pointing at the
-   mock server, "Test connection" reports success and the detected model.
+2. **Backend setup** — the seeded mock backend is the active backend and its
+   `mock-model` was detected through a real `GET /api/tags` round-trip
+   against the mock server (visible in the footer's backend/model combos).
 3. **Chat** — a message typed into the composer is sent, and the mock
    backend's reply streams back into the chat view.
+
+Popup menus (Tools → Model backends…) cannot be driven with this stack:
+Qt excludes `Qt::Popup` windows such as `QMenu` from the AT-SPI
+application tree (`QAccessibleApplication::topLevelObjects` filters
+`w->type() != Qt::Popup`), so their items never appear for the driver.
+Backend setup is therefore verified through the widgets the flow
+populates rather than through the menu.
 
 ## Mock backend
 

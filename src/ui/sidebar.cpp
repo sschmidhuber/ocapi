@@ -4,7 +4,6 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QPushButton>
-#include <QTimer>
 #include <QVBoxLayout>
 
 namespace ocapi {
@@ -27,19 +26,7 @@ Sidebar::Sidebar(QWidget *parent)
                          [this]() { emit settingsRequested(QStringLiteral("backends")); });
     toolsMenu->addAction(tr("MCP servers…"), this,
                          [this]() { emit settingsRequested(QStringLiteral("mcp")); });
-    // Popup on click instead of QPushButton::setMenu: a menu button only
-    // exposes a "Show Menu" action on the accessibility bus, which assistive
-    // technology (e.g. selenium-webdriver-at-spi) cannot invoke, while a
-    // plain click works identically for mouse and keyboard users.
-    connect(m_toolsButton, &QPushButton::clicked, this, [this, toolsMenu]() {
-        toolsMenu->popup(m_toolsButton->mapToGlobal(QPoint(0, m_toolsButton->height())));
-        QTimer::singleShot(300, this, [toolsMenu]() {
-            qWarning() << "E2E-DEBUG: menu visible after 300ms:" << toolsMenu->isVisible();
-        });
-        QTimer::singleShot(1500, this, [toolsMenu]() {
-            qWarning() << "E2E-DEBUG: menu visible after 1500ms:" << toolsMenu->isVisible();
-        });
-    });
+    m_toolsButton->setMenu(toolsMenu);
 
     connect(m_newChatButton, &QPushButton::clicked, this, &Sidebar::newChatRequested);
     connect(m_list, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {

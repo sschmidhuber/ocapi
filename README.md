@@ -92,6 +92,19 @@ Install:
 cmake --install build   # or: sudo cmake --install build --prefix /usr
 ```
 
+## Packaging
+
+Scripts to build installable packages live in [packaging/](packaging/README.md):
+
+- **Linux**: Flatpak bundle (`packaging/flatpak/build-flatpak.sh`),
+  RPM (`packaging/rpm/build-rpm.sh`), DEB (`packaging/deb/build-deb.sh`)
+- **Windows**: MSIX (`packaging/windows/build-msix.ps1`), MSI via WiX
+  (`packaging/windows/build-msi.ps1`), EXE installer via NSIS
+  (`packaging/windows/build-exe.ps1`)
+
+Packages are built unsigned; see [packaging/README.md](packaging/README.md)
+for how to sign them for distribution.
+
 ## Testing
 
 Unit tests use Qt Test and live in `tests/`. They cover the core domain

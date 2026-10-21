@@ -5,6 +5,8 @@
 #include "core/mcpmanager.h"
 #include "core/mcpregistry.h"
 #include "core/message.h"
+#include "core/sttregistry.h"
+#include "core/voiceinput.h"
 #include "storage/chatdatabase.h"
 #include <QDateTime>
 
@@ -53,6 +55,8 @@ private:
     void updateEmptyState();
     [[nodiscard]] bool openDatabase();
     void loadBackendsFromDatabase();
+    void loadSttSettingsFromDatabase();
+    void configureVoiceInput();
     void loadMcpServersFromDatabase();
     void loadOlderMessages(ChatSession *session);
     void persistSession(ChatSession *session);
@@ -72,6 +76,8 @@ private:
     void continueAfterToolResults(ChatSession *session);
 
     BackendRegistry m_registry;
+    SttRegistry m_sttRegistry;
+    VoiceInput m_voiceInput;
     McpRegistry m_mcpRegistry;
     McpManager m_mcpManager;
     ChatDatabase m_database;
@@ -86,6 +92,7 @@ private:
     int m_streamedTokens = 0;
     QDateTime m_firstToken;
     QString m_detectedBackendId;
+    QString m_dictatedText;
     // Session waiting for tool results before the next model round.
     ChatSession *m_toolSession = nullptr;
     int m_pendingToolRounds = 0;

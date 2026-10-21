@@ -17,6 +17,7 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSettings>
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QStatusBar>
@@ -75,6 +76,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
                                     "persisted."));
     loadBackendsFromDatabase();
     loadMcpServersFromDatabase();
+    loadSttSettingsFromDatabase();
+    configureVoiceInput();
 
     auto *central = new QWidget(this);
     auto *centralLayout = new QHBoxLayout(central);
@@ -158,6 +161,33 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
             [this](const QString &text, const QVector<ImageAttachment> &images) {
                 onSend(text, images);
             });
+    connect(m_composer, &Composer::dictationRequested, this, [this]() {
+        if (m_voiceInput.isActive())
+            m_voiceInput.stop();
+        else if (!m_voiceInput.start())
+            m_composer->setDictationActive(false);
+    });
+    connect(&m_voiceInput, &VoiceInput::started, this,
+            [this]() { m_composer->setDictationActive(true); });
+    connect(&m_voiceInput, &VoiceInput::stopped, this,
+            [this]() { m_composer->setDictationActive(false); });
+    // Live transcription: while dictating, already-spoken words replace the
+    // dictated prefix of the input field, so the user sees text as they speak.
+    connect(&m_voiceInput, &VoiceInput::intermediateTranscription, this,
+            [this](const QString &text) {
+                m_dictatedText = text;
+                m_composer->setDictatedText(text);
+            });
+    connect(&m_voiceInput, &VoiceInput::transcriptionUpdated, this, [this](const QString &text) {
+        m_dictatedText.clear();
+        m_composer->finishDictation(text);
+        statusBar()->showMessage(tr("Dictation finished."), 5000);
+    });
+    connect(&m_voiceInput, &VoiceInput::error, this, [this](const QString &message) {
+        m_composer->setDictationActive(false);
+        statusBar()->showMessage(tr("Dictation failed: %1").arg(message), 10000);
+    });
+    connect(&m_sttRegistry, &SttRegistry::changed, this, [this]() { configureVoiceInput(); });
     connect(m_chatView, &ChatView::olderMessagesRequested, this,
             [this]() { loadOlderMessages(m_currentSession); });
     connect(m_sendButton, &QPushButton::clicked, this, [this]() {
@@ -312,15 +342,39 @@ void MainWindow::onSessionDeleteRequested(const QUuid &id) {
 }
 
 void MainWindow::openSettings(const QString &pageId) {
-    SettingsDialog dialog(&m_registry, &m_mcpRegistry, &m_mcpManager, this);
-    if (pageId == QStringLiteral("mcp"))
-        dialog.selectPage(QStringLiteral("mcp"));
+    SettingsDialog dialog(&m_registry, &m_mcpRegistry, &m_mcpManager, &m_sttRegistry, this);
+    if (!pageId.isEmpty())
+        dialog.selectPage(pageId);
     dialog.exec();
 }
 
 void MainWindow::loadMcpServersFromDatabase() {
     if (m_database.isOpen())
         m_mcpRegistry.load(m_database);
+}
+
+void MainWindow::loadSttSettingsFromDatabase() {
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir().mkpath(configDir);
+    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    m_sttRegistry.loadSettings(settings);
+}
+
+void MainWindow::configureVoiceInput() {
+    const auto services = m_sttRegistry.enabled();
+    QString activeId = m_sttRegistry.activeServiceId();
+    const SttServiceConfig *active = nullptr;
+    for (const auto &service : services) {
+        if (service.id.toString(QUuid::WithoutBraces) == activeId) {
+            active = &service;
+            break;
+        }
+    }
+    if (!active && !services.isEmpty())
+        active = &services.first();
+    if (active)
+        m_voiceInput.setService(*active);
+    m_voiceInput.setInputDevice(m_sttRegistry.inputDevice());
 }
 
 bool MainWindow::openDatabase() {

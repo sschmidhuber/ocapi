@@ -9,6 +9,7 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QPixmap>
+#include <QTextCursor>
 #include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -125,7 +126,15 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     m_attachButton->setToolTip(tr("Attach images, documents or text files"));
     m_attachButton->setAutoRaise(true);
     m_attachButton->setFixedSize(28, 28);
+    m_micButton = new QToolButton(row);
+    m_micButton->setText(QString::fromUtf8("\U0001F3A4"));
+    m_micButton->setToolTip(tr("Dictate message (speech-to-text)"));
+    m_micButton->setAccessibleName(tr("Dictate message"));
+    m_micButton->setAutoRaise(true);
+    m_micButton->setCheckable(true);
+    m_micButton->setFixedSize(28, 28);
     rowLayout->addWidget(m_textEdit, 1);
+    rowLayout->addWidget(m_micButton);
     rowLayout->addWidget(m_attachButton);
     layout->addWidget(row);
 
@@ -143,6 +152,24 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
             [this](const QString &error) { QMessageBox::warning(this, tr("Image error"), error); });
     connect(m_textEdit, &MessageTextEdit::documentDropped, this,
             [this](const QString &path) { addDocument(path); });
+    connect(m_micButton, &QToolButton::toggled, this, [this](bool checked) {
+        if (checked == m_dictationActive)
+            return;
+        emit dictationRequested();
+    });
+}
+
+void Composer::setDictationActive(bool active) {
+    m_dictationActive = active;
+    m_micButton->setChecked(active);
+    if (active) {
+        m_dictationStart = m_textEdit->toPlainText().size();
+        m_dictatedLength = 0;
+        m_textEdit->setPlaceholderText(tr("Listening… speak now, press the microphone button "
+                                          "again to stop"));
+    } else {
+        setBusy(m_busy);
+    }
 }
 
 bool Composer::eventFilter(QObject *watched, QEvent *event) {
@@ -183,6 +210,23 @@ QString Composer::text() const {
 
 void Composer::clearText() {
     m_textEdit->clear();
+}
+
+void Composer::setDictatedText(const QString &text) {
+    // Preserve the user-typed prefix; replace any previously dictated text.
+    const QString typed = m_textEdit->toPlainText().left(m_dictationStart);
+    m_dictatedLength = text.size();
+    m_textEdit->setPlainText(typed + text);
+    m_textEdit->moveCursor(QTextCursor::End);
+}
+
+void Composer::finishDictation(const QString &text) {
+    const QString typed = m_textEdit->toPlainText().left(m_dictationStart);
+    QString rest = m_textEdit->toPlainText().mid(m_dictationStart);
+    rest = rest.left(std::max<int>(0, rest.size() - m_dictatedLength));
+    m_textEdit->setPlainText(typed + text + rest);
+    m_textEdit->moveCursor(QTextCursor::End);
+    m_dictatedLength = 0;
 }
 
 bool Composer::isEmpty() const {

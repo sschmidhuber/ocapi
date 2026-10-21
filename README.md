@@ -26,6 +26,23 @@ Any OpenAI-compatible server (LM Studio, LocalAI, text-generation-webui with
 the OpenAI extension, …) can be added as an "OpenAI" backend by setting its
 base URL — including remote machines, e.g. `http://192.168.1.10:8000/v1`.
 
+## Speech-to-text (dictation)
+
+ocapi can transcribe speech to text so chat messages can be dictated instead
+of typed. Open **Tools → Speech-to-text…** to configure transcription
+services — analogous to the model backend configuration:
+
+- **Services**: OpenAI transcription API, Groq whisper models, Mistral AI
+  audio transcription, and any OpenAI-compatible transcription server
+  (faster-whisper-server, Speaches, LocalAI, …) — local or remote. The
+  whisper.cpp server (`whisper-server`) is supported as well.
+- **Live transcription**: while you speak, already-spoken words appear in
+  the message input; press the microphone button in the composer to start
+  and stop dictation.
+- **Audio input device**: choose the microphone in the settings.
+- **Test**: the settings page can send an audio file to a configured service
+  to verify the connection and credentials.
+
 ## MCP servers (Model Context Protocol)
 
 ocapi can connect to [MCP](https://modelcontextprotocol.io) servers and make

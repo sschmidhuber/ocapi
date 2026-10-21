@@ -30,6 +30,16 @@ set(OCAPI_CORE_SOURCES
     core/chatsession.cpp
     core/backendconfig.h
     core/backendconfig.cpp
+    core/sttconfig.h
+    core/sttconfig.cpp
+    core/sttregistry.h
+    core/sttregistry.cpp
+    core/audiochunker.h
+    core/audiochunker.cpp
+    core/audiorecorder.h
+    core/audiorecorder.cpp
+    core/voiceinput.h
+    core/voiceinput.cpp
     core/backendregistry.h
     core/backendregistry.cpp
     core/mcpprotocol.h
@@ -59,11 +69,13 @@ set(OCAPI_CORE_SOURCES
     backends/backendfactory.cpp
     backends/mcpclient.h
     backends/mcpclient.cpp
+    backends/sttclient.h
+    backends/sttclient.cpp
 )
 
 add_library(ocapi-core STATIC ${OCAPI_CORE_SOURCES})
 target_include_directories(ocapi-core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(ocapi-core PUBLIC Qt6::Core Qt6::Network Qt6::Sql Qt6::Gui)
+target_link_libraries(ocapi-core PUBLIC Qt6::Core Qt6::Network Qt6::Sql Qt6::Gui Qt6::Multimedia)
 
 if(POPPLER_CPP_FOUND)
     target_compile_definitions(ocapi-core PUBLIC OCAPI_HAVE_POPPLER=1)
@@ -99,6 +111,8 @@ set(OCAPI_UI_SOURCES
     ui/backendpage.cpp
     ui/mcppage.h
     ui/mcppage.cpp
+    ui/sttpage.h
+    ui/sttpage.cpp
     ui/settingsdialog.h
     ui/settingsdialog.cpp
 )

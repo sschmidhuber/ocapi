@@ -26,6 +26,8 @@ Sidebar::Sidebar(QWidget *parent)
                          [this]() { emit settingsRequested(QStringLiteral("backends")); });
     toolsMenu->addAction(tr("MCP servers…"), this,
                          [this]() { emit settingsRequested(QStringLiteral("mcp")); });
+    toolsMenu->addAction(tr("Speech-to-text…"), this,
+                         [this]() { emit settingsRequested(QStringLiteral("stt")); });
     m_toolsButton->setMenu(toolsMenu);
 
     connect(m_newChatButton, &QPushButton::clicked, this, &Sidebar::newChatRequested);

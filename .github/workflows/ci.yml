@@ -69,7 +69,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             cmake ninja-build libgl1-mesa-dev \
-            xvfb dbus-x11 at-spi2-core \
+            xvfb dbus-x11 at-spi2-core imagemagick \
             python3-pip python3-venv \
             python3-gi python3-pyatspi \
             python3-flask python3-lxml python3-numpy \
@@ -155,9 +155,24 @@ jobs:
           export OCAPI_E2E_APP="$PWD/build/src/ocapi"
           export OCAPI_E2E_MOCK_PORT=11434
           export OCAPI_E2E_MOCK_MCP_PORT=11435
+          export OCAPI_E2E_SCREENSHOT_DIR="$RUNNER_TEMP/e2e-report/screenshots"
+          export OCAPI_E2E_JUNIT_XML="$RUNNER_TEMP/e2e-report/results.xml"
+          export OCAPI_E2E_REPORT_MD="$RUNNER_TEMP/e2e-report/report.md"
           . .venv/bin/activate
-          python3 tests/e2e/ocapi_e2e_test.py
+          rc=0
+          ( cd tests/e2e && python3 run_with_report.py ) || rc=$?
+          cat "$OCAPI_E2E_REPORT_MD" >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
           SCRIPT
+
+      - name: Upload E2E report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            ${{ runner.temp }}/e2e-report/
+          if-no-files-found: warn
 
       - name: Collect logs
         if: always()

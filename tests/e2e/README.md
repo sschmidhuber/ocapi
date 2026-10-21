@@ -84,6 +84,27 @@ the run in `xvfb-run -a dbus-run-session -- …` and start
 ## CI
 
 The `e2e` job in `.github/workflows/ci.yml` runs the suite on every push to
-`main` and on pull requests: it builds ocapi, starts the mock backend, brings
-up the AT-SPI bus inside `Xvfb` + `dbus-run-session`, serves the
-selenium-webdriver-at-spi WebDriver, and runs `ocapi_e2e_test.py`.
+`main` and on pull requests: it builds ocapi, starts the mock backend and
+mock MCP server, brings up the AT-SPI bus inside `Xvfb` + `dbus-run-session`,
+serves the selenium-webdriver-at-spi WebDriver, and runs the suite through
+[`run_with_report.py`](run_with_report.py).
+
+### Test report and screenshots
+
+Each run produces a report that is easy to review directly on GitHub:
+
+- a **results table** (test, status, duration) and the **failure tracebacks**
+  are appended to the run's *Summary* page (`$GITHUB_STEP_SUMMARY`)
+- a **screenshot of the app after every test** (pass or fail), captured from
+  the X display with ImageMagick `import` — the WebDriver's screenshot
+  endpoint needs a KWin helper that is not built in the headless mode
+- a **JUnit XML** (`results.xml`) for tooling
+- everything is uploaded as the **`e2e-report` artifact** of the run:
+  `report.md`, `results.xml` and `screenshots/*.png`
+
+To generate the same report locally:
+
+```
+OCAPI_E2E_SCREENSHOT_DIR=/tmp/shots OCAPI_E2E_REPORT_MD=/tmp/report.md \
+OCAPI_E2E_JUNIT_XML=/tmp/results.xml python3 tests/e2e/run_with_report.py
+```

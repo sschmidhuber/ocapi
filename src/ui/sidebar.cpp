@@ -26,7 +26,13 @@ Sidebar::Sidebar(QWidget *parent)
                          [this]() { emit settingsRequested(QStringLiteral("backends")); });
     toolsMenu->addAction(tr("MCP servers…"), this,
                          [this]() { emit settingsRequested(QStringLiteral("mcp")); });
-    m_toolsButton->setMenu(toolsMenu);
+    // Popup on click instead of QPushButton::setMenu: a menu button only
+    // exposes a "Show Menu" action on the accessibility bus, which assistive
+    // technology (e.g. selenium-webdriver-at-spi) cannot invoke, while a
+    // plain click works identically for mouse and keyboard users.
+    connect(m_toolsButton, &QPushButton::clicked, this, [this, toolsMenu]() {
+        toolsMenu->popup(m_toolsButton->mapToGlobal(QPoint(0, m_toolsButton->height())));
+    });
 
     connect(m_newChatButton, &QPushButton::clicked, this, &Sidebar::newChatRequested);
     connect(m_list, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {

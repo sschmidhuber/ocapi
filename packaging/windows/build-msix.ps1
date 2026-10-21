@@ -19,12 +19,15 @@
 # Store requires a code-signing certificate trusted by Windows; pass
 # -CertPath/-CertPassword to sign the package after creation.
 param(
-    [string]$Version = "0.1.0",
-    [string]$QtDir = "",
+    [string]$Version = "",
+    [string]$QtDir = "$env:Qt6_DIR",
     [string]$OutDir = "$PSScriptRoot\..\..\dist",
     [string]$CertPath = "",
     [string]$CertPassword = ""
 )
+
+# Default to a date-based version (YYYY.MM.DD) when none is given.
+if (-not $Version) { $Version = (Get-Date).ToUniversalTime().ToString("yyyy.MM.dd") }
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Resolve-Path "$PSScriptRoot\..\.."

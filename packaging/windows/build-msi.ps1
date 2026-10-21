@@ -16,10 +16,13 @@
 # code-signing certificate; sign afterwards with:
 #   signtool sign /fd SHA256 /a /tr http://timestamp.digicert.com /td SHA256 ocapi-<Version>-x64.msi
 param(
-    [string]$Version = "0.1.0",
-    [string]$QtDir = "",
+    [string]$Version = "",
+    [string]$QtDir = "$env:Qt6_DIR",
     [string]$OutDir = "$PSScriptRoot\..\..\dist"
 )
+
+# Default to a date-based version (YYYY.MM.DD) when none is given.
+if (-not $Version) { $Version = (Get-Date).ToUniversalTime().ToString("yyyy.MM.dd") }
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Resolve-Path "$PSScriptRoot\..\.."

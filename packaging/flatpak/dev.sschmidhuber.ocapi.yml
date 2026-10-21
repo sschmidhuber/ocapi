@@ -4,15 +4,15 @@
 #   packaging/flatpak/build-flatpak.sh
 #
 # The manifest builds ocapi from the git checkout that contains it (the
-# script passes the source directory). Qt 6.8 from the Freedesktop
-# 24.08 runtime provides Widgets, Network and Sql; the optional
+# script passes the source directory). The KDE Platform/Sdk 6.10 runtime
+# provides Qt 6.10 (Widgets, Network, Sql); the optional
 # poppler/tesseract/libarchive integrations are left out of the sandbox
 # on purpose (the app works without them, they only enable attachment
 # text extraction).
 id: dev.sschmidhuber.ocapi
-runtime: org.freedesktop.Platform
-runtime-version: "24.08"
-sdk: org.freedesktop.Sdk
+runtime: org.kde.Platform
+runtime-version: "6.10"
+sdk: org.kde.Sdk
 command: ocapi
 
 finish-args:

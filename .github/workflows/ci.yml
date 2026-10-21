@@ -139,8 +139,9 @@ jobs:
           done
           export AT_SPI_BUS_ADDRESS="${a11y_bus// /}"
 
-          # Mock Ollama backend.
+          # Mock Ollama backend and mock MCP server.
           python3 tests/e2e/mock_ollama.py 11434 &
+          python3 tests/e2e/mock_mcp.py 11435 &
 
           # The AT-SPI WebDriver server (system Python, not the venv).
           (cd /tmp/swa \
@@ -153,6 +154,7 @@ jobs:
 
           export OCAPI_E2E_APP="$PWD/build/src/ocapi"
           export OCAPI_E2E_MOCK_PORT=11434
+          export OCAPI_E2E_MOCK_MCP_PORT=11435
           . .venv/bin/activate
           python3 tests/e2e/ocapi_e2e_test.py
           SCRIPT

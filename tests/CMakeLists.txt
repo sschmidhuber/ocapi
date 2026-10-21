@@ -6,6 +6,7 @@ set(OCAPI_TESTS
     tst_chatsession_tools
     tst_backendregistry
     tst_backendfactory
+    tst_ollamabackend
     tst_sseparser
     tst_chatdatabase
     tst_textextractor

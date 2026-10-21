@@ -2,6 +2,8 @@
 
 #include "core/backendconfig.h"
 #include "core/backendregistry.h"
+#include "core/mcpregistry.h"
+#include "core/mcpserverconfig.h"
 #include "storage/chatdatabase.h"
 
 #include <QApplication>
@@ -38,6 +40,28 @@ void seedE2eMockBackend() {
     config.defaultModel = QStringLiteral("mock-model");
     config.enabled = true;
     registry.save();
+
+    // With OCAPI_E2E_MOCK_MCP=1, also seed an MCP server pointing at the
+    // mock server from tests/e2e/mock_mcp.py. Its tools are allowed without
+    // a confirmation dialog so the chat flow can run unattended.
+    if (!qEnvironmentVariableIsSet("OCAPI_E2E_MOCK_MCP"))
+        return;
+    const QByteArray mcpPort = qgetenv("OCAPI_E2E_MOCK_MCP_PORT");
+    const QString mcpUrl =
+        QStringLiteral("http://127.0.0.1:") +
+        (mcpPort.isEmpty() ? QStringLiteral("11435") : QString::fromLatin1(mcpPort));
+    ocapi::McpRegistry mcpRegistry;
+    mcpRegistry.load(database);
+    for (const auto &server : mcpRegistry.servers()) {
+        if (server.url == mcpUrl)
+            return;
+    }
+    ocapi::McpServerConfig &server =
+        mcpRegistry.add(QStringLiteral("Mock MCP"), ocapi::McpTransport::StreamableHttp);
+    server.url = mcpUrl;
+    server.defaultPermission = ocapi::McpPermission::Allow;
+    server.enabled = true;
+    mcpRegistry.save();
 }
 
 // Prefer a desktop-native look: Fusion on non-KDE, and breeze when running

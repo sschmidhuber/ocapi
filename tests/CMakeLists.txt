@@ -15,7 +15,11 @@ set(OCAPI_TESTS
     tst_mcpregistry
     tst_mcpserverdatabase
     tst_mcpclient
-    tst_mcpmanager)
+    tst_mcpmanager
+    tst_sttconfig
+    tst_sttregistry
+    tst_audiochunker
+    tst_sttclient)
 
 
 foreach(test_name ${OCAPI_TESTS})

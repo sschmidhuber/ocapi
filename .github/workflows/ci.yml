@@ -21,6 +21,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: 6.8.2
+          modules: qtmultimedia
 
       - name: Configure
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DOCAPI_ENABLE_CLANG_TIDY=ON
@@ -79,6 +80,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: 6.8.2
+          modules: qtmultimedia
 
       - name: Build ocapi
         run: |
@@ -197,6 +199,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: 6.8.2
+          modules: qtmultimedia
 
       # Checks only the C++ translation units changed by this PR/push and
       # runs clang-tidy on them in parallel (one process per core), using

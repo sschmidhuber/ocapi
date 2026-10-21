@@ -3,8 +3,10 @@
 #include "core/backendregistry.h"
 #include "core/mcpmanager.h"
 #include "core/mcpregistry.h"
+#include "core/sttregistry.h"
 #include "ui/backendpage.h"
 #include "ui/mcppage.h"
+#include "ui/sttpage.h"
 
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
@@ -16,7 +18,7 @@
 namespace ocapi {
 
 SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mcpRegistry,
-                               McpManager *mcpManager, QWidget *parent)
+                               McpManager *mcpManager, SttRegistry *sttRegistry, QWidget *parent)
     : QDialog(parent) {
     setWindowTitle(tr("Settings"));
     resize(880, 580);
@@ -32,6 +34,7 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
             new BackendPage(backendRegistry, m_stack));
     addPage(tr("MCP servers"), QStringLiteral("mcp"),
             new McpPage(mcpRegistry, mcpManager, m_stack));
+    addPage(tr("Speech-to-text"), QStringLiteral("stt"), new SttPage(sttRegistry, m_stack));
 
     splitter->addWidget(m_pages);
     splitter->addWidget(m_stack);

@@ -10,15 +10,17 @@ namespace ocapi {
 class BackendRegistry;
 class McpManager;
 class McpRegistry;
+class SttRegistry;
 
-// Unified settings dialog that hosts the model backends and MCP server pages,
-// so configuration lives in a separate window instead of the chat window.
+// Unified settings dialog that hosts the model backends, MCP server and
+// speech-to-text pages, so configuration lives in a separate window instead
+// of the chat window.
 class SettingsDialog : public QDialog {
     Q_OBJECT
 
 public:
     SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mcpRegistry,
-                   McpManager *mcpManager, QWidget *parent = nullptr);
+                   McpManager *mcpManager, SttRegistry *sttRegistry, QWidget *parent = nullptr);
     ~SettingsDialog() override;
 
     void selectPage(const QString &pageId);

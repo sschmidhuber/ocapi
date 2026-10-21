@@ -18,6 +18,10 @@ QString SttServiceConfig::kindName(SttServiceKind kind) {
         return QStringLiteral("Whisper server (OpenAI-compatible)");
     case SttServiceKind::WhisperCpp:
         return QStringLiteral("whisper.cpp server");
+    case SttServiceKind::OpenAiRealtime:
+        return QStringLiteral("OpenAI Realtime (streaming)");
+    case SttServiceKind::MistralRealtime:
+        return QStringLiteral("Mistral Voxtral Realtime (streaming)");
     }
     return QStringLiteral("Unknown");
 }
@@ -34,6 +38,10 @@ QString SttServiceConfig::kindKey(SttServiceKind kind) {
         return QStringLiteral("whisperapi");
     case SttServiceKind::WhisperCpp:
         return QStringLiteral("whispercpp");
+    case SttServiceKind::OpenAiRealtime:
+        return QStringLiteral("openairealtime");
+    case SttServiceKind::MistralRealtime:
+        return QStringLiteral("mistralrealtime");
     }
     return {};
 }
@@ -45,6 +53,8 @@ SttServiceKind SttServiceConfig::kindFromString(const QString &key) {
         {QStringLiteral("mistral"), SttServiceKind::Mistral},
         {QStringLiteral("whisperapi"), SttServiceKind::WhisperApi},
         {QStringLiteral("whispercpp"), SttServiceKind::WhisperCpp},
+        {QStringLiteral("openairealtime"), SttServiceKind::OpenAiRealtime},
+        {QStringLiteral("mistralrealtime"), SttServiceKind::MistralRealtime},
     };
     return map.value(key, SttServiceKind::WhisperApi);
 }
@@ -62,6 +72,13 @@ QString SttServiceConfig::kindDescription(SttServiceKind kind) {
                               "faster-whisper-server, Speaches, LocalAI)");
     case SttServiceKind::WhisperCpp:
         return QStringLiteral("whisper.cpp server (whisper-server), local or remote");
+    case SttServiceKind::OpenAiRealtime:
+        return QStringLiteral(
+            "OpenAI Realtime transcription API: word-level streaming over WebSocket "
+            "(gpt-live-transcribe)");
+    case SttServiceKind::MistralRealtime:
+        return QStringLiteral("Mistral Voxtral Realtime: word-level streaming over "
+                              "WebSocket (voxtral-mini-transcribe-realtime)");
     }
     return {};
 }
@@ -78,6 +95,10 @@ QString SttServiceConfig::defaultBaseUrl(SttServiceKind kind) {
         return QStringLiteral("http://127.0.0.1:8000/v1");
     case SttServiceKind::WhisperCpp:
         return QStringLiteral("http://127.0.0.1:8080");
+    case SttServiceKind::OpenAiRealtime:
+        return QStringLiteral("wss://api.openai.com/v1/realtime");
+    case SttServiceKind::MistralRealtime:
+        return QStringLiteral("wss://api.mistral.ai");
     }
     return {};
 }
@@ -93,6 +114,10 @@ QString SttServiceConfig::defaultModel(SttServiceKind kind) {
     case SttServiceKind::WhisperApi:
     case SttServiceKind::WhisperCpp:
         return QStringLiteral("whisper-1");
+    case SttServiceKind::OpenAiRealtime:
+        return QStringLiteral("gpt-live-transcribe");
+    case SttServiceKind::MistralRealtime:
+        return QStringLiteral("voxtral-mini-transcribe-realtime-2602");
     }
     return {};
 }
@@ -102,6 +127,8 @@ bool SttServiceConfig::isCloud(SttServiceKind kind) {
     case SttServiceKind::OpenAiApi:
     case SttServiceKind::Groq:
     case SttServiceKind::Mistral:
+    case SttServiceKind::OpenAiRealtime:
+    case SttServiceKind::MistralRealtime:
         return true;
     case SttServiceKind::WhisperApi:
     case SttServiceKind::WhisperCpp:
@@ -114,14 +141,30 @@ bool SttServiceConfig::requiresApiKey(SttServiceKind kind) {
     return isCloud(kind);
 }
 
+bool SttServiceConfig::isStreaming(SttServiceKind kind) {
+    switch (kind) {
+    case SttServiceKind::OpenAiRealtime:
+    case SttServiceKind::MistralRealtime:
+        return true;
+    case SttServiceKind::OpenAiApi:
+    case SttServiceKind::Groq:
+    case SttServiceKind::Mistral:
+    case SttServiceKind::WhisperApi:
+    case SttServiceKind::WhisperCpp:
+        return false;
+    }
+    return false;
+}
+
 int SttServiceConfig::clampChunkDurationMs(int ms) {
     return std::clamp(ms, 1000, 10000);
 }
 
 const QVector<SttServiceKind> &SttServiceConfig::allKinds() {
     static const QVector<SttServiceKind> kinds{
-        SttServiceKind::OpenAiApi,  SttServiceKind::Groq,       SttServiceKind::Mistral,
-        SttServiceKind::WhisperApi, SttServiceKind::WhisperCpp,
+        SttServiceKind::OpenAiApi,       SttServiceKind::Groq,       SttServiceKind::Mistral,
+        SttServiceKind::WhisperApi,      SttServiceKind::WhisperCpp, SttServiceKind::OpenAiRealtime,
+        SttServiceKind::MistralRealtime,
     };
     return kinds;
 }

@@ -2,6 +2,8 @@
 
 #include "core/audiochunker.h"
 
+#include <memory>
+
 #include <QObject>
 #include <QString>
 
@@ -9,6 +11,7 @@ namespace ocapi {
 
 class AudioRecorder;
 class SttClient;
+class SttStreamClient;
 struct SttServiceConfig;
 
 // Glues audio capture and transcription together: while active, recorded
@@ -41,10 +44,12 @@ signals:
 
 private:
     void onSamplesCaptured(const QByteArray &pcm);
+    void connectStreamSignals();
 
     AudioChunker m_chunker;
     AudioRecorder *m_recorder = nullptr;
-    SttClient *m_client = nullptr;
+    SttClient *m_client = nullptr;             // chunked HTTP transcription
+    SttStreamClient *m_streamClient = nullptr; // WebSocket streaming transcription
     bool m_active = false;
 };
 

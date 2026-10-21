@@ -16,6 +16,8 @@ private slots:
     void effectiveBaseUrlFallsBackToDefault();
     void transcriptionPathPerKind();
     void chunkDurationDefaultsAndClamps();
+    void streamingKindsAreFlagged();
+    void newKindRoundTrip();
     void jsonRoundTrip();
 };
 
@@ -30,7 +32,11 @@ void TestSttConfig::defaults() {
 void TestSttConfig::kindNamesAndKeys() {
     QCOMPARE(SttServiceConfig::kindName(SttServiceKind::Groq), QStringLiteral("Groq"));
     QCOMPARE(SttServiceConfig::kindKey(SttServiceKind::WhisperCpp), QStringLiteral("whispercpp"));
-    QCOMPARE(SttServiceConfig::allKinds().size(), 5);
+    QCOMPARE(SttServiceConfig::kindKey(SttServiceKind::OpenAiRealtime),
+             QStringLiteral("openairealtime"));
+    QCOMPARE(SttServiceConfig::kindKey(SttServiceKind::MistralRealtime),
+             QStringLiteral("mistralrealtime"));
+    QCOMPARE(SttServiceConfig::allKinds().size(), 7);
 }
 
 void TestSttConfig::kindRoundTrip() {
@@ -73,6 +79,34 @@ void TestSttConfig::chunkDurationDefaultsAndClamps() {
     QCOMPARE(config.effectiveChunkDurationMs(), 1000);
     config.chunkDurationMs = 60000;
     QCOMPARE(config.effectiveChunkDurationMs(), 10000);
+}
+
+void TestSttConfig::streamingKindsAreFlagged() {
+    QVERIFY(SttServiceConfig::isStreaming(SttServiceKind::OpenAiRealtime));
+    QVERIFY(SttServiceConfig::isStreaming(SttServiceKind::MistralRealtime));
+    QVERIFY(!SttServiceConfig::isStreaming(SttServiceKind::OpenAiApi));
+    QVERIFY(!SttServiceConfig::isStreaming(SttServiceKind::Groq));
+    QVERIFY(!SttServiceConfig::isStreaming(SttServiceKind::Mistral));
+    QVERIFY(!SttServiceConfig::isStreaming(SttServiceKind::WhisperApi));
+    QVERIFY(!SttServiceConfig::isStreaming(SttServiceKind::WhisperCpp));
+
+    SttServiceConfig config;
+    config.kind = SttServiceKind::MistralRealtime;
+    QVERIFY(config.isStreaming());
+    QVERIFY(SttServiceConfig::isCloud(SttServiceKind::OpenAiRealtime));
+    QVERIFY(SttServiceConfig::requiresApiKey(SttServiceKind::MistralRealtime));
+    QCOMPARE(SttServiceConfig::defaultModel(SttServiceKind::OpenAiRealtime),
+             QStringLiteral("gpt-live-transcribe"));
+    QCOMPARE(SttServiceConfig::defaultModel(SttServiceKind::MistralRealtime),
+             QStringLiteral("voxtral-mini-transcribe-realtime-2602"));
+    QVERIFY(SttServiceConfig::defaultBaseUrl(SttServiceKind::MistralRealtime)
+                .startsWith(QStringLiteral("wss://")));
+}
+
+void TestSttConfig::newKindRoundTrip() {
+    for (auto kind : {SttServiceKind::OpenAiRealtime, SttServiceKind::MistralRealtime}) {
+        QCOMPARE(SttServiceConfig::kindFromString(SttServiceConfig::kindKey(kind)), kind);
+    }
 }
 
 void TestSttConfig::jsonRoundTrip() {

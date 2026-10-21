@@ -21,7 +21,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: 6.8.2
-          modules: qtmultimedia
+          modules: qtmultimedia qtwebsockets
 
       # Caches compiled object files so unchanged sources are not recompiled.
       # The action evicts stale entries on every save (max-size + cleanup).
@@ -93,7 +93,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: 6.8.2
-          modules: qtmultimedia
+          modules: qtmultimedia qtwebsockets
 
       - name: Build ocapi
         run: |
@@ -212,7 +212,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: 6.8.2
-          modules: qtmultimedia
+          modules: qtmultimedia qtwebsockets
 
       # Checks only the C++ translation units changed by this PR/push and
       # runs clang-tidy on them in parallel (one process per core), using

@@ -11,16 +11,18 @@ class BackendRegistry;
 class McpManager;
 class McpRegistry;
 class SttRegistry;
+class TtsRegistry;
 
-// Unified settings dialog that hosts the model backends, MCP server and
-// speech-to-text pages, so configuration lives in a separate window instead
-// of the chat window.
+// Unified settings dialog that hosts the model backends, MCP server,
+// speech-to-text and text-to-speech pages, so configuration lives in a
+// separate window instead of the chat window.
 class SettingsDialog : public QDialog {
     Q_OBJECT
 
 public:
     SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mcpRegistry,
-                   McpManager *mcpManager, SttRegistry *sttRegistry, QWidget *parent = nullptr);
+                   McpManager *mcpManager, SttRegistry *sttRegistry, TtsRegistry *ttsRegistry,
+                   QWidget *parent = nullptr);
     ~SettingsDialog() override;
 
     void selectPage(const QString &pageId);

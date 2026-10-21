@@ -43,6 +43,25 @@ services — analogous to the model backend configuration:
 - **Test**: the settings page can send an audio file to a configured service
   to verify the connection and credentials.
 
+## Text-to-speech (read aloud)
+
+ocapi can speak assistant responses aloud so you do not have to read
+everything. Open **Tools → Text-to-speech…** to configure speech services —
+analogous to the model backend configuration — and enable **Speak assistant
+responses aloud**; the 🔊 button in the chat footer toggles it per session.
+
+- **Services**: the speech APIs of the LLM providers (OpenAI, Groq,
+  Mistral AI), ElevenLabs, any OpenAI-compatible TTS server (local or
+  remote), and a Piper HTTP server (`rhasspy/piper`).
+- **Low latency**: text is split into sentences while it streams in; each
+  completed sentence is synthesized immediately and playback starts as soon
+  as the first sentence is ready — before the full response has arrived.
+  Markdown and HTML markup (code blocks, links, emphasis, …) is stripped
+  before speaking.
+- **Audio output device**: choose the output device in the settings.
+- **Test**: the settings page can synthesize a sample sentence to verify
+  the connection, credentials and chosen voice.
+
 ## MCP servers (Model Context Protocol)
 
 ocapi can connect to [MCP](https://modelcontextprotocol.io) servers and make

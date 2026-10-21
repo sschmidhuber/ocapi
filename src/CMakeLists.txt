@@ -34,6 +34,16 @@ set(OCAPI_CORE_SOURCES
     core/sttconfig.cpp
     core/sttregistry.h
     core/sttregistry.cpp
+    core/ttsconfig.h
+    core/ttsconfig.cpp
+    core/ttsregistry.h
+    core/ttsregistry.cpp
+    core/sentencesplitter.h
+    core/sentencesplitter.cpp
+    core/audioformat.h
+    core/audioformat.cpp
+    core/ttsplayer.h
+    core/ttsplayer.cpp
     core/audiochunker.h
     core/audiochunker.cpp
     core/audiorecorder.h
@@ -73,6 +83,8 @@ set(OCAPI_CORE_SOURCES
     backends/sttclient.cpp
     backends/sttstreamclient.h
     backends/sttstreamclient.cpp
+    backends/ttsclient.h
+    backends/ttsclient.cpp
 )
 
 add_library(ocapi-core STATIC ${OCAPI_CORE_SOURCES})
@@ -115,6 +127,8 @@ set(OCAPI_UI_SOURCES
     ui/mcppage.cpp
     ui/sttpage.h
     ui/sttpage.cpp
+    ui/ttspage.h
+    ui/ttspage.cpp
     ui/settingsdialog.h
     ui/settingsdialog.cpp
 )

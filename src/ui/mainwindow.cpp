@@ -78,6 +78,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     loadMcpServersFromDatabase();
     loadSttSettingsFromDatabase();
     configureVoiceInput();
+    loadTtsSettingsFromDatabase();
+    configureTts();
 
     auto *central = new QWidget(this);
     auto *centralLayout = new QHBoxLayout(central);
@@ -128,9 +130,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     m_sendButton = new QPushButton(tr("Send"), footerRow);
     m_stopButton = new QPushButton(tr("Stop"), footerRow);
     m_stopButton->setVisible(false);
+    m_speakButton = new QPushButton(tr("\U0001F50A"), footerRow);
+    m_speakButton->setCheckable(true);
+    m_speakButton->setToolTip(tr("Speak assistant responses aloud"));
+    m_speakButton->setVisible(false);
     footerLayout->addWidget(m_backendCombo);
     footerLayout->addWidget(m_modelCombo, 1);
     footerLayout->addStretch(1);
+    footerLayout->addWidget(m_speakButton);
     footerLayout->addWidget(m_sendButton);
     footerLayout->addWidget(m_stopButton);
     composerColumnLayout->addWidget(footerRow);
@@ -188,6 +195,16 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
         statusBar()->showMessage(tr("Dictation failed: %1").arg(message), 10000);
     });
     connect(&m_sttRegistry, &SttRegistry::changed, this, [this]() { configureVoiceInput(); });
+    connect(&m_ttsRegistry, &TtsRegistry::changed, this, [this]() { configureTts(); });
+    connect(&m_ttsPlayer, &TtsPlayer::speakingChanged, this, [this](bool speaking) {
+        statusBar()->showMessage(speaking ? tr("Speaking\u2026")
+                                          : (m_streaming ? tr("Generating\u2026") : tr("Ready")),
+                                 speaking ? 0 : 5000);
+    });
+    connect(&m_ttsPlayer, &TtsPlayer::error, this, [this](const QString &message) {
+        statusBar()->showMessage(tr("Text-to-speech failed: %1").arg(message), 10000);
+    });
+    connect(m_speakButton, &QPushButton::clicked, this, &MainWindow::onSpeakResponsesToggled);
     connect(m_chatView, &ChatView::olderMessagesRequested, this,
             [this]() { loadOlderMessages(m_currentSession); });
     connect(m_sendButton, &QPushButton::clicked, this, [this]() {
@@ -342,7 +359,8 @@ void MainWindow::onSessionDeleteRequested(const QUuid &id) {
 }
 
 void MainWindow::openSettings(const QString &pageId) {
-    SettingsDialog dialog(&m_registry, &m_mcpRegistry, &m_mcpManager, &m_sttRegistry, this);
+    SettingsDialog dialog(&m_registry, &m_mcpRegistry, &m_mcpManager, &m_sttRegistry,
+                          &m_ttsRegistry, this);
     if (!pageId.isEmpty())
         dialog.selectPage(pageId);
     dialog.exec();
@@ -358,6 +376,44 @@ void MainWindow::loadSttSettingsFromDatabase() {
     QDir().mkpath(configDir);
     QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
     m_sttRegistry.loadSettings(settings);
+}
+
+void MainWindow::loadTtsSettingsFromDatabase() {
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir().mkpath(configDir);
+    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    m_ttsRegistry.loadSettings(settings);
+}
+
+void MainWindow::configureTts() {
+    const auto services = m_ttsRegistry.enabled();
+    QString activeId = m_ttsRegistry.activeServiceId();
+    const TtsServiceConfig *active = nullptr;
+    for (const auto &service : services) {
+        if (service.id.toString(QUuid::WithoutBraces) == activeId) {
+            active = &service;
+            break;
+        }
+    }
+    if (!active && !services.isEmpty())
+        active = &services.first();
+    if (active)
+        m_ttsPlayer.setService(*active);
+    m_ttsPlayer.setOutputDevice(m_ttsRegistry.outputDevice());
+    const bool available = active != nullptr;
+    const bool enabled = available && m_ttsRegistry.speakResponses();
+    m_speakButton->setVisible(available);
+    const QSignalBlocker blocker(m_speakButton);
+    m_speakButton->setChecked(enabled);
+    if (!enabled)
+        m_ttsPlayer.stop();
+}
+
+void MainWindow::onSpeakResponsesToggled() {
+    const bool enabled = !m_ttsRegistry.speakResponses();
+    m_ttsRegistry.setSpeakResponses(enabled);
+    if (!enabled)
+        m_ttsPlayer.stop();
 }
 
 void MainWindow::configureVoiceInput() {
@@ -607,6 +663,7 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
 }
 
 void MainWindow::onStop() {
+    m_ttsPlayer.stop();
     if (m_backend)
         m_backend->cancel();
 }
@@ -626,6 +683,8 @@ void MainWindow::connectBackend(IBackend *backend) {
                 }
                 if (m_currentSession)
                     m_currentSession->updateMessage(messageId, text, true);
+                if (m_ttsRegistry.speakResponses())
+                    m_ttsPlayer.feedText(text);
                 if (m_database.isOpen())
                     m_database.updateMessage(messageId.toString(QUuid::WithoutBraces), text, true);
             });
@@ -633,6 +692,8 @@ void MainWindow::connectBackend(IBackend *backend) {
         const QString content = messageContent(messageId);
         if (m_currentSession)
             m_currentSession->updateMessage(messageId, content, false);
+        if (m_ttsRegistry.speakResponses())
+            m_ttsPlayer.endOfText();
         const double tokensPerSecond = throughputFor(messageId);
         if (tokensPerSecond > 0.0 && m_currentSession)
             m_currentSession->setThroughput(messageId, tokensPerSecond);
@@ -648,6 +709,7 @@ void MainWindow::connectBackend(IBackend *backend) {
     connect(backend, &IBackend::failed, this, [this](const QUuid &messageId, const QString &error) {
         if (m_currentSession)
             m_currentSession->failMessage(messageId, error);
+        m_ttsPlayer.stop();
         if (m_database.isOpen())
             m_database.failMessage(messageId.toString(QUuid::WithoutBraces), error);
         endStreaming(tr("Error: %1").arg(error));
@@ -665,6 +727,8 @@ QString MainWindow::messageContent(const QUuid &messageId) const {
 
 void MainWindow::endStreaming(const QString &statusMessage) {
     m_streaming = false;
+    if (m_ttsRegistry.speakResponses())
+        m_ttsPlayer.endOfText();
     m_composer->setBusy(false);
     m_sendButton->setVisible(true);
     m_stopButton->setVisible(false);
@@ -672,6 +736,7 @@ void MainWindow::endStreaming(const QString &statusMessage) {
 }
 
 void MainWindow::disconnectBackend() {
+    m_ttsPlayer.stop();
     if (m_backend) {
         m_backend->cancel();
         m_backend->disconnect(this);

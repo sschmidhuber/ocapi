@@ -183,5 +183,5 @@ void TestSttClient::emitsNothingForEmptyChunk() {
     QCOMPARE(updated.first().first().toString(), QString());
 }
 
-QTEST_MAIN(TestSttClient)
+QTEST_GUILESS_MAIN(TestSttClient)
 #include "tst_sttclient.moc"

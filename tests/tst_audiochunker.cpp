@@ -99,5 +99,5 @@ void TestAudioChunker::bufferedMsTracksBuffer() {
     QCOMPARE(chunker.bufferedMs(), 1000);
 }
 
-QTEST_MAIN(TestAudioChunker)
+QTEST_GUILESS_MAIN(TestAudioChunker)
 #include "tst_audiochunker.moc"

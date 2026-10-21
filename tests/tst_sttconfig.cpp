@@ -85,5 +85,5 @@ void TestSttConfig::jsonRoundTrip() {
     QCOMPARE(restored.enabled, false);
 }
 
-QTEST_MAIN(TestSttConfig)
+QTEST_GUILESS_MAIN(TestSttConfig)
 #include "tst_sttconfig.moc"

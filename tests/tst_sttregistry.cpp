@@ -119,5 +119,5 @@ void TestSttRegistry::activeServiceIdPersists() {
     QCOMPARE(restored.activeServiceId(), id.toString(QUuid::WithoutBraces));
 }
 
-QTEST_MAIN(TestSttRegistry)
+QTEST_GUILESS_MAIN(TestSttRegistry)
 #include "tst_sttregistry.moc"

@@ -22,6 +22,7 @@ jobs:
         with:
           version: 6.8.2
           modules: qtmultimedia qtwebsockets
+          cache: true
 
       # Caches compiled object files so unchanged sources are not recompiled.
       # The key is derived from the CMake configuration so it stays stable
@@ -54,7 +55,7 @@ jobs:
         run: cmake --build build --parallel
 
       - name: Run tests
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir build --output-on-failure --parallel $(nproc)
 
   format:
     name: clang-format check
@@ -105,6 +106,7 @@ jobs:
         with:
           version: 6.8.2
           modules: qtmultimedia qtwebsockets
+          cache: true
 
       - name: Build ocapi
         run: |
@@ -224,6 +226,7 @@ jobs:
         with:
           version: 6.8.2
           modules: qtmultimedia qtwebsockets
+          cache: true
 
       # Checks only the C++ translation units changed by this PR/push and
       # runs clang-tidy on them in parallel (one process per core), using

@@ -4,6 +4,7 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QPushButton>
+#include <QTimer>
 #include <QVBoxLayout>
 
 namespace ocapi {
@@ -31,9 +32,13 @@ Sidebar::Sidebar(QWidget *parent)
     // technology (e.g. selenium-webdriver-at-spi) cannot invoke, while a
     // plain click works identically for mouse and keyboard users.
     connect(m_toolsButton, &QPushButton::clicked, this, [this, toolsMenu]() {
-        qWarning() << "E2E-DEBUG: Tools clicked, popping menu";
         toolsMenu->popup(m_toolsButton->mapToGlobal(QPoint(0, m_toolsButton->height())));
-        qWarning() << "E2E-DEBUG: menu popped, isVisible=" << toolsMenu->isVisible();
+        QTimer::singleShot(300, this, [toolsMenu]() {
+            qWarning() << "E2E-DEBUG: menu visible after 300ms:" << toolsMenu->isVisible();
+        });
+        QTimer::singleShot(1500, this, [toolsMenu]() {
+            qWarning() << "E2E-DEBUG: menu visible after 1500ms:" << toolsMenu->isVisible();
+        });
     });
 
     connect(m_newChatButton, &QPushButton::clicked, this, &Sidebar::newChatRequested);

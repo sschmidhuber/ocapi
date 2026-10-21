@@ -6,6 +6,7 @@
 
 class QCheckBox;
 class QComboBox;
+class QSpinBox;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -51,6 +52,7 @@ private:
     QLineEdit *m_apiKeyEdit;
     QLineEdit *m_modelEdit;
     QLineEdit *m_languageEdit;
+    QSpinBox *m_chunkDurationSpin;
     QCheckBox *m_enabledBox;
     QComboBox *m_deviceCombo;
     QPushButton *m_testButton;

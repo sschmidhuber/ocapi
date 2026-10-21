@@ -2,6 +2,8 @@
 
 #include <QHash>
 
+#include <algorithm>
+
 namespace ocapi {
 
 QString SttServiceConfig::kindName(SttServiceKind kind) {
@@ -112,6 +114,10 @@ bool SttServiceConfig::requiresApiKey(SttServiceKind kind) {
     return isCloud(kind);
 }
 
+int SttServiceConfig::clampChunkDurationMs(int ms) {
+    return std::clamp(ms, 1000, 10000);
+}
+
 const QVector<SttServiceKind> &SttServiceConfig::allKinds() {
     static const QVector<SttServiceKind> kinds{
         SttServiceKind::OpenAiApi,  SttServiceKind::Groq,       SttServiceKind::Mistral,
@@ -129,6 +135,7 @@ QJsonObject SttServiceConfig::toJson() const {
         {QStringLiteral("apiKey"), apiKey},
         {QStringLiteral("model"), model},
         {QStringLiteral("language"), language},
+        {QStringLiteral("chunkDurationMs"), chunkDurationMs},
         {QStringLiteral("enabled"), enabled},
     };
 }
@@ -142,6 +149,8 @@ SttServiceConfig SttServiceConfig::fromJson(const QJsonObject &object) {
     config.apiKey = object.value(QStringLiteral("apiKey")).toString();
     config.model = object.value(QStringLiteral("model")).toString();
     config.language = object.value(QStringLiteral("language")).toString();
+    config.chunkDurationMs =
+        clampChunkDurationMs(object.value(QStringLiteral("chunkDurationMs")).toInt(2500));
     config.enabled = object.value(QStringLiteral("enabled")).toBool(true);
     return config;
 }

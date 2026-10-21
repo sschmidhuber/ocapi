@@ -10,7 +10,10 @@ namespace ocapi {
 // transcribed while the user keeps talking.
 class AudioChunker {
 public:
-    explicit AudioChunker(int sampleRate = 16000, int chunkDurationMs = 6000);
+    explicit AudioChunker(int sampleRate = 16000, int chunkDurationMs = 2500);
+
+    void setChunkDurationMs(int chunkDurationMs);
+    [[nodiscard]] int chunkDurationMs() const { return m_chunkDurationMs; }
 
     void setSampleRate(int sampleRate);
     [[nodiscard]] int sampleRate() const { return m_sampleRate; }

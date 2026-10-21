@@ -22,6 +22,7 @@ import unittest
 from appium import webdriver
 from appium.options.common.base import AppiumOptions
 from appium.webdriver.common.appiumby import AppiumBy
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 
 REPLY_TEXT = "Hello from the mock backend!"
@@ -49,14 +50,24 @@ class OcapiE2E(unittest.TestCase):
     def find_by_name(self, name):
         return self.driver.find_element(by=AppiumBy.NAME, value=name)
 
+    def find_by_xpath(self, xpath):
+        return self.driver.find_element(by=AppiumBy.XPATH, value=xpath)
+
     def open_backend_settings(self):
         # Tools opens its popup menu on click, then the menu item opens the
         # settings dialog. The menu is a popup window on the a11y bus; give
-        # it a moment to register before clicking its item.
+        # it a moment to register before clicking its item. Match on a text
+        # prefix so the ellipsis in the label cannot cause a mismatch.
         self.find_by_name("Tools").click()
-        WebDriverWait(self.driver, 10).until(
-            lambda d: self.find_by_name("Model backends…"))
-        self.find_by_name("Model backends…").click()
+        item = "//*[contains(@name, 'Model backends')]"
+        try:
+            WebDriverWait(self.driver, 10).until(
+                lambda d: self.find_by_xpath(item))
+        except TimeoutException:
+            print("==== AT-SPI tree after clicking Tools ====")
+            print(self.driver.page_source)
+            raise
+        self.find_by_xpath(item).click()
 
     def find_reply(self):
         # Chat bubbles are list items whose accessible name is the message

@@ -42,6 +42,19 @@ QJsonObject toOllamaMessage(const Message &message) {
             images.append(QString::fromLatin1(image.data.toBase64()));
         object.insert(QStringLiteral("images"), images);
     }
+    if (message.role == Role::Assistant && message.hasToolCalls()) {
+        QJsonArray toolCalls;
+        for (const auto &call : message.toolCalls) {
+            toolCalls.append(QJsonObject{
+                {QStringLiteral("function"),
+                 QJsonObject{
+                     {QStringLiteral("name"), call.name},
+                     {QStringLiteral("arguments"), call.arguments},
+                 }},
+            });
+        }
+        object.insert(QStringLiteral("tool_calls"), toolCalls);
+    }
     return object;
 }
 
@@ -92,31 +105,19 @@ void OllamaBackend::sendMessage(ChatSession *session, const QString &model) {
         messages.append(toOllamaMessage(message));
     }
 
-    const QJsonObject payload{
+    QJsonObject payload{
         {QStringLiteral("model"), model},
         {QStringLiteral("messages"), messages},
         {QStringLiteral("stream"), true},
     };
+    if (m_toolsEnabled) {
+        payload.insert(QStringLiteral("tools"), m_availableTools);
+        payload.insert(QStringLiteral("tool_choice"), QStringLiteral("auto"));
+    }
 
     m_stream = std::make_unique<SseClient>(m_nam, this);
     connect(m_stream.get(), &SseClient::eventReceived, this,
-            [this](const QByteArray &, const QByteArray &data) {
-                const auto doc = QJsonDocument::fromJson(data);
-                const auto object = doc.object();
-                if (object.contains(QStringLiteral("error"))) {
-                    emit failed(m_currentMessageId,
-                                object.value(QStringLiteral("error")).toString());
-                    return;
-                }
-                const QString token = object.value(QStringLiteral("message"))
-                                          .toObject()
-                                          .value(QStringLiteral("content"))
-                                          .toString();
-                m_accumulated.append(token);
-                emit tokenReceived(m_currentMessageId, m_accumulated);
-                if (object.value(QStringLiteral("done")).toBool())
-                    emit finished(m_currentMessageId);
-            });
+            [this](const QByteArray &, const QByteArray &data) { onStreamEvent(data); });
     connect(m_stream.get(), &SseClient::httpError, this, [this](int, const QByteArray &body) {
         emit failed(m_currentMessageId, QString::fromUtf8(body));
     });
@@ -129,9 +130,52 @@ void OllamaBackend::sendMessage(ChatSession *session, const QString &model) {
                    QJsonDocument(payload).toJson(QJsonDocument::Compact));
 }
 
+void OllamaBackend::onStreamEvent(const QByteArray &data) {
+    const auto doc = QJsonDocument::fromJson(data);
+    const auto object = doc.object();
+    if (object.contains(QStringLiteral("error"))) {
+        emit failed(m_currentMessageId, object.value(QStringLiteral("error")).toString());
+        return;
+    }
+    const auto message = object.value(QStringLiteral("message")).toObject();
+
+    // Tool calls end the turn; the agent layer runs the tools and sends the
+    // results back with a new sendMessage() call.
+    const auto toolCalls = message.value(QStringLiteral("tool_calls")).toArray();
+    if (!toolCalls.isEmpty()) {
+        QVector<ToolCall> calls;
+        calls.reserve(toolCalls.size());
+        for (const auto &value : toolCalls) {
+            const auto toolCall = value.toObject();
+            const auto function = toolCall.value(QStringLiteral("function")).toObject();
+            ToolCall call;
+            call.name = function.value(QStringLiteral("name")).toString();
+            call.arguments = function.value(QStringLiteral("arguments")).toObject();
+            calls.push_back(std::move(call));
+        }
+        emit toolCallsRequested(m_currentMessageId, calls);
+        return;
+    }
+
+    const QString token = message.value(QStringLiteral("content")).toString();
+    m_accumulated.append(token);
+    emit tokenReceived(m_currentMessageId, m_accumulated);
+    if (object.value(QStringLiteral("done")).toBool())
+        emit finished(m_currentMessageId);
+}
+
 void OllamaBackend::cancel() {
     if (m_stream)
         m_stream->cancel();
+}
+
+bool OllamaBackend::supportsTools() const {
+    return true;
+}
+
+void OllamaBackend::setAvailableTools(const QJsonArray &tools) {
+    m_toolsEnabled = !tools.isEmpty();
+    m_availableTools = tools;
 }
 
 } // namespace ocapi

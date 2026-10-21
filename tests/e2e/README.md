@@ -15,6 +15,13 @@ the Linux accessibility API, never through pixel comparison.
    against the mock server (visible in the footer's backend/model combos).
 3. **Chat** — a message typed into the composer is sent, and the mock
    backend's reply streams back into the chat view.
+4. **MCP setup and tool usage** — the seeded mock MCP server connects and
+   offers its `echo` tool (status bar shows "MCP: 1 tool(s)"). A chat
+   message with a trigger phrase makes the mock backend request the tool;
+   ocapi runs it against the mock MCP server, feeds the result back to the
+   model, and the final answer (quoting the tool result) appears in the chat.
+   This drives the complete agent loop: tool advertisement, model tool call,
+   MCP execution, result feedback and the model's follow-up.
 
 Popup menus (Tools → Model backends…) cannot be driven with this stack:
 Qt excludes `Qt::Popup` windows such as `QMenu` from the AT-SPI

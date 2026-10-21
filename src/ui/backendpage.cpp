@@ -32,6 +32,7 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
                              QVariant::fromValue(static_cast<int>(kind)));
     }
     m_urlEdit = new QLineEdit(formWidget);
+    m_urlEdit->setAccessibleName(tr("Base URL"));
     m_urlEdit->setPlaceholderText(tr("http://127.0.0.1:11434"));
     m_apiKeyEdit = new QLineEdit(formWidget);
     m_apiKeyEdit->setEchoMode(QLineEdit::Password);

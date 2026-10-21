@@ -57,6 +57,110 @@ jobs:
             --suppress=shadowFunction --suppress=useStlAlgorithm \
             src/ tests/
 
+  e2e:
+    name: E2E (selenium-webdriver-at-spi, Ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake ninja-build libgl1-mesa-dev \
+            xvfb dbus-x11 at-spi2-core \
+            python3-pip python3-venv \
+            python3-gi python3-pyatspi \
+            python3-flask python3-lxml python3-numpy \
+            gir1.2-atspi-2.0 gir1.2-gtk-3.0
+
+      - name: Install Qt6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.8.2
+
+      - name: Build ocapi
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DOCAPI_BUILD_TESTS=OFF
+          cmake --build build
+
+      # The WebDriver server needs the distro Python (pyatspi/gi are system
+      # packages); the venv is only used for the Appium test client.
+      - name: Set up selenium-webdriver-at-spi
+        run: |
+          git clone --depth 1 https://github.com/KDE/selenium-webdriver-at-spi.git /tmp/swa
+          python3 -m venv .venv
+          . .venv/bin/activate
+          pip install Appium-Python-Client==4.5.1 'selenium==4.29.0'
+
+      - name: Run E2E tests
+        env:
+          QT_QPA_PLATFORM: xcb
+          QT_ACCESSIBILITY: "1"
+          QT_LINUX_ACCESSIBILITY_ALWAYS_ON: "1"
+        run: |
+          set -eux
+          mkdir -p "$RUNNER_TEMP/xdg/CACHE" "$RUNNER_TEMP/xdg/CONFIG" \
+            "$RUNNER_TEMP/xdg/DATA" "$RUNNER_TEMP/xdg/STATE"
+          dbus-run-session -- bash <<'SCRIPT'
+          set -eux
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1280x1024x24 &
+          sleep 1
+
+          export XDG_RUNTIME_DIR="$(mktemp -d)"
+          export XDG_CACHE_HOME="$RUNNER_TEMP/xdg/CACHE" \
+                 XDG_CONFIG_HOME="$RUNNER_TEMP/xdg/CONFIG" \
+                 XDG_DATA_HOME="$RUNNER_TEMP/xdg/DATA" \
+                 XDG_STATE_HOME="$RUNNER_TEMP/xdg/STATE"
+
+          # Accessibility bus + registry, as selenium-webdriver-at-spi-run
+          # starts them when it cannot rely on systemd user services. The
+          # binary location depends on the at-spi2-core version.
+          a11y_launcher=""
+          a11y_registry=""
+          for d in /usr/libexec /usr/lib/at-spi2-core /usr/lib/at-spi2; do
+            if [ -x "$d/at-spi-bus-launcher" ]; then a11y_launcher="$d/at-spi-bus-launcher"; fi
+            if [ -x "$d/at-spi2-registryd" ]; then a11y_registry="$d/at-spi2-registryd"; fi
+          done
+          "$a11y_launcher" --launch-immediately &
+          "$a11y_registry" &
+
+          # The app and the WebDriver both connect through the a11y bus;
+          # tell Qt its address explicitly (avoids a Qt startup race).
+          a11y_bus=""
+          for _ in $(seq 1 20); do
+            if a11y_bus="$(dbus-send --print-reply=literal \
+                --dest=org.a11y.Bus /org/a11y/bus org.a11y.Bus.GetAddress 2>/dev/null)"; then
+              break
+            fi
+            sleep 0.5
+          done
+          export AT_SPI_BUS_ADDRESS="${a11y_bus// /}"
+
+          # Mock Ollama backend.
+          python3 tests/e2e/mock_ollama.py 11434 &
+
+          # The AT-SPI WebDriver server (system Python, not the venv).
+          (cd /tmp/swa \
+            && FLASK_APP=selenium-webdriver-at-spi.py flask run --port 4723 --no-reload \
+            &> "$RUNNER_TEMP/webdriver.log") &
+          for _ in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:4723/status >/dev/null; then break; fi
+            sleep 0.5
+          done
+
+          export OCAPI_E2E_APP="$PWD/build/src/ocapi"
+          export OCAPI_E2E_MOCK_PORT=11434
+          . .venv/bin/activate
+          python3 tests/e2e/ocapi_e2e_test.py
+          SCRIPT
+
+      - name: Collect logs
+        if: always()
+        run: cat "$RUNNER_TEMP/webdriver.log" || true
+
   clang-tidy:
     name: clang-tidy
     runs-on: ubuntu-latest

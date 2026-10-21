@@ -129,6 +129,7 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     rowLayout->addWidget(m_attachButton);
     layout->addWidget(row);
 
+    m_textEdit->setAccessibleName(tr("Message input"));
     m_textEdit->setPlaceholderText(
         tr("Type a message…  (Enter to send, Shift+Enter for a new line)"));
     m_textEdit->setTabChangesFocus(true);

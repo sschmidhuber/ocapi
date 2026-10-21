@@ -69,7 +69,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             cmake ninja-build libgl1-mesa-dev \
-            xvfb dbus-x11 at-spi2-core \
+            xvfb dbus-x11 at-spi2-core openbox \
             python3-pip python3-venv \
             python3-gi python3-pyatspi \
             python3-flask python3-lxml python3-numpy \
@@ -108,6 +108,9 @@ jobs:
           export DISPLAY=:99
           Xvfb :99 -screen 0 1280x1024x24 &
           sleep 1
+          # A window manager is required for Qt popup menus to stay mapped
+          # (and register on the a11y bus) under X11.
+          openbox &
 
           export XDG_RUNTIME_DIR="$(mktemp -d)"
           export XDG_CACHE_HOME="$RUNNER_TEMP/xdg/CACHE" \

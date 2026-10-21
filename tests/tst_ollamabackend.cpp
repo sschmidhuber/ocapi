@@ -44,12 +44,12 @@ public:
 private:
     void respondIfComplete(QTcpSocket *socket) {
         const QByteArray &buffer = m_requests[socket];
-        const int headerEnd = buffer.indexOf("\r\n\r\n");
+        const int headerEnd = static_cast<int>(buffer.indexOf("\r\n\r\n"));
         if (headerEnd < 0)
             return;
         const int contentLength = [this, &buffer, headerEnd]() {
             const QString headers = QString::fromLatin1(buffer.left(headerEnd)).toLower();
-            const int index = headers.indexOf(QLatin1String("content-length:"));
+            const int index = static_cast<int>(headers.indexOf(QLatin1String("content-length:")));
             if (index < 0)
                 return -1;
             return headers.mid(index + 16).split(QLatin1String("\r\n")).first().toInt();

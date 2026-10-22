@@ -142,6 +142,10 @@ struct ItemLayout {
     // Footer row below the content: copy button and throughput label.
     // Inside the bubble for user messages, plain for assistant messages.
     QRect footerRect;
+    // The footer is only rendered once an assistant message has finished
+    // streaming; while streaming the item height changes on every token and
+    // a bottom-anchored footer would be positioned against stale geometry.
+    bool hasFooter = false;
     int toolCallsHeight = 0;
     int imageBlockHeight = 0;
     int textHeight = 0;
@@ -207,6 +211,7 @@ ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &ind
     if (isUser) {
         // The footer (copy button, throughput) sits inside the bubble, at
         // its bottom left; the bubble grows to include it.
+        layout.hasFooter = true;
         QRect bubbleRect(option.rect.right() - kEdgeMargin - contentWidth, contentTop, contentWidth,
                          contentHeight + kLabelHeight);
         layout.contentRect = bubbleRect;
@@ -215,10 +220,14 @@ ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &ind
                   bubbleRect.width() - (2 * kBubblePadding), kLabelHeight);
     } else {
         // Assistant/tool/error messages use the full chat area: no bubble.
+        // The footer appears only once the message no longer streams.
         layout.contentRect =
             QRect(option.rect.left() + kEdgeMargin, contentTop, availableWidth, contentHeight);
-        layout.footerRect = QRect(option.rect.left() + kEdgeMargin, layout.contentRect.bottom() + 2,
-                                  availableWidth, kLabelHeight);
+        layout.hasFooter = !streaming;
+        if (layout.hasFooter)
+            layout.footerRect =
+                QRect(option.rect.left() + kEdgeMargin, layout.contentRect.bottom() + 2,
+                      availableWidth, kLabelHeight);
     }
     return layout;
 }
@@ -244,6 +253,8 @@ QRect copyButtonRect(const QRect &footerRect) {
 // it sits below the content (dark colors).
 void paintFooterRow(QPainter *painter, const QStyleOptionViewItem &option, const ItemLayout &layout,
                     bool isUser, bool showCopied) {
+    if (!layout.hasFooter)
+        return;
     const QRect footerRect = layout.footerRect;
     const QColor labelColor = isUser ? QColor(0xe0, 0xe0, 0xe0) : QColor(0x50, 0x50, 0x50);
     painter->setPen(labelColor);
@@ -417,10 +428,10 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
 
 QSize ChatDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const {
     const ItemLayout layout = layoutItem(option, index);
-    // User footers live inside the bubble; assistant footers below the
-    // content.
+    // User footers live inside the bubble (already counted); assistant
+    // footers add a row below the content, but only once streaming ended.
     const bool isUser = index.data(static_cast<int>(Qt::UserRole)).toBool();
-    const int footerHeight = isUser ? 0 : kLabelHeight + 2;
+    const int footerHeight = (!isUser && layout.hasFooter) ? kLabelHeight + 2 : 0;
     const int height = (layout.contentRect.top() - option.rect.top()) +
                        layout.contentRect.height() + footerHeight + kItemSpacing;
     return {option.rect.width(), height};

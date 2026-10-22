@@ -82,10 +82,16 @@ add `poppler-cpp-devel tesseract-devel libarchive-devel` to
 
 ```sh
 # Debian/Ubuntu:  sudo apt-get install build-essential cmake ninja-build \
-#     qt6-base-dev qt6-base-dev-tools libqt6sql6-sqlite libgl-dev dpkg-dev
+#     qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev \
+#     libqt6sql6-sqlite libgl-dev dpkg-dev
 packaging/deb/build-deb.sh 0.1.0 dist
 sudo apt install ./dist/ocapi_0.1.0-1_amd64.deb
 ```
+
+Runtime dependencies are resolved with `dpkg-shlibdeps` from the staged
+binary, so the generated `Depends` match the Qt package names of the
+Debian/Ubuntu release the package is built on (e.g. `libqt6core6t64` on
+Debian 13/Ubuntu 24.04).
 
 ## Windows
 

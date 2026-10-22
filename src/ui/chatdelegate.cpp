@@ -6,6 +6,7 @@
 #include <QClipboard>
 #include <QEvent>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QImage>
 #include <QMouseEvent>
 #include <QPainter>
@@ -13,6 +14,7 @@
 #include <QTextCharFormat>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTimer>
 
 #include <QJsonDocument>
 
@@ -22,10 +24,11 @@ namespace ocapi {
 
 namespace {
 
-constexpr int kEdgeMargin = 12;     // margin between items and the viewport edge
-constexpr int kLabelHeight = 16;    // height of the role label row above content
-constexpr int kCopyButtonSize = 14; // copy glyph in the label row
-constexpr int kItemSpacing = 8;     // breathing room below each item
+constexpr int kEdgeMargin = 12;       // margin between items and the viewport edge
+constexpr int kLabelHeight = 16;      // height of the role label row above content
+constexpr int kCopyButtonSize = 16;   // copy icon in the label row
+constexpr int kCopyFeedbackMs = 1500; // how long the "Copied" hint stays
+constexpr int kItemSpacing = 8;       // breathing room below each item
 constexpr int kBubblePadding = 10;
 constexpr int kBubbleRadius = 10;
 constexpr int kMaxBubbleWidthFraction = 80; // percent of viewport width
@@ -193,20 +196,45 @@ ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &ind
     return layout;
 }
 
-// Rect of the per-message copy button in the label row, opposite the role
-// label (right for assistant messages, left for right-aligned user ones).
-QRect copyButtonRect(const QStyleOptionViewItem &option, bool isUser) {
+const QIcon &copyIcon() {
+    static const QIcon icon =
+        QIcon::fromTheme(QStringLiteral("edit-copy-symbolic"),
+                         QIcon(QString::fromUtf8(":/resources/icons/edit-copy-symbolic.svg")));
+    return icon;
+}
+
+// Rect of the per-message copy button in the label row. Assistant messages
+// reserve room at the right for the throughput text so the two never
+// collide; user messages put the button on the left ("You" is right).
+QRect copyButtonRect(const QStyleOptionViewItem &option, bool isUser, bool hasThroughput) {
     const QRect labelRow(option.rect.left() + kEdgeMargin, option.rect.top(),
                          option.rect.width() - (2 * kEdgeMargin), kLabelHeight);
     QRect rect(0, 0, kCopyButtonSize, kCopyButtonSize);
     rect.moveCenter(labelRow.center());
-    rect.moveLeft(isUser ? labelRow.left() : labelRow.right() - kCopyButtonSize + 1);
+    if (isUser)
+        rect.moveLeft(labelRow.left());
+    else if (hasThroughput)
+        rect.moveLeft(labelRow.right() - (4 * kCopyButtonSize));
+    else
+        rect.moveLeft(labelRow.right() - kCopyButtonSize + 1);
     return rect;
 }
 
 } // namespace
 
-ChatDelegate::ChatDelegate(QObject *parent) : QStyledItemDelegate(parent) {}
+ChatDelegate::ChatDelegate(QObject *parent) : QStyledItemDelegate(parent) {
+    m_copiedTimer.setSingleShot(true);
+    connect(&m_copiedTimer, &QTimer::timeout, this, [this] {
+        m_copiedIndex = QPersistentModelIndex();
+        emit copiedFeedbackChanged();
+    });
+}
+
+void ChatDelegate::showCopiedFeedback(const QModelIndex &index) {
+    m_copiedIndex = QPersistentModelIndex(index);
+    m_copiedTimer.start(kCopyFeedbackMs);
+    emit copiedFeedbackChanged();
+}
 
 void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
                          const QModelIndex &index) const {
@@ -285,19 +313,27 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     else
         painter->drawText(layout.labelRect, Qt::AlignLeft | Qt::AlignVCenter, roleLabel);
     const double tokensPerSecond = index.data(static_cast<int>(Qt::UserRole) + 4).toDouble();
-    if (!isUser && tokensPerSecond > 0.0) {
+    const bool hasThroughput = !isUser && tokensPerSecond > 0.0;
+    if (hasThroughput) {
         const QString throughput =
             QStringLiteral("%1 tok/s").arg(QString::number(tokensPerSecond, 'f', 1));
         painter->drawText(layout.labelRect, Qt::AlignRight | Qt::AlignVCenter, throughput);
     }
 
     // Per-message copy button in the label row.
-    const QRect copyRect = copyButtonRect(option, isUser);
-    painter->setPen(QColor(0x80, 0x80, 0x80));
-    painter->setBrush(Qt::NoBrush);
-    painter->drawRect(copyRect);
-    painter->drawLine(copyRect.right() - 3, copyRect.top() + 2, copyRect.right() - 3,
-                      copyRect.bottom() - 2);
+    const QRect copyRect = copyButtonRect(option, isUser, hasThroughput);
+    const bool showCopied = m_copiedIndex == index;
+    copyIcon().paint(painter, copyRect);
+    if (showCopied) {
+        QFont hintFont = option.font;
+        hintFont.setPointSizeF(qMax(7.0, hintFont.pointSizeF() - 1.0));
+        hintFont.setItalic(true);
+        painter->setFont(hintFont);
+        painter->setPen(QColor(0x2a, 0x82, 0xda));
+        const QRect hintRect(copyRect.right() + 4, copyRect.top(),
+                             layout.labelRect.right() - copyRect.right() - 4, kLabelHeight);
+        painter->drawText(hintRect, Qt::AlignLeft | Qt::AlignVCenter, tr("Copied"));
+    }
 
     // User messages keep a highlight bubble; assistant/tool/error messages
     // use the full chat area without a background.
@@ -366,14 +402,18 @@ bool ChatDelegate::editorEvent(QEvent *event, QAbstractItemModel *model,
         return QStyledItemDelegate::editorEvent(event, model, option, index);
     const auto *mouse = dynamic_cast<const QMouseEvent *>(event);
     const bool isUser = index.data(static_cast<int>(Qt::UserRole)).toBool();
-    if (!mouse || !copyButtonRect(option, isUser).contains(mouse->pos()))
+    const double tokensPerSecond = index.data(static_cast<int>(Qt::UserRole) + 4).toDouble();
+    const bool hasThroughput = !isUser && tokensPerSecond > 0.0;
+    if (!mouse || !copyButtonRect(option, isUser, hasThroughput).contains(mouse->pos()))
         return QStyledItemDelegate::editorEvent(event, model, option, index);
     QString text = index.data(Qt::DisplayRole).toString();
     const QString error = index.data(static_cast<int>(Qt::UserRole) + 3).toString();
     if (!error.isEmpty())
         text = error;
-    if (!text.isEmpty())
+    if (!text.isEmpty()) {
         QGuiApplication::clipboard()->setText(text);
+        showCopiedFeedback(index);
+    }
     return true;
 }
 

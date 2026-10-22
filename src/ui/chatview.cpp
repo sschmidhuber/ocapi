@@ -104,7 +104,10 @@ private:
 ChatView::ChatView(QWidget *parent) : QListView(parent) {
     auto *model = new ChatModel(this);
     setModel(model);
-    setItemDelegate(new ChatDelegate(this));
+    auto *delegate = new ChatDelegate(this);
+    setItemDelegate(delegate);
+    connect(delegate, &ChatDelegate::copiedFeedbackChanged, viewport(),
+            QOverload<>::of(&QWidget::update));
     connect(verticalScrollBar(), &QAbstractSlider::valueChanged, this, &ChatView::checkScrollTop);
     setSelectionMode(QAbstractItemView::NoSelection);
     setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);

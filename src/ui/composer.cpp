@@ -131,8 +131,8 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     m_textEdit = new MessageTextEdit(row);
     m_attachButton = new QToolButton(this);
     const QIcon attachIcon =
-        QIcon::fromTheme(QStringLiteral("mail-attachment"),
-                         QIcon(QString::fromUtf8(":/resources/icons/attach.svg")));
+        QIcon::fromTheme(QStringLiteral("folder-new-symbolic"),
+                         QIcon(QString::fromUtf8(":/resources/icons/folder-new-symbolic.svg")));
     if (!attachIcon.isNull()) {
         m_attachButton->setIcon(attachIcon);
         m_attachButton->setIconSize(QSize(18, 18));
@@ -167,6 +167,8 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
         tr("Type a message…  (Enter to send, Shift+Enter for a new line)"));
     m_textEdit->setTabChangesFocus(true);
     m_textEdit->setAcceptDrops(true);
+    // Full frame around the input, including the top side.
+    m_textEdit->setStyleSheet(QStringLiteral("QPlainTextEdit { border: 1px solid palette(mid); }"));
 
     m_textEdit->installEventFilter(this);
     connect(m_attachButton, &QToolButton::clicked, this, &Composer::attachFiles);

@@ -3,7 +3,11 @@
 #include "core/message.h"
 
 #include <QApplication>
+#include <QClipboard>
+#include <QEvent>
+#include <QGuiApplication>
 #include <QImage>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QTextBlock>
 #include <QTextCharFormat>
@@ -18,9 +22,10 @@ namespace ocapi {
 
 namespace {
 
-constexpr int kEdgeMargin = 12;  // margin between items and the viewport edge
-constexpr int kLabelHeight = 16; // height of the role label row above content
-constexpr int kItemSpacing = 8;  // breathing room below each item
+constexpr int kEdgeMargin = 12;     // margin between items and the viewport edge
+constexpr int kLabelHeight = 16;    // height of the role label row above content
+constexpr int kCopyButtonSize = 14; // copy glyph in the label row
+constexpr int kItemSpacing = 8;     // breathing room below each item
 constexpr int kBubblePadding = 10;
 constexpr int kBubbleRadius = 10;
 constexpr int kMaxBubbleWidthFraction = 80; // percent of viewport width
@@ -188,6 +193,17 @@ ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &ind
     return layout;
 }
 
+// Rect of the per-message copy button in the label row, opposite the role
+// label (right for assistant messages, left for right-aligned user ones).
+QRect copyButtonRect(const QStyleOptionViewItem &option, bool isUser) {
+    const QRect labelRow(option.rect.left() + kEdgeMargin, option.rect.top(),
+                         option.rect.width() - (2 * kEdgeMargin), kLabelHeight);
+    QRect rect(0, 0, kCopyButtonSize, kCopyButtonSize);
+    rect.moveCenter(labelRow.center());
+    rect.moveLeft(isUser ? labelRow.left() : labelRow.right() - kCopyButtonSize + 1);
+    return rect;
+}
+
 } // namespace
 
 ChatDelegate::ChatDelegate(QObject *parent) : QStyledItemDelegate(parent) {}
@@ -212,13 +228,15 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     const QRect contentRect = layout.contentRect;
     const int maxTextWidth = contentRect.width() - (2 * kBubblePadding);
 
+    // The chat area is white (see ChatView); use fixed dark text colors so
+    // messages stay readable regardless of the widget theme.
     QColor textColor;
     if (!error.isEmpty()) {
         textColor = QColor(0xf6, 0xc2, 0xc2);
     } else if (isUser) {
-        textColor = option.palette.color(QPalette::HighlightedText);
+        textColor = Qt::white;
     } else {
-        textColor = option.palette.color(QPalette::Text);
+        textColor = QColor(0x1a, 0x1a, 0x1a);
     }
 
     std::unique_ptr<QTextDocument> doc;
@@ -257,12 +275,15 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     }
 
     // Role label (and throughput) above the content, fully inside the item.
-    painter->setPen(option.palette.color(QPalette::Text));
+    painter->setPen(QColor(0x50, 0x50, 0x50));
     QFont labelFont = option.font;
     labelFont.setBold(true);
     labelFont.setPointSizeF(qMax(7.0, labelFont.pointSizeF() - 1.0));
     painter->setFont(labelFont);
-    painter->drawText(layout.labelRect, Qt::AlignLeft | Qt::AlignVCenter, roleLabel);
+    if (isUser)
+        painter->drawText(layout.labelRect, Qt::AlignRight | Qt::AlignVCenter, roleLabel);
+    else
+        painter->drawText(layout.labelRect, Qt::AlignLeft | Qt::AlignVCenter, roleLabel);
     const double tokensPerSecond = index.data(static_cast<int>(Qt::UserRole) + 4).toDouble();
     if (!isUser && tokensPerSecond > 0.0) {
         const QString throughput =
@@ -270,10 +291,18 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
         painter->drawText(layout.labelRect, Qt::AlignRight | Qt::AlignVCenter, throughput);
     }
 
+    // Per-message copy button in the label row.
+    const QRect copyRect = copyButtonRect(option, isUser);
+    painter->setPen(QColor(0x80, 0x80, 0x80));
+    painter->setBrush(Qt::NoBrush);
+    painter->drawRect(copyRect);
+    painter->drawLine(copyRect.right() - 3, copyRect.top() + 2, copyRect.right() - 3,
+                      copyRect.bottom() - 2);
+
     // User messages keep a highlight bubble; assistant/tool/error messages
     // use the full chat area without a background.
     if (isUser) {
-        QColor bubbleColor = option.palette.color(QPalette::Highlight);
+        QColor bubbleColor(0x2a, 0x62, 0xb5);
         if (!error.isEmpty())
             bubbleColor = QColor(0x5a, 0x1d, 0x1d);
         painter->setPen(Qt::NoPen);
@@ -290,7 +319,7 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     QFont toolFont = option.font;
     toolFont.setItalic(true);
     painter->setFont(toolFont);
-    painter->setPen(option.palette.color(QPalette::Text).darker(120));
+    painter->setPen(QColor(0x50, 0x50, 0x50));
     for (const auto &call : toolCalls) {
         QTextDocument callDoc;
         callDoc.setDefaultFont(toolFont);
@@ -329,6 +358,23 @@ QSize ChatDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelInd
     const int height =
         (layout.contentRect.top() - option.rect.top()) + layout.contentRect.height() + kItemSpacing;
     return {option.rect.width(), height};
+}
+
+bool ChatDelegate::editorEvent(QEvent *event, QAbstractItemModel *model,
+                               const QStyleOptionViewItem &option, const QModelIndex &index) {
+    if (event->type() != QEvent::MouseButtonRelease)
+        return QStyledItemDelegate::editorEvent(event, model, option, index);
+    const auto *mouse = dynamic_cast<const QMouseEvent *>(event);
+    const bool isUser = index.data(static_cast<int>(Qt::UserRole)).toBool();
+    if (!mouse || !copyButtonRect(option, isUser).contains(mouse->pos()))
+        return QStyledItemDelegate::editorEvent(event, model, option, index);
+    QString text = index.data(Qt::DisplayRole).toString();
+    const QString error = index.data(static_cast<int>(Qt::UserRole) + 3).toString();
+    if (!error.isEmpty())
+        text = error;
+    if (!text.isEmpty())
+        QGuiApplication::clipboard()->setText(text);
+    return true;
 }
 
 } // namespace ocapi

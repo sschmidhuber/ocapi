@@ -147,4 +147,5 @@ qt_add_resources(ocapi "ocapi_resources"
     FILES
         ../resources/icons/ocapi.svg
         ../resources/icons/microphone.svg
+        ../resources/icons/attach.svg
 )

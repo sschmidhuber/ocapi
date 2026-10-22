@@ -111,7 +111,13 @@ ChatView::ChatView(QWidget *parent) : QListView(parent) {
     setWordWrap(true);
     setUniformItemSizes(false);
     setSpacing(2);
-    viewport()->setAutoFillBackground(false);
+    // White conversation background, independent of the widget theme.
+    QPalette viewPalette = palette();
+    viewPalette.setColor(QPalette::Base, Qt::white);
+    viewPalette.setColor(QPalette::Window, Qt::white);
+    setPalette(viewPalette);
+    viewport()->setAutoFillBackground(true);
+    viewport()->setPalette(viewPalette);
 }
 
 void ChatView::prependMessages(const QVector<Message> &messages) {

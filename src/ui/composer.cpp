@@ -47,11 +47,18 @@ bool isDocumentFile(const QUrl &url) {
 }
 
 QString nameFilter() {
-    return ImagePreprocessor::supportedNameFilter() +
+    // "All supported files" is the first entry, so the dialog defaults to
+    // it; the specific categories remain selectable as alternatives.
+    return QStringLiteral("All supported files (*.jpg *.jpeg *.png *.webp *.jxl *.avif "
+                          "*.tif *.tiff *.gif *.pdf *.docx *.xlsx *.pptx *.odt *.ods *.odp "
+                          "*.zip *.tar *.tar.gz *.tgz *.tar.bz2 *.tar.xz *.7z *.eml *.mbox "
+                          "*.txt *.md *.csv *.json *.xml *.yaml *.yml *.log *.c *.cc *.cpp "
+                          "*.cxx *.h *.hpp *.py *.js *.ts *.java *.rs *.go *.rb *.sh *.sql);;") +
+           ImagePreprocessor::supportedNameFilter() +
            QStringLiteral(";;PDF documents (*.pdf);;Office documents "
                           "(*.docx *.xlsx *.pptx *.odt *.ods *.odp);;Archives "
                           "(*.zip *.tar *.tar.gz *.tgz *.tar.bz2 *.tar.xz *.7z);;E-mail "
-                          "(*.eml *.mbox);;Text files (*)");
+                          "(*.eml *.mbox);;All files (*)");
 }
 
 } // namespace
@@ -123,7 +130,15 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     rowLayout->setSpacing(2);
     m_textEdit = new MessageTextEdit(row);
     m_attachButton = new QToolButton(this);
-    m_attachButton->setText(QStringLiteral("+"));
+    const QIcon attachIcon =
+        QIcon::fromTheme(QStringLiteral("mail-attachment"),
+                         QIcon(QString::fromUtf8(":/resources/icons/attach.svg")));
+    if (!attachIcon.isNull()) {
+        m_attachButton->setIcon(attachIcon);
+        m_attachButton->setIconSize(QSize(18, 18));
+    } else {
+        m_attachButton->setText(QStringLiteral("+"));
+    }
     m_attachButton->setToolTip(tr("Attach images, documents or text files"));
     m_attachButton->setAutoRaise(true);
     m_attachButton->setFixedSize(28, 28);
@@ -166,6 +181,15 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
             return;
         emit dictationRequested();
     });
+}
+
+void Composer::setDictationAvailable(bool available) {
+    m_dictationAvailable = available;
+    m_micButton->setVisible(available);
+    if (!available) {
+        m_dictationActive = false;
+        m_micButton->setChecked(false);
+    }
 }
 
 void Composer::setDictationActive(bool active) {

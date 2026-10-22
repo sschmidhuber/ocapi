@@ -155,10 +155,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     loadBackendsFromDatabase();
     loadMcpServersFromDatabase();
     loadSttSettingsFromDatabase();
-    configureVoiceInput();
 
     setupUi();
     setupConnections();
+
+    // Voice input setup needs the composer, which setupUi() creates.
+    configureVoiceInput();
 
     // TTS setup needs m_speakButton, which setupUi() creates.
     loadTtsSettingsFromDatabase();
@@ -209,33 +211,18 @@ void MainWindow::setupUi() {
     auto *composerColumnLayout = new QVBoxLayout(composerColumn);
     composerColumnLayout->setContentsMargins(8, 0, 8, 8);
     composerColumnLayout->setSpacing(4);
-
-    // Row above the input: single compact backend/model picker plus the
-    // audio and file input buttons.
-    auto *pickerRow = new QWidget(composerColumn);
-    auto *pickerLayout = new QHBoxLayout(pickerRow);
-    pickerLayout->setContentsMargins(0, 0, 0, 0);
-    pickerLayout->setSpacing(6);
     m_composer = new Composer(composerColumn);
     m_composer->setMaximumHeight(160);
-
-    m_modelPicker = new ModelPickerButton(pickerRow);
-    m_modelPicker->setToolTip(tr("Select model backend and model"));
-    pickerLayout->addWidget(m_modelPicker, 1);
-    pickerLayout->addStretch(1);
-    m_composer->micButton()->setParent(pickerRow);
-    m_composer->attachButton()->setParent(pickerRow);
-    pickerLayout->addWidget(m_composer->micButton());
-    pickerLayout->addWidget(m_composer->attachButton());
-    composerColumnLayout->addWidget(pickerRow);
-
     composerColumnLayout->addWidget(m_composer);
 
-    // Row below the input: send/stop.
+    // Row below the input: model picker, audio and file input buttons,
+    // then send/stop.
     auto *footerRow = new QWidget(composerColumn);
     auto *footerLayout = new QHBoxLayout(footerRow);
     footerLayout->setContentsMargins(0, 0, 0, 0);
     footerLayout->setSpacing(6);
+    m_modelPicker = new ModelPickerButton(footerRow);
+    m_modelPicker->setToolTip(tr("Select model backend and model"));
     m_sendButton = new QPushButton(tr("Send"), footerRow);
     m_stopButton = new QPushButton(tr("Stop"), footerRow);
     m_stopButton->setVisible(false);
@@ -243,7 +230,12 @@ void MainWindow::setupUi() {
     m_speakButton->setCheckable(true);
     m_speakButton->setToolTip(tr("Speak assistant responses aloud"));
     m_speakButton->setVisible(false);
+    footerLayout->addWidget(m_modelPicker, 1);
     footerLayout->addStretch(1);
+    m_composer->micButton()->setParent(footerRow);
+    m_composer->attachButton()->setParent(footerRow);
+    footerLayout->addWidget(m_composer->micButton());
+    footerLayout->addWidget(m_composer->attachButton());
     footerLayout->addWidget(m_speakButton);
     footerLayout->addWidget(m_sendButton);
     footerLayout->addWidget(m_stopButton);
@@ -522,6 +514,9 @@ void MainWindow::onSpeakResponsesToggled() {
 
 void MainWindow::configureVoiceInput() {
     const auto services = m_sttRegistry.enabled();
+    // Dictation is only offered when a speech-to-text service exists.
+    if (m_composer)
+        m_composer->setDictationAvailable(!services.isEmpty());
     QString activeId = m_sttRegistry.activeServiceId();
     const SttServiceConfig *active = nullptr;
     for (const auto &service : services) {

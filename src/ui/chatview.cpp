@@ -3,6 +3,10 @@
 #include "ui/chatdelegate.h"
 
 #include <QAbstractListModel>
+#include <QClipboard>
+#include <QContextMenuEvent>
+#include <QGuiApplication>
+#include <QMenu>
 #include <QResizeEvent>
 #include <QScrollBar>
 
@@ -170,6 +174,27 @@ void ChatView::resizeEvent(QResizeEvent *event) {
     // Force size hints to be recomputed for the new width.
     if (model())
         emit model() -> layoutChanged();
+}
+
+void ChatView::contextMenuEvent(QContextMenuEvent *event) {
+    const QModelIndex index = indexAt(event->pos());
+    if (!index.isValid())
+        return;
+    QMenu menu(this);
+    const QAction *copyAction = menu.addAction(tr("Copy message"));
+    if (menu.exec(event->globalPos()) == copyAction)
+        copyMessage(index);
+}
+
+void ChatView::copyMessage(const QModelIndex &index) {
+    const QString content = index.data(Qt::DisplayRole).toString();
+    const QString error = index.data(ErrorRole).toString();
+    QString text = content;
+    if (!error.isEmpty())
+        text = error;
+    if (text.isEmpty())
+        return;
+    QGuiApplication::clipboard()->setText(text);
 }
 
 } // namespace ocapi

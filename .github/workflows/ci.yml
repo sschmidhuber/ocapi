@@ -93,7 +93,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            cmake ninja-build libgl1-mesa-dev \
+            cmake ninja-build ccache libgl1-mesa-dev \
             xvfb dbus-x11 at-spi2-core imagemagick \
             python3-pip python3-venv \
             python3-gi python3-pyatspi \
@@ -106,9 +106,31 @@ jobs:
           version: 6.8.2
           modules: qtmultimedia qtwebsockets
 
+      # Caches compiled object files so the E2E build reuses the build-test
+      # job's cache (same sources, same compiler flags). Falls back to its own
+      # cache when build-test has not run or its cache was evicted.
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-e2e-${{ runner.os }}-qt6.8.2-${{ hashFiles('CMakeLists.txt', 'src/CMakeLists.txt') }}
+          restore-keys: |
+            ccache-e2e-${{ runner.os }}-qt6.8.2-
+            ccache-build-test-${{ runner.os }}-qt6.8.2-
+          max-size: 500
+
+      - name: Configure ccache
+        run: |
+          ccache --set-config=cache_dir="$PWD/.ccache"
+          ccache --set-config=max_size=500M
+          ccache --set-config=compression=true
+          ccache --set-config=sloppiness=file_macro,time_macros
+          ccache -z
+
       - name: Build ocapi
         run: |
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DOCAPI_BUILD_TESTS=OFF
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DOCAPI_BUILD_TESTS=OFF \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build
 
       # The WebDriver server needs the distro Python (pyatspi/gi are system

@@ -33,7 +33,8 @@ constexpr int kMessagesPerPage = 50;
 ModelPickerButton::ModelPickerButton(QWidget *parent) : QToolButton(parent) {
     setPopupMode(QToolButton::InstantPopup);
     setToolButtonStyle(Qt::ToolButtonTextOnly);
-    setAccessibleName(tr("Model backend and model"));
+    // No explicit accessible name: AT-SPI then exposes the button text
+    // ("Backend | model"), which the E2E test relies on.
     connect(this, &QToolButton::clicked, this, &ModelPickerButton::showMenu);
 }
 

@@ -2,7 +2,8 @@
 # Build an installable DEB package for ocapi.
 #
 # Requirements (Debian / Ubuntu):
-#   sudo apt-get install build-essential cmake qt6-base-dev qt6-base-dev-tools \
+#   sudo apt-get install build-essential cmake ninja-build qt6-base-dev \
+#     qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev \
 #     libqt6sql6-sqlite libgl-dev dpkg-dev
 #
 # Usage:
@@ -48,6 +49,26 @@ cmake --build "$PKG_DIR/build"
 echo ">> Staging install tree"
 DESTDIR="$STAGE" cmake --install "$PKG_DIR/build" --prefix /usr
 
+# Resolve runtime dependencies from the staged binaries with dpkg-shlibdeps
+# so the package names match the Debian/Ubuntu release the build runs on
+# (e.g. libqt6core6t64 on trixie/noble). qt6-base is not a Debian package.
+DEPS=""
+if command -v dpkg-shlibdeps >/dev/null 2>&1; then
+    DEPS="$(dpkg-shlibdeps -O --ignore-missing-info "$STAGE/usr/bin/ocapi" 2>/dev/null \
+        | sed -n 's/^shlibs:Depends=//p' | sed 's/,$//')"
+fi
+if [ -z "$DEPS" ]; then
+    echo "!! dpkg-shlibdeps unavailable or failed, falling back to hardcoded depends" >&2
+    DEPS="libc6 (>= 2.34), libstdc++6 (>= 13), libgcc-s1,
+ libqt6core6t64 (>= 6.5), libqt6gui6t64 (>= 6.5), libqt6widgets6t64 (>= 6.5),
+ libqt6network6t64 (>= 6.5), libqt6sql6t64 (>= 6.5),
+ libqt6multimedia6t64 (>= 6.5), libqt6websockets6t64 (>= 6.5),
+ libgl1, libegl1, libxkbcommon0, libfontconfig1,
+ libdbus-1-3, libglib2.0-0t64"
+fi
+# The SQLite Qt SQL plugin is loaded at runtime, not linked.
+DEPS="$DEPS, libqt6sql6-sqlite"
+
 cat > "$DEBIAN/control" <<EOF
 Package: ocapi
 Version: $VERSION-1
@@ -55,9 +76,7 @@ Section: net
 Priority: optional
 Architecture: $ARCH
 Maintainer: ocapi <ocapi@sschmidhuber.dev>
-Depends: libc6 (>= 2.34), libstdc++6 (>= 13), libgcc-s1,
- qt6-base (>= 6.5), libqt6sql6-sqlite, libgl1, libegl1, libxkbcommon0,
- libfontconfig1, libdbus-1-3, libglib2.0-0
+Depends: $DEPS
 Homepage: https://github.com/sschmidhuber/ocapi
 Description: A desktop chat client for local and cloud LLM inference backends
  ocapi talks to local inference servers (Ollama, llama.cpp, vLLM) and cloud

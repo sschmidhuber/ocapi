@@ -54,7 +54,7 @@ private slots:
 private:
     void setupUi();
     void setupConnections();
-    void connectStreamingSignals(IBackend *backend);
+    void connectStreamingSignals(IBackend *backend) const;
     void onTokenReceived(const QUuid &messageId, const QString &text);
     void onStreamFinished(const QUuid &messageId);
     void onStreamFailed(const QUuid &messageId, const QString &error);

@@ -266,6 +266,19 @@ bool SentenceSplitter::stripOrdinaryChar(QChar ch, QString &out) {
     }
     if (ch == QLatin1Char('*') || ch == QLatin1Char('_') || ch == QLatin1Char('~'))
         return true; // emphasis/strikethrough markers
+    if (stripLinkChar(ch, out))
+        return true;
+    if (stripHtmlChar(ch, out))
+        return true;
+    if (ch == QLatin1Char('>') && m_atLineStart)
+        return true; // blockquote marker
+    return false;
+}
+
+// Handles link markup: [text](url), [text][ref] and bare [text]. The link
+// text is kept, the URL/reference part is dropped. Returns true when the
+// character was fully handled.
+bool SentenceSplitter::stripLinkChar(QChar ch, QString &out) {
     if (m_skippingLinkUrl) {
         if (ch == QLatin1Char(')'))
             m_skippingLinkUrl = false;
@@ -311,6 +324,12 @@ bool SentenceSplitter::stripOrdinaryChar(QChar ch, QString &out) {
         m_atLineStart = false;
         return true;
     }
+    return false;
+}
+
+// Handles HTML tags: <...> is dropped, <br> becomes a newline. Returns true
+// when the character was fully handled.
+bool SentenceSplitter::stripHtmlChar(QChar ch, QString &out) {
     if (m_inHtmlTag) {
         if (ch == QLatin1Char('>')) {
             m_inHtmlTag = false;
@@ -329,8 +348,6 @@ bool SentenceSplitter::stripOrdinaryChar(QChar ch, QString &out) {
         m_atLineStart = false;
         return true;
     }
-    if (ch == QLatin1Char('>') && m_atLineStart)
-        return true; // blockquote marker
     return false;
 }
 

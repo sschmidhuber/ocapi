@@ -693,7 +693,7 @@ void MainWindow::connectBackend(IBackend *backend) {
     connectStreamingSignals(backend);
 }
 
-void MainWindow::connectStreamingSignals(IBackend *backend) {
+void MainWindow::connectStreamingSignals(IBackend *backend) const {
     connect(backend, &IBackend::tokenReceived, this, &MainWindow::onTokenReceived);
     connect(backend, &IBackend::finished, this, &MainWindow::onStreamFinished);
     connect(backend, &IBackend::failed, this, &MainWindow::onStreamFailed);

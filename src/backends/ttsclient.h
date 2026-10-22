@@ -7,6 +7,9 @@
 #include <QPair>
 #include <QString>
 
+#include <deque>
+#include <vector>
+
 class QNetworkAccessManager;
 class QNetworkReply;
 
@@ -52,8 +55,8 @@ private:
         QString text;
         int sequence = 0;
     };
-    QVector<PendingRequest> m_queue{};
-    QVector<PendingRequest> m_inFlight{};
+    std::deque<PendingRequest> m_queue{};
+    std::vector<PendingRequest> m_inFlight{};
     // Completed replies waiting for earlier sequences, keyed by sequence.
     QHash<int, QPair<QByteArray, QString>> m_completed{};
     int m_nextSequence = 0;

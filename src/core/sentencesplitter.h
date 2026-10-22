@@ -39,6 +39,10 @@ private:
     void stripBacktick(const QString &text, qsizetype &i, QString &out);
     void stripFenceCandidate(QString &out);
     bool stripOrdinaryChar(QChar ch, QString &out);
+    // Sub-handlers of stripOrdinaryChar, split out to keep the cognitive
+    // complexity of the state machine below the clang-tidy threshold.
+    bool stripLinkChar(QChar ch, QString &out);
+    bool stripHtmlChar(QChar ch, QString &out);
 
     QString m_buffer;
     bool m_inCodeBlock = false;

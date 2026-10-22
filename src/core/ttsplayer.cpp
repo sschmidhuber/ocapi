@@ -182,7 +182,8 @@ void TtsPlayer::onDecodeBufferReady() {
         const auto *samples = buffer.constData<qint16>();
         const qsizetype oldSize = m_decodedPcm.size();
         m_decodedPcm.resize(oldSize + bytes);
-        std::memcpy(m_decodedPcm.data() + oldSize, samples, size_t(bytes));
+        auto destination = m_decodedPcm.mid(oldSize);
+        std::memcpy(destination.data(), samples, size_t(bytes));
     }
 }
 

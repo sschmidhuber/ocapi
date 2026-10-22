@@ -48,6 +48,7 @@ void TtsClient::synthesize(const QString &text) {
     if (text.trimmed().isEmpty())
         return;
     m_queue.push_back({text, m_nextSequence++});
+
     sendNext();
 }
 
@@ -61,8 +62,9 @@ void TtsClient::cancel() {
 void TtsClient::sendNext() {
     if (m_cancelled)
         return;
-    while (!m_queue.isEmpty() && m_inFlight.size() < kMaxInFlight) {
-        const PendingRequest request = m_queue.takeFirst();
+    while (!m_queue.empty() && m_inFlight.size() < kMaxInFlight) {
+        const PendingRequest request = m_queue.front();
+        m_queue.pop_front();
         m_inFlight.push_back(request);
 
         QNetworkReply *reply = nullptr;

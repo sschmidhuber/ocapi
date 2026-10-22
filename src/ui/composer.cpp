@@ -142,6 +142,9 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     m_micButton->setAutoRaise(true);
     m_micButton->setCheckable(true);
     m_micButton->setFixedSize(28, 28);
+    // The mic/attach buttons are laid out by MainWindow next to the model
+    // picker; the text edit fills the composer row.
+    rowLayout->addWidget(m_textEdit, 1);
     layout->addWidget(row);
 
     m_textEdit->setAccessibleName(tr("Message input"));

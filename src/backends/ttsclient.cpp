@@ -62,9 +62,8 @@ void TtsClient::cancel() {
 void TtsClient::sendNext() {
     if (m_cancelled)
         return;
-    while (!m_queue.empty() && m_inFlight.size() < kMaxInFlight) {
-        const PendingRequest request = m_queue.front();
-        m_queue.pop_front();
+    while (!m_queue.isEmpty() && m_inFlight.size() < kMaxInFlight) {
+        const PendingRequest request = m_queue.takeFirst();
         m_inFlight.push_back(request);
 
         QNetworkReply *reply = nullptr;
@@ -112,11 +111,12 @@ void TtsClient::sendNext() {
 
 void TtsClient::onReplyFinished(QNetworkReply *reply, int sequence) {
     reply->deleteLater();
-    m_inFlight.erase(std::remove_if(m_inFlight.begin(), m_inFlight.end(),
-                                    [sequence](const PendingRequest &request) {
-                                        return request.sequence == sequence;
-                                    }),
-                     m_inFlight.end());
+    for (auto it = m_inFlight.begin(); it != m_inFlight.end(); ++it) {
+        if (it->sequence == sequence) {
+            m_inFlight.erase(it);
+            break;
+        }
+    }
     if (m_cancelled)
         return;
 

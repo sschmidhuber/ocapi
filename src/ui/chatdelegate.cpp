@@ -405,6 +405,9 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
                                                                 layout.toolCallsHeight +
                                                                 layout.imageBlockHeight);
     doc->drawContents(painter);
+    painter->translate(
+        -(contentRect.left() + kBubblePadding),
+        -(contentRect.top() + kBubblePadding + layout.toolCallsHeight + layout.imageBlockHeight));
 
     // Footer below the content: copy button and throughput label.
     paintFooterRow(painter, option, layout, isUser, m_copiedIndex == index);

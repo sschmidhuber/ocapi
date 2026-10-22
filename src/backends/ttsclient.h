@@ -47,15 +47,15 @@ private:
     void flushCompleted();
 
     TtsServiceConfig m_config;
-    QNetworkAccessManager *m_nam;
+    QNetworkAccessManager *m_nam = nullptr;
     struct PendingRequest {
         QString text;
         int sequence = 0;
     };
-    QVector<PendingRequest> m_queue;
-    QVector<PendingRequest> m_inFlight;
+    QVector<PendingRequest> m_queue{};
+    QVector<PendingRequest> m_inFlight{};
     // Completed replies waiting for earlier sequences, keyed by sequence.
-    QHash<int, QPair<QByteArray, QString>> m_completed;
+    QHash<int, QPair<QByteArray, QString>> m_completed{};
     int m_nextSequence = 0;
     int m_nextPlaySequence = 0;
     bool m_cancelled = false;

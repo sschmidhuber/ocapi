@@ -54,7 +54,7 @@ public:
     [[nodiscard]] QStringList requestBodies() const { return m_bodies; }
     [[nodiscard]] QStringList authorizationHeaders() const { return m_authHeaders; }
     [[nodiscard]] QStringList xiApiKeyHeaders() const { return m_xiApiKeys; }
-    [[nodiscard]] int requestCount() const { return m_bodies.size(); }
+    [[nodiscard]] int requestCount() const { return static_cast<int>(m_bodies.size()); }
 
     void resetCounters() {
         m_bodies.clear();

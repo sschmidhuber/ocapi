@@ -161,149 +161,177 @@ QString SentenceSplitter::stripIncremental(const QString &text) {
     for (qsizetype i = 0; i < text.size(); ++i) {
         const QChar ch = text.at(i);
         if (ch == QLatin1Char('\n')) {
-            m_inInlineCode = false;
-            m_headingLevel = 0;
-            if (m_pendingFence > 0) {
-                // A fence candidate ended at the newline: literal backticks.
-                if (!m_inCodeBlock)
-                    out += QString(m_pendingFence, QLatin1Char('`'));
-                m_pendingFence = 0;
-            }
-            m_atLineStart = true;
-            if (!m_inCodeBlock)
-                out += QLatin1Char('\n');
+            stripNewline(out);
             continue;
         }
         if (ch == QLatin1Char('`')) {
-            // Backticks at the start of a line form a code fence when there
-            // are three or more (a fence also closes a code block); fewer
-            // backticks are literal text or an inline code span. The decision
-            // is deferred to the following character, so fences and code
-            // spans split across feed() calls are handled.
-            if (m_pendingFence == 1) {
-                // Second backtick of a fence candidate.
-                ++m_pendingFence;
-                continue;
-            }
-            if (m_pendingFence == 2) {
-                // Third backtick at line start: a code fence.
-                m_pendingFence = 0;
-                m_inCodeBlock = !m_inCodeBlock;
-                while (i + 1 < text.size() && text.at(i + 1) != QLatin1Char('\n'))
-                    ++i; // skip the language tag
-                m_atLineStart = false;
-                continue;
-            }
-            if (m_atLineStart && !m_inInlineCode) {
-                // First backtick at line start: start a fence candidate.
-                m_pendingFence = 1;
-                m_atLineStart = false;
-                continue;
-            }
-            if (!m_inCodeBlock)
-                m_inInlineCode = !m_inInlineCode;
-            m_atLineStart = false;
+            stripBacktick(text, i, out);
             continue;
         }
-        if (m_pendingFence == 1) {
-            // A single backtick at line start was not a fence: it opens an
-            // inline code span (or is content inside a code block).
-            m_pendingFence = 0;
-            if (!m_inCodeBlock)
-                m_inInlineCode = true;
-        } else if (m_pendingFence == 2) {
-            // A fence candidate interrupted by ordinary text: the buffered
-            // backticks were literal text.
-            if (!m_inCodeBlock)
-                out += QStringLiteral("``");
-            m_pendingFence = 0;
-        }
-        if (m_inCodeBlock || m_inInlineCode) {
-            m_atLineStart = false;
+        stripFenceCandidate(out);
+        if (stripOrdinaryChar(ch, out))
             continue;
-        }
-        if (ch == QLatin1Char('#') && m_atLineStart) {
-            m_headingLevel = 1;
-            m_atLineStart = false;
-            continue;
-        }
-        if (m_headingLevel > 0) {
-            if (ch == QLatin1Char('#'))
-                continue;       // additional '#' of the heading marker
-            m_headingLevel = 0; // first non-marker character starts the text
-        }
-        if (ch == QLatin1Char('*') || ch == QLatin1Char('_') || ch == QLatin1Char('~'))
-            continue; // emphasis/strikethrough markers
-        if (m_skippingLinkUrl) {
-            if (ch == QLatin1Char(')'))
-                m_skippingLinkUrl = false;
-            m_atLineStart = false;
-            continue;
-        }
-        if (m_inLinkText) {
-            if (ch == QLatin1Char(']')) {
-                // End of [text]; a '(' right after starts the URL part.
-                m_inLinkText = false;
-                m_awaitingLinkUrl = true;
-                m_atLineStart = false;
-                continue;
-            }
-            out += ch;
-            m_atLineStart = false;
-            continue;
-        }
-        if (m_awaitingLinkUrl) {
-            if (ch == QLatin1Char('(')) {
-                // Inline link [text](url): drop the URL, keep the text.
-                m_awaitingLinkUrl = false;
-                m_skippingLinkUrl = true;
-            } else if (ch == QLatin1Char('[')) {
-                // Reference-style link [text][ref]: drop the reference part.
-                m_awaitingLinkUrl = false;
-                m_skippingLinkRef = true;
-            } else if (!ch.isSpace()) {
-                // Not a link after all: the ']' was literal text.
-                m_awaitingLinkUrl = false;
-                out += ch;
-            }
-            m_atLineStart = false;
-            continue;
-        }
-        if (m_skippingLinkRef) {
-            if (ch == QLatin1Char(']'))
-                m_skippingLinkRef = false;
-            m_atLineStart = false;
-            continue;
-        }
-        if (ch == QLatin1Char('[')) {
-            m_inLinkText = true;
-            m_atLineStart = false;
-            continue;
-        }
-        if (m_inHtmlTag) {
-            if (ch == QLatin1Char('>')) {
-                m_inHtmlTag = false;
-                if (m_htmlTag.toLower().startsWith(QStringLiteral("br")))
-                    out += QLatin1Char('\n');
-                m_htmlTag.clear();
-            } else {
-                m_htmlTag += ch;
-            }
-            m_atLineStart = false;
-            continue;
-        }
-        if (ch == QLatin1Char('<')) {
-            m_inHtmlTag = true;
-            m_htmlTag.clear();
-            m_atLineStart = false;
-            continue;
-        }
-        if (ch == QLatin1Char('>') && m_atLineStart)
-            continue; // blockquote marker
         out += ch;
         m_atLineStart = false;
     }
     return out;
+}
+
+// Handles a newline: resets per-line state, flushes a pending fence
+// candidate as literal backticks and emits the newline (unless inside a
+// code block).
+void SentenceSplitter::stripNewline(QString &out) {
+    m_inInlineCode = false;
+    m_headingLevel = 0;
+    if (m_pendingFence > 0) {
+        // A fence candidate ended at the newline: literal backticks.
+        if (!m_inCodeBlock)
+            out += QString(m_pendingFence, QLatin1Char('`'));
+        m_pendingFence = 0;
+    }
+    m_atLineStart = true;
+    if (!m_inCodeBlock)
+        out += QLatin1Char('\n');
+}
+
+// Handles a backtick: backticks at the start of a line form a code fence
+// when there are three or more (a fence also closes a code block); fewer
+// backticks are literal text or an inline code span. The decision is
+// deferred to the following character, so fences and code spans split
+// across feed() calls are handled.
+void SentenceSplitter::stripBacktick(const QString &text, qsizetype &i, QString &out) {
+    Q_UNUSED(out);
+    if (m_pendingFence == 1) {
+        // Second backtick of a fence candidate.
+        ++m_pendingFence;
+        return;
+    }
+    if (m_pendingFence == 2) {
+        // Third backtick at line start: a code fence.
+        m_pendingFence = 0;
+        m_inCodeBlock = !m_inCodeBlock;
+        while (i + 1 < text.size() && text.at(i + 1) != QLatin1Char('\n'))
+            ++i; // skip the language tag
+        m_atLineStart = false;
+        return;
+    }
+    if (m_atLineStart && !m_inInlineCode) {
+        // First backtick at line start: start a fence candidate.
+        m_pendingFence = 1;
+        m_atLineStart = false;
+        return;
+    }
+    if (!m_inCodeBlock)
+        m_inInlineCode = !m_inInlineCode;
+    m_atLineStart = false;
+}
+
+// Resolves a pending fence candidate when a non-backtick, non-newline
+// character arrives: the buffered backticks were not a fence and become
+// an inline code span or literal text.
+void SentenceSplitter::stripFenceCandidate(QString &out) {
+    if (m_pendingFence == 1) {
+        // A single backtick at line start was not a fence: it opens an
+        // inline code span (or is content inside a code block).
+        m_pendingFence = 0;
+        if (!m_inCodeBlock)
+            m_inInlineCode = true;
+    } else if (m_pendingFence == 2) {
+        // A fence candidate interrupted by ordinary text: the buffered
+        // backticks were literal text.
+        if (!m_inCodeBlock)
+            out += QStringLiteral("``");
+        m_pendingFence = 0;
+    }
+}
+
+// Handles one ordinary (non-newline, non-backtick) character: code blocks
+// and spans are skipped, headings/emphasis/blockquote markers are dropped,
+// link URLs and HTML tags are stripped. Returns true when the character
+// was fully handled (not emitted to \p out).
+bool SentenceSplitter::stripOrdinaryChar(QChar ch, QString &out) {
+    if (m_inCodeBlock || m_inInlineCode) {
+        m_atLineStart = false;
+        return true;
+    }
+    if (ch == QLatin1Char('#') && m_atLineStart) {
+        m_headingLevel = 1;
+        m_atLineStart = false;
+        return true;
+    }
+    if (m_headingLevel > 0) {
+        if (ch == QLatin1Char('#'))
+            return true;    // additional '#' of the heading marker
+        m_headingLevel = 0; // first non-marker character starts the text
+    }
+    if (ch == QLatin1Char('*') || ch == QLatin1Char('_') || ch == QLatin1Char('~'))
+        return true; // emphasis/strikethrough markers
+    if (m_skippingLinkUrl) {
+        if (ch == QLatin1Char(')'))
+            m_skippingLinkUrl = false;
+        m_atLineStart = false;
+        return true;
+    }
+    if (m_inLinkText) {
+        if (ch == QLatin1Char(']')) {
+            // End of [text]; a '(' right after starts the URL part.
+            m_inLinkText = false;
+            m_awaitingLinkUrl = true;
+        } else {
+            out += ch;
+        }
+        m_atLineStart = false;
+        return true;
+    }
+    if (m_awaitingLinkUrl) {
+        if (ch == QLatin1Char('(')) {
+            // Inline link [text](url): drop the URL, keep the text.
+            m_awaitingLinkUrl = false;
+            m_skippingLinkUrl = true;
+        } else if (ch == QLatin1Char('[')) {
+            // Reference-style link [text][ref]: drop the reference part.
+            m_awaitingLinkUrl = false;
+            m_skippingLinkRef = true;
+        } else if (!ch.isSpace()) {
+            // Not a link after all: the ']' was literal text.
+            m_awaitingLinkUrl = false;
+            out += ch;
+        }
+        m_atLineStart = false;
+        return true;
+    }
+    if (m_skippingLinkRef) {
+        if (ch == QLatin1Char(']'))
+            m_skippingLinkRef = false;
+        m_atLineStart = false;
+        return true;
+    }
+    if (ch == QLatin1Char('[')) {
+        m_inLinkText = true;
+        m_atLineStart = false;
+        return true;
+    }
+    if (m_inHtmlTag) {
+        if (ch == QLatin1Char('>')) {
+            m_inHtmlTag = false;
+            if (m_htmlTag.toLower().startsWith(QStringLiteral("br")))
+                out += QLatin1Char('\n');
+            m_htmlTag.clear();
+        } else {
+            m_htmlTag += ch;
+        }
+        m_atLineStart = false;
+        return true;
+    }
+    if (ch == QLatin1Char('<')) {
+        m_inHtmlTag = true;
+        m_htmlTag.clear();
+        m_atLineStart = false;
+        return true;
+    }
+    if (ch == QLatin1Char('>') && m_atLineStart)
+        return true; // blockquote marker
+    return false;
 }
 
 } // namespace ocapi

@@ -7,11 +7,29 @@ namespace ocapi {
 namespace {
 
 quint16 readUint16(const QByteArray &data, qsizetype offset) {
-    return qFromLittleEndian<quint16>(data.constData() + offset);
+    const auto bytes = data.mid(offset, 2);
+    return qFromLittleEndian<quint16>(bytes.constData());
 }
 
 quint32 readUint32(const QByteArray &data, qsizetype offset) {
-    return qFromLittleEndian<quint32>(data.constData() + offset);
+    const auto bytes = data.mid(offset, 4);
+    return qFromLittleEndian<quint32>(bytes.constData());
+}
+
+// One RIFF chunk: its ID and declared size.
+struct RiffChunk {
+    QByteArray id;
+    quint32 size = 0;
+};
+
+// Reads the chunk header at \p offset. Returns false when fewer than 8 bytes
+// remain (no complete header).
+bool readChunkHeader(const QByteArray &data, qsizetype offset, RiffChunk &chunk) {
+    if (offset + 8 > data.size())
+        return false;
+    chunk.id = data.mid(offset, 4);
+    chunk.size = readUint32(data, offset + 4);
+    return true;
 }
 
 } // namespace
@@ -47,10 +65,9 @@ bool AudioFormat::wavInfo(const QByteArray &data, int *sampleRate, int *channels
         return false;
     // Walk the RIFF chunks to find "fmt ".
     qsizetype offset = 12;
-    while (offset + 8 <= data.size()) {
-        const QByteArray chunkId = data.mid(offset, 4);
-        const quint32 chunkSize = readUint32(data, offset + 4);
-        if (chunkId == "fmt " && offset + 8 + 16 <= data.size()) {
+    RiffChunk chunk;
+    while (readChunkHeader(data, offset, chunk)) {
+        if (chunk.id == "fmt " && offset + 8 + 16 <= data.size()) {
             if (channels)
                 *channels = readUint16(data, offset + 10);
             if (sampleRate)
@@ -59,7 +76,7 @@ bool AudioFormat::wavInfo(const QByteArray &data, int *sampleRate, int *channels
                 *bitsPerSample = readUint16(data, offset + 22);
             return true;
         }
-        offset += 8 + chunkSize + (chunkSize % 2); // chunks are word-aligned
+        offset += 8 + chunk.size + (chunk.size % 2); // chunks are word-aligned
     }
     return false;
 }
@@ -68,14 +85,13 @@ QByteArray AudioFormat::wavPcmData(const QByteArray &data) {
     if (detect(data) != Kind::Wav)
         return {};
     qsizetype offset = 12;
-    while (offset + 8 <= data.size()) {
-        const QByteArray chunkId = data.mid(offset, 4);
-        const quint32 chunkSize = readUint32(data, offset + 4);
-        if (chunkId == "data") {
-            const qsizetype available = qMin<qsizetype>(chunkSize, data.size() - offset - 8);
+    RiffChunk chunk;
+    while (readChunkHeader(data, offset, chunk)) {
+        if (chunk.id == "data") {
+            const qsizetype available = qMin<qsizetype>(chunk.size, data.size() - offset - 8);
             return data.mid(offset + 8, available);
         }
-        offset += 8 + chunkSize + (chunkSize % 2);
+        offset += 8 + chunk.size + (chunk.size % 2);
     }
     return {};
 }

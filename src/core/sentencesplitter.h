@@ -31,6 +31,14 @@ private:
     // Strips markup from \p text using the splitter's incremental state and
     // returns the cleaned chunk to append to the buffer.
     QString stripIncremental(const QString &text);
+    // Per-character markup stripping, split out of stripIncremental to keep
+    // the cognitive complexity of the state machine manageable. \p i is the
+    // current index into \p text; helpers may advance it (e.g. to skip a
+    // language tag after a fence). \p out receives the cleaned characters.
+    void stripNewline(QString &out);
+    void stripBacktick(const QString &text, qsizetype &i, QString &out);
+    void stripFenceCandidate(QString &out);
+    bool stripOrdinaryChar(QChar ch, QString &out);
 
     QString m_buffer;
     bool m_inCodeBlock = false;

@@ -12,6 +12,8 @@
 #include <QMediaDevices>
 #include <QTimer>
 
+#include <cstring>
+
 namespace ocapi {
 
 TtsPlayer::TtsPlayer(QObject *parent) : QObject(parent) {
@@ -177,8 +179,10 @@ void TtsPlayer::onDecodeBufferReady() {
         if (buffer.frameCount() <= 0)
             break;
         const qsizetype bytes = buffer.byteCount();
-        const char *raw = reinterpret_cast<const char *>(buffer.constData<qint16>());
-        m_decodedPcm.append(raw, bytes);
+        const auto *samples = buffer.constData<qint16>();
+        const qsizetype oldSize = m_decodedPcm.size();
+        m_decodedPcm.resize(oldSize + bytes);
+        std::memcpy(m_decodedPcm.data() + oldSize, samples, size_t(bytes));
     }
 }
 

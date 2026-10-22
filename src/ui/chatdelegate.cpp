@@ -161,7 +161,7 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     }
 
     const int maxTextWidth =
-        option.rect.width() * kMaxBubbleWidthFraction / 100 - 2 * kBubblePadding;
+        (option.rect.width() * kMaxBubbleWidthFraction / 100) - (2 * kBubblePadding);
 
     std::unique_ptr<QTextDocument> doc;
     if (!error.isEmpty()) {
@@ -204,9 +204,9 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     const int imageBlockWidth = imagesBlockWidth(images);
     const int imageBlockHeight = images.isEmpty() ? 0 : imagesBlockHeight(images) + kImageSpacing;
     const int contentWidth =
-        qMax(textSize.width(), qMin(imageBlockWidth, maxTextWidth)) + 2 * kBubblePadding;
+        qMax(textSize.width(), qMin(imageBlockWidth, maxTextWidth)) + (2 * kBubblePadding);
     const int contentHeight =
-        textSize.height() + imageBlockHeight + toolCallsHeight + 2 * kBubblePadding + 18;
+        textSize.height() + imageBlockHeight + toolCallsHeight + (2 * kBubblePadding) + 18;
 
     QRect bubbleRect;
     if (isUser) {
@@ -245,7 +245,7 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     for (const auto &call : toolCalls) {
         QTextDocument callDoc;
         callDoc.setDefaultFont(toolFont);
-        callDoc.setTextWidth(bubbleRect.width() - 2 * kBubblePadding);
+        callDoc.setTextWidth(bubbleRect.width() - (2 * kBubblePadding));
         callDoc.setPlainText(toolCallDisplayText(call));
         const int callHeight = callDoc.size().toSize().height();
         painter->translate(bubbleRect.left() + kBubblePadding, toolY);
@@ -281,9 +281,9 @@ QSize ChatDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelInd
     const QVector<QImage> images = decodeImages(index);
     const int maxTextWidth =
         option.rect.width() > 0
-            ? option.rect.width() * kMaxBubbleWidthFraction / 100 - 2 * kBubblePadding
+            ? (option.rect.width() * kMaxBubbleWidthFraction / 100) - (2 * kBubblePadding)
             : 400;
-    int textHeight;
+    int textHeight = 0;
     if (!error.isEmpty()) {
         QTextDocument doc;
         doc.setDefaultFont(option.font);
@@ -298,7 +298,7 @@ QSize ChatDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelInd
     const int toolCallsHeight =
         toolCallsBlockHeight(decodeToolCalls(index), option.font, maxTextWidth);
     return {option.rect.width(),
-            textHeight + imageBlockHeight + toolCallsHeight + 2 * kBubblePadding + 18 + 8 + 14};
+            textHeight + imageBlockHeight + toolCallsHeight + (2 * kBubblePadding) + 18 + 8 + 14};
 }
 
 } // namespace ocapi

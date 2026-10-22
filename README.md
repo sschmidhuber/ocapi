@@ -128,6 +128,10 @@ Install:
 cmake --install build   # or: sudo cmake --install build --prefix /usr
 ```
 
+> **AI agent sandboxes** (no root, no system Qt): see
+> [docs/sandbox-setup.md](docs/sandbox-setup.md) for a step-by-step guide to
+> install Qt 6.8.2 and all build dependencies into a user-writable prefix.
+
 ## Packaging
 
 Scripts to build installable packages live in [packaging/](packaging/README.md):

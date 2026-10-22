@@ -146,4 +146,5 @@ qt_add_resources(ocapi "ocapi_resources"
     PREFIX "/"
     FILES
         ../resources/icons/ocapi.svg
+        ../resources/icons/microphone.svg
 )

@@ -25,7 +25,7 @@
 # application tree (QAccessibleApplication::topLevelObjects), so popup
 # menu items cannot be driven with this stack. The backend setup flow is
 # therefore verified through the widgets it populates instead of the
-# Tools popup menu.
+# model picker's popup menu.
 
 import os
 import unittest
@@ -82,11 +82,11 @@ class OcapiE2E(unittest.TestCase):
         # The mock backend was seeded on startup (OCAPI_E2E_MOCK_BACKEND)
         # and is the active backend; its model was detected through a real
         # GET /api/tags round-trip against the mock server.
-        backend = self.wait_for("//combo_box[@name='Mock backend']")
-        self.assertIn("Mock backend", backend.text)
-
-        model = self.find_by_xpath("//combo_box[contains(@name, 'mock-model')]")
-        self.assertIn("mock-model", model.text)
+        # The picker is a QToolButton whose text ("Backend | model") doubles
+        # as its AT-SPI accessible name; match by the backend name it shows.
+        picker = self.wait_for("//*[contains(@name, 'Mock backend')]")
+        self.assertIn("Mock backend", picker.text)
+        self.assertIn("mock-model", picker.text)
 
     def test_03_chat(self):
         # Type a message, send it and wait for the streamed reply.

@@ -5,6 +5,7 @@
 
 #include <QPair>
 #include <QPlainTextEdit>
+#include <QToolButton>
 #include <QVector>
 #include <QWidget>
 
@@ -39,6 +40,7 @@ public:
 
     void setSendEnabled(bool enabled);
     void setBusy(bool busy);
+    [[nodiscard]] bool isBusy() const { return m_busy; }
     void focusInput();
 
     [[nodiscard]] QString text() const;
@@ -55,6 +57,12 @@ public:
 
     void attachFiles();
     void clearAttachments();
+
+    // The mic and attach buttons are created here (behavior, tooltips,
+    // state handling) but laid out by the parent, so they can share a row
+    // with the model selector.
+    [[nodiscard]] QToolButton *micButton() const { return m_micButton; }
+    [[nodiscard]] QToolButton *attachButton() const { return m_attachButton; }
 
 signals:
     void sendRequested(const QString &text, const QVector<ocapi::ImageAttachment> &images);

@@ -9,7 +9,6 @@
 #include "ui/settingsdialog.h"
 #include "ui/sidebar.h"
 
-#include <QComboBox>
 #include <QDateTime>
 #include <QDir>
 #include <QHBoxLayout>
@@ -28,6 +27,85 @@ namespace ocapi {
 namespace {
 
 constexpr int kMessagesPerPage = 50;
+
+} // namespace
+
+ModelPickerButton::ModelPickerButton(QWidget *parent) : QToolButton(parent) {
+    setPopupMode(QToolButton::InstantPopup);
+    setToolButtonStyle(Qt::ToolButtonTextOnly);
+    // No explicit accessible name: AT-SPI then exposes the button text
+    // ("Backend | model"), which the E2E test relies on.
+    connect(this, &QToolButton::clicked, this, &ModelPickerButton::showMenu);
+}
+
+void ModelPickerButton::setBackendAndModel(const QString &backendName, const QString &backendId,
+                                           const QString &model) {
+    const bool changed = m_backendId != backendId || m_model != model;
+    m_backendName = backendName;
+    m_backendId = backendId;
+    m_model = model;
+    const QString label = model.isEmpty() ? backendName : tr("%1 | %2").arg(backendName, model);
+    setText(label.isEmpty() ? tr("Select backend and model…") : label);
+    if (model.isEmpty() || m_models.value(m_backendId).contains(model)) {
+        if (changed)
+            rebuildMenu();
+        return;
+    }
+    QStringList entry = m_models.value(m_backendId);
+    entry.append(model);
+    m_models.insert(m_backendId, entry);
+    if (changed)
+        rebuildMenu();
+}
+
+void ModelPickerButton::setBackends(const QVector<QPair<QString, QString>> &backends,
+                                    const QHash<QString, QStringList> &models) {
+    m_backends = backends;
+    m_models = models;
+    rebuildMenu();
+}
+
+void ModelPickerButton::addModels(const QString &backendId, const QStringList &models) {
+    QStringList list = m_models.value(backendId);
+    for (const QString &model : models) {
+        if (!list.contains(model))
+            list.append(model);
+    }
+    m_models.insert(backendId, list);
+    rebuildMenu();
+}
+
+void ModelPickerButton::rebuildMenu() {
+    auto *menu = new QMenu(this);
+    for (const auto &[name, id] : m_backends) {
+        auto *backendAction = menu->addAction(name);
+        backendAction->setCheckable(true);
+        backendAction->setChecked(id == m_backendId);
+        connect(backendAction, &QAction::triggered, this, [this, id, name]() {
+            setBackendAndModel(name, id, m_models.value(id).value(0));
+            emit backendSelected(id);
+        });
+        auto *section = new QMenu(name, menu);
+        backendAction->setMenu(section);
+        const QStringList list = m_models.value(id);
+        if (list.isEmpty()) {
+            auto *none = section->addAction(tr("No models detected yet"));
+            none->setEnabled(false);
+        }
+        for (const QString &model : list) {
+            auto *action = section->addAction(model);
+            action->setCheckable(true);
+            action->setChecked(id == m_backendId && model == m_model);
+            connect(action, &QAction::triggered, this, [this, id, name, model]() {
+                setBackendAndModel(name, id, model);
+                emit modelSelected(id, model);
+            });
+        }
+    }
+    setMenu(menu);
+}
+
+namespace {
 
 QString defaultDatabasePath() {
     const QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
@@ -120,7 +198,7 @@ void MainWindow::setupUi() {
 
     m_emptyLabel =
         new QLabel(tr("Select a chat or start a new one.\n\n"
-                      "Set up a backend via \"Tools → Model backends…\" to get started."),
+                      "Set up a backend via \"Settings… → Model backends\" to get started."),
                    rightPanel);
     m_emptyLabel->setAlignment(Qt::AlignCenter);
     m_emptyLabel->setStyleSheet(QStringLiteral("color: gray;"));
@@ -131,20 +209,33 @@ void MainWindow::setupUi() {
     auto *composerColumnLayout = new QVBoxLayout(composerColumn);
     composerColumnLayout->setContentsMargins(8, 0, 8, 8);
     composerColumnLayout->setSpacing(4);
+
+    // Row above the input: single compact backend/model picker plus the
+    // audio and file input buttons.
+    auto *pickerRow = new QWidget(composerColumn);
+    auto *pickerLayout = new QHBoxLayout(pickerRow);
+    pickerLayout->setContentsMargins(0, 0, 0, 0);
+    pickerLayout->setSpacing(6);
     m_composer = new Composer(composerColumn);
     m_composer->setMaximumHeight(160);
+
+    m_modelPicker = new ModelPickerButton(pickerRow);
+    m_modelPicker->setToolTip(tr("Select model backend and model"));
+    pickerLayout->addWidget(m_modelPicker, 1);
+    pickerLayout->addStretch(1);
+    m_composer->micButton()->setParent(pickerRow);
+    m_composer->attachButton()->setParent(pickerRow);
+    pickerLayout->addWidget(m_composer->micButton());
+    pickerLayout->addWidget(m_composer->attachButton());
+    composerColumnLayout->addWidget(pickerRow);
+
     composerColumnLayout->addWidget(m_composer);
 
-    // Footer row below the input: backend + model selectors and send/stop.
+    // Row below the input: send/stop.
     auto *footerRow = new QWidget(composerColumn);
     auto *footerLayout = new QHBoxLayout(footerRow);
     footerLayout->setContentsMargins(0, 0, 0, 0);
     footerLayout->setSpacing(6);
-    m_backendCombo = new QComboBox(footerRow);
-    m_modelCombo = new QComboBox(footerRow);
-    m_modelCombo->setEditable(true);
-    m_modelCombo->setMinimumWidth(180);
-    m_modelCombo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
     m_sendButton = new QPushButton(tr("Send"), footerRow);
     m_stopButton = new QPushButton(tr("Stop"), footerRow);
     m_stopButton->setVisible(false);
@@ -152,8 +243,6 @@ void MainWindow::setupUi() {
     m_speakButton->setCheckable(true);
     m_speakButton->setToolTip(tr("Speak assistant responses aloud"));
     m_speakButton->setVisible(false);
-    footerLayout->addWidget(m_backendCombo);
-    footerLayout->addWidget(m_modelCombo, 1);
     footerLayout->addStretch(1);
     footerLayout->addWidget(m_speakButton);
     footerLayout->addWidget(m_sendButton);
@@ -238,22 +327,22 @@ void MainWindow::setupConnections() {
         onSend(m_composer->composedText(), m_composer->attachments());
     });
     connect(m_stopButton, &QPushButton::clicked, this, &MainWindow::onStop);
-    connect(m_backendCombo, &QComboBox::currentIndexChanged, this, [this]() {
-        if (m_currentSession && m_backendCombo->currentData().isValid()) {
-            m_currentSession->setBackendId(m_backendCombo->currentData().toString());
+    connect(m_modelPicker, &ModelPickerButton::backendSelected, this, [this](const QString &id) {
+        if (m_currentSession && !id.isEmpty()) {
+            m_currentSession->setBackendId(id);
             syncSessionToDatabase(m_currentSession);
             disconnectBackend();
         }
         detectModels();
     });
-    connect(m_modelCombo, &QComboBox::currentTextChanged, this, [this](const QString &text) {
-        if (m_currentSession) {
-            m_currentSession->setModel(text.trimmed());
-            syncSessionToDatabase(m_currentSession);
-        }
-    });
-    connect(m_modelCombo, &QComboBox::activated, this,
-            [this](int) { onModelSelected(m_modelCombo->currentText()); });
+    connect(m_modelPicker, &ModelPickerButton::modelSelected, this,
+            [this](const QString &backendId, const QString &model) {
+                onModelSelected(backendId, model);
+                if (m_currentSession) {
+                    m_currentSession->setModel(model.trimmed());
+                    syncSessionToDatabase(m_currentSession);
+                }
+            });
     connect(&m_registry, &BackendRegistry::changed, this, &MainWindow::onBackendChanged);
     connect(&m_mcpManager, &McpManager::toolsChanged, this, &MainWindow::onMcpToolsChanged);
     connect(&m_mcpManager, &McpManager::permissionRequested, this,
@@ -345,8 +434,7 @@ void MainWindow::onSessionSelected(const QUuid &id) {
     const bool hasSession = m_currentSession != nullptr;
     m_composer->setEnabled(hasSession);
     m_sendButton->setEnabled(hasSession);
-    m_backendCombo->setEnabled(hasSession);
-    m_modelCombo->setEnabled(hasSession);
+    m_modelPicker->setEnabled(hasSession);
     updateEmptyState();
 }
 
@@ -528,6 +616,16 @@ void MainWindow::onBackendChanged() {
     detectModels();
 }
 
+QStringList MainWindow::knownModelsForBackend(const BackendConfig &config) const {
+    QStringList list;
+    if (!config.defaultModel.isEmpty())
+        list.push_back(config.defaultModel);
+    for (const QString &detected : m_detectedModels.value(config.id.toString()))
+        if (!list.contains(detected))
+            list.append(detected);
+    return list;
+}
+
 void MainWindow::refreshSidebar() {
     m_sidebar->setSessions(m_sessions);
     if (m_currentSession)
@@ -535,45 +633,55 @@ void MainWindow::refreshSidebar() {
 }
 
 void MainWindow::refreshBackendSelector() {
-    const QSignalBlocker blocker(m_backendCombo);
-    m_backendCombo->clear();
+    QVector<QPair<QString, QString>> backends;
+    QHash<QString, QStringList> models;
     for (const auto &config : m_registry.backends()) {
-        m_backendCombo->addItem(config.enabled ? config.name : tr("%1 (disabled)").arg(config.name),
-                                config.id.toString());
+        const QString name = config.enabled ? config.name : tr("%1 (disabled)").arg(config.name);
+        backends.push_back(qMakePair(name, config.id.toString()));
+        models.insert(config.id.toString(), knownModelsForBackend(config));
     }
 
     QString selectedId = m_currentSession ? m_currentSession->backendId() : QString();
-    if (selectedId.isEmpty() && !m_registry.backends().isEmpty())
-        selectedId = m_registry.backends().first().id.toString();
+    if (selectedId.isEmpty() && !backends.isEmpty())
+        selectedId = backends.first().second;
 
-    int index = m_backendCombo->findData(selectedId);
-    if (index < 0 && m_backendCombo->count() > 0)
-        index = 0;
-    m_backendCombo->setCurrentIndex(index);
-    if (m_currentSession && index >= 0)
-        m_currentSession->setBackendId(m_backendCombo->currentData().toString());
-
-    // Model combo: default model of the selected backend + editable entry.
-    const QSignalBlocker modelBlocker(m_modelCombo);
-    m_modelCombo->clear();
-    if (m_currentSession && index >= 0) {
-        const auto *config = m_registry.find(QUuid(m_backendCombo->currentData().toString()));
-        if (config && !config->defaultModel.isEmpty())
-            m_modelCombo->addItem(config->defaultModel);
-        if (!m_currentSession->model().isEmpty())
-            m_modelCombo->setCurrentText(m_currentSession->model());
-        else if (config && !config->defaultModel.isEmpty())
-            m_currentSession->setModel(config->defaultModel);
+    QString model = m_currentSession ? m_currentSession->model() : QString();
+    if (model.isEmpty()) {
+        const auto *foundConfig = m_registry.find(selectedId);
+        if (foundConfig && !foundConfig->defaultModel.isEmpty()) {
+            model = foundConfig->defaultModel;
+            if (m_currentSession)
+                m_currentSession->setModel(model);
+        }
     }
+
+    QString backendName;
+    for (const auto &entry : backends) {
+        if (entry.second == selectedId)
+            backendName = entry.first;
+    }
+
+    const QSignalBlocker blocker(m_modelPicker);
+    m_modelPicker->setBackends(backends, models);
+    m_modelPicker->setBackendAndModel(backendName, selectedId, model);
+    if (m_currentSession && !selectedId.isEmpty())
+        m_currentSession->setBackendId(selectedId);
 }
 
-void MainWindow::onModelSelected(const QString &model) {
+void MainWindow::addModelsToPicker(const QString &backendId, const QStringList &models) {
+    const QSignalBlocker blocker(m_modelPicker);
+    m_modelPicker->addModels(backendId, models);
+}
+
+void MainWindow::onModelSelected(const QString &backendId, const QString &model) {
+    if (m_currentSession && !backendId.isEmpty())
+        m_currentSession->setBackendId(backendId);
     if (m_currentSession)
         m_currentSession->setModel(model.trimmed());
 }
 
 void MainWindow::detectModels() {
-    const QString backendId = m_backendCombo->currentData().toString();
+    const QString backendId = m_modelPicker->currentBackendId();
     const auto *config = m_registry.find(backendId);
     if (!config || !config->enabled)
         return;
@@ -591,23 +699,17 @@ void MainWindow::onModelsDetected(const QStringList &models) {
     m_detectorBackend.reset();
     if (models.isEmpty())
         return;
-    const QString backendId = m_backendCombo->currentData().toString();
+    const QString backendId = m_modelPicker->currentBackendId();
     if (backendId != m_detectedBackendId)
         return;
-    const auto *config = m_registry.find(backendId);
-    if (!config)
+    if (!m_registry.find(backendId))
         return;
-    // Keep any currently selected model first; add detected models as choices.
-    const QString current = m_modelCombo->currentText();
-    const QSignalBlocker blocker(m_modelCombo);
-    m_modelCombo->clear();
-    if (!config->defaultModel.isEmpty())
-        m_modelCombo->addItem(config->defaultModel);
-    for (const auto &model : models) {
-        if (m_modelCombo->findText(model) < 0)
-            m_modelCombo->addItem(model);
-    }
-    m_modelCombo->setCurrentText(current);
+    QStringList cached = m_detectedModels.value(backendId);
+    for (const QString &model : models)
+        if (!cached.contains(model))
+            cached.append(model);
+    m_detectedModels.insert(backendId, cached);
+    addModelsToPicker(backendId, models);
 }
 
 double MainWindow::throughputFor(const QUuid &messageId) {
@@ -630,7 +732,7 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
     if (!config) {
         QMessageBox::warning(
             this, tr("No backend"),
-            tr("Please configure a backend first via \"Tools → Model backends…\"."));
+            tr("Please configure a backend first via \"Settings… → Model backends\"."));
         return;
     }
     if (!config->enabled) {
@@ -641,9 +743,10 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
 
     QString model = m_currentSession->model();
     if (model.isEmpty())
-        model = m_modelCombo->currentText().trimmed();
+        model = m_modelPicker->currentModel().trimmed();
     if (model.isEmpty()) {
-        QMessageBox::warning(this, tr("No model"), tr("Please enter or select a model name."));
+        QMessageBox::warning(this, tr("No model"),
+                             tr("Please select a model via the model picker above the input."));
         return;
     }
     m_currentSession->setModel(model);
@@ -828,7 +931,7 @@ void MainWindow::continueAfterToolResults(ChatSession *session) {
     }
     QString model = session->model();
     if (model.isEmpty())
-        model = m_modelCombo->currentText().trimmed();
+        model = m_modelPicker->currentModel().trimmed();
     m_backend = createBackend(*config);
     if (m_backend->supportsTools())
         m_backend->setAvailableTools(m_mcpManager.availableTools());
@@ -901,12 +1004,16 @@ void MainWindow::updateEmptyState() {
     m_chatView->setVisible(!m_emptyLabel->isVisible());
     if (noBackends)
         m_emptyLabel->setText(tr("No backends configured yet.\n\n"
-                                 "Click \"Tools → Model backends…\" to add Ollama, llama.cpp,\n"
+                                 "Open \"Settings… → Model backends\" to add Ollama, llama.cpp,\n"
                                  "vLLM, OpenAI, Anthropic, Google Gemini, Mistral AI or any\n"
                                  "OpenAI-compatible endpoint (local or remote)."));
     else if (noSession)
         m_emptyLabel->setText(tr("Select a chat or start a new one."));
-    m_composer->setEnabled(!noSession && !noBackends);
+    const bool enabled = !noSession && !noBackends;
+    m_composer->setEnabled(enabled);
+    // The mic/attach buttons live in the picker row, not inside the composer.
+    m_composer->micButton()->setEnabled(enabled && !m_composer->isBusy());
+    m_composer->attachButton()->setEnabled(enabled && !m_composer->isBusy());
     m_sendButton->setEnabled(!noSession && !noBackends);
 }
 

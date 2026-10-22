@@ -29,7 +29,7 @@ signals:
 private:
     QListWidget *m_list;
     QPushButton *m_newChatButton;
-    QPushButton *m_toolsButton;
+    QPushButton *m_settingsButton;
 };
 
 } // namespace ocapi

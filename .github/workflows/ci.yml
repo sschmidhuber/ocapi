@@ -195,10 +195,16 @@ jobs:
           (cd /tmp/swa \
             && FLASK_APP=selenium-webdriver-at-spi.py flask run --port 4723 --no-reload \
             &> "$RUNNER_TEMP/webdriver.log") &
-          for _ in $(seq 1 30); do
-            if curl -sf http://127.0.0.1:4723/status >/dev/null; then break; fi
+          webdriver_up=""
+          for _ in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:4723/status >/dev/null; then webdriver_up=1; break; fi
             sleep 0.5
           done
+          if [ -z "$webdriver_up" ]; then
+            echo "::error::AT-SPI WebDriver did not start on port 4723"
+            cat "$RUNNER_TEMP/webdriver.log" || true
+            exit 1
+          fi
 
           export OCAPI_E2E_APP="$PWD/build/src/ocapi"
           export OCAPI_E2E_MOCK_PORT=11434

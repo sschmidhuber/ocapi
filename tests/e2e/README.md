@@ -12,7 +12,7 @@ the Linux accessibility API, never through pixel comparison.
    composer and send button.
 2. **Backend setup** — the seeded mock backend is the active backend and its
    `mock-model` was detected through a real `GET /api/tags` round-trip
-   against the mock server (visible in the footer's backend/model combos).
+   against the mock server (visible in the model picker's button text).
 3. **Chat** — a message typed into the composer is sent, and the mock
    backend's reply streams back into the chat view.
 4. **MCP setup and tool usage** — the seeded mock MCP server connects and
@@ -23,7 +23,7 @@ the Linux accessibility API, never through pixel comparison.
    This drives the complete agent loop: tool advertisement, model tool call,
    MCP execution, result feedback and the model's follow-up.
 
-Popup menus (Tools → Model backends…) cannot be driven with this stack:
+Popup menus (Settings… → Model backends, the model picker menu) cannot be driven with this stack:
 Qt excludes `Qt::Popup` windows such as `QMenu` from the AT-SPI
 application tree (`QAccessibleApplication::topLevelObjects` filters
 `w->type() != Qt::Popup`), so their items never appear for the driver.

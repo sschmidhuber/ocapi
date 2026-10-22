@@ -13,9 +13,17 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSplitter>
+#include <QTimer>
 #include <QVBoxLayout>
+#include <algorithm>
 
 namespace ocapi {
+
+namespace {
+
+constexpr int TestTimeoutMs = 15000;
+
+} // namespace
 
 BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
     : QWidget(parent), m_registry(registry) {
@@ -25,35 +33,42 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
 
     auto *formWidget = new QWidget(splitter);
     auto *formLayout = new QFormLayout(formWidget);
-    m_nameEdit = new QLineEdit(formWidget);
+    formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     m_kindCombo = new QComboBox(formWidget);
     for (auto kind : BackendConfig::allKinds()) {
         m_kindCombo->addItem(BackendConfig::kindName(kind),
                              QVariant::fromValue(static_cast<int>(kind)));
     }
+    m_nameEdit = new QLineEdit(formWidget);
     m_urlEdit = new QLineEdit(formWidget);
     m_urlEdit->setAccessibleName(tr("Base URL"));
-    m_urlEdit->setPlaceholderText(tr("http://127.0.0.1:11434"));
     m_apiKeyEdit = new QLineEdit(formWidget);
     m_apiKeyEdit->setEchoMode(QLineEdit::Password);
     m_apiKeyEdit->setPlaceholderText(tr("API key"));
-    m_modelEdit = new QLineEdit(formWidget);
-    m_modelEdit->setPlaceholderText(tr("Default model (optional)"));
+    m_modelCombo = new QComboBox(formWidget);
+    m_modelCombo->setEditable(true);
+    m_modelCombo->setInsertPolicy(QComboBox::NoInsert);
+    // Match the width of the line edits above instead of shrinking to the
+    // current entry; the layout policy makes it grow with the dialog.
+    m_modelCombo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    m_modelCombo->setMinimumContentsLength(24);
     m_enabledBox = new QCheckBox(tr("Enabled"), formWidget);
     m_enabledBox->setChecked(true);
     m_testButton = new QPushButton(tr("Test connection"), formWidget);
     m_testResultLabel = new QLabel(formWidget);
     m_testResultLabel->setWordWrap(true);
+    m_testResultLabel->hide();
+    m_testTimer = new QTimer(this);
+    m_testTimer->setSingleShot(true);
 
+    formLayout->addRow(tr("Provider:"), m_kindCombo);
     formLayout->addRow(tr("Name:"), m_nameEdit);
-    formLayout->addRow(tr("Type:"), m_kindCombo);
     formLayout->addRow(tr("Base URL:"), m_urlEdit);
     formLayout->addRow(tr("API key:"), m_apiKeyEdit);
-    formLayout->addRow(tr("Default model:"), m_modelEdit);
+    formLayout->addRow(tr("Default model:"), m_modelCombo);
     formLayout->addRow(m_enabledBox);
     formLayout->addRow(m_testButton);
     formLayout->addRow(m_testResultLabel);
-    m_testResultLabel->hide();
 
     auto *listButtons = new QHBoxLayout;
     auto *addButton = new QPushButton(tr("Add"));
@@ -81,9 +96,16 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
     connect(m_list, &QListWidget::currentRowChanged, this, [this](int) { onSelectionChanged(); });
     connect(m_kindCombo, &QComboBox::currentIndexChanged, this, &BackendPage::onKindChanged);
     connect(m_testButton, &QPushButton::clicked, this, &BackendPage::onTestConnection);
-    for (auto *edit : {m_nameEdit, m_urlEdit, m_apiKeyEdit, m_modelEdit}) {
+    connect(m_testTimer, &QTimer::timeout, this, &BackendPage::onTestTimeout);
+    connect(m_nameEdit, &QLineEdit::textEdited, this, &BackendPage::onFieldEdited);
+    for (auto *edit : {m_urlEdit, m_apiKeyEdit}) {
         connect(edit, &QLineEdit::textEdited, this, &BackendPage::onFieldEdited);
     }
+    connect(m_modelCombo, &QComboBox::currentIndexChanged, this, [this](int) {
+        if (!m_updatingForm)
+            onFieldEdited();
+    });
+    connect(m_modelCombo->lineEdit(), &QLineEdit::textEdited, this, &BackendPage::onFieldEdited);
     connect(m_enabledBox, &QCheckBox::toggled, this, &BackendPage::onFieldEdited);
 
     populateList();
@@ -103,7 +125,8 @@ void BackendPage::populateList() {
 }
 
 void BackendPage::onAddBackend() {
-    auto &config = m_registry->add(tr("New backend"), BackendKind::Ollama);
+    const auto kind = BackendKind::Ollama;
+    auto &config = m_registry->add(BackendConfig::kindName(kind), kind);
     m_registry->save();
     populateList();
     for (int i = 0; i < m_list->count(); ++i) {
@@ -135,44 +158,55 @@ void BackendPage::onSelectionChanged() {
     m_updatingForm = true;
     auto *item = m_list->currentItem();
     const bool hasSelection = item != nullptr;
-    m_nameEdit->setEnabled(hasSelection);
+    m_hasSelection = hasSelection;
     m_kindCombo->setEnabled(hasSelection);
+    m_nameEdit->setEnabled(hasSelection);
     m_urlEdit->setEnabled(hasSelection);
     m_apiKeyEdit->setEnabled(hasSelection);
-    m_modelEdit->setEnabled(hasSelection);
+    m_modelCombo->setEnabled(hasSelection);
     m_enabledBox->setEnabled(hasSelection);
     m_testButton->setEnabled(hasSelection);
     m_testResultLabel->clear();
     m_testResultLabel->hide();
+    m_testTimer->stop();
     if (hasSelection) {
         const auto *config = m_registry->find(QUuid(item->data(Qt::UserRole).toString()));
         if (config)
             loadConfigIntoForm(*config);
     } else {
+        m_kindCombo->setCurrentIndex(0);
         m_nameEdit->clear();
         m_urlEdit->clear();
         m_apiKeyEdit->clear();
-        m_modelEdit->clear();
+        m_modelCombo->clear();
         m_enabledBox->setChecked(true);
     }
-    updateUrlVisibility();
+    updateUrlState();
     m_updatingForm = false;
 }
 
 void BackendPage::onKindChanged(int index) {
-    if (m_updatingForm || !m_urlEdit->isEnabled())
+    if (m_updatingForm || !m_kindCombo->isEnabled())
         return;
     const auto kind = static_cast<BackendKind>(m_kindCombo->itemData(index).toInt());
-    // Only fill in the default URL when the field is empty or still holds
-    // another provider's default, to avoid clobbering user input.
-    if (m_urlEdit->text().isEmpty())
+    // Follow the provider name while the user has not chosen a custom name.
+    if (nameFollowsProvider(m_nameEdit->text()))
+        m_nameEdit->setText(BackendConfig::kindName(kind));
+    // Self-hosted servers get the provider's default URL prefilled; cloud
+    // providers use their built-in endpoint, so drop any previously entered
+    // self-hosted URL instead of sending it to the cloud API.
+    const bool cloud = BackendConfig::isCloud(kind);
+    if (cloud) {
+        m_urlEdit->clear();
+    } else if (m_urlEdit->text().isEmpty()) {
         m_urlEdit->setText(BackendConfig::defaultBaseUrl(kind));
-    updateUrlVisibility();
+    }
+    updateUrlState();
     onFieldEdited();
 }
 
 void BackendPage::onFieldEdited() {
-    if (m_updatingForm)
+    if (m_updatingForm || !m_hasSelection)
         return;
     auto *item = m_list->currentItem();
     if (!item)
@@ -212,30 +246,50 @@ void BackendPage::onTestConnection() {
     m_testButton->setEnabled(false);
     m_testResultLabel->setText(tr("Testing connection…"));
     m_testResultLabel->show();
+    m_testTimer->start(TestTimeoutMs);
     m_testBackend->listModels();
 }
 
+void BackendPage::onTestTimeout() {
+    m_testButton->setEnabled(true);
+    m_testResultLabel->setText(
+        tr("Connection failed: no response within %1 seconds.").arg(TestTimeoutMs / 1000));
+    delete m_testBackend;
+    m_testBackend = nullptr;
+}
+
 void BackendPage::onTestModelsReady(const QStringList &models) {
+    m_testTimer->stop();
     m_testButton->setEnabled(true);
     if (models.isEmpty()) {
         m_testResultLabel->setText(tr("Connection successful, but no models were reported."));
-    } else {
-        QString text = tr("Connection successful. %n model(s) detected:", nullptr,
-                          static_cast<int>(models.size()));
-        const int total = static_cast<int>(models.size());
-        const int shown = std::min(total, 8);
-        for (int i = 0; i < shown; ++i)
-            text += QStringLiteral("\n• %1").arg(models.at(i));
-        if (total > shown)
-            text += QStringLiteral("\n• …");
-        if (m_modelEdit->text().trimmed().isEmpty() && !models.isEmpty()) {
-            m_modelEdit->setText(models.first());
-            onFieldEdited();
-        }
+        return;
     }
+    m_testResultLabel->setText(tr("Connection successful. %n model(s) detected.", nullptr,
+                                  static_cast<int>(models.size())));
+    // Offer the fetched models in the default-model combo. The combo stays
+    // editable so a custom model name can be typed when the backend does
+    // not report its models.
+    auto *item = m_list->currentItem();
+    auto *config = item ? m_registry->find(QUuid(item->data(Qt::UserRole).toString())) : nullptr;
+    const QString current = config ? config->defaultModel : QString();
+    m_updatingForm = true;
+    m_modelCombo->clear();
+    m_modelCombo->addItems(models);
+    const int idx = m_modelCombo->findText(current);
+    if (idx >= 0)
+        m_modelCombo->setCurrentIndex(idx);
+    else
+        m_modelCombo->setCurrentText(current);
+    m_updatingForm = false;
+    if (current.isEmpty())
+        m_modelCombo->setCurrentIndex(0);
+    if (config && config->defaultModel != m_modelCombo->currentText())
+        onFieldEdited();
 }
 
 void BackendPage::onTestModelsFailed(const QString &error) {
+    m_testTimer->stop();
     m_testButton->setEnabled(true);
     m_testResultLabel->setText(tr("Connection failed: %1").arg(error));
 }
@@ -246,12 +300,13 @@ void BackendPage::loadConfigIntoForm(const BackendConfig &config) {
     m_kindCombo->setCurrentIndex(kindIndex < 0 ? 0 : kindIndex);
     m_urlEdit->setText(config.baseUrl);
     m_apiKeyEdit->setText(config.apiKey);
-    m_modelEdit->setText(config.defaultModel);
+    m_modelCombo->clear();
+    m_modelCombo->setCurrentText(config.defaultModel);
     m_enabledBox->setChecked(config.enabled);
 }
 
 void BackendPage::saveFormIntoConfig(BackendConfig &config) {
-    config.name = m_nameEdit->text().trimmed().isEmpty() ? BackendConfig::kindName(config.kind)
+    config.name = m_nameEdit->text().trimmed().isEmpty() ? BackendConfig::kindName(currentKind())
                                                          : m_nameEdit->text().trimmed();
     config.kind = currentKind();
     config.baseUrl = m_urlEdit->text().trimmed();
@@ -259,21 +314,27 @@ void BackendPage::saveFormIntoConfig(BackendConfig &config) {
     if (config.baseUrl.isEmpty() && !BackendConfig::isCloud(config.kind))
         config.baseUrl = BackendConfig::defaultBaseUrl(config.kind);
     config.apiKey = m_apiKeyEdit->text().trimmed();
-    config.defaultModel = m_modelEdit->text().trimmed();
+    config.defaultModel = m_modelCombo->currentText().trimmed();
     config.enabled = m_enabledBox->isChecked();
 }
 
-void BackendPage::updateUrlVisibility() {
-    const bool cloud = BackendConfig::isCloud(currentKind());
-    // For cloud providers the base URL is optional (provider default is used);
-    // keep the row visible only when the user set a custom endpoint.
-    const bool visible = !cloud || !m_urlEdit->text().trimmed().isEmpty();
-    m_urlEdit->setVisible(visible);
-    m_urlEdit->setPlaceholderText(cloud ? tr("Custom endpoint (optional)")
-                                        : QStringLiteral("http://127.0.0.1:11434"));
-    if (auto *form = qobject_cast<QFormLayout *>(m_urlEdit->parentWidget()->layout()))
-        if (auto *label = form->labelForField(m_urlEdit))
-            label->setVisible(visible);
+void BackendPage::updateUrlState() {
+    // Self-hosted servers require an explicit base URL; for cloud providers
+    // the built-in endpoint is used, so the field is deactivated.
+    m_urlEdit->setEnabled(m_hasSelection && !BackendConfig::isCloud(currentKind()));
+    m_urlEdit->setPlaceholderText(BackendConfig::isCloud(currentKind())
+                                      ? tr("Custom endpoint (optional)")
+                                      : QStringLiteral("http://127.0.0.1:11434"));
+}
+
+bool BackendPage::nameFollowsProvider(const QString &name) {
+    // The name is considered auto-derived while it is empty or matches any
+    // provider name (including the previous one).
+    if (name.trimmed().isEmpty())
+        return true;
+    const auto kinds = BackendConfig::allKinds();
+    return std::ranges::any_of(
+        kinds, [&](BackendKind kind) { return name.trimmed() == BackendConfig::kindName(kind); });
 }
 
 BackendKind BackendPage::currentKind() const {

@@ -42,7 +42,7 @@ private:
     void loadConfigIntoForm(const BackendConfig &config);
     void saveFormIntoConfig(BackendConfig &config);
     void updateUrlState();
-    [[nodiscard]] bool nameFollowsProvider(const QString &name) const;
+    [[nodiscard]] static bool nameFollowsProvider(const QString &name);
     [[nodiscard]] BackendKind currentKind() const;
 
     BackendRegistry *m_registry;

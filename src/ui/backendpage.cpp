@@ -15,6 +15,7 @@
 #include <QSplitter>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <algorithm>
 
 namespace ocapi {
 
@@ -321,15 +322,14 @@ void BackendPage::updateUrlState() {
                                       : QStringLiteral("http://127.0.0.1:11434"));
 }
 
-bool BackendPage::nameFollowsProvider(const QString &name) const {
+bool BackendPage::nameFollowsProvider(const QString &name) {
     // The name is considered auto-derived while it is empty or matches any
     // provider name (including the previous one).
     if (name.trimmed().isEmpty())
         return true;
-    for (auto kind : BackendConfig::allKinds())
-        if (name.trimmed() == BackendConfig::kindName(kind))
-            return true;
-    return false;
+    const auto kinds = BackendConfig::allKinds();
+    return std::ranges::any_of(
+        kinds, [&](BackendKind kind) { return name.trimmed() == BackendConfig::kindName(kind); });
 }
 
 BackendKind BackendPage::currentKind() const {

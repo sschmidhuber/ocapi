@@ -82,7 +82,10 @@ class OcapiE2E(unittest.TestCase):
         # The mock backend was seeded on startup (OCAPI_E2E_MOCK_BACKEND)
         # and is the active backend; its model was detected through a real
         # GET /api/tags round-trip against the mock server.
-        picker = self.wait_for("//toggle_button[@name='Model backend and model']")
+        # The picker is a QToolButton; its AT-SPI role is exposed as
+        # "toggle button" on some stacks, so match by accessible name
+        # regardless of the role the platform reports.
+        picker = self.wait_for("//*[@name='Model backend and model']")
         self.assertIn("Mock backend", picker.text)
         self.assertIn("mock-model", picker.text)
 

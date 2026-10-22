@@ -52,13 +52,40 @@ DESTDIR="$STAGE" cmake --install "$PKG_DIR/build" --prefix /usr
 # Resolve runtime dependencies from the staged binaries with dpkg-shlibdeps
 # so the package names match the Debian/Ubuntu release the build runs on
 # (e.g. libqt6core6t64 on trixie/noble). qt6-base is not a Debian package.
+resolve_deps_shlibdeps() {
+    local out
+    if ! out="$(dpkg-shlibdeps -O --ignore-missing-info "$STAGE/usr/bin/ocapi" 2>&1)"; then
+        echo "!! dpkg-shlibdeps failed, falling back to ldd-based dependency scan:" >&2
+        printf '%s\n' "$out" >&2
+        return 1
+    fi
+    printf '%s\n' "$out" | sed -n 's/^shlibs:Depends=//p' | sed 's/,$//'
+}
+
+resolve_deps_ldd() {
+    local lib pkg seen="\n" deps=""
+    while IFS= read -r lib; do
+        pkg="$(dpkg -S "$lib" 2>/dev/null | sed 's/: .*//; q' || true)"
+        [ -n "$pkg" ] || continue
+        case "$seen" in
+            *"\n$pkg\n"*) continue ;;
+        esac
+        seen="$seen\n$pkg\n"
+        deps="${deps:+$deps, }$pkg"
+    done < <(ldd "$STAGE/usr/bin/ocapi" 2>/dev/null | sed -n 's/.*=> \(\/.*\) (.*/\1/p')
+    printf '%s\n' "$deps"
+}
+
 DEPS=""
 if command -v dpkg-shlibdeps >/dev/null 2>&1; then
-    DEPS="$(dpkg-shlibdeps -O --ignore-missing-info "$STAGE/usr/bin/ocapi" 2>/dev/null \
-        | sed -n 's/^shlibs:Depends=//p' | sed 's/,$//')"
+    DEPS="$(resolve_deps_shlibdeps || true)"
 fi
 if [ -z "$DEPS" ]; then
-    echo "!! dpkg-shlibdeps unavailable or failed, falling back to hardcoded depends" >&2
+    echo ">> Resolving dependencies via ldd + dpkg -S" >&2
+    DEPS="$(resolve_deps_ldd)"
+fi
+if [ -z "$DEPS" ]; then
+    echo "!! Could not resolve runtime dependencies, using hardcoded list" >&2
     DEPS="libc6 (>= 2.34), libstdc++6 (>= 13), libgcc-s1,
  libqt6core6t64 (>= 6.5), libqt6gui6t64 (>= 6.5), libqt6widgets6t64 (>= 6.5),
  libqt6network6t64 (>= 6.5), libqt6sql6t64 (>= 6.5),
@@ -67,7 +94,10 @@ if [ -z "$DEPS" ]; then
  libdbus-1-3, libglib2.0-0t64"
 fi
 # The SQLite Qt SQL plugin is loaded at runtime, not linked.
-DEPS="$DEPS, libqt6sql6-sqlite"
+case " $DEPS " in
+    *" libqt6sql6-sqlite "*) ;;
+    *) DEPS="$DEPS, libqt6sql6-sqlite" ;;
+esac
 
 cat > "$DEBIAN/control" <<EOF
 Package: ocapi

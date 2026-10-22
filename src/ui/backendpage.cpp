@@ -33,6 +33,7 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
 
     auto *formWidget = new QWidget(splitter);
     auto *formLayout = new QFormLayout(formWidget);
+    formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     m_kindCombo = new QComboBox(formWidget);
     for (auto kind : BackendConfig::allKinds()) {
         m_kindCombo->addItem(BackendConfig::kindName(kind),
@@ -47,6 +48,10 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
     m_modelCombo = new QComboBox(formWidget);
     m_modelCombo->setEditable(true);
     m_modelCombo->setInsertPolicy(QComboBox::NoInsert);
+    // Match the width of the line edits above instead of shrinking to the
+    // current entry; the layout policy makes it grow with the dialog.
+    m_modelCombo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    m_modelCombo->setMinimumContentsLength(24);
     m_enabledBox = new QCheckBox(tr("Enabled"), formWidget);
     m_enabledBox->setChecked(true);
     m_testButton = new QPushButton(tr("Test connection"), formWidget);

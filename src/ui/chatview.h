@@ -20,6 +20,7 @@ signals:
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
+    void contextMenuEvent(QContextMenuEvent *event) override;
 
 private slots:
     void checkScrollTop();
@@ -27,6 +28,7 @@ private slots:
 private:
     void rebuild();
     void scrollToEnd();
+    static void copyMessage(const QModelIndex &index);
     ChatSession *m_session = nullptr;
     QVector<Message> m_messages;
 };

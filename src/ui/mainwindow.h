@@ -6,6 +6,8 @@
 #include "core/mcpregistry.h"
 #include "core/message.h"
 #include "core/sttregistry.h"
+#include "core/ttsplayer.h"
+#include "core/ttsregistry.h"
 #include "core/voiceinput.h"
 #include "storage/chatdatabase.h"
 #include <QDateTime>
@@ -47,8 +49,15 @@ private slots:
     void onMcpPermissionRequested(const QString &callKey, const QString &serverName,
                                   const QString &toolName, const QJsonObject &arguments);
     void onMcpToolsChanged();
+    void onSpeakResponsesToggled();
 
 private:
+    void setupUi();
+    void setupConnections();
+    void connectStreamingSignals(IBackend *backend) const;
+    void onTokenReceived(const QUuid &messageId, const QString &text);
+    void onStreamFinished(const QUuid &messageId);
+    void onStreamFailed(const QUuid &messageId, const QString &error);
     void createSession(const QString &backendId = {}, const QString &model = {});
     void refreshSidebar();
     void refreshBackendSelector();
@@ -57,6 +66,8 @@ private:
     void loadBackendsFromDatabase();
     void loadSttSettingsFromDatabase();
     void configureVoiceInput();
+    void loadTtsSettingsFromDatabase();
+    void configureTts();
     void loadMcpServersFromDatabase();
     void loadOlderMessages(ChatSession *session);
     void persistSession(ChatSession *session);
@@ -77,6 +88,8 @@ private:
 
     BackendRegistry m_registry;
     SttRegistry m_sttRegistry;
+    TtsRegistry m_ttsRegistry;
+    TtsPlayer m_ttsPlayer;
     VoiceInput m_voiceInput;
     McpRegistry m_mcpRegistry;
     McpManager m_mcpManager;
@@ -104,6 +117,7 @@ private:
     QComboBox *m_modelCombo = nullptr;
     QPushButton *m_sendButton = nullptr;
     QPushButton *m_stopButton = nullptr;
+    QPushButton *m_speakButton = nullptr;
     QLabel *m_statusLabel = nullptr;
     QLabel *m_emptyLabel = nullptr;
     QLabel *m_mcpStatusLabel = nullptr;

@@ -28,6 +28,8 @@ Sidebar::Sidebar(QWidget *parent)
                          [this]() { emit settingsRequested(QStringLiteral("mcp")); });
     toolsMenu->addAction(tr("Speech-to-text…"), this,
                          [this]() { emit settingsRequested(QStringLiteral("stt")); });
+    toolsMenu->addAction(tr("Text-to-speech…"), this,
+                         [this]() { emit settingsRequested(QStringLiteral("tts")); });
     m_toolsButton->setMenu(toolsMenu);
 
     connect(m_newChatButton, &QPushButton::clicked, this, &Sidebar::newChatRequested);

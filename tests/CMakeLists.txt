@@ -20,7 +20,12 @@ set(OCAPI_TESTS
     tst_sttregistry
     tst_audiochunker
     tst_sttclient
-    tst_sttstreamclient)
+    tst_sttstreamclient
+    tst_ttsconfig
+    tst_ttsregistry
+    tst_sentencesplitter
+    tst_audioformat
+    tst_ttsclient)
 
 
 foreach(test_name ${OCAPI_TESTS})

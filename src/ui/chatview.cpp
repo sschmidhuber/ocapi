@@ -114,11 +114,13 @@ ChatView::ChatView(QWidget *parent) : QListView(parent) {
     setWordWrap(true);
     setUniformItemSizes(false);
     setSpacing(2);
-    // White conversation background, independent of the widget theme.
+    // White conversation background, independent of the widget theme. The
+    // 1px frame matches the message input box border.
     QPalette viewPalette = palette();
     viewPalette.setColor(QPalette::Base, Qt::white);
     viewPalette.setColor(QPalette::Window, Qt::white);
     setPalette(viewPalette);
+    setStyleSheet(QStringLiteral("QListView { border: 1px solid palette(mid); }"));
     viewport()->setAutoFillBackground(true);
     viewport()->setPalette(viewPalette);
 }

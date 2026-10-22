@@ -4,6 +4,9 @@
 #include <QTextBlockFormat>
 #include <QTextCharFormat>
 #include <QTextCursor>
+#include <QTextTable>
+#include <QTextTableCellFormat>
+#include <QTextTableFormat>
 
 #include <algorithm>
 #include <memory>
@@ -74,6 +77,76 @@ bool isOrderedListItem(const QString &line, int *number) {
 
 bool isBlockquoteLine(const QString &line) {
     return line.trimmed().startsWith(QLatin1Char('>'));
+}
+
+// A table row: cells split on unescaped pipes, at least 2 columns.
+QStringList tableRowCells(const QString &line) {
+    QString trimmed = line.trimmed();
+    if (trimmed.startsWith(QLatin1Char('|')))
+        trimmed.remove(0, 1);
+    if (trimmed.endsWith(QLatin1Char('|')) && !trimmed.endsWith(QStringLiteral("\\|")))
+        trimmed.chop(1);
+    QStringList cells;
+    QString cell;
+    for (int i = 0; i < trimmed.size(); ++i) {
+        const QChar ch = trimmed.at(i);
+        if (ch == QLatin1Char('\\') && i + 1 < trimmed.size() &&
+            trimmed.at(i + 1) == QLatin1Char('|')) {
+            cell += QLatin1Char('|');
+            ++i;
+            continue;
+        }
+        if (ch == QLatin1Char('|')) {
+            cells.push_back(cell.trimmed());
+            cell.clear();
+            continue;
+        }
+        cell += ch;
+    }
+    cells.push_back(cell.trimmed());
+    return cells;
+}
+
+// A delimiter row such as | --- | :---: | ---: | separates header and body.
+bool isTableDelimiterRow(const QString &line) {
+    const QStringList cells = tableRowCells(line);
+    if (cells.size() < 2)
+        return false;
+    for (const QString &cell : cells) {
+        const QString c = cell.trimmed();
+        if (c.isEmpty())
+            return false;
+        int i = 0;
+        if (c.at(i) == QLatin1Char(':'))
+            ++i;
+        const int dashesStart = i;
+        while (i < c.size() && c.at(i) == QLatin1Char('-'))
+            ++i;
+        if (i == dashesStart || i - dashesStart < 1)
+            return false;
+        if (i < c.size() && c.at(i) == QLatin1Char(':'))
+            ++i;
+        if (i != c.size())
+            return false;
+    }
+    return true;
+}
+
+// A table starts at a pipe row followed by a delimiter row.
+bool isTableStart(const QStringList &lines, int i) {
+    return i + 1 < lines.size() && tableRowCells(lines.at(i)).size() >= 2 &&
+           isTableDelimiterRow(lines.at(i + 1));
+}
+
+Qt::Alignment tableCellAlignment(const QString &delimiterCell) {
+    const QString c = delimiterCell.trimmed();
+    const bool left = c.startsWith(QLatin1Char(':'));
+    const bool right = c.endsWith(QLatin1Char(':'));
+    if (left && right)
+        return Qt::AlignHCenter;
+    if (right)
+        return Qt::AlignRight;
+    return Qt::AlignLeft;
 }
 
 bool isHorizontalRule(const QString &line) {
@@ -403,6 +476,63 @@ void insertBlockquote(QTextCursor &cursor, bool &firstBlock, const QStringList &
     cursor.insertText(quoteLines.join(QLatin1Char('\n')), quoteCharFormat);
 }
 
+bool isSpecialLine(const QString &line);
+
+void insertTable(QTextCursor &cursor, bool &firstBlock, const QStringList &lines, int &i) {
+    const QStringList headerCells = tableRowCells(lines.at(i));
+    const QStringList alignmentsRaw = tableRowCells(lines.at(i + 1));
+    i += 2;
+    QStringList bodyRows;
+    while (i < lines.size() && !lines.at(i).trimmed().isEmpty() &&
+           tableRowCells(lines.at(i)).size() == headerCells.size() && !isSpecialLine(lines.at(i))) {
+        bodyRows.push_back(lines.at(i));
+        ++i;
+    }
+    if (!firstBlock)
+        cursor.insertBlock();
+    firstBlock = false;
+
+    QTextTable *table = cursor.insertTable(static_cast<int>(bodyRows.size()) + 1,
+                                           static_cast<int>(headerCells.size()));
+    QTextTableFormat tableFormat;
+    tableFormat.setBorder(1);
+    tableFormat.setBorderStyle(QTextFrameFormat::BorderStyle_Solid);
+    tableFormat.setCellSpacing(0);
+    tableFormat.setCellPadding(4);
+    tableFormat.setMargin(4);
+    table->setFormat(tableFormat);
+
+    QVector<Qt::Alignment> alignments;
+    for (int col = 0; col < headerCells.size(); ++col)
+        alignments.push_back(tableCellAlignment(alignmentsRaw.value(col)));
+
+    QTextCharFormat headerFormat;
+    headerFormat.setFontWeight(QFont::Bold);
+    for (int col = 0; col < headerCells.size(); ++col) {
+        const QTextTableCell cell = table->cellAt(0, col);
+        QTextCursor cellCursor = cell.firstCursorPosition();
+        cellCursor.insertText(headerCells.at(col), headerFormat);
+    }
+    for (int row = 0; row < bodyRows.size(); ++row) {
+        const QStringList cells = tableRowCells(bodyRows.at(row));
+        for (int col = 0; col < headerCells.size(); ++col) {
+            const QTextTableCell cell = table->cellAt(row + 1, col);
+            QTextCursor cellCursor = cell.firstCursorPosition();
+            insertInline(cellCursor, cells.value(col));
+        }
+    }
+    // Column alignment via the cells' block formats.
+    for (int col = 0; col < headerCells.size(); ++col) {
+        for (int row = 0; row <= bodyRows.size(); ++row) {
+            QTextTableCell cell = table->cellAt(row, col);
+            QTextCursor cellCursor = cell.firstCursorPosition();
+            QTextBlockFormat cellBlock = cellCursor.blockFormat();
+            cellBlock.setAlignment(alignments.at(col));
+            cellCursor.setBlockFormat(cellBlock);
+        }
+    }
+}
+
 QTextBlockFormat listBlockFormat() {
     QTextBlockFormat listFormat;
     listFormat.setLeftMargin(16);
@@ -491,6 +621,10 @@ void MarkdownRenderer::renderInto(QTextDocument &doc, const QString &markdown, c
             insertBlockquote(cursor, firstBlock, lines, i);
             continue;
         }
+        if (isTableStart(lines, i)) {
+            insertTable(cursor, firstBlock, lines, i);
+            continue;
+        }
         if (isUnorderedListItem(line)) {
             insertUnorderedListItem(cursor, firstBlock, line);
             ++i;
@@ -505,12 +639,19 @@ void MarkdownRenderer::renderInto(QTextDocument &doc, const QString &markdown, c
         insertParagraph(cursor, firstBlock, lines, i);
     }
 
-    // Remove the initial empty block if content was added after it.
+    // Remove the initial empty block if content was added after it. When
+    // the first content is a table, the next block is a table cell and the
+    // removal would cross the frame boundary into the table; keep the empty
+    // block in that case.
     QTextCursor start(&doc);
     start.movePosition(QTextCursor::Start);
     if (start.block().text().isEmpty() && doc.blockCount() > 1) {
-        start.movePosition(QTextCursor::NextBlock, QTextCursor::KeepAnchor);
-        start.removeSelectedText();
+        QTextCursor probe(start);
+        probe.movePosition(QTextCursor::NextBlock);
+        if (!probe.currentTable()) {
+            start.movePosition(QTextCursor::NextBlock, QTextCursor::KeepAnchor);
+            start.removeSelectedText();
+        }
     }
 }
 

@@ -63,6 +63,9 @@ public:
     // with the model selector.
     [[nodiscard]] QToolButton *micButton() const { return m_micButton; }
     [[nodiscard]] QToolButton *attachButton() const { return m_attachButton; }
+    // Dictation needs a configured speech-to-text service; hide the mic
+    // button entirely while none is available.
+    void setDictationAvailable(bool available);
 
 signals:
     void sendRequested(const QString &text, const QVector<ocapi::ImageAttachment> &images);
@@ -85,6 +88,7 @@ private:
     QToolButton *m_attachButton = nullptr;
     QToolButton *m_micButton = nullptr;
     bool m_dictationActive = false;
+    bool m_dictationAvailable = true;
     int m_dictationStart = 0;
     int m_dictatedLength = 0;
     QWidget *m_attachmentStrip = nullptr;

@@ -3,12 +3,19 @@
 #include "core/message.h"
 
 #include <QApplication>
+#include <QClipboard>
+#include <QEvent>
+#include <QFontMetrics>
+#include <QGuiApplication>
+#include <QIcon>
 #include <QImage>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QTextBlock>
 #include <QTextCharFormat>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTimer>
 
 #include <QJsonDocument>
 
@@ -18,9 +25,11 @@ namespace ocapi {
 
 namespace {
 
-constexpr int kEdgeMargin = 12;  // margin between items and the viewport edge
-constexpr int kLabelHeight = 16; // height of the role label row above content
-constexpr int kItemSpacing = 8;  // breathing room below each item
+constexpr int kEdgeMargin = 12;       // margin between items and the viewport edge
+constexpr int kLabelHeight = 16;      // height of the role label row above content
+constexpr int kCopyButtonSize = 16;   // copy icon in the label row
+constexpr int kCopyFeedbackMs = 1500; // how long the "Copied" hint stays
+constexpr int kItemSpacing = 8;       // breathing room below each item
 constexpr int kBubblePadding = 10;
 constexpr int kBubbleRadius = 10;
 constexpr int kMaxBubbleWidthFraction = 80; // percent of viewport width
@@ -130,10 +139,30 @@ std::unique_ptr<QTextDocument> messageDocument(const QString &content, bool rend
 struct ItemLayout {
     QRect labelRect;   // role label row (inside the item rect)
     QRect contentRect; // background/bubble area for the message content
+    // Footer row below the content: copy button and throughput label.
+    // Inside the bubble for user messages, plain for assistant messages.
+    QRect footerRect;
+    // The footer is only rendered once an assistant message has finished
+    // streaming; while streaming the item height changes on every token and
+    // a bottom-anchored footer would be positioned against stale geometry.
+    bool hasFooter = false;
     int toolCallsHeight = 0;
     int imageBlockHeight = 0;
     int textHeight = 0;
+    QString throughput; // empty when the message has no tok/s label
 };
+
+QString throughputText(double tokensPerSecond) {
+    return QStringLiteral("%1 tok/s").arg(QString::number(tokensPerSecond, 'f', 1));
+}
+
+// Font used for the label row and the message footer.
+QFont labelFont(const QStyleOptionViewItem &option) {
+    QFont font = option.font;
+    font.setBold(true);
+    font.setPointSizeF(qMax(7.0, font.pointSizeF() - 1.0));
+    return font;
+}
 
 ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &index) {
     const bool isUser = index.data(static_cast<int>(Qt::UserRole)).toBool();
@@ -171,26 +200,97 @@ ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &ind
     const int contentHeight =
         layout.textHeight + layout.imageBlockHeight + layout.toolCallsHeight + (2 * kBubblePadding);
 
+    const double tokensPerSecond = index.data(static_cast<int>(Qt::UserRole) + 4).toDouble();
+    layout.throughput = tokensPerSecond > 0.0 ? throughputText(tokensPerSecond) : QString();
+
     const int labelTop = option.rect.top();
     const int contentTop = labelTop + kLabelHeight + 2;
 
     layout.labelRect = QRect(option.rect.left() + kEdgeMargin, labelTop,
                              option.rect.width() - (2 * kEdgeMargin), kLabelHeight);
     if (isUser) {
+        // The footer (copy button, throughput) sits inside the bubble, at
+        // its bottom left; the bubble grows to include it.
+        layout.hasFooter = true;
         QRect bubbleRect(option.rect.right() - kEdgeMargin - contentWidth, contentTop, contentWidth,
-                         contentHeight);
+                         contentHeight + kLabelHeight);
         layout.contentRect = bubbleRect;
+        layout.footerRect =
+            QRect(bubbleRect.left() + kBubblePadding, bubbleRect.bottom() - kLabelHeight + 1,
+                  bubbleRect.width() - (2 * kBubblePadding), kLabelHeight);
     } else {
         // Assistant/tool/error messages use the full chat area: no bubble.
+        // The footer appears only once the message no longer streams.
         layout.contentRect =
             QRect(option.rect.left() + kEdgeMargin, contentTop, availableWidth, contentHeight);
+        layout.hasFooter = !streaming;
+        if (layout.hasFooter)
+            layout.footerRect =
+                QRect(option.rect.left() + kEdgeMargin, layout.contentRect.bottom() + 2,
+                      availableWidth, kLabelHeight);
     }
     return layout;
 }
 
+const QIcon &copyIcon() {
+    static const QIcon icon =
+        QIcon::fromTheme(QStringLiteral("edit-copy-symbolic"),
+                         QIcon(QString::fromUtf8(":/resources/icons/edit-copy-symbolic.svg")));
+    return icon;
+}
+
+// Rect of the per-message copy button inside the footer row, at its left.
+QRect copyButtonRect(const QRect &footerRect) {
+    QRect rect(0, 0, kCopyButtonSize, kCopyButtonSize);
+    rect.moveCenter(footerRect.center());
+    rect.moveLeft(footerRect.left());
+    return rect;
+}
+
+// Paints the message footer: copy button and throughput label at the left
+// of the footer row, plus the transient "Copied" hint. For user messages
+// the footer sits inside the bubble (light colors); for assistant messages
+// it sits below the content (dark colors).
+void paintFooterRow(QPainter *painter, const QStyleOptionViewItem &option, const ItemLayout &layout,
+                    bool isUser, bool showCopied) {
+    if (!layout.hasFooter)
+        return;
+    const QRect footerRect = layout.footerRect;
+    const QColor labelColor = isUser ? QColor(0xe0, 0xe0, 0xe0) : QColor(0x50, 0x50, 0x50);
+    painter->setPen(labelColor);
+    painter->setFont(labelFont(option));
+
+    const QRect copyRect = copyButtonRect(footerRect);
+    copyIcon().paint(painter, copyRect);
+    const int hintWidth = QFontMetrics(labelFont(option)).horizontalAdvance(QObject::tr("Copied"));
+    int x = copyRect.right() + 6;
+    if (showCopied) {
+        painter->setPen(QColor(0x9a, 0xd1, 0xff));
+        painter->drawText(QRect(x, footerRect.top(), hintWidth, footerRect.height()),
+                          Qt::AlignLeft | Qt::AlignVCenter, QObject::tr("Copied"));
+        x += hintWidth + 6;
+    }
+    if (!layout.throughput.isEmpty())
+        painter->drawText(
+            QRect(x, footerRect.top(), footerRect.right() - x + 1, footerRect.height()),
+            Qt::AlignLeft | Qt::AlignVCenter, layout.throughput);
+}
+
 } // namespace
 
-ChatDelegate::ChatDelegate(QObject *parent) : QStyledItemDelegate(parent) {}
+ChatDelegate::ChatDelegate(QObject *parent) : QStyledItemDelegate(parent) {
+    m_copiedTimer.setSingleShot(true);
+    connect(&m_copiedTimer, &QTimer::timeout, this, [this] {
+        m_copiedIndex = QPersistentModelIndex();
+        emit copiedFeedbackChanged();
+    });
+}
+
+void ChatDelegate::showCopiedFeedback(const QModelIndex &index) {
+    m_copiedIndex = QPersistentModelIndex(index);
+    m_copiedTimer.start(kCopyFeedbackMs);
+    emit copiedFeedbackChanged();
+}
 
 void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
                          const QModelIndex &index) const {
@@ -212,13 +312,15 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     const QRect contentRect = layout.contentRect;
     const int maxTextWidth = contentRect.width() - (2 * kBubblePadding);
 
+    // The chat area is white (see ChatView); use fixed dark text colors so
+    // messages stay readable regardless of the widget theme.
     QColor textColor;
     if (!error.isEmpty()) {
         textColor = QColor(0xf6, 0xc2, 0xc2);
     } else if (isUser) {
-        textColor = option.palette.color(QPalette::HighlightedText);
+        textColor = Qt::white;
     } else {
-        textColor = option.palette.color(QPalette::Text);
+        textColor = QColor(0x1a, 0x1a, 0x1a);
     }
 
     std::unique_ptr<QTextDocument> doc;
@@ -256,24 +358,18 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
         }
     }
 
-    // Role label (and throughput) above the content, fully inside the item.
-    painter->setPen(option.palette.color(QPalette::Text));
-    QFont labelFont = option.font;
-    labelFont.setBold(true);
-    labelFont.setPointSizeF(qMax(7.0, labelFont.pointSizeF() - 1.0));
-    painter->setFont(labelFont);
-    painter->drawText(layout.labelRect, Qt::AlignLeft | Qt::AlignVCenter, roleLabel);
-    const double tokensPerSecond = index.data(static_cast<int>(Qt::UserRole) + 4).toDouble();
-    if (!isUser && tokensPerSecond > 0.0) {
-        const QString throughput =
-            QStringLiteral("%1 tok/s").arg(QString::number(tokensPerSecond, 'f', 1));
-        painter->drawText(layout.labelRect, Qt::AlignRight | Qt::AlignVCenter, throughput);
-    }
+    // Label row above the content: just the role label.
+    painter->setPen(QColor(0x50, 0x50, 0x50));
+    painter->setFont(labelFont(option));
+    if (isUser)
+        painter->drawText(layout.labelRect, Qt::AlignRight | Qt::AlignVCenter, roleLabel);
+    else
+        painter->drawText(layout.labelRect, Qt::AlignLeft | Qt::AlignVCenter, roleLabel);
 
     // User messages keep a highlight bubble; assistant/tool/error messages
     // use the full chat area without a background.
     if (isUser) {
-        QColor bubbleColor = option.palette.color(QPalette::Highlight);
+        QColor bubbleColor(0x2a, 0x62, 0xb5);
         if (!error.isEmpty())
             bubbleColor = QColor(0x5a, 0x1d, 0x1d);
         painter->setPen(Qt::NoPen);
@@ -290,7 +386,7 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     QFont toolFont = option.font;
     toolFont.setItalic(true);
     painter->setFont(toolFont);
-    painter->setPen(option.palette.color(QPalette::Text).darker(120));
+    painter->setPen(QColor(0x50, 0x50, 0x50));
     for (const auto &call : toolCalls) {
         QTextDocument callDoc;
         callDoc.setDefaultFont(toolFont);
@@ -320,15 +416,46 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
                                                                 layout.toolCallsHeight +
                                                                 layout.imageBlockHeight);
     doc->drawContents(painter);
+    painter->translate(
+        -(contentRect.left() + kBubblePadding),
+        -(contentRect.top() + kBubblePadding + layout.toolCallsHeight + layout.imageBlockHeight));
+
+    // Footer below the content: copy button and throughput label.
+    paintFooterRow(painter, option, layout, isUser, m_copiedIndex == index);
 
     painter->restore();
 }
 
 QSize ChatDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const {
     const ItemLayout layout = layoutItem(option, index);
-    const int height =
-        (layout.contentRect.top() - option.rect.top()) + layout.contentRect.height() + kItemSpacing;
+    // User footers live inside the bubble (already counted); assistant
+    // footers add a row below the content, but only once streaming ended.
+    const bool isUser = index.data(static_cast<int>(Qt::UserRole)).toBool();
+    const int footerHeight = (!isUser && layout.hasFooter) ? kLabelHeight + 2 : 0;
+    const int height = (layout.contentRect.top() - option.rect.top()) +
+                       layout.contentRect.height() + footerHeight + kItemSpacing;
     return {option.rect.width(), height};
+}
+
+bool ChatDelegate::editorEvent(QEvent *event, QAbstractItemModel *model,
+                               const QStyleOptionViewItem &option, const QModelIndex &index) {
+    if (event->type() != QEvent::MouseButtonRelease)
+        return QStyledItemDelegate::editorEvent(event, model, option, index);
+    const auto *mouse = dynamic_cast<const QMouseEvent *>(event);
+    if (!mouse)
+        return QStyledItemDelegate::editorEvent(event, model, option, index);
+    const ItemLayout layout = layoutItem(option, index);
+    if (!copyButtonRect(layout.footerRect).contains(mouse->pos()))
+        return QStyledItemDelegate::editorEvent(event, model, option, index);
+    QString text = index.data(Qt::DisplayRole).toString();
+    const QString error = index.data(static_cast<int>(Qt::UserRole) + 3).toString();
+    if (!error.isEmpty())
+        text = error;
+    if (!text.isEmpty()) {
+        QGuiApplication::clipboard()->setText(text);
+        showCopiedFeedback(index);
+    }
+    return true;
 }
 
 } // namespace ocapi

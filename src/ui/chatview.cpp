@@ -104,14 +104,24 @@ private:
 ChatView::ChatView(QWidget *parent) : QListView(parent) {
     auto *model = new ChatModel(this);
     setModel(model);
-    setItemDelegate(new ChatDelegate(this));
+    auto *delegate = new ChatDelegate(this);
+    setItemDelegate(delegate);
+    connect(delegate, &ChatDelegate::copiedFeedbackChanged, viewport(),
+            QOverload<>::of(&QWidget::update));
     connect(verticalScrollBar(), &QAbstractSlider::valueChanged, this, &ChatView::checkScrollTop);
     setSelectionMode(QAbstractItemView::NoSelection);
     setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     setWordWrap(true);
     setUniformItemSizes(false);
     setSpacing(2);
-    viewport()->setAutoFillBackground(false);
+    // White conversation background, independent of the widget theme. The
+    // 1px frame and slim scrollbar are styled by MainWindow.
+    QPalette viewPalette = palette();
+    viewPalette.setColor(QPalette::Base, Qt::white);
+    viewPalette.setColor(QPalette::Window, Qt::white);
+    setPalette(viewPalette);
+    viewport()->setAutoFillBackground(true);
+    viewport()->setPalette(viewPalette);
 }
 
 void ChatView::prependMessages(const QVector<Message> &messages) {

@@ -1,7 +1,9 @@
 #include "core/markdown.h"
 
 #include <QTextBlock>
+#include <QTextCursor>
 #include <QTextDocument>
+#include <QTextTable>
 #include <QtTest>
 
 #include <functional>
@@ -58,6 +60,10 @@ private slots:
     void paragraphsJoinConsecutiveLines();
     void emptyInputRendersEmpty();
     void cacheReturnsSameDocument();
+    void tableRendersAsTable();
+    void tableKeepsCellText();
+    void tableSupportsAlignmentMarkers();
+    void pipeTextWithoutDelimiterIsNotATable();
     void clearCacheForcesReRender();
 };
 
@@ -197,6 +203,40 @@ void TestMarkdown::clearCacheForcesReRender() {
     MarkdownRenderer::clearCache();
     const auto second = MarkdownRenderer::render(md, 400, testFont());
     QCOMPARE(first->toPlainText(), second->toPlainText());
+}
+
+void TestMarkdown::tableRendersAsTable() {
+    const QString md = QStringLiteral("| a | b |\n| --- | --- |\n| 1 | 2 |");
+    const auto doc = MarkdownRenderer::render(md, 400, testFont());
+    QTextCursor cursor(doc.get());
+    QVERIFY(cursor.currentTable() == nullptr); // not a table at the very start
+    cursor.movePosition(QTextCursor::NextBlock);
+    QVERIFY(cursor.currentTable() != nullptr);
+    QCOMPARE(cursor.currentTable()->rows(), 2);
+    QCOMPARE(cursor.currentTable()->columns(), 2);
+}
+
+void TestMarkdown::tableKeepsCellText() {
+    const QString md = QStringLiteral("| Name | Size |\n| --- | --- |\n| ocapi | small |");
+    const auto doc = MarkdownRenderer::render(md, 400, testFont());
+    const QString text = doc->toPlainText();
+    QVERIFY(text.contains(QStringLiteral("Name")));
+    QVERIFY(text.contains(QStringLiteral("Size")));
+    QVERIFY(text.contains(QStringLiteral("ocapi")));
+    QVERIFY(text.contains(QStringLiteral("small")));
+}
+
+void TestMarkdown::tableSupportsAlignmentMarkers() {
+    const QString md = QStringLiteral("| left | right |\n| :--- | ---: |\n| x | y |");
+    const auto doc = MarkdownRenderer::render(md, 400, testFont());
+    QVERIFY(doc->toPlainText().contains(QStringLiteral("left")));
+    QVERIFY(doc->toPlainText().contains(QStringLiteral("right")));
+}
+
+void TestMarkdown::pipeTextWithoutDelimiterIsNotATable() {
+    const QString md = QStringLiteral("a | b\n1 | 2");
+    const auto doc = MarkdownRenderer::render(md, 400, testFont());
+    QCOMPARE(doc->toPlainText(), QStringLiteral("a | b 1 | 2"));
 }
 
 QTEST_GUILESS_MAIN(TestMarkdown)

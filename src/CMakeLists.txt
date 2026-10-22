@@ -24,6 +24,8 @@ set(OCAPI_CORE_SOURCES
     core/message.h
     core/imagemessage.h
     core/imagemessage.cpp
+    core/markdown.h
+    core/markdown.cpp
     core/textextractor.h
     core/textextractor.cpp
     core/chatsession.h

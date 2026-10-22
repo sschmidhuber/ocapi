@@ -18,11 +18,13 @@ namespace ocapi {
 
 namespace {
 
-constexpr int kBubbleMargin = 12;
+constexpr int kEdgeMargin = 12;  // margin between items and the viewport edge
+constexpr int kLabelHeight = 16; // height of the role label row above content
+constexpr int kItemSpacing = 8;  // breathing room below each item
 constexpr int kBubblePadding = 10;
 constexpr int kBubbleRadius = 10;
 constexpr int kMaxBubbleWidthFraction = 80; // percent of viewport width
-constexpr int kImageSize = 160;             // max thumbnail edge in the chat bubble
+constexpr int kImageSize = 160;             // max thumbnail edge in the chat
 constexpr int kImageSpacing = 6;
 
 QVector<QImage> decodeImages(const QModelIndex &index) {
@@ -73,8 +75,8 @@ int imagesBlockHeight(const QVector<QImage> &images) {
     return height;
 }
 
-// Builds the text document for a message bubble. Assistant and tool messages
-// are rendered as markdown; user messages and errors stay plain text.
+// Builds the text document for a message. Assistant and tool messages are
+// rendered as markdown; user messages and errors stay plain text.
 std::unique_ptr<QTextDocument> messageDocument(const QString &content, bool renderMarkdown,
                                                bool streaming, const QFont &font,
                                                int maxTextWidth) {
@@ -124,6 +126,68 @@ std::unique_ptr<QTextDocument> messageDocument(const QString &content, bool rend
     return doc;
 }
 
+// Layout shared by paint() and sizeHint() so heights always match.
+struct ItemLayout {
+    QRect labelRect;   // role label row (inside the item rect)
+    QRect contentRect; // background/bubble area for the message content
+    int toolCallsHeight = 0;
+    int imageBlockHeight = 0;
+    int textHeight = 0;
+};
+
+ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &index) {
+    const bool isUser = index.data(static_cast<int>(Qt::UserRole)).toBool();
+    const bool streaming = index.data(static_cast<int>(Qt::UserRole) + 2).toBool();
+    const QString content = index.data(Qt::DisplayRole).toString();
+    const QString error = index.data(static_cast<int>(Qt::UserRole) + 3).toString();
+    const QVector<QImage> images = decodeImages(index);
+    const QVector<ToolCall> toolCalls = decodeToolCalls(index);
+
+    const int availableWidth = option.rect.width() - (2 * kEdgeMargin);
+    const int maxTextWidth =
+        isUser ? qMax(60, (availableWidth * kMaxBubbleWidthFraction / 100) - (2 * kBubblePadding))
+               : qMax(60, availableWidth);
+
+    ItemLayout layout;
+    layout.toolCallsHeight = toolCallsBlockHeight(toolCalls, option.font, maxTextWidth);
+    layout.imageBlockHeight = images.isEmpty() ? 0 : imagesBlockHeight(images) + kImageSpacing;
+
+    std::unique_ptr<QTextDocument> doc;
+    if (!error.isEmpty()) {
+        auto errorDoc = std::make_unique<QTextDocument>();
+        errorDoc->setDefaultFont(option.font);
+        errorDoc->setTextWidth(maxTextWidth);
+        errorDoc->setPlainText(QStringLiteral("\u26a0 ") + error);
+        doc = std::move(errorDoc);
+    } else {
+        doc = messageDocument(content, !isUser, streaming, option.font, maxTextWidth);
+    }
+    layout.textHeight = doc->size().toSize().height();
+
+    const int textWidth = doc->size().toSize().width();
+    const int imageBlockWidth = imagesBlockWidth(images);
+    const int contentWidth =
+        qMax(textWidth, qMin(imageBlockWidth, maxTextWidth)) + (2 * kBubblePadding);
+    const int contentHeight =
+        layout.textHeight + layout.imageBlockHeight + layout.toolCallsHeight + (2 * kBubblePadding);
+
+    const int labelTop = option.rect.top();
+    const int contentTop = labelTop + kLabelHeight + 2;
+
+    layout.labelRect = QRect(option.rect.left() + kEdgeMargin, labelTop,
+                             option.rect.width() - (2 * kEdgeMargin), kLabelHeight);
+    if (isUser) {
+        QRect bubbleRect(option.rect.right() - kEdgeMargin - contentWidth, contentTop, contentWidth,
+                         contentHeight);
+        layout.contentRect = bubbleRect;
+    } else {
+        // Assistant/tool/error messages use the full chat area: no bubble.
+        layout.contentRect =
+            QRect(option.rect.left() + kEdgeMargin, contentTop, availableWidth, contentHeight);
+    }
+    return layout;
+}
+
 } // namespace
 
 ChatDelegate::ChatDelegate(QObject *parent) : QStyledItemDelegate(parent) {}
@@ -132,36 +196,30 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
                          const QModelIndex &index) const {
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
+    painter->setClipRect(option.rect);
 
     const bool isUser = index.data(static_cast<int>(Qt::UserRole)).toBool();
     const QString roleLabel = index.data(static_cast<int>(Qt::UserRole) + 1).toString();
-    const QString content = index.data(Qt::DisplayRole).toString();
     const bool streaming = index.data(static_cast<int>(Qt::UserRole) + 2).toBool();
+    const QString content = index.data(Qt::DisplayRole).toString();
     const QString error = index.data(static_cast<int>(Qt::UserRole) + 3).toString();
     const QVector<QImage> images = decodeImages(index);
     const QVector<ToolCall> toolCalls = decodeToolCalls(index);
-    const bool isToolMessage =
-        index.data(static_cast<int>(Qt::UserRole) + 1).toString() == QStringLiteral("Tool");
+    const bool isToolMessage = roleLabel == QStringLiteral("Tool");
     const QString toolName = index.data(static_cast<int>(Qt::UserRole) + 7).toString();
 
-    const QRect rect = option.rect.adjusted(kBubbleMargin, 4, -kBubbleMargin, -4);
+    const ItemLayout layout = layoutItem(option, index);
+    const QRect contentRect = layout.contentRect;
+    const int maxTextWidth = contentRect.width() - (2 * kBubblePadding);
 
-    QColor bubbleColor;
     QColor textColor;
     if (!error.isEmpty()) {
-        bubbleColor = QColor(0x5a, 0x1d, 0x1d);
-        textColor = QColor(0xff, 0xd7, 0xd7);
+        textColor = QColor(0xf6, 0xc2, 0xc2);
     } else if (isUser) {
-        bubbleColor = option.palette.color(QPalette::Highlight);
         textColor = option.palette.color(QPalette::HighlightedText);
     } else {
-        bubbleColor = option.palette.color(QPalette::Base)
-                          .darker((option.state & QStyle::State_Enabled) ? 104 : 100);
         textColor = option.palette.color(QPalette::Text);
     }
-
-    const int maxTextWidth =
-        (option.rect.width() * kMaxBubbleWidthFraction / 100) - (2 * kBubblePadding);
 
     std::unique_ptr<QTextDocument> doc;
     if (!error.isEmpty()) {
@@ -181,7 +239,7 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
         toolFormat.setFontItalic(true);
         cursor.insertText(QStringLiteral("\U0001F9EA0 %1\n").arg(toolName), toolFormat);
     }
-    // Bubble text uses the bubble text color; markdown inline formats (code
+    // Text uses the message text color; markdown inline formats (code
     // background, link color) are kept.
     for (QTextBlock block = doc->begin(); block != doc->end(); block = block.next()) {
         for (QTextBlock::iterator it = block.begin(); !it.atEnd(); ++it) {
@@ -197,47 +255,38 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
             fragmentCursor.mergeCharFormat(colorFormat);
         }
     }
-    const QSize textSize = doc->size().toSize();
 
-    const int toolCallsHeight = toolCallsBlockHeight(toolCalls, option.font, maxTextWidth);
-
-    const int imageBlockWidth = imagesBlockWidth(images);
-    const int imageBlockHeight = images.isEmpty() ? 0 : imagesBlockHeight(images) + kImageSpacing;
-    const int contentWidth =
-        qMax(textSize.width(), qMin(imageBlockWidth, maxTextWidth)) + (2 * kBubblePadding);
-    const int contentHeight =
-        textSize.height() + imageBlockHeight + toolCallsHeight + (2 * kBubblePadding) + 18;
-
-    QRect bubbleRect;
-    if (isUser) {
-        bubbleRect =
-            QRect(rect.right() - contentWidth - 30, rect.top(), contentWidth, contentHeight);
-        bubbleRect.moveRight(rect.right());
-    } else {
-        bubbleRect = QRect(rect.left() + 30, rect.top(), contentWidth, contentHeight);
-    }
-
-    painter->setPen(Qt::NoPen);
-    painter->setBrush(bubbleColor);
-    painter->drawRoundedRect(bubbleRect, kBubbleRadius, kBubbleRadius);
-
-    // Role label above the bubble.
+    // Role label (and throughput) above the content, fully inside the item.
     painter->setPen(option.palette.color(QPalette::Text));
     QFont labelFont = option.font;
     labelFont.setBold(true);
     labelFont.setPointSizeF(qMax(7.0, labelFont.pointSizeF() - 1.0));
     painter->setFont(labelFont);
-    const QRect labelRect(bubbleRect.left(), bubbleRect.top() - 14, bubbleRect.width(), 14);
-    painter->drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, roleLabel);
+    painter->drawText(layout.labelRect, Qt::AlignLeft | Qt::AlignVCenter, roleLabel);
     const double tokensPerSecond = index.data(static_cast<int>(Qt::UserRole) + 4).toDouble();
     if (!isUser && tokensPerSecond > 0.0) {
         const QString throughput =
             QStringLiteral("%1 tok/s").arg(QString::number(tokensPerSecond, 'f', 1));
-        painter->drawText(labelRect, Qt::AlignRight | Qt::AlignVCenter, throughput);
+        painter->drawText(layout.labelRect, Qt::AlignRight | Qt::AlignVCenter, throughput);
+    }
+
+    // User messages keep a highlight bubble; assistant/tool/error messages
+    // use the full chat area without a background.
+    if (isUser) {
+        QColor bubbleColor = option.palette.color(QPalette::Highlight);
+        if (!error.isEmpty())
+            bubbleColor = QColor(0x5a, 0x1d, 0x1d);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(bubbleColor);
+        painter->drawRoundedRect(contentRect, kBubbleRadius, kBubbleRadius);
+    } else if (!error.isEmpty()) {
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(QColor(0x5a, 0x1d, 0x1d));
+        painter->drawRoundedRect(contentRect, kBubbleRadius, kBubbleRadius);
     }
 
     // Tool calls requested by the assistant, above the message text.
-    int toolY = bubbleRect.top() + kBubblePadding + 8;
+    int toolY = contentRect.top() + kBubblePadding;
     QFont toolFont = option.font;
     toolFont.setItalic(true);
     painter->setFont(toolFont);
@@ -245,18 +294,18 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     for (const auto &call : toolCalls) {
         QTextDocument callDoc;
         callDoc.setDefaultFont(toolFont);
-        callDoc.setTextWidth(bubbleRect.width() - (2 * kBubblePadding));
+        callDoc.setTextWidth(maxTextWidth);
         callDoc.setPlainText(toolCallDisplayText(call));
         const int callHeight = callDoc.size().toSize().height();
-        painter->translate(bubbleRect.left() + kBubblePadding, toolY);
+        painter->translate(contentRect.left() + kBubblePadding, toolY);
         callDoc.drawContents(painter);
-        painter->translate(-(bubbleRect.left() + kBubblePadding), -toolY);
+        painter->translate(-(contentRect.left() + kBubblePadding), -toolY);
         toolY += callHeight + 2;
     }
 
-    // Images above the message text inside the bubble.
-    int x = bubbleRect.left() + kBubblePadding;
-    const int imageTop = bubbleRect.top() + kBubblePadding + 8 + toolCallsHeight;
+    // Images above the message text.
+    int x = contentRect.left() + kBubblePadding;
+    const int imageTop = contentRect.top() + kBubblePadding + layout.toolCallsHeight;
     for (const auto &image : images) {
         const int targetWidth = qMin(image.width(), kImageSize);
         const int targetHeight = qMin(image.height(), kImageSize);
@@ -265,40 +314,21 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
         x += targetWidth + kImageSpacing;
     }
 
-    // Message text inside the bubble.
-    painter->translate(bubbleRect.left() + kBubblePadding,
-                       bubbleRect.top() + kBubblePadding + 8 + toolCallsHeight + imageBlockHeight);
+    // Message text.
+    painter->setPen(textColor);
+    painter->translate(contentRect.left() + kBubblePadding, contentRect.top() + kBubblePadding +
+                                                                layout.toolCallsHeight +
+                                                                layout.imageBlockHeight);
     doc->drawContents(painter);
 
     painter->restore();
 }
 
 QSize ChatDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const {
-    const QString content = index.data(Qt::DisplayRole).toString();
-    const bool isUser = index.data(static_cast<int>(Qt::UserRole)).toBool();
-    const bool streaming = index.data(static_cast<int>(Qt::UserRole) + 2).toBool();
-    const QString error = index.data(static_cast<int>(Qt::UserRole) + 3).toString();
-    const QVector<QImage> images = decodeImages(index);
-    const int maxTextWidth =
-        option.rect.width() > 0
-            ? (option.rect.width() * kMaxBubbleWidthFraction / 100) - (2 * kBubblePadding)
-            : 400;
-    int textHeight = 0;
-    if (!error.isEmpty()) {
-        QTextDocument doc;
-        doc.setDefaultFont(option.font);
-        doc.setTextWidth(maxTextWidth);
-        doc.setPlainText(QStringLiteral("\u26a0 ") + error);
-        textHeight = doc.size().toSize().height();
-    } else {
-        const auto doc = messageDocument(content, !isUser, streaming, option.font, maxTextWidth);
-        textHeight = doc->size().toSize().height();
-    }
-    const int imageBlockHeight = images.isEmpty() ? 0 : imagesBlockHeight(images) + kImageSpacing;
-    const int toolCallsHeight =
-        toolCallsBlockHeight(decodeToolCalls(index), option.font, maxTextWidth);
-    return {option.rect.width(),
-            textHeight + imageBlockHeight + toolCallsHeight + (2 * kBubblePadding) + 18 + 8 + 14};
+    const ItemLayout layout = layoutItem(option, index);
+    const int height =
+        (layout.contentRect.top() - option.rect.top()) + layout.contentRect.height() + kItemSpacing;
+    return {option.rect.width(), height};
 }
 
 } // namespace ocapi

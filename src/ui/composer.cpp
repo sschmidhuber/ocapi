@@ -3,6 +3,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
@@ -121,21 +122,26 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     rowLayout->setContentsMargins(0, 0, 0, 0);
     rowLayout->setSpacing(2);
     m_textEdit = new MessageTextEdit(row);
-    m_attachButton = new QToolButton(row);
+    m_attachButton = new QToolButton(this);
     m_attachButton->setText(QStringLiteral("+"));
     m_attachButton->setToolTip(tr("Attach images, documents or text files"));
     m_attachButton->setAutoRaise(true);
     m_attachButton->setFixedSize(28, 28);
-    m_micButton = new QToolButton(row);
-    m_micButton->setText(QString::fromUtf8("\U0001F3A4"));
+    m_micButton = new QToolButton(this);
+    const QIcon micIcon =
+        QIcon::fromTheme(QStringLiteral("audio-input-microphone"),
+                         QIcon(QString::fromUtf8(":/resources/icons/microphone.svg")));
+    if (!micIcon.isNull()) {
+        m_micButton->setIcon(micIcon);
+        m_micButton->setIconSize(QSize(18, 18));
+    } else {
+        m_micButton->setText(QString::fromUtf8("\U0001F3A4"));
+    }
     m_micButton->setToolTip(tr("Dictate message (speech-to-text)"));
     m_micButton->setAccessibleName(tr("Dictate message"));
     m_micButton->setAutoRaise(true);
     m_micButton->setCheckable(true);
     m_micButton->setFixedSize(28, 28);
-    rowLayout->addWidget(m_textEdit, 1);
-    rowLayout->addWidget(m_micButton);
-    rowLayout->addWidget(m_attachButton);
     layout->addWidget(row);
 
     m_textEdit->setAccessibleName(tr("Message input"));
@@ -195,6 +201,7 @@ void Composer::setBusy(bool busy) {
     m_busy = busy;
     m_textEdit->setReadOnly(busy);
     m_attachButton->setEnabled(!busy);
+    m_micButton->setEnabled(!busy);
     m_textEdit->setPlaceholderText(
         busy ? tr("Waiting for response…")
              : tr("Type a message…  (Enter to send, Shift+Enter for a new line)"));

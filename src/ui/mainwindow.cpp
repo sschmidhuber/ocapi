@@ -195,8 +195,26 @@ void MainWindow::setupUi() {
     rightLayout->setContentsMargins(0, 0, 0, 0);
     rightLayout->setSpacing(0);
 
+    // Constant margin around the chat conversation area, matching the
+    // sidebar's 8px gap. A slim scrollbar keeps the chat box the same
+    // width whether the scrollbar is shown or not.
+    constexpr int kPanelMargin = 8;
     m_chatView = new ChatView(rightPanel);
-    rightLayout->addWidget(m_chatView, 1);
+    m_chatView->setStyleSheet(
+        QStringLiteral("QListView { border: 1px solid palette(mid); }"
+                       "QListView QScrollBar:vertical { background: palette(window); width: 4px; "
+                       "margin: 0; }"
+                       "QListView QScrollBar::handle:vertical { background: palette(mid); "
+                       "min-height: 20px; border-radius: 2px; }"
+                       "QListView QScrollBar::add-line:vertical, "
+                       "QListView QScrollBar::sub-line:vertical { height: 0; }"));
+    auto *chatMargin = new QVBoxLayout();
+    chatMargin->setContentsMargins(kPanelMargin, kPanelMargin, kPanelMargin, 0);
+    chatMargin->setSpacing(kPanelMargin);
+    chatMargin->addWidget(m_chatView);
+    auto *chatMarginHost = new QWidget(rightPanel);
+    chatMarginHost->setLayout(chatMargin);
+    rightLayout->addWidget(chatMarginHost, 1);
 
     m_emptyLabel =
         new QLabel(tr("Select a chat or start a new one.\n\n"
@@ -209,7 +227,8 @@ void MainWindow::setupUi() {
 
     auto *composerColumn = new QWidget(rightPanel);
     auto *composerColumnLayout = new QVBoxLayout(composerColumn);
-    composerColumnLayout->setContentsMargins(8, 0, 8, 8);
+    composerColumnLayout->setContentsMargins(kPanelMargin, kPanelMargin, kPanelMargin,
+                                             kPanelMargin);
     composerColumnLayout->setSpacing(4);
     m_composer = new Composer(composerColumn);
     m_composer->setMaximumHeight(160);

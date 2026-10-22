@@ -134,6 +134,7 @@ Message storedToMessage(const StoredMessage &stored) {
     message.error = stored.error;
     message.tokensPerSecond = stored.tokensPerSecond;
     message.images = stored.images;
+    message.files = stored.files;
     return message;
 }
 
@@ -282,9 +283,8 @@ void MainWindow::setupConnections() {
     connect(m_sidebar, &Sidebar::settingsRequested, this,
             [this](const QString &pageId) { openSettings(pageId); });
     connect(m_composer, &Composer::sendRequested, this,
-            [this](const QString &text, const QVector<ImageAttachment> &images) {
-                onSend(text, images);
-            });
+            [this](const QString &text, const QVector<ImageAttachment> &images,
+                   const QVector<FileAttachment> &files) { onSend(text, images, files); });
     connect(m_composer, &Composer::dictationRequested, this, [this]() {
         if (m_voiceInput.isActive())
             m_voiceInput.stop();
@@ -335,7 +335,7 @@ void MainWindow::setupConnections() {
     connect(m_sendButton, &QPushButton::clicked, this, [this]() {
         if (m_composer->isEmpty())
             return;
-        onSend(m_composer->composedText(), m_composer->attachments());
+        onSend(m_composer->composedText(), m_composer->attachments(), m_composer->documents());
     });
     connect(m_stopButton, &QPushButton::clicked, this, &MainWindow::onStop);
     connect(m_modelPicker, &ModelPickerButton::backendSelected, this, [this](const QString &id) {
@@ -614,7 +614,7 @@ void MainWindow::persistMessageForSession(ChatSession *session, const Message &m
         return;
     m_database.insertMessage(session->id().toString(QUuid::WithoutBraces),
                              message.id.toString(QUuid::WithoutBraces), message.roleName(),
-                             message.content, message.timestamp, message.images);
+                             message.content, message.timestamp, message.images, message.files);
 }
 
 void MainWindow::syncSessionToDatabase(ChatSession *session) {
@@ -735,10 +735,11 @@ double MainWindow::throughputFor(const QUuid &messageId) {
     return m_streamedTokens * 1000.0 / static_cast<double>(elapsedMs);
 }
 
-void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &images) {
+void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &images,
+                        const QVector<FileAttachment> &files) {
     if (!m_currentSession || m_streaming || m_runningTools)
         return;
-    if (text.isEmpty() && images.isEmpty())
+    if (text.isEmpty() && images.isEmpty() && files.isEmpty())
         return;
 
     const QString backendId = m_currentSession->backendId();
@@ -769,6 +770,7 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
     userMessage.role = Role::User;
     userMessage.content = text;
     userMessage.images = images;
+    userMessage.files = files;
     m_currentSession->appendMessage(userMessage);
     m_composer->clearText();
     m_composer->clearAttachments();

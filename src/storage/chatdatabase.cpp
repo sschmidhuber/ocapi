@@ -77,6 +77,16 @@ void createTables(QSqlDatabase &database) {
                               "position INTEGER NOT NULL DEFAULT 0, "
                               "FOREIGN KEY (message_id) REFERENCES messages (id) "
                               "ON DELETE CASCADE)"));
+    query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS message_files ("
+                              "id TEXT PRIMARY KEY NOT NULL, "
+                              "message_id TEXT NOT NULL, "
+                              "file_name TEXT NOT NULL, "
+                              "mime_type TEXT NOT NULL DEFAULT '', "
+                              "source_path TEXT NOT NULL DEFAULT '', "
+                              "thumbnail BLOB, "
+                              "position INTEGER NOT NULL DEFAULT 0, "
+                              "FOREIGN KEY (message_id) REFERENCES messages (id) "
+                              "ON DELETE CASCADE)"));
 }
 
 } // namespace
@@ -179,6 +189,16 @@ ImageAttachment imageFrom(const QSqlQuery &query) {
     return image;
 }
 
+FileAttachment fileFrom(const QSqlQuery &query) {
+    FileAttachment file;
+    file.id = QUuid(query.value(1).toString());
+    file.fileName = query.value(2).toString();
+    file.mimeType = query.value(3).toString();
+    file.sourcePath = query.value(4).toString();
+    file.thumbnail = query.value(5).toByteArray();
+    return file;
+}
+
 } // namespace
 
 QStringList ChatDatabase::sessionIds() const {
@@ -220,6 +240,9 @@ bool ChatDatabase::updateSession(const ChatSession &session) {
 
 bool ChatDatabase::deleteSession(const QString &sessionId) {
     execute(QStringLiteral("DELETE FROM message_images WHERE message_id IN "
+                           "(SELECT id FROM messages WHERE session_id = ?)"),
+            {sessionId});
+    execute(QStringLiteral("DELETE FROM message_files WHERE message_id IN "
                            "(SELECT id FROM messages WHERE session_id = ?)"),
             {sessionId});
     execute(QStringLiteral("DELETE FROM messages WHERE session_id = ?"), {sessionId});
@@ -410,12 +433,22 @@ void ChatDatabase::loadAttachmentsFor(QVector<StoredMessage> &messages) const {
         if (it != byId.constEnd())
             it.value()->images.push_back(imageFrom(query));
     }
+    if (!query.exec(QStringLiteral("SELECT message_id, id, file_name, mime_type, source_path, "
+                                   "thumbnail FROM message_files ORDER BY position ASC"))) {
+        m_lastError = query.lastError().text();
+        return;
+    }
+    while (query.next()) {
+        const auto it = byId.constFind(query.value(0).toString());
+        if (it != byId.constEnd())
+            it.value()->files.push_back(fileFrom(query));
+    }
 }
 
 bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messageId,
                                  const QString &role, const QString &content,
-                                 const QDateTime &timestamp,
-                                 const QVector<ImageAttachment> &images) {
+                                 const QDateTime &timestamp, const QVector<ImageAttachment> &images,
+                                 const QVector<FileAttachment> &files) {
     QSqlQuery position(m_database);
     position.prepare(QStringLiteral("SELECT COALESCE(MAX(position) + 1, 0) FROM messages "
                                     "WHERE session_id = ?"));
@@ -450,7 +483,42 @@ bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messag
                 return false;
         }
     }
+    if (!files.isEmpty()) {
+        const bool inserted =
+            execute(QStringLiteral("DELETE FROM message_files WHERE message_id = ?"), {messageId});
+        if (!inserted)
+            return false;
+        for (const auto &file : files) {
+            if (!insertFile(messageId, file))
+                return false;
+        }
+    }
     return true;
+}
+
+bool ChatDatabase::insertFile(const QString &messageId, const FileAttachment &file) {
+    QSqlQuery position(m_database);
+    position.prepare(QStringLiteral("SELECT COALESCE(MAX(position) + 1, 0) FROM "
+                                    "message_files WHERE message_id = ?"));
+    position.addBindValue(messageId);
+    if (!position.exec() || !position.next()) {
+        m_lastError = position.lastError().text();
+        return false;
+    }
+    return execute(QStringLiteral("INSERT INTO message_files (id, message_id, file_name, "
+                                  "mime_type, source_path, thumbnail, position) "
+                                  "VALUES (?, ?, ?, ?, ?, ?, ?) "
+                                  "ON CONFLICT (id) DO UPDATE SET file_name = "
+                                  "excluded.file_name, thumbnail = excluded.thumbnail"),
+                   {
+                       file.id.toString(QUuid::WithoutBraces),
+                       messageId,
+                       nullToEmpty(file.fileName),
+                       nullToEmpty(file.mimeType),
+                       nullToEmpty(file.sourcePath),
+                       file.thumbnail,
+                       position.value(0),
+                   });
 }
 
 bool ChatDatabase::insertImage(const QString &messageId, const ImageAttachment &image) {

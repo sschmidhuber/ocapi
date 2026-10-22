@@ -61,6 +61,30 @@ QImage renderPage(const poppler::page *page) {
     return image;
 }
 
+// Renders a page at a resolution so the longest page edge is maxEdge pixels.
+QImage renderPageScaled(const poppler::page *page, int maxEdge) {
+    const poppler::rectf pageRect = page->page_rect();
+    const double pageWidth = pageRect.width();
+    const double pageHeight = pageRect.height();
+    if (pageWidth <= 0.0 || pageHeight <= 0.0 || maxEdge <= 0)
+        return {};
+    const qreal scale = static_cast<qreal>(maxEdge) / qMax(pageWidth, pageHeight);
+    const poppler::image rendered =
+        poppler::page_renderer().render_page(page, scale * 72.0, scale * 72.0);
+    if (!rendered.is_valid() || rendered.format() != poppler::image::format_argb32)
+        return {};
+    const int width = rendered.width();
+    const int height = rendered.height();
+    if (width <= 0 || height <= 0)
+        return {};
+    QImage image(width, height, QImage::Format_ARGB32);
+    const int bytesPerRow = rendered.bytes_per_row();
+    const char *src = rendered.const_data();
+    for (int y = 0; y < height; ++y)
+        memcpy(image.scanLine(y), src + y * bytesPerRow, static_cast<size_t>(width) * 4);
+    return image;
+}
+
 } // namespace
 #endif
 
@@ -160,6 +184,24 @@ QString TextExtractor::extractFromPdf(const QString &path, QString *error) {
     Q_UNUSED(path);
     if (error)
         *error = QObject::tr("PDF support is not available in this build (Poppler is missing).");
+    return {};
+#endif
+}
+
+QImage TextExtractor::renderFirstPdfPage(const QString &path, int maxEdge) {
+#if OCAPI_HAVE_POPPLER
+    if (!QFileInfo::exists(path) || maxEdge <= 0)
+        return {};
+    std::unique_ptr<poppler::document> doc(poppler::document::load_from_file(path.toStdString()));
+    if (!doc || doc->is_locked() || doc->pages() <= 0)
+        return {};
+    std::unique_ptr<poppler::page> page(doc->create_page(0));
+    if (!page)
+        return {};
+    return renderPageScaled(page.get(), maxEdge);
+#else
+    Q_UNUSED(path);
+    Q_UNUSED(maxEdge);
     return {};
 #endif
 }

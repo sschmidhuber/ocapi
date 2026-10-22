@@ -35,6 +35,10 @@ constexpr int kBubbleRadius = 10;
 constexpr int kMaxBubbleWidthFraction = 80; // percent of viewport width
 constexpr int kImageSize = 160;             // max thumbnail edge in the chat
 constexpr int kImageSpacing = 6;
+constexpr int kFileChipHeight = 40; // height of a file chip in the chat
+constexpr int kFileChipThumb = 32;  // thumbnail edge inside a file chip
+constexpr int kFileChipPadding = 6;
+constexpr int kFileChipMaxTextWidth = 160; // file name text is elided beyond this
 
 QVector<QImage> decodeImages(const QModelIndex &index) {
     const auto attachments =
@@ -44,6 +48,57 @@ QVector<QImage> decodeImages(const QModelIndex &index) {
     for (const auto &attachment : attachments)
         images.push_back(attachment.decode());
     return images;
+}
+
+QVector<FileAttachment> decodeFiles(const QModelIndex &index) {
+    return index.data(static_cast<int>(Qt::UserRole) + 8).value<QVector<FileAttachment>>();
+}
+
+int fileChipWidth(const QString &fileName, const QFontMetrics &metrics) {
+    const QString elided = metrics.elidedText(fileName, Qt::ElideMiddle, kFileChipMaxTextWidth);
+    return (3 * kFileChipPadding) + kFileChipThumb + metrics.horizontalAdvance(elided);
+}
+
+// File chips wrap into rows within maxWidth; returns the row count.
+int fileChipRowCount(const QVector<FileAttachment> &files, const QFontMetrics &metrics,
+                     int maxWidth) {
+    if (files.isEmpty())
+        return 0;
+    int rows = 1;
+    int x = 0;
+    for (const auto &file : files) {
+        const int width = fileChipWidth(file.fileName, metrics);
+        if (x > 0 && x + width > maxWidth) {
+            ++rows;
+            x = 0;
+        }
+        x += width + kImageSpacing;
+    }
+    return rows;
+}
+
+int filesBlockHeight(const QVector<FileAttachment> &files, const QFont &font, int maxTextWidth) {
+    const int rows = fileChipRowCount(files, QFontMetrics(font), maxTextWidth);
+    return rows > 0 ? (rows * kFileChipHeight) + ((rows - 1) * kImageSpacing) : 0;
+}
+
+int filesBlockWidth(const QVector<FileAttachment> &files, const QFont &font, int maxWidth) {
+    if (files.isEmpty())
+        return 0;
+    const QFontMetrics metrics(font);
+    int width = 0;
+    int rowWidth = 0;
+    for (const auto &file : files) {
+        const int chipWidth = fileChipWidth(file.fileName, metrics);
+        if (rowWidth > 0 && rowWidth + chipWidth > maxWidth) {
+            width = qMax(width, rowWidth - kImageSpacing);
+            rowWidth = 0;
+        }
+        rowWidth += chipWidth + kImageSpacing;
+    }
+    if (rowWidth > 0)
+        width = qMax(width, rowWidth - kImageSpacing);
+    return width;
 }
 
 QVector<ToolCall> decodeToolCalls(const QModelIndex &index) {
@@ -148,6 +203,7 @@ struct ItemLayout {
     bool hasFooter = false;
     int toolCallsHeight = 0;
     int imageBlockHeight = 0;
+    int filesBlockHeight = 0;
     int textHeight = 0;
     QString throughput; // empty when the message has no tok/s label
 };
@@ -171,6 +227,7 @@ ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &ind
     const QString error = index.data(static_cast<int>(Qt::UserRole) + 3).toString();
     const QVector<QImage> images = decodeImages(index);
     const QVector<ToolCall> toolCalls = decodeToolCalls(index);
+    const QVector<FileAttachment> files = decodeFiles(index);
 
     const int availableWidth = option.rect.width() - (2 * kEdgeMargin);
     const int maxTextWidth =
@@ -180,6 +237,9 @@ ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &ind
     ItemLayout layout;
     layout.toolCallsHeight = toolCallsBlockHeight(toolCalls, option.font, maxTextWidth);
     layout.imageBlockHeight = images.isEmpty() ? 0 : imagesBlockHeight(images) + kImageSpacing;
+    layout.filesBlockHeight =
+        files.isEmpty() ? 0
+                        : ocapi::filesBlockHeight(files, option.font, maxTextWidth) + kImageSpacing;
 
     std::unique_ptr<QTextDocument> doc;
     if (!error.isEmpty()) {
@@ -195,10 +255,13 @@ ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &ind
 
     const int textWidth = doc->size().toSize().width();
     const int imageBlockWidth = imagesBlockWidth(images);
-    const int contentWidth =
-        qMax(textWidth, qMin(imageBlockWidth, maxTextWidth)) + (2 * kBubblePadding);
-    const int contentHeight =
-        layout.textHeight + layout.imageBlockHeight + layout.toolCallsHeight + (2 * kBubblePadding);
+    const int fileBlockWidth = filesBlockWidth(files, option.font, maxTextWidth);
+    const int contentWidth = qMax(textWidth, qMax(qMin(imageBlockWidth, maxTextWidth),
+                                                  qMin(fileBlockWidth, maxTextWidth))) +
+                             (2 * kBubblePadding);
+    const int contentHeight = layout.textHeight + layout.imageBlockHeight +
+                              layout.filesBlockHeight + layout.toolCallsHeight +
+                              (2 * kBubblePadding);
 
     const double tokensPerSecond = index.data(static_cast<int>(Qt::UserRole) + 4).toDouble();
     layout.throughput = tokensPerSecond > 0.0 ? throughputText(tokensPerSecond) : QString();
@@ -245,6 +308,70 @@ QRect copyButtonRect(const QRect &footerRect) {
     rect.moveCenter(footerRect.center());
     rect.moveLeft(footerRect.left());
     return rect;
+}
+
+// Paints one file chip: a rounded tile with the file thumbnail and its
+// (elided) name. Returns the x position right after the chip.
+int paintFileChip(QPainter *painter, const QStyleOptionViewItem &option, const FileAttachment &file,
+                  const QRect &chipRect, bool isUser) {
+    painter->setPen(QPen(QColor(0, 0, 0, 40), 1));
+    painter->setBrush(isUser ? QColor(0xff, 0xff, 0xff, 0x2e) : QColor(0, 0, 0, 0x0d));
+    painter->drawRoundedRect(chipRect, kBubbleRadius / 2.0, kBubbleRadius / 2.0);
+
+    const QRect thumbRect(chipRect.left() + kFileChipPadding,
+                          chipRect.top() + ((kFileChipHeight - kFileChipThumb) / 2), kFileChipThumb,
+                          kFileChipThumb);
+    const QImage thumb = file.decodeThumbnail();
+    if (!thumb.isNull()) {
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(Qt::white);
+        painter->drawRoundedRect(thumbRect, 3, 3);
+        painter->drawImage(thumbRect, thumb.scaled(kFileChipThumb, kFileChipThumb,
+                                                   Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    } else {
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(QColor(0x75, 0x75, 0x75));
+        painter->drawRoundedRect(thumbRect, 3, 3);
+        painter->setPen(Qt::white);
+        painter->setFont(option.font);
+        painter->drawText(thumbRect, Qt::AlignCenter, QStringLiteral("?"));
+    }
+
+    painter->setPen(isUser ? Qt::white : QColor(0x1a, 0x1a, 0x1a));
+    painter->setFont(option.font);
+    const QFontMetrics metrics(option.font);
+    const QString elided =
+        metrics.elidedText(file.fileName, Qt::ElideMiddle, kFileChipMaxTextWidth);
+    const QRect labelRect(thumbRect.right() + kFileChipPadding, chipRect.top(),
+                          chipRect.right() - kFileChipPadding - thumbRect.right() -
+                              kFileChipPadding,
+                          chipRect.height());
+    painter->drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
+    return chipRect.right() + kImageSpacing;
+}
+
+// Paints the wrapping row of file chips below the images, above the text.
+void paintFileChips(QPainter *painter, const QStyleOptionViewItem &option,
+                    const QVector<FileAttachment> &files, const QRect &contentRect,
+                    const ItemLayout &layout, bool isUser) {
+    if (files.isEmpty())
+        return;
+    const int chipsTop =
+        contentRect.top() + kBubblePadding + layout.toolCallsHeight + layout.imageBlockHeight;
+    const int maxChipsWidth = contentRect.width() - (2 * kBubblePadding);
+    const QFontMetrics metrics(option.font);
+    const int chipsLeft = contentRect.left() + kBubblePadding;
+    int chipX = chipsLeft;
+    int chipY = chipsTop;
+    for (const auto &file : files) {
+        const int chipWidth = fileChipWidth(file.fileName, metrics);
+        if (chipX > chipsLeft && chipX + chipWidth > chipsLeft + maxChipsWidth) {
+            chipX = chipsLeft;
+            chipY += kFileChipHeight + kImageSpacing;
+        }
+        chipX = paintFileChip(painter, option, file,
+                              QRect(chipX, chipY, chipWidth, kFileChipHeight), isUser);
+    }
 }
 
 // Paints the message footer: copy button and throughput label at the left
@@ -311,6 +438,7 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     const ItemLayout layout = layoutItem(option, index);
     const QRect contentRect = layout.contentRect;
     const int maxTextWidth = contentRect.width() - (2 * kBubblePadding);
+    const QVector<FileAttachment> files = decodeFiles(index);
 
     // The chat area is white (see ChatView); use fixed dark text colors so
     // messages stay readable regardless of the widget theme.
@@ -410,15 +538,19 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
         x += targetWidth + kImageSpacing;
     }
 
+    // File chips below the images, above the message text: rounded tiles
+    // with the file thumbnails and their (elided) names.
+    paintFileChips(painter, option, files, contentRect, layout, isUser);
+
     // Message text.
     painter->setPen(textColor);
-    painter->translate(contentRect.left() + kBubblePadding, contentRect.top() + kBubblePadding +
-                                                                layout.toolCallsHeight +
-                                                                layout.imageBlockHeight);
+    painter->translate(contentRect.left() + kBubblePadding,
+                       (contentRect.top() + kBubblePadding + layout.toolCallsHeight +
+                        layout.imageBlockHeight + layout.filesBlockHeight));
     doc->drawContents(painter);
-    painter->translate(
-        -(contentRect.left() + kBubblePadding),
-        -(contentRect.top() + kBubblePadding + layout.toolCallsHeight + layout.imageBlockHeight));
+    painter->translate(-(contentRect.left() + kBubblePadding),
+                       -(contentRect.top() + kBubblePadding + layout.toolCallsHeight +
+                         layout.imageBlockHeight + layout.filesBlockHeight));
 
     // Footer below the content: copy button and throughput label.
     paintFooterRow(painter, option, layout, isUser, m_copiedIndex == index);

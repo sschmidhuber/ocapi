@@ -105,6 +105,12 @@ extension. Poppler, Tesseract and libarchive are optional at build time
 (detected via pkg-config) — the features are disabled gracefully when they
 are missing.
 
+Attached files are rendered as thumbnail chips in the composer and in the
+chat history: PDFs show a preview of their first page (rendered with
+Poppler), office documents, archives and e-mails show a colored icon tile
+with a type badge, and text files show a page tile with text lines. The
+thumbnails are stored alongside the message in the chat database.
+
 Install the dependencies, e.g. on Debian/Ubuntu:
 
 ```sh

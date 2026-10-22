@@ -14,7 +14,9 @@ private slots:
     void timestampIsSet();
     void imagesDefaultEmpty();
     void imageAttachmentsAreKept();
-    void isEmptyCoversTextAndImages();
+    void filesDefaultEmpty();
+    void fileAttachmentsAreKept();
+    void isEmptyCoversTextImagesAndFiles();
 };
 
 void TestMessage::roleNameMapsEveryRole() {
@@ -70,7 +72,26 @@ void TestMessage::imageAttachmentsAreKept() {
     QCOMPARE(m.images.first().mimeType, QStringLiteral("image/png"));
 }
 
-void TestMessage::isEmptyCoversTextAndImages() {
+void TestMessage::filesDefaultEmpty() {
+    const Message m;
+    QVERIFY(m.files.isEmpty());
+    QVERIFY(!m.hasFiles());
+}
+
+void TestMessage::fileAttachmentsAreKept() {
+    Message m;
+    FileAttachment file;
+    file.fileName = QStringLiteral("report.pdf");
+    file.thumbnail = QByteArrayLiteral("\x89PNG");
+    m.files.push_back(file);
+    QVERIFY(m.hasFiles());
+    QCOMPARE(m.files.size(), 1);
+    QCOMPARE(m.files.first().fileName, QStringLiteral("report.pdf"));
+    // An invalid thumbnail blob decodes to a null image, which is handled.
+    QVERIFY(m.files.first().decodeThumbnail().isNull());
+}
+
+void TestMessage::isEmptyCoversTextImagesAndFiles() {
     Message m;
     QVERIFY(m.isEmpty());
     ImageAttachment image;
@@ -78,6 +99,11 @@ void TestMessage::isEmptyCoversTextAndImages() {
     m.images.push_back(image);
     QVERIFY(!m.isEmpty());
     m.images.clear();
+    FileAttachment file;
+    file.fileName = QStringLiteral("a.txt");
+    m.files.push_back(file);
+    QVERIFY(!m.isEmpty());
+    m.files.clear();
     m.content = QStringLiteral("hello");
     QVERIFY(!m.isEmpty());
 }

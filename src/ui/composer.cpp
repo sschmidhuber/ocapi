@@ -1,5 +1,7 @@
 #include "ui/composer.h"
 
+#include "core/filepreview.h"
+
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
@@ -23,12 +25,16 @@ namespace {
 
 constexpr int kMaxAttachmentsPerMessage = 8;
 constexpr int kThumbnailSize = 48;
+constexpr int kDocumentChipHeight = 40;
+constexpr int kDocumentThumbSize = 32;
+constexpr int kDocumentChipPadding = 6;
 
 const QStringList &imageSuffixes() {
     static const QStringList allowed = {
         QStringLiteral("jpg"),  QStringLiteral("jpeg"), QStringLiteral("png"),
         QStringLiteral("webp"), QStringLiteral("jxl"),  QStringLiteral("avif"),
-        QStringLiteral("tif"),  QStringLiteral("tiff"), QStringLiteral("gif")};
+        QStringLiteral("tif"),  QStringLiteral("tiff"), QStringLiteral("gif"),
+    };
     return allowed;
 }
 
@@ -214,7 +220,7 @@ bool Composer::eventFilter(QObject *watched, QEvent *event) {
             if (keyEvent->modifiers() & Qt::ShiftModifier)
                 return false;
             if (!m_busy) {
-                emit sendRequested(composedText(), m_attachments);
+                emit sendRequested(composedText(), m_attachments, m_documents);
                 return true;
             }
         }
@@ -267,7 +273,7 @@ void Composer::finishDictation(const QString &text) {
 
 bool Composer::isEmpty() const {
     return m_textEdit->toPlainText().trimmed().isEmpty() && m_attachments.isEmpty() &&
-           m_textBlocks.isEmpty();
+           m_documents.isEmpty();
 }
 
 void Composer::attachFiles() {
@@ -278,7 +284,7 @@ void Composer::attachFiles() {
             addDocument(file);
             continue;
         }
-        if (m_attachments.size() >= kMaxAttachmentsPerMessage)
+        if (m_attachments.size() + m_documents.size() >= kMaxAttachmentsPerMessage)
             break;
         QString error;
         auto attachment = ImagePreprocessor::processFile(file, &error);
@@ -290,17 +296,26 @@ void Composer::attachFiles() {
 }
 
 void Composer::addDocument(const QString &path) {
+    if (m_attachments.size() + m_documents.size() >= kMaxAttachmentsPerMessage) {
+        QMessageBox::warning(
+            this, tr("Too many attachments"),
+            tr("At most %1 files can be attached to a message.").arg(kMaxAttachmentsPerMessage));
+        return;
+    }
     QString error;
     const QString text = TextExtractor::extractFromFile(path, &error);
     if (text.isEmpty()) {
         QMessageBox::warning(this, tr("Attachment error"), error);
         return;
     }
-    addTextBlock(QFileInfo(path).fileName(), text);
-}
 
-void Composer::addTextBlock(const QString &fileName, const QString &text) {
-    m_textBlocks.push_back(qMakePair(fileName, text.trimmed()));
+    FileAttachment file;
+    file.fileName = QFileInfo(path).fileName();
+    file.mimeType = QStringLiteral("application/octet-stream");
+    file.sourcePath = path;
+    file.thumbnail = FilePreview::thumbnailForFile(path, kDocumentThumbSize);
+    file.extractedText = text.trimmed();
+    m_documents.push_back(file);
     refreshAttachmentStrip();
 }
 
@@ -309,22 +324,22 @@ QString Composer::composedText() const {
     const QString typed = m_textEdit->toPlainText().trimmed();
     if (!typed.isEmpty())
         parts.push_back(typed);
-    for (const auto &block : m_textBlocks)
-        parts.push_back(tr("[Attached file: %1]\n%2").arg(block.first, block.second));
+    for (const auto &file : m_documents)
+        parts.push_back(tr("[Attached file: %1]\n%2").arg(file.fileName, file.extractedText));
     return parts.join(QStringLiteral("\n\n"));
 }
 
 void Composer::clearAttachments() {
     m_attachments.clear();
-    m_textBlocks.clear();
+    m_documents.clear();
     refreshAttachmentStrip();
 }
 
 void Composer::addAttachment(const ImageAttachment &attachment) {
-    if (m_attachments.size() >= kMaxAttachmentsPerMessage) {
+    if (m_attachments.size() + m_documents.size() >= kMaxAttachmentsPerMessage) {
         QMessageBox::warning(
-            this, tr("Too many images"),
-            tr("At most %1 images can be attached to a message.").arg(kMaxAttachmentsPerMessage));
+            this, tr("Too many attachments"),
+            tr("At most %1 files can be attached to a message.").arg(kMaxAttachmentsPerMessage));
         return;
     }
     m_attachments.push_back(attachment);
@@ -357,15 +372,36 @@ void Composer::refreshAttachmentStrip() {
         thumb->setAlignment(Qt::AlignCenter);
         m_attachmentLayout->insertWidget(m_attachmentLayout->count() - 1, thumb);
     }
-    for (const auto &block : m_textBlocks) {
-        auto *chip = new QLabel(m_attachmentStrip);
-        chip->setText(QString::fromUtf8("\U0001F4D1 ") + block.first);
-        chip->setToolTip(tr("Text extracted from %1").arg(block.first));
-        chip->setAlignment(Qt::AlignCenter);
-        chip->setStyleSheet(QStringLiteral("border: 1px solid palette(mid); padding: 2px 6px;"));
+    for (const auto &file : m_documents) {
+        auto *chip = new QWidget(m_attachmentStrip);
+        chip->setFixedHeight(kDocumentChipHeight);
+        auto *chipLayout = new QHBoxLayout(chip);
+        chipLayout->setContentsMargins(kDocumentChipPadding, 0, kDocumentChipPadding, 0);
+        chipLayout->setSpacing(kDocumentChipPadding);
+
+        auto *thumb = new QLabel(chip);
+        thumb->setFixedSize(kDocumentThumbSize, kDocumentThumbSize);
+        thumb->setAlignment(Qt::AlignCenter);
+        const QImage image = file.decodeThumbnail();
+        if (!image.isNull()) {
+            thumb->setPixmap(
+                QPixmap::fromImage(image).scaled(kDocumentThumbSize, kDocumentThumbSize,
+                                                 Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        } else {
+            thumb->setText(QStringLiteral("?"));
+        }
+        chipLayout->addWidget(thumb);
+
+        auto *label = new QLabel(file.fileName, chip);
+        label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        chipLayout->addWidget(label, 1);
+
+        chip->setToolTip(tr("Text extracted from %1").arg(file.fileName));
+        chip->setStyleSheet(
+            QStringLiteral("QWidget { border: 1px solid palette(mid); border-radius: 4px; }"));
         m_attachmentLayout->insertWidget(m_attachmentLayout->count() - 1, chip);
     }
-    m_attachmentStrip->setVisible(!m_attachments.isEmpty() || !m_textBlocks.isEmpty());
+    m_attachmentStrip->setVisible(!m_attachments.isEmpty() || !m_documents.isEmpty());
     emit attachmentsChanged();
 }
 

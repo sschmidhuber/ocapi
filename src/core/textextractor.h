@@ -29,6 +29,11 @@ public:
     // pages) are rendered and passed to OCR when Tesseract is available.
     [[nodiscard]] static QString extractFromPdf(const QString &path, QString *error = nullptr);
 
+    // Renders the first page of a PDF file to an image scaled so its longest
+    // edge is maxEdge pixels. Used for document thumbnails. Returns a null
+    // image when the PDF cannot be rendered or Poppler is unavailable.
+    [[nodiscard]] static QImage renderFirstPdfPage(const QString &path, int maxEdge);
+
     // Recognizes text in an image (e.g. a scanned document) using Tesseract.
     [[nodiscard]] static QString extractFromImage(const QImage &image, QString *error = nullptr);
 

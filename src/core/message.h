@@ -36,6 +36,28 @@ Q_DECLARE_METATYPE(QVector<ocapi::ToolCall>)
 
 namespace ocapi {
 
+// A non-image file attached to a chat message (PDF, office document,
+// archive, e-mail, plain text, ...). The thumbnail is a small PNG preview
+// generated when the file is attached; the full document is embedded into
+// the message text as extracted text.
+struct FileAttachment {
+    QUuid id = QUuid::createUuid();
+    QString fileName;
+    QString mimeType;
+    QString sourcePath;
+    QByteArray thumbnail;  // encoded PNG preview of the file's first page
+    QString extractedText; // text sent to the model (set when the file is attached)
+
+    [[nodiscard]] QImage decodeThumbnail() const { return QImage::fromData(thumbnail); }
+};
+
+} // namespace ocapi
+
+Q_DECLARE_METATYPE(ocapi::FileAttachment)
+Q_DECLARE_METATYPE(QVector<ocapi::FileAttachment>)
+
+namespace ocapi {
+
 struct Message {
     QUuid id = QUuid::createUuid();
     Role role = Role::User;
@@ -45,15 +67,17 @@ struct Message {
     QString error;
     double tokensPerSecond = -1.0;   // output tokens/s; negative when unknown
     QVector<ImageAttachment> images; // images attached to this message
+    QVector<FileAttachment> files;   // non-image files attached to this message
     QVector<ToolCall> toolCalls;     // tool invocations requested by the assistant
     // For Role::Tool: which tool call this message answers.
     QString toolCallId;
     QString toolName;
 
     [[nodiscard]] bool hasImages() const { return !images.isEmpty(); }
+    [[nodiscard]] bool hasFiles() const { return !files.isEmpty(); }
     [[nodiscard]] bool hasToolCalls() const { return !toolCalls.isEmpty(); }
     [[nodiscard]] bool isEmpty() const {
-        return content.isEmpty() && images.isEmpty() && toolCalls.isEmpty();
+        return content.isEmpty() && images.isEmpty() && files.isEmpty() && toolCalls.isEmpty();
     }
 
     [[nodiscard]] QString roleName() const {

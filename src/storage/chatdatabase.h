@@ -10,6 +10,7 @@
 #include "core/backendconfig.h"
 #include "core/imagemessage.h"
 #include "core/mcpserverconfig.h"
+#include "core/message.h"
 
 namespace ocapi {
 
@@ -24,6 +25,7 @@ struct StoredMessage {
     bool streaming = false;
     double tokensPerSecond = -1.0;
     QVector<ImageAttachment> images;
+    QVector<FileAttachment> files;
 };
 
 class ChatDatabase {
@@ -59,7 +61,8 @@ public:
     bool deleteSession(const QString &sessionId);
     bool insertMessage(const QString &sessionId, const QString &messageId, const QString &role,
                        const QString &content, const QDateTime &timestamp,
-                       const QVector<ImageAttachment> &images = {});
+                       const QVector<ImageAttachment> &images = {},
+                       const QVector<FileAttachment> &files = {});
     bool updateMessage(const QString &messageId, const QString &content, bool streaming);
     bool setThroughput(const QString &messageId, double tokensPerSecond);
     bool failMessage(const QString &messageId, const QString &error);
@@ -74,6 +77,7 @@ public:
 private:
     bool execute(const QString &query, const QVariantList &bindings);
     bool insertImage(const QString &messageId, const ImageAttachment &image);
+    bool insertFile(const QString &messageId, const FileAttachment &file);
     void loadAttachmentsFor(QVector<StoredMessage> &messages) const;
 
     QString m_connectionName;

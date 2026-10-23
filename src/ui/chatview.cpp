@@ -23,6 +23,7 @@ enum DataRoles {
     ImagesRole,
     ToolCallsRole,
     ToolNameRole,
+    FilesRole,
 };
 
 class ChatModel : public QAbstractListModel {
@@ -62,6 +63,8 @@ public:
             return QVariant::fromValue(message.toolCalls);
         case ToolNameRole:
             return message.role == Role::Tool ? message.toolName : QString();
+        case FilesRole:
+            return QVariant::fromValue(message.files);
         default:
             return {};
         }

@@ -81,7 +81,8 @@ private slots:
     void onSessionSelected(const QUuid &id);
     void onSessionDeleteRequested(const QUuid &id);
     void openSettings(const QString &pageId = {});
-    void onSend(const QString &text, const QVector<ImageAttachment> &images = {});
+    void onSend(const QString &text, const QVector<ImageAttachment> &images = {},
+                const QVector<FileAttachment> &files = {});
     void onStop();
     void onBackendChanged();
     void onModelSelected(const QString &backendId, const QString &model);

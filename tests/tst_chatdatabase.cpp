@@ -33,6 +33,9 @@ private slots:
     void throughputRoundTrip();
     void imageAttachmentsRoundTrip();
     void deleteSessionRemovesImages();
+    void fileAttachmentsRoundTrip();
+    void deleteSessionRemovesFiles();
+    void fileThumbnailSurvivesRoundTrip();
 
 private:
     ChatDatabase &db() { return m_database; }
@@ -330,6 +333,91 @@ void TestChatDatabase::deleteSessionRemovesImages() {
     QVERIFY(db().deleteSession(sessionId));
     QCOMPARE(db().messageCount(sessionId), 0);
     QCOMPARE(db().messagesForSession(sessionId).size(), 0);
+}
+
+void TestChatDatabase::fileAttachmentsRoundTrip() {
+    ChatSession session(QStringLiteral("Files"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+
+    Message message;
+    message.role = Role::User;
+    message.content = QStringLiteral("see attached");
+    FileAttachment file;
+    file.fileName = QStringLiteral("report.pdf");
+    file.mimeType = QStringLiteral("application/pdf");
+    file.sourcePath = QStringLiteral("/tmp/report.pdf");
+    file.thumbnail = QByteArrayLiteral("\x89PNG\r\n\x1a\nthumbbytes");
+    file.extractedText = QStringLiteral("extracted text");
+    message.files.push_back(file);
+    session.appendMessage(message);
+
+    QVERIFY(db().insertMessage(sessionId, message.id.toString(QUuid::WithoutBraces),
+                               message.roleName(), message.content, message.timestamp,
+                               message.images, message.files));
+
+    const auto stored = db().messagesForSession(sessionId);
+    QCOMPARE(stored.size(), 1);
+    QCOMPARE(stored.at(0).files.size(), 1);
+    const auto &storedFile = stored.at(0).files.at(0);
+    QCOMPARE(storedFile.id, file.id);
+    QCOMPARE(storedFile.fileName, QStringLiteral("report.pdf"));
+    QCOMPARE(storedFile.mimeType, QStringLiteral("application/pdf"));
+    QCOMPARE(storedFile.sourcePath, QStringLiteral("/tmp/report.pdf"));
+    QCOMPARE(storedFile.thumbnail, QByteArrayLiteral("\x89PNG\r\n\x1a\nthumbbytes"));
+    // The extracted text travels inside the message content, not the file row.
+    QVERIFY(storedFile.extractedText.isEmpty());
+    QVERIFY(stored.at(0).content.contains(QStringLiteral("see attached")));
+}
+
+void TestChatDatabase::deleteSessionRemovesFiles() {
+    ChatSession session(QStringLiteral("Files"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+    Message message;
+    message.role = Role::User;
+    FileAttachment file;
+    file.fileName = QStringLiteral("notes.txt");
+    message.files.push_back(file);
+    session.appendMessage(message);
+    QVERIFY(db().insertMessage(sessionId, message.id.toString(QUuid::WithoutBraces),
+                               message.roleName(), message.content, message.timestamp,
+                               message.images, message.files));
+    QVERIFY(db().deleteSession(sessionId));
+    QCOMPARE(db().messageCount(sessionId), 0);
+    QCOMPARE(db().messagesForSession(sessionId).size(), 0);
+}
+
+void TestChatDatabase::fileThumbnailSurvivesRoundTrip() {
+    ChatSession session(QStringLiteral("Thumbs"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+
+    // A real PNG thumbnail blob (1x1 transparent pixel).
+    QImage image(1, 1, QImage::Format_ARGB32);
+    image.fill(Qt::transparent);
+    QByteArray png;
+    QBuffer buffer(&png);
+    QVERIFY(buffer.open(QIODevice::WriteOnly));
+    QVERIFY(image.save(&buffer, "PNG"));
+
+    Message message;
+    message.role = Role::User;
+    FileAttachment file;
+    file.fileName = QStringLiteral("doc.pdf");
+    file.thumbnail = png;
+    message.files.push_back(file);
+    session.appendMessage(message);
+
+    QVERIFY(db().insertMessage(sessionId, message.id.toString(QUuid::WithoutBraces),
+                               message.roleName(), message.content, message.timestamp,
+                               message.images, message.files));
+
+    const auto stored = db().messagesForSession(sessionId);
+    QCOMPARE(stored.size(), 1);
+    QCOMPARE(stored.at(0).files.size(), 1);
+    QCOMPARE(stored.at(0).files.at(0).thumbnail, png);
+    QVERIFY(!stored.at(0).files.at(0).decodeThumbnail().isNull());
 }
 
 QTEST_GUILESS_MAIN(TestChatDatabase)

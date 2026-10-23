@@ -1,9 +1,9 @@
 #pragma once
 
 #include "core/imagemessage.h"
+#include "core/message.h"
 #include "core/textextractor.h"
 
-#include <QPair>
 #include <QPlainTextEdit>
 #include <QToolButton>
 #include <QVector>
@@ -53,7 +53,10 @@ public:
     void finishDictation(const QString &text);
     [[nodiscard]] bool isEmpty() const;
     [[nodiscard]] QVector<ImageAttachment> attachments() const { return m_attachments; }
-    [[nodiscard]] bool hasAttachments() const { return !m_attachments.isEmpty(); }
+    [[nodiscard]] QVector<FileAttachment> documents() const { return m_documents; }
+    [[nodiscard]] bool hasAttachments() const {
+        return !m_attachments.isEmpty() || !m_documents.isEmpty();
+    }
 
     void attachFiles();
     void clearAttachments();
@@ -68,7 +71,8 @@ public:
     void setDictationAvailable(bool available);
 
 signals:
-    void sendRequested(const QString &text, const QVector<ocapi::ImageAttachment> &images);
+    void sendRequested(const QString &text, const QVector<ocapi::ImageAttachment> &images,
+                       const QVector<ocapi::FileAttachment> &files);
     void attachmentsChanged();
     void dictationRequested();
 
@@ -81,7 +85,6 @@ protected:
 private:
     void addAttachment(const ImageAttachment &attachment);
     void addDocument(const QString &path);
-    void addTextBlock(const QString &fileName, const QString &text);
     void refreshAttachmentStrip();
 
     MessageTextEdit *m_textEdit = nullptr;
@@ -94,7 +97,7 @@ private:
     QWidget *m_attachmentStrip = nullptr;
     QHBoxLayout *m_attachmentLayout = nullptr;
     QVector<ImageAttachment> m_attachments;
-    QVector<QPair<QString, QString>> m_textBlocks; // (file name, extracted text)
+    QVector<FileAttachment> m_documents; // non-image files with thumbnails
     bool m_busy = false;
 };
 

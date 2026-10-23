@@ -15,6 +15,10 @@ private slots:
     void categoryForFileMapsExtensions();
     void badgeForCategoryCoversCategories();
     void thumbnailForTextFileIsValidPng();
+    void thumbnailForTextFileShowsContent();
+    void thumbnailForOfficeWithEmbeddedPreview();
+    void thumbnailForOdfWithEmbeddedPreview();
+    void thumbnailForOfficeWithoutEmbeddedPreviewFallsBackToIcon();
     void thumbnailForArchiveFileIsValidPng();
     void thumbnailForEmailFileIsValidPng();
     void thumbnailForGenericFileIsValidPng();
@@ -61,22 +65,131 @@ QImage decodePng(const QByteArray &bytes) {
     return QImage::fromData(bytes);
 }
 
+void writeFile(const QString &path, const QByteArray &content) {
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly))
+        qWarning("failed to write test file");
+    file.write(content);
+    file.close();
+}
+
+// Minimal ZIP packages with an embedded first-page preview image. The
+// embedded image bytes are a PNG (QImage::fromData sniffs the actual
+// content, not the entry name); real-world OOXML files embed a JPEG.
+// clang-format off
+QByteArray docxWithThumbnailZip() {
+    return QByteArray::fromBase64(
+        QByteArrayLiteral("UEsDBBQAAAAAALcqV13HHBc8CAAAAAgAAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbDxUeXBlcy8+") +
+        QByteArrayLiteral("UEsDBBQAAAAAALcqV13iS0eWSgAAAEoAAAAXAAAAZG9jUHJvcHMvdGh1bWJuYWlsLmpwZWeJUE5H") +
+        QByteArrayLiteral("DQoaCgAAAA1JSERSAAAACAAAAAgIAgAAAEttKdwAAAARSURBVHicYzghJ4cVMQwtCQCQv0EBsp8+") +
+        QByteArrayLiteral("IgAAAABJRU5ErkJgglBLAQIUAxQAAAAAALcqV13HHBc8CAAAAAgAAAATAAAAAAAAAAAAAACAAQAA") +
+        QByteArrayLiteral("AABbQ29udGVudF9UeXBlc10ueG1sUEsBAhQDFAAAAAAAtypXXeJLR5ZKAAAASgAAABcAAAAAAAAA") +
+        QByteArrayLiteral("AAAAAIABOQAAAGRvY1Byb3BzL3RodW1ibmFpbC5qcGVnUEsFBgAAAAACAAIAhgAAALgAAAAAAA=="));
+}
+
+QByteArray docxWithoutThumbnailZip() {
+    return QByteArray::fromBase64(
+        QByteArrayLiteral("UEsDBBQAAAAAALcqV13HHBc8CAAAAAgAAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbDxUeXBlcy8+") +
+        QByteArrayLiteral("UEsDBBQAAAAAALcqV13dWoYNDQAAAA0AAAARAAAAd29yZC9kb2N1bWVudC54bWw8dzpkb2N1bWVu") +
+        QByteArrayLiteral("dC8+UEsBAhQDFAAAAAAAtypXXcccFzwIAAAACAAAABMAAAAAAAAAAAAAAIABAAAAAFtDb250ZW50") +
+        QByteArrayLiteral("X1R5cGVzXS54bWxQSwECFAMUAAAAAAC3Kldd3VqGDQ0AAAANAAAAEQAAAAAAAAAAAAAAgAE5AAAA") +
+        QByteArrayLiteral("d29yZC9kb2N1bWVudC54bWxQSwUGAAAAAAIAAgCAAAAAdQAAAAAA"));
+}
+
+QByteArray odtWithThumbnailZip() {
+    return QByteArray::fromBase64(
+        QByteArrayLiteral("UEsDBBQAAAAAALcqV11exjIMJwAAACcAAAAIAAAAbWltZXR5cGVhcHBsaWNhdGlvbi92bmQub2Fz") +
+        QByteArrayLiteral("aXMub3BlbmRvY3VtZW50LnRleHRQSwMEFAAAAAAAtypXXeJLR5ZKAAAASgAAABgAAABUaHVtYm5h") +
+        QByteArrayLiteral("aWxzL3RodW1ibmFpbC5wbmeJUE5HDQoaCgAAAA1JSERSAAAACAAAAAgIAgAAAEttKdwAAAARSURB") +
+        QByteArrayLiteral("VHicYzghJ4cVMQwtCQCQv0EBsp8+IgAAAABJRU5ErkJgglBLAQIUAxQAAAAAALcqV11exjIMJwAA") +
+        QByteArrayLiteral("ACcAAAAIAAAAAAAAAAAAAACAAQAAAABtaW1ldHlwZVBLAQIUAxQAAAAAALcqV13iS0eWSgAAAEoA") +
+        QByteArrayLiteral("AAAYAAAAAAAAAAAAAACAAU0AAABUaHVtYm5haWxzL3RodW1ibmFpbC5wbmdQSwUGAAAAAAIAAgB8") +
+        QByteArrayLiteral("AAAAzQAAAAAA"));
+}
+// clang-format on
+
 } // namespace
 
 void TestFilePreview::thumbnailForTextFileIsValidPng() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     const QString path = dir.filePath(QStringLiteral("notes.txt"));
-    QFile file(path);
-    QVERIFY(file.open(QIODevice::WriteOnly));
-    file.write("hello world");
-    file.close();
+    writeFile(path, "hello world");
 
     const QByteArray thumbnail = FilePreview::thumbnailForFile(path, 64);
     QVERIFY(!thumbnail.isEmpty());
     const QImage image = decodePng(thumbnail);
     QVERIFY(!image.isNull());
     QVERIFY(qMax(image.width(), image.height()) <= 64);
+}
+
+void TestFilePreview::thumbnailForTextFileShowsContent() {
+    // The text preview paints the file's first lines in dark pixels on a
+    // white page; a line-only tile (the fallback) would not have dark text
+    // pixels in the upper text area.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("code.py"));
+    writeFile(path, "def hello():\n    print('hi')\n");
+
+    const QByteArray thumbnail = FilePreview::thumbnailForFile(path, 96);
+    QVERIFY(!thumbnail.isEmpty());
+    const QImage image = decodePng(thumbnail);
+    QVERIFY(!image.isNull());
+    // Scan the page area for dark (text) pixels.
+    int darkPixels = 0;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor c = image.pixelColor(x, y);
+            if (c.red() < 100 && c.green() < 100 && c.blue() < 100)
+                ++darkPixels;
+        }
+    }
+    QVERIFY(darkPixels > 20);
+}
+
+void TestFilePreview::thumbnailForOfficeWithEmbeddedPreview() {
+    if (!TextExtractor::hasLibArchive())
+        QSKIP("libarchive not available in this build");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("report.docx"));
+    writeFile(path, docxWithThumbnailZip());
+
+    const QByteArray thumbnail = FilePreview::thumbnailForFile(path, 64);
+    QVERIFY(!thumbnail.isEmpty());
+    const QImage image = decodePng(thumbnail);
+    QVERIFY(!image.isNull());
+    // The embedded preview is a small square image; scaled into the tile it
+    // keeps its aspect ratio, so the thumbnail is square-ish.
+    QVERIFY(qMax(image.width(), image.height()) <= 64);
+}
+
+void TestFilePreview::thumbnailForOdfWithEmbeddedPreview() {
+    if (!TextExtractor::hasLibArchive())
+        QSKIP("libarchive not available in this build");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("report.odt"));
+    writeFile(path, odtWithThumbnailZip());
+
+    const QByteArray thumbnail = FilePreview::thumbnailForFile(path, 64);
+    QVERIFY(!thumbnail.isEmpty());
+    QVERIFY(!decodePng(thumbnail).isNull());
+}
+
+void TestFilePreview::thumbnailForOfficeWithoutEmbeddedPreviewFallsBackToIcon() {
+    if (!TextExtractor::hasLibArchive())
+        QSKIP("libarchive not available in this build");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("plain.docx"));
+    writeFile(path, docxWithoutThumbnailZip());
+
+    // No embedded preview: falls back to the icon tile, still a valid PNG.
+    const QByteArray thumbnail = FilePreview::thumbnailForFile(path, 64);
+    QVERIFY(!thumbnail.isEmpty());
+    QVERIFY(!decodePng(thumbnail).isNull());
 }
 
 void TestFilePreview::thumbnailForArchiveFileIsValidPng() {

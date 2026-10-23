@@ -107,8 +107,10 @@ are missing.
 
 Attached files are rendered as thumbnail chips in the composer and in the
 chat history: PDFs show a preview of their first page (rendered with
-Poppler), office documents, archives and e-mails show a colored icon tile
-with a type badge, and text files show a page tile with text lines. The
+Poppler), office documents show the first-page preview embedded in the
+package (docProps/thumbnail.jpeg for OOXML, Thumbnails/thumbnail.png for
+ODF), and text files show a page tile with their first lines of content.
+Archives and e-mails show a colored icon tile with a type badge. The
 thumbnails are stored alongside the message in the chat database.
 
 Install the dependencies, e.g. on Debian/Ubuntu:

@@ -9,6 +9,11 @@
 #include <QPainter>
 #include <QPainterPath>
 
+#if OCAPI_HAVE_LIBARCHIVE
+#include <archive.h>
+#include <archive_entry.h>
+#endif
+
 namespace ocapi {
 
 namespace {
@@ -133,6 +138,122 @@ QImage textTile(int size) {
     return tile;
 }
 
+// Office packages (OOXML .docx/.xlsx/.pptx and ODF .odt/.ods/.odp) are ZIP
+// containers that often embed a ready-made preview of the first page:
+// OOXML stores it at docProps/thumbnail.jpeg, ODF at Thumbnails/thumbnail.png.
+// Returns a null image when the package has no embedded preview.
+#if OCAPI_HAVE_LIBARCHIVE
+QImage embeddedPreviewFromOffice(const QString &path) {
+    archive *arch = archive_read_new();
+    if (!arch)
+        return {};
+    archive_read_support_format_zip(arch);
+    archive_read_support_format_empty(arch);
+    struct ArchiveGuard {
+        archive *handle;
+        ~ArchiveGuard() {
+            if (handle)
+                archive_read_free(handle);
+        }
+    } guard{arch};
+
+    if (archive_read_open_filename(arch, path.toUtf8().constData(), 10240) != ARCHIVE_OK)
+        return {};
+
+    const QString suffix = QFileInfo(path).suffix().toLower();
+    const bool odf = suffix == QLatin1String("odt") || suffix == QLatin1String("ods") ||
+                     suffix == QLatin1String("odp");
+    const QString wanted = odf ? QStringLiteral("Thumbnails/thumbnail.png")
+                               : QStringLiteral("docProps/thumbnail.jpeg");
+
+    archive_entry *entry = nullptr;
+    while (archive_read_next_header(arch, &entry) == ARCHIVE_OK) {
+        const QString entryName = QString::fromUtf8(archive_entry_pathname_utf8(entry));
+        if (entryName != wanted)
+            continue;
+        QByteArray payload;
+        payload.reserve(static_cast<int>(archive_entry_size(entry)));
+        const void *chunk = nullptr;
+        size_t size = 0;
+        la_int64_t offset = 0;
+        while (archive_read_data_block(arch, &chunk, &size, &offset) == ARCHIVE_OK)
+            payload.append(static_cast<const char *>(chunk), static_cast<int>(size));
+        if (payload.isEmpty())
+            return {};
+        return QImage::fromData(payload);
+    }
+    return {};
+}
+#endif
+
+// Renders the first lines of a text file onto a white page tile, so text
+// attachments show a real content preview instead of a generic icon.
+QImage textContentTile(const QString &path, int size) {
+    QString error;
+    QString text = TextExtractor::extractFromTextFile(path, &error);
+    if (text.isEmpty())
+        return {};
+    // Long lines would overflow the tile; cut them at a sane width.
+    const int maxLineChars = qMax(20, size);
+    QStringList lines = text.split(QLatin1Char('\n'));
+    for (auto &line : lines) {
+        line.replace(QLatin1Char('\t'), QStringLiteral("    "));
+        if (line.size() > maxLineChars)
+            line = line.left(maxLineChars) + QChar(0x2026); // horizontal ellipsis
+    }
+
+    QImage tile(size, size, QImage::Format_ARGB32);
+    tile.fill(Qt::transparent);
+    QPainter painter(&tile);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+
+    const qreal margin = size * 0.18;
+    const qreal pageWidth = size - (2 * margin);
+    const qreal pageHeight = pageWidth * 1.3;
+    const qreal fold = pageWidth * 0.22;
+    const qreal x = (size - pageWidth) / 2.0;
+    const qreal y = (size - pageHeight) / 2.0;
+
+    QPainterPath page;
+    page.moveTo(x, y);
+    page.lineTo(x + pageWidth - fold, y);
+    page.lineTo(x + pageWidth, y + fold);
+    page.lineTo(x + pageWidth, y + pageHeight);
+    page.lineTo(x, y + pageHeight);
+    page.closeSubpath();
+    painter.setPen(QPen(QColor(0, 0, 0, 60), 1));
+    painter.setBrush(Qt::white);
+    painter.drawPath(page);
+    QPainterPath foldPath;
+    foldPath.moveTo(x + pageWidth - fold, y);
+    foldPath.lineTo(x + pageWidth, y + fold);
+    foldPath.lineTo(x + pageWidth - fold, y + fold);
+    foldPath.closeSubpath();
+    painter.setBrush(QColor(0xe0, 0xe0, 0xe0));
+    painter.drawPath(foldPath);
+
+    QFont font(QStringLiteral("Monospace"));
+    font.setStyleHint(QFont::TypeWriter);
+    font.setPixelSize(qMax(5, static_cast<int>(size * 0.09)));
+    painter.setFont(font);
+    painter.setPen(QColor(0x1a, 0x1a, 0x1a));
+    const QFontMetrics metrics(font);
+    const qreal lineSpacing = metrics.lineSpacing() * 1.15;
+    const QRect textRect(static_cast<int>(x + (pageWidth * 0.14)),
+                         static_cast<int>(y + (pageHeight * 0.16)),
+                         static_cast<int>(pageWidth * 0.72), static_cast<int>(pageHeight * 0.72));
+    qreal lineY = textRect.top();
+    for (const auto &line : lines) {
+        if (lineY + lineSpacing > textRect.bottom())
+            break;
+        painter.drawText(QPointF(textRect.left(), lineY + metrics.ascent()), line);
+        lineY += lineSpacing;
+    }
+    painter.end();
+    return tile;
+}
+
 QByteArray encodePng(const QImage &image) {
     QByteArray bytes;
     QBuffer buffer(&bytes);
@@ -205,8 +326,16 @@ QByteArray FilePreview::thumbnailForFile(const QString &path, int maxEdge) {
     const FileCategory category = categoryForFile(path);
 
     QImage preview;
-    if (category == FileCategory::Pdf)
+    if (category == FileCategory::Pdf) {
         preview = TextExtractor::renderFirstPdfPage(path, maxEdge);
+    } else if (category == FileCategory::Word || category == FileCategory::Spreadsheet ||
+               category == FileCategory::Presentation) {
+#if OCAPI_HAVE_LIBARCHIVE
+        preview = embeddedPreviewFromOffice(path);
+#endif
+    } else if (category == FileCategory::Text) {
+        preview = textContentTile(path, maxEdge);
+    }
     if (preview.isNull()) {
         if (category == FileCategory::Text)
             preview = textTile(maxEdge);

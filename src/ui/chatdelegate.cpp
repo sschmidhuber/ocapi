@@ -33,12 +33,13 @@ constexpr int kItemSpacing = 8;       // breathing room below each item
 constexpr int kBubblePadding = 10;
 constexpr int kBubbleRadius = 10;
 constexpr int kMaxBubbleWidthFraction = 80; // percent of viewport width
-constexpr int kImageSize = 160;             // max thumbnail edge in the chat
+constexpr int kImageSize = 320;             // max thumbnail edge in the chat
 constexpr int kImageSpacing = 6;
-constexpr int kFileChipHeight = 40; // height of a file chip in the chat
-constexpr int kFileChipThumb = 32;  // thumbnail edge inside a file chip
+constexpr int kImageCaptionHeight = 16; // file-name caption below an image
+constexpr int kFileChipHeight = 80;     // height of a file chip in the chat
+constexpr int kFileChipThumb = 64;      // thumbnail edge inside a file chip
 constexpr int kFileChipPadding = 6;
-constexpr int kFileChipMaxTextWidth = 160; // file name text is elided beyond this
+constexpr int kFileChipMaxTextWidth = 320; // file name text is elided beyond this
 
 QVector<QImage> decodeImages(const QModelIndex &index) {
     const auto attachments =
@@ -174,7 +175,8 @@ int imagesBlockHeight(const QVector<QImage> &images) {
     int height = 0;
     for (const auto &image : images)
         height = qMax(height, qMin(image.height(), kImageSize));
-    return height;
+    // Room for the file-name caption below each image.
+    return height > 0 ? height + kImageCaptionHeight : 0;
 }
 
 // Builds the text document for a message. Assistant and tool messages are
@@ -362,7 +364,7 @@ QRect copyButtonRect(const QRect &footerRect) {
 // (elided) name. Returns the x position right after the chip.
 int paintFileChip(QPainter *painter, const QStyleOptionViewItem &option, const FileAttachment &file,
                   const QRect &chipRect, bool isUser) {
-    painter->setPen(QPen(QColor(0, 0, 0, 40), 1));
+    painter->setPen(Qt::NoPen);
     painter->setBrush(QColor(0, 0, 0, 0x0d));
     painter->drawRoundedRect(chipRect, kBubbleRadius / 2.0, kBubbleRadius / 2.0);
 
@@ -601,6 +603,8 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     const QString content = index.data(Qt::DisplayRole).toString();
     const QString error = index.data(static_cast<int>(Qt::UserRole) + 3).toString();
     const QVector<QImage> images = decodeImages(index);
+    const auto imageAttachments =
+        index.data(static_cast<int>(Qt::UserRole) + 5).value<QVector<ImageAttachment>>();
     const QVector<ToolCall> toolCalls = decodeToolCalls(index);
 
     const ItemLayout layout = layoutItem(option, index);
@@ -676,14 +680,24 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
         index.data(static_cast<int>(Qt::UserRole) + 9).toStringList();
     paintToolCalls(painter, option, toolCalls, expandedToolCalls, contentRect, maxTextWidth);
 
-    // Images above the message text.
+    // Images above the message text, each with its file name below.
     int x = contentRect.left() + kBubblePadding;
     const int imageTop = contentRect.top() + kBubblePadding + layout.toolCallsHeight;
-    for (const auto &image : images) {
+    const QFontMetrics captionMetrics(option.font);
+    for (qsizetype i = 0; i < images.size(); ++i) {
+        const QImage &image = images.at(i);
         const int targetWidth = qMin(image.width(), kImageSize);
         const int targetHeight = qMin(image.height(), kImageSize);
         const QRect target(x, imageTop, targetWidth, targetHeight);
         painter->drawImage(target, image);
+        const QString fileName = imageAttachments.value(i).fileName;
+        if (!fileName.isEmpty()) {
+            painter->setFont(option.font);
+            painter->setPen(textColor);
+            painter->drawText(QRect(x, imageTop + targetHeight, targetWidth, kImageCaptionHeight),
+                              Qt::AlignHCenter | Qt::AlignTop,
+                              captionMetrics.elidedText(fileName, Qt::ElideMiddle, targetWidth));
+        }
         x += targetWidth + kImageSpacing;
     }
 

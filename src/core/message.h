@@ -87,6 +87,19 @@ struct Message {
 
     [[nodiscard]] bool hasImages() const { return !images.isEmpty(); }
     [[nodiscard]] bool hasFiles() const { return !files.isEmpty(); }
+    // Text sent to the model: the typed message plus the extracted content
+    // of every attached file. The chat UI shows only the typed content; the
+    // file contents travel with the attachments instead of the message text.
+    [[nodiscard]] QString textForModel() const {
+        QString text = content;
+        for (const auto &file : files) {
+            if (file.extractedText.isEmpty())
+                continue;
+            text += QStringLiteral("\n\n[Attached file: %1]\n%2")
+                        .arg(file.fileName, file.extractedText);
+        }
+        return text;
+    }
     [[nodiscard]] bool hasToolCalls() const { return !toolCalls.isEmpty(); }
     [[nodiscard]] bool isEmpty() const {
         return content.isEmpty() && images.isEmpty() && files.isEmpty() && toolCalls.isEmpty();

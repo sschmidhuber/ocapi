@@ -40,6 +40,36 @@ class ChatModel : public QAbstractListModel {
 public:
     explicit ChatModel(QObject *parent = nullptr) : QAbstractListModel(parent) {}
 
+    // Plain-text representation of a message for assistive technology. The
+    // delegate paints tool-call rows (name, arguments, status) without a
+    // model role, so they are spelled out here; the AT-SPI accessible name
+    // of the item then contains the same information a sighted user sees.
+    static QString accessibleText(const Message &message) {
+        QStringList lines;
+        for (const auto &call : message.toolCalls) {
+            const qsizetype sep = call.name.indexOf(QStringLiteral("__"));
+            const QString shortName = sep >= 0 ? call.name.mid(sep + 2) : call.name;
+            QString line = tr("Tool call: %1").arg(shortName);
+            switch (call.status) {
+            case ToolCallStatus::Done:
+                line += QStringLiteral(" (%1)").arg(tr("done"));
+                break;
+            case ToolCallStatus::Failed:
+                line += QStringLiteral(" (%1)").arg(tr("failed"));
+                break;
+            case ToolCallStatus::Running:
+                line += QStringLiteral(" (%1)").arg(tr("running"));
+                break;
+            }
+            if (!call.result.isEmpty())
+                line += QStringLiteral(": %1").arg(call.result);
+            lines.append(line);
+        }
+        if (!message.content.isEmpty())
+            lines.append(message.content);
+        return lines.join(QStringLiteral("\n"));
+    }
+
     [[nodiscard]] int rowCount(const QModelIndex &parent = {}) const override {
         return parent.isValid() ? 0 : static_cast<int>(m_messages.size());
     }
@@ -51,6 +81,8 @@ public:
         switch (role) {
         case Qt::DisplayRole:
             return message.content;
+        case Qt::AccessibleTextRole:
+            return accessibleText(message);
         case IsUserRole:
             return message.role == Role::User;
         case RoleLabelRole:
@@ -132,7 +164,20 @@ public:
                 // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
                 m_messages[i] = message;
                 const QModelIndex idx = index(static_cast<int>(i));
-                emit dataChanged(idx, idx);
+                // DisplayRole and AccessibleTextRole both change when a tool
+                // call finishes or streams new content.
+                emit dataChanged(idx, idx,
+                                 {
+                                     Qt::DisplayRole,
+                                     Qt::AccessibleTextRole,
+                                     StreamingRole,
+                                     ErrorRole,
+                                     ThroughputRole,
+                                     ImagesRole,
+                                     ToolCallsRole,
+                                     FilesRole,
+                                     ExpandedToolCallsRole,
+                                 });
                 return;
             }
         }

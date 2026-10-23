@@ -5,7 +5,6 @@
 #include <QHeaderView>
 #include <QMap>
 #include <QMenu>
-#include <QPushButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -47,15 +46,10 @@ QStringList orderedGroupKeys(const QVector<ChatSession *> &sessions) {
 
 } // namespace
 
-Sidebar::Sidebar(QWidget *parent)
-    : QWidget(parent), m_tree(new QTreeWidget(this)),
-      m_newChatButton(new QPushButton(tr("+ New chat"), this)),
-      m_settingsButton(new QPushButton(tr("Settings…"), this)) {
+Sidebar::Sidebar(QWidget *parent) : QWidget(parent), m_tree(new QTreeWidget(this)) {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(8, 8, 8, 8);
     layout->setSpacing(6);
-    layout->addWidget(m_newChatButton);
-    layout->addWidget(m_settingsButton);
     layout->addWidget(m_tree, 1);
 
     m_tree->setHeaderHidden(true);
@@ -63,10 +57,6 @@ Sidebar::Sidebar(QWidget *parent)
     m_tree->setIndentation(12);
     m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
 
-    connect(m_settingsButton, &QPushButton::clicked, this,
-            [this] { emit settingsRequested(QString()); });
-
-    connect(m_newChatButton, &QPushButton::clicked, this, &Sidebar::newChatRequested);
     connect(m_tree, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem *item) {
         if (!item || item->data(0, kIsGroupRole).toBool())
             return;

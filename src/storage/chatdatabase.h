@@ -36,6 +36,7 @@ struct StoredMessage {
     double tokensPerSecond = -1.0;
     QVector<ImageAttachment> images;
     QVector<FileAttachment> files;
+    QVector<ToolCall> toolCalls;
 };
 
 class ChatDatabase {
@@ -74,8 +75,13 @@ public:
     bool insertMessage(const QString &sessionId, const QString &messageId, const QString &role,
                        const QString &content, const QDateTime &timestamp,
                        const QVector<ImageAttachment> &images = {},
-                       const QVector<FileAttachment> &files = {});
+                       const QVector<FileAttachment> &files = {},
+                       const QVector<ToolCall> &toolCalls = {});
     bool updateMessage(const QString &messageId, const QString &content, bool streaming);
+    // Marks one tool call of an assistant message finished and stores its
+    // result text (empty for still-running calls).
+    bool updateToolCallStatus(const QString &messageId, const QString &toolCallId,
+                              ToolCallStatus status, const QString &result);
     bool setThroughput(const QString &messageId, double tokensPerSecond);
     bool failMessage(const QString &messageId, const QString &error);
 

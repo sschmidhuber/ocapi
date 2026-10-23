@@ -18,14 +18,26 @@ enum class Role {
     Tool,
 };
 
+// Lifecycle of one tool invocation requested by the assistant. Running
+// calls show a progress indicator in the chat; finished calls render their
+// result inline when the element is expanded.
+enum class ToolCallStatus {
+    Running,
+    Done,
+    Failed,
+};
+
 // One tool invocation requested by the assistant (OpenAI-style tool_calls).
 struct ToolCall {
     QString id;
     QString name; // namespaced tool name, e.g. "server__tool"
     QJsonObject arguments;
+    ToolCallStatus status = ToolCallStatus::Running;
+    QString result; // tool output, empty until the call finished
 
     [[nodiscard]] bool operator==(const ToolCall &other) const {
-        return id == other.id && name == other.name && arguments == other.arguments;
+        return id == other.id && name == other.name && arguments == other.arguments &&
+               status == other.status && result == other.result;
     }
 };
 

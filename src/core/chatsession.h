@@ -42,6 +42,10 @@ public:
     void prependMessages(const QVector<Message> &messages);
     void updateMessage(const QUuid &id, const QString &content, bool streaming);
     void setToolCalls(const QUuid &id, const QVector<ToolCall> &toolCalls);
+    // Updates one tool call of a message (status/result); emits
+    // messageUpdated so the chat view repaints the collapsed element.
+    void setToolCallStatus(const QUuid &messageId, const QString &toolCallId, ToolCallStatus status,
+                           const QString &result);
     void setThroughput(const QUuid &id, double tokensPerSecond);
     void failMessage(const QUuid &id, const QString &error);
     void clear();

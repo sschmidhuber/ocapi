@@ -6,7 +6,9 @@
 
 #include <QAtomicInt>
 #include <QHash>
+#include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QVariant>
@@ -52,6 +54,7 @@ void createTables(QSqlDatabase &database) {
                        "error TEXT NOT NULL DEFAULT '', "
                        "timestamp INTEGER NOT NULL, "
                        "position INTEGER NOT NULL, "
+                       "tool_calls TEXT NOT NULL DEFAULT '[]', "
                        "FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE)"));
     query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS mcp_servers ("
                               "id TEXT PRIMARY KEY NOT NULL, "
@@ -123,6 +126,11 @@ bool ChatDatabase::open(const QString &filePath) {
                                "NOT NULL DEFAULT 0"));
     if (m_database.lastError().isValid() && m_database.lastError().type() != QSqlError::NoError)
         m_lastError = m_database.lastError().text();
+    // Schema evolution: older databases lack the tool-call state column.
+    pragma.exec(QStringLiteral("ALTER TABLE messages ADD COLUMN tool_calls TEXT "
+                               "NOT NULL DEFAULT '[]'"));
+    if (m_database.lastError().isValid() && m_database.lastError().type() != QSqlError::NoError)
+        m_lastError = m_database.lastError().text();
     return true;
 }
 
@@ -179,6 +187,57 @@ QVariant nullToEmpty(const QString &value) {
     return value.isEmpty() ? QVariant(QStringLiteral("")) : QVariant(value);
 }
 
+QString toolCallStatusToString(ToolCallStatus status) {
+    switch (status) {
+    case ToolCallStatus::Running:
+        return QStringLiteral("running");
+    case ToolCallStatus::Done:
+        return QStringLiteral("done");
+    case ToolCallStatus::Failed:
+        return QStringLiteral("failed");
+    }
+    return QStringLiteral("running");
+}
+
+ToolCallStatus toolCallStatusFromString(const QString &text) {
+    if (text == QLatin1String("done"))
+        return ToolCallStatus::Done;
+    if (text == QLatin1String("failed"))
+        return ToolCallStatus::Failed;
+    return ToolCallStatus::Running;
+}
+
+QJsonArray toolCallsToJson(const QVector<ToolCall> &toolCalls) {
+    QJsonArray array;
+    for (const auto &call : toolCalls) {
+        array.append(QJsonObject{
+            {QStringLiteral("id"), call.id},
+            {QStringLiteral("name"), call.name},
+            {QStringLiteral("arguments"), call.arguments},
+            {QStringLiteral("status"), toolCallStatusToString(call.status)},
+            {QStringLiteral("result"), call.result},
+        });
+    }
+    return array;
+}
+
+QVector<ToolCall> toolCallsFromJson(const QString &json) {
+    QVector<ToolCall> toolCalls;
+    const QJsonArray array = QJsonDocument::fromJson(json.toUtf8()).array();
+    toolCalls.reserve(array.size());
+    for (const auto &value : array) {
+        const QJsonObject object = value.toObject();
+        ToolCall call;
+        call.id = object.value(QStringLiteral("id")).toString();
+        call.name = object.value(QStringLiteral("name")).toString();
+        call.arguments = object.value(QStringLiteral("arguments")).toObject();
+        call.status = toolCallStatusFromString(object.value(QStringLiteral("status")).toString());
+        call.result = object.value(QStringLiteral("result")).toString();
+        toolCalls.push_back(std::move(call));
+    }
+    return toolCalls;
+}
+
 StoredMessage storedMessageFrom(const QSqlQuery &query) {
     StoredMessage message;
     message.id = query.value(0).toString();
@@ -188,6 +247,7 @@ StoredMessage storedMessageFrom(const QSqlQuery &query) {
     message.error = query.value(4).toString();
     message.timestamp = QDateTime::fromSecsSinceEpoch(query.value(5).toLongLong());
     message.tokensPerSecond = query.value(6).toDouble();
+    message.toolCalls = toolCallsFromJson(query.value(7).toString());
     return message;
 }
 
@@ -437,7 +497,8 @@ QVector<StoredMessage> ChatDatabase::messagesForSession(const QString &sessionId
     QSqlQuery query(m_database);
     if (limit >= 0) {
         query.prepare(QStringLiteral("SELECT id, role, content, streaming, error, timestamp, "
-                                     "tokens_per_second FROM messages WHERE session_id = ? "
+                                     "tokens_per_second, tool_calls FROM messages "
+                                     "WHERE session_id = ? "
                                      "ORDER BY position DESC LIMIT ? OFFSET ?"));
         query.addBindValue(sessionId);
         query.addBindValue(limit);
@@ -448,13 +509,13 @@ QVector<StoredMessage> ChatDatabase::messagesForSession(const QString &sessionId
         }
         while (query.next())
             result.push_back(storedMessageFrom(query));
-        std::reverse(result.begin(), result.end());
+        std::ranges::reverse(result);
         loadAttachmentsFor(result);
         return result;
     }
     query.prepare(
-        QStringLiteral("SELECT id, role, content, streaming, error, timestamp, tokens_per_second "
-                       "FROM messages WHERE session_id = ? ORDER BY position ASC"));
+        QStringLiteral("SELECT id, role, content, streaming, error, timestamp, tokens_per_second, "
+                       "tool_calls FROM messages WHERE session_id = ? ORDER BY position ASC"));
     query.addBindValue(sessionId);
     if (!query.exec()) {
         m_lastError = query.lastError().text();
@@ -499,7 +560,8 @@ void ChatDatabase::loadAttachmentsFor(QVector<StoredMessage> &messages) const {
 bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messageId,
                                  const QString &role, const QString &content,
                                  const QDateTime &timestamp, const QVector<ImageAttachment> &images,
-                                 const QVector<FileAttachment> &files) {
+                                 const QVector<FileAttachment> &files,
+                                 const QVector<ToolCall> &toolCalls) {
     QSqlQuery position(m_database);
     position.prepare(QStringLiteral("SELECT COALESCE(MAX(position) + 1, 0) FROM messages "
                                     "WHERE session_id = ?"));
@@ -508,19 +570,23 @@ bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messag
         m_lastError = position.lastError().text();
         return false;
     }
-    const bool stored = execute(QStringLiteral("INSERT INTO messages (id, session_id, role, "
-                                               "content, streaming, error, timestamp, position) "
-                                               "VALUES (?, ?, ?, ?, 0, '', ?, ?) "
-                                               "ON CONFLICT (id) DO UPDATE SET role = "
-                                               "excluded.role, content = excluded.content"),
-                                {
-                                    messageId,
-                                    sessionId,
-                                    role,
-                                    nullToEmpty(content),
-                                    timestamp.isValid() ? timestamp.toSecsSinceEpoch() : 0,
-                                    position.value(0),
-                                });
+    const QByteArray toolCallsJson =
+        QJsonDocument(toolCallsToJson(toolCalls)).toJson(QJsonDocument::Compact);
+    const bool stored =
+        execute(QStringLiteral("INSERT INTO messages (id, session_id, role, "
+                               "content, streaming, error, timestamp, position, tool_calls) "
+                               "VALUES (?, ?, ?, ?, 0, '', ?, ?, ?) "
+                               "ON CONFLICT (id) DO UPDATE SET role = "
+                               "excluded.role, content = excluded.content"),
+                {
+                    messageId,
+                    sessionId,
+                    role,
+                    nullToEmpty(content),
+                    timestamp.isValid() ? timestamp.toSecsSinceEpoch() : 0,
+                    position.value(0),
+                    toolCallsJson,
+                });
     if (!stored)
         return false;
     if (!images.isEmpty()) {
@@ -604,6 +670,33 @@ bool ChatDatabase::updateMessage(const QString &messageId, const QString &conten
     return execute(QStringLiteral("UPDATE messages SET content = ?, streaming = ?, "
                                   "error = '' WHERE id = ?"),
                    {content, streaming ? 1 : 0, messageId});
+}
+
+bool ChatDatabase::updateToolCallStatus(const QString &messageId, const QString &toolCallId,
+                                        ToolCallStatus status, const QString &result) {
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("SELECT tool_calls FROM messages WHERE id = ?"));
+    query.addBindValue(messageId);
+    if (!query.exec() || !query.next()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+    QVector<ToolCall> toolCalls = toolCallsFromJson(query.value(0).toString());
+    bool found = false;
+    for (auto &call : toolCalls) {
+        if (call.id == toolCallId) {
+            call.status = status;
+            call.result = result;
+            found = true;
+            break;
+        }
+    }
+    if (!found)
+        return false;
+    const QByteArray json =
+        QJsonDocument(toolCallsToJson(toolCalls)).toJson(QJsonDocument::Compact);
+    return execute(QStringLiteral("UPDATE messages SET tool_calls = ? WHERE id = ?"),
+                   {json, messageId});
 }
 
 bool ChatDatabase::setThroughput(const QString &messageId, double tokensPerSecond) {

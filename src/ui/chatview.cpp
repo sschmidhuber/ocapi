@@ -14,7 +14,9 @@ namespace ocapi {
 
 namespace {
 
-enum DataRoles {
+// Model data roles. Unscoped on purpose: the values are used as raw int
+// offsets from Qt::UserRole throughout the view and the delegate.
+enum DataRoles { // NOLINT(cppcoreguidelines-use-enum-class)
     IsUserRole = Qt::UserRole,
     RoleLabelRole,
     StreamingRole,
@@ -24,6 +26,12 @@ enum DataRoles {
     ToolCallsRole,
     ToolNameRole,
     FilesRole,
+    // Per-message set of expanded tool-call ids (persisted across repaints
+    // and view rebuilds). Empty when everything is collapsed.
+    ExpandedToolCallsRole,
+    // Write-only: the delegate reports a click on a tool-call row by setting
+    // this role to the clicked call's id; the model toggles its expansion.
+    ToolCallClickedRole,
 };
 
 class ChatModel : public QAbstractListModel {
@@ -65,9 +73,42 @@ public:
             return message.role == Role::Tool ? message.toolName : QString();
         case FilesRole:
             return QVariant::fromValue(message.files);
+        case ExpandedToolCallsRole:
+            return m_expandedToolCalls.value(message.id);
         default:
             return {};
         }
+    }
+
+    // Marks one tool call expanded/collapsed and repaints its message.
+    void setToolCallExpanded(const QUuid &messageId, const QString &toolCallId, bool expanded) {
+        QStringList &ids = m_expandedToolCalls
+            [messageId]; // NOLINT(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
+        if (expanded) {
+            if (!ids.contains(toolCallId)) {
+                ids.append(toolCallId);
+                emitToolCallsChanged(messageId);
+            }
+        } else {
+            if (ids.removeAll(toolCallId) > 0)
+                emitToolCallsChanged(messageId);
+        }
+    }
+
+    void clearExpandedToolCalls() { m_expandedToolCalls.clear(); }
+
+    // QAbstractItemModel::setData override: a write to ToolCallClickedRole
+    // toggles the expansion of the given tool call on that message.
+    bool setData(const QModelIndex &index, const QVariant &value, int role) override {
+        if (role != ToolCallClickedRole || !index.isValid() || index.row() >= m_messages.size())
+            return QAbstractItemModel::setData(index, value, role);
+        const QString toolCallId = value.toString();
+        if (toolCallId.isEmpty())
+            return false;
+        setToolCallExpanded(
+            m_messages.at(index.row()).id, toolCallId,
+            !m_expandedToolCalls.value(m_messages.at(index.row()).id).contains(toolCallId));
+        return true;
     }
 
     void setMessages(const QVector<Message> &messages) {
@@ -88,6 +129,7 @@ public:
     void updateMessage(const Message &message) {
         for (qsizetype i = 0; i < m_messages.size(); ++i) {
             if (m_messages.at(i).id == message.id) {
+                // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
                 m_messages[i] = message;
                 const QModelIndex idx = index(static_cast<int>(i));
                 emit dataChanged(idx, idx);
@@ -99,7 +141,18 @@ public:
     [[nodiscard]] const QVector<Message> &messages() const { return m_messages; }
 
 private:
+    void emitToolCallsChanged(const QUuid &messageId) {
+        for (qsizetype i = 0; i < m_messages.size(); ++i) {
+            if (m_messages.at(i).id == messageId) {
+                const QModelIndex idx = index(static_cast<int>(i));
+                emit dataChanged(idx, idx, {ExpandedToolCallsRole});
+                return;
+            }
+        }
+    }
+
     QVector<Message> m_messages;
+    QHash<QUuid, QStringList> m_expandedToolCalls;
 };
 
 } // namespace

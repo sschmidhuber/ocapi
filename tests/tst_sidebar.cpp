@@ -3,6 +3,7 @@
 #include "ui/sidebar.h"
 
 #include <QApplication>
+#include <QPushButton>
 #include <QTreeWidget>
 #include <QtTest>
 
@@ -40,6 +41,7 @@ private slots:
     void collapsingAllGroupsStaysCollapsed();
     void currentSessionIdIsNullForGroupItems();
     void emptySessionsClearTree();
+    void sidebarHasNoToolbarButtons();
 };
 
 void TestSidebar::firstBuildExpandsOnlyToday() {
@@ -138,6 +140,14 @@ void TestSidebar::currentSessionIdIsNullForGroupItems() {
 
     tree->setCurrentItem(group->child(0));
     QCOMPARE(sidebar.currentSessionId(), today->id());
+}
+
+void TestSidebar::sidebarHasNoToolbarButtons() {
+    // New chat / settings live in the main window toolbar now; the sidebar
+    // only contains the history tree.
+    Sidebar sidebar;
+    QVERIFY(sidebar.findChildren<QPushButton *>().isEmpty());
+    QVERIFY(sidebar.findChild<QTreeWidget *>() != nullptr);
 }
 
 void TestSidebar::emptySessionsClearTree() {

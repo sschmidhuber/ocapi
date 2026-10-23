@@ -85,6 +85,7 @@ Sidebar::Sidebar(QWidget *parent)
 
 void Sidebar::setSessions(const QVector<ChatSession *> &sessions) {
     const QUuid current = currentSessionId();
+    const bool firstBuild = m_tree->topLevelItemCount() == 0;
     // Remember which groups were expanded so a rebuild keeps the state.
     QStringList expandedGroups;
     for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
@@ -99,7 +100,10 @@ void Sidebar::setSessions(const QVector<ChatSession *> &sessions) {
         group->setText(0, SessionGrouper::groupLabel(key));
         group->setData(0, kSessionIdRole, key);
         group->setData(0, kIsGroupRole, true);
-        group->setExpanded(expandedGroups.contains(key) || expandedGroups.isEmpty());
+        // On the first build only "Today" is expanded; afterwards the
+        // user's expand state is preserved exactly.
+        group->setExpanded(firstBuild ? key == QLatin1String("today")
+                                      : expandedGroups.contains(key));
         QFont groupFont = group->font(0);
         groupFont.setBold(true);
         group->setFont(0, groupFont);

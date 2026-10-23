@@ -36,3 +36,10 @@ foreach(test_name ${OCAPI_TESTS})
     target_link_libraries(${test_name} PRIVATE ocapi-core Qt6::Test)
     add_test(NAME ${test_name} COMMAND ${test_name})
 endforeach()
+
+# The sidebar lives in the application target, so its test compiles the
+# source directly and links against Qt Widgets.
+add_executable(tst_sidebar tst_sidebar.cpp ${CMAKE_SOURCE_DIR}/src/ui/sidebar.cpp)
+target_include_directories(tst_sidebar PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(tst_sidebar PRIVATE ocapi-core Qt6::Test Qt6::Widgets)
+add_test(NAME tst_sidebar COMMAND tst_sidebar)

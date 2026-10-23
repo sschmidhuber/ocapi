@@ -4,6 +4,8 @@
 #include <QListView>
 #include <QVector>
 
+class QMouseEvent;
+
 namespace ocapi {
 
 class ChatSession;
@@ -20,6 +22,7 @@ signals:
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
     void contextMenuEvent(QContextMenuEvent *event) override;
 
 private slots:

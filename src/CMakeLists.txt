@@ -24,6 +24,8 @@ set(OCAPI_CORE_SOURCES
     core/message.h
     core/imagemessage.h
     core/imagemessage.cpp
+    core/attachmentopener.h
+    core/attachmentopener.cpp
     core/filepreview.h
     core/filepreview.cpp
     core/markdown.h

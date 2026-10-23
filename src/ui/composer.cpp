@@ -1,5 +1,6 @@
 #include "ui/composer.h"
 
+#include "core/attachmentopener.h"
 #include "core/filepreview.h"
 
 #include <QFileDialog>
@@ -11,6 +12,7 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QMouseEvent>
 #include <QPixmap>
 #include <QTextCursor>
 #include <QToolButton>
@@ -65,6 +67,42 @@ QString nameFilter() {
                           "(*.zip *.tar *.tar.gz *.tgz *.tar.bz2 *.tar.xz *.7z);;E-mail "
                           "(*.eml *.mbox);;All files (*)");
 }
+
+// An attachment chip in the composer strip: clicking it (outside the
+// remove button) opens the file with the system's default application.
+class AttachmentChip : public QWidget {
+    Q_OBJECT
+
+public:
+    AttachmentChip(const QString &sourcePath, const QString &toolTip, QWidget *parent = nullptr)
+        : QWidget(parent), m_sourcePath(sourcePath) {
+        setToolTip(toolTip);
+        setCursor(Qt::PointingHandCursor);
+        setAccessibleName(QFileInfo(sourcePath).fileName());
+    }
+
+protected:
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton && rect().contains(event->pos())) {
+            QString error;
+            if (!AttachmentOpener::open(m_sourcePath, &error)) {
+                // Non-modal so a missing default application never blocks
+                // the composer.
+                auto *box = new QMessageBox(QMessageBox::Warning, tr("Could not open attachment"),
+                                            error, QMessageBox::Ok, this);
+                box->setAttribute(Qt::WA_DeleteOnClose);
+                box->setModal(false);
+                box->show();
+            }
+            event->accept();
+            return;
+        }
+        QWidget::mouseReleaseEvent(event);
+    }
+
+private:
+    QString m_sourcePath;
+};
 
 } // namespace
 
@@ -380,7 +418,13 @@ void Composer::refreshAttachmentStrip() {
         delete item;
     }
     for (const auto &attachment : m_attachments) {
-        auto *chip = new QWidget(m_attachmentStrip);
+        const QString tooltip = attachment.resized
+                                    ? tr("%1 (resized to %2×%3)\nClick to open")
+                                          .arg(attachment.fileName)
+                                          .arg(attachment.width)
+                                          .arg(attachment.height)
+                                    : tr("%1\nClick to open").arg(attachment.fileName);
+        auto *chip = new AttachmentChip(attachment.sourcePath, tooltip, m_attachmentStrip);
         chip->setFixedHeight(kDocumentChipHeight);
         auto *chipLayout = new QHBoxLayout(chip);
         chipLayout->setContentsMargins(kDocumentChipPadding, 0, kDocumentChipPadding, 0);
@@ -389,6 +433,7 @@ void Composer::refreshAttachmentStrip() {
         auto *thumb = new QLabel(chip);
         thumb->setFixedSize(kDocumentThumbSize, kDocumentThumbSize);
         thumb->setAlignment(Qt::AlignCenter);
+        thumb->setAttribute(Qt::WA_TransparentForMouseEvents);
         const QImage image = attachment.decode();
         if (!image.isNull()) {
             thumb->setPixmap(
@@ -401,19 +446,15 @@ void Composer::refreshAttachmentStrip() {
 
         auto *label = new QLabel(attachment.fileName, chip);
         label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        label->setAttribute(Qt::WA_TransparentForMouseEvents);
         chipLayout->addWidget(label, 1);
 
-        const QString tooltip = attachment.resized ? tr("%1 (resized to %2×%3)")
-                                                         .arg(attachment.fileName)
-                                                         .arg(attachment.width)
-                                                         .arg(attachment.height)
-                                                   : attachment.fileName;
-        chip->setToolTip(tooltip);
         chipLayout->addWidget(removeButton(chip, attachment.id, false));
         m_attachmentLayout->insertWidget(m_attachmentLayout->count() - 1, chip);
     }
     for (const auto &file : m_documents) {
-        auto *chip = new QWidget(m_attachmentStrip);
+        auto *chip = new AttachmentChip(file.sourcePath, tr("%1\nClick to open").arg(file.fileName),
+                                        m_attachmentStrip);
         chip->setFixedHeight(kDocumentChipHeight);
         auto *chipLayout = new QHBoxLayout(chip);
         chipLayout->setContentsMargins(kDocumentChipPadding, 0, kDocumentChipPadding, 0);
@@ -422,6 +463,7 @@ void Composer::refreshAttachmentStrip() {
         auto *thumb = new QLabel(chip);
         thumb->setFixedSize(kDocumentThumbSize, kDocumentThumbSize);
         thumb->setAlignment(Qt::AlignCenter);
+        thumb->setAttribute(Qt::WA_TransparentForMouseEvents);
         const QImage image = file.decodeThumbnail();
         if (!image.isNull()) {
             thumb->setPixmap(
@@ -434,9 +476,9 @@ void Composer::refreshAttachmentStrip() {
 
         auto *label = new QLabel(file.fileName, chip);
         label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        label->setAttribute(Qt::WA_TransparentForMouseEvents);
         chipLayout->addWidget(label, 1);
 
-        chip->setToolTip(tr("Text extracted from %1").arg(file.fileName));
         chipLayout->addWidget(removeButton(chip, file.id, true));
         m_attachmentLayout->insertWidget(m_attachmentLayout->count() - 1, chip);
     }
@@ -445,3 +487,5 @@ void Composer::refreshAttachmentStrip() {
 }
 
 } // namespace ocapi
+
+#include "composer.moc"

@@ -109,18 +109,56 @@ QString formatToolArguments(const QJsonObject &arguments) {
     return QString::fromUtf8(QJsonDocument(arguments).toJson(QJsonDocument::Compact));
 }
 
-QString toolCallDisplayText(const ToolCall &call) {
-    return QStringLiteral("\U0001F9EA0 %1(%2)").arg(call.name, formatToolArguments(call.arguments));
+// Short human-readable tool name: strip the "server__" prefix.
+QString toolCallShortName(const QString &name) {
+    const qsizetype sep = name.indexOf(QStringLiteral("__"));
+    return sep >= 0 ? name.mid(sep + 2) : name;
 }
 
-int toolCallsBlockHeight(const QVector<ToolCall> &toolCalls, const QFont &font, int maxTextWidth) {
+QString toolCallHeaderText(const ToolCall &call) {
+    return QStringLiteral("%1 %2").arg(QStringLiteral("\U0001F9EA0"), toolCallShortName(call.name));
+}
+
+// One-line summary of the arguments, elided to fit the header row.
+QString toolCallSummary(const ToolCall &call, const QFontMetrics &metrics, int maxWidth) {
+    const QString args = formatToolArguments(call.arguments);
+    return metrics.elidedText(args, Qt::ElideMiddle, maxWidth);
+}
+
+// Status word shown at the right of a finished tool-call header.
+QString toolCallStatusText(const ToolCall &call) {
+    switch (call.status) {
+    case ToolCallStatus::Done:
+        return QObject::tr("done");
+    case ToolCallStatus::Failed:
+        return QObject::tr("failed");
+    case ToolCallStatus::Running:
+        return {};
+    }
+    return {};
+}
+
+// Height of one collapsed tool-call row (chevron + name + status).
+int toolCallRowHeight(const QFont &font) {
+    return qMax(kCopyButtonSize, QFontMetrics(font).height()) + 4;
+}
+
+// Total height of the tool-call block: one row per call, plus the expanded
+// result area for each expanded call.
+int toolCallsBlockHeight(const QVector<ToolCall> &toolCalls, const QStringList &expandedIds,
+                         const QFont &font, int maxTextWidth) {
     int height = 0;
+    const int rowHeight = toolCallRowHeight(font);
     for (const auto &call : toolCalls) {
-        QTextDocument callDoc;
-        callDoc.setDefaultFont(font);
-        callDoc.setTextWidth(maxTextWidth);
-        callDoc.setPlainText(toolCallDisplayText(call));
-        height += callDoc.size().toSize().height() + 2;
+        height += rowHeight;
+        if (expandedIds.contains(call.id)) {
+            QTextDocument resultDoc;
+            resultDoc.setDefaultFont(font);
+            resultDoc.setTextWidth(maxTextWidth);
+            resultDoc.setPlainText(call.result.isEmpty() ? QObject::tr("(no output)")
+                                                         : call.result);
+            height += resultDoc.size().toSize().height() + 6;
+        }
     }
     return height;
 }
@@ -201,6 +239,9 @@ struct ItemLayout {
     // streaming; while streaming the item height changes on every token and
     // a bottom-anchored footer would be positioned against stale geometry.
     bool hasFooter = false;
+    // True for assistant messages that carry tool calls: they render as
+    // collapsed elements and never get a copy button.
+    bool hasToolCalls = false;
     int toolCallsHeight = 0;
     int imageBlockHeight = 0;
     int filesBlockHeight = 0;
@@ -234,8 +275,13 @@ ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &ind
         isUser ? qMax(60, (availableWidth * kMaxBubbleWidthFraction / 100) - (2 * kBubblePadding))
                : qMax(60, availableWidth);
 
+    const QStringList expandedToolCalls =
+        index.data(static_cast<int>(Qt::UserRole) + 9).toStringList();
+
     ItemLayout layout;
-    layout.toolCallsHeight = toolCallsBlockHeight(toolCalls, option.font, maxTextWidth);
+    layout.hasToolCalls = !toolCalls.isEmpty();
+    layout.toolCallsHeight =
+        toolCallsBlockHeight(toolCalls, expandedToolCalls, option.font, maxTextWidth);
     layout.imageBlockHeight = images.isEmpty() ? 0 : imagesBlockHeight(images) + kImageSpacing;
     layout.filesBlockHeight =
         files.isEmpty() ? 0
@@ -283,10 +329,12 @@ ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &ind
                   bubbleRect.width() - (2 * kBubblePadding), kLabelHeight);
     } else {
         // Assistant/tool/error messages use the full chat area: no bubble.
-        // The footer appears only once the message no longer streams.
+        // The footer appears only once the message no longer streams, and
+        // never for messages that carry tool calls (those render as
+        // collapsed elements without a copy button).
         layout.contentRect =
             QRect(option.rect.left() + kEdgeMargin, contentTop, availableWidth, contentHeight);
-        layout.hasFooter = !streaming;
+        layout.hasFooter = !streaming && !layout.hasToolCalls;
         if (layout.hasFooter)
             layout.footerRect =
                 QRect(option.rect.left() + kEdgeMargin, layout.contentRect.bottom() + 2,
@@ -374,6 +422,93 @@ void paintFileChips(QPainter *painter, const QStyleOptionViewItem &option,
     }
 }
 
+// Paints the collapsed tool-call elements above the message text: one row
+// per call with a chevron, the tool name and a status/spinner indicator;
+// expanded calls additionally show their result text below the row.
+void paintToolCalls(QPainter *painter, const QStyleOptionViewItem &option,
+                    const QVector<ToolCall> &toolCalls, const QStringList &expandedIds,
+                    const QRect &contentRect, int maxTextWidth) {
+    if (toolCalls.isEmpty())
+        return;
+    const int rowHeight = toolCallRowHeight(option.font);
+    const QColor rowColor(0x50, 0x50, 0x50);
+    const QColor expandedBg(0, 0, 0, 0x0d);
+    int y = contentRect.top() + kBubblePadding;
+    for (const auto &call : toolCalls) {
+        const bool expanded = expandedIds.contains(call.id);
+        const QRect row(contentRect.left() + kBubblePadding, y, contentRect.width(), rowHeight);
+
+        // Chevron: right-pointing when collapsed, down when expanded.
+        painter->setPen(QPen(rowColor, 1.5));
+        const int chevX = row.left() + 2;
+        const int chevY = row.top() + (row.height() / 2);
+        if (expanded) {
+            painter->drawLine(chevX, chevY - 4, chevX + 4, chevY + 1);
+            painter->drawLine(chevX + 4, chevY + 1, chevX + 8, chevY - 4);
+        } else {
+            painter->drawLine(chevX, chevY - 4, chevX + 5, chevY);
+            painter->drawLine(chevX + 5, chevY, chevX, chevY + 4);
+        }
+
+        // Tool name in bold, then the argument summary in regular gray.
+        QFont nameFont = option.font;
+        nameFont.setBold(true);
+        painter->setFont(nameFont);
+        painter->setPen(QColor(0x1a, 0x1a, 0x1a));
+        const QFontMetrics nameMetrics(nameFont);
+        const QString name = toolCallHeaderText(call);
+        const int nameWidth = nameMetrics.horizontalAdvance(name);
+        painter->drawText(QRect(row.left() + 16, row.top(), nameWidth, row.height()),
+                          Qt::AlignLeft | Qt::AlignVCenter, name);
+
+        painter->setFont(option.font);
+        painter->setPen(rowColor);
+        const QFontMetrics metrics(option.font);
+        const int summaryMax = qMax(40, maxTextWidth - 16 - nameWidth - 60);
+        const QString summary = toolCallSummary(call, metrics, summaryMax);
+        painter->drawText(QRect(row.left() + 16 + nameWidth + 6, row.top(),
+                                row.right() - (row.left() + 16 + nameWidth + 6) - 60, row.height()),
+                          Qt::AlignLeft | Qt::AlignVCenter, summary);
+
+        // Status at the right edge: spinner while running, status word when
+        // finished.
+        if (call.status == ToolCallStatus::Running) {
+            const int spinnerSize = kCopyButtonSize;
+            const QRect spinnerRect(row.right() - spinnerSize - 2,
+                                    row.top() + ((row.height() - spinnerSize) / 2), spinnerSize,
+                                    spinnerSize);
+            painter->setPen(QPen(QColor(0x2a, 0x62, 0xb5), 2));
+            painter->setBrush(Qt::NoBrush);
+            painter->drawArc(spinnerRect, 45 * 16, 270 * 16);
+        } else {
+            const QString status = toolCallStatusText(call);
+            if (!status.isEmpty()) {
+                painter->setPen(call.status == ToolCallStatus::Failed ? QColor(0xb0, 0x30, 0x30)
+                                                                      : QColor(0x2e, 0x7d, 0x32));
+                painter->drawText(row, Qt::AlignRight | Qt::AlignVCenter, status);
+            }
+        }
+
+        y += rowHeight;
+        if (expanded) {
+            QTextDocument resultDoc;
+            resultDoc.setDefaultFont(option.font);
+            resultDoc.setTextWidth(maxTextWidth);
+            resultDoc.setPlainText(call.result.isEmpty() ? QObject::tr("(no output)")
+                                                         : call.result);
+            const int resultHeight = resultDoc.size().toSize().height();
+            const QRect resultRect(row.left(), y, row.width(), resultHeight + 6);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(expandedBg);
+            painter->drawRoundedRect(resultRect, 4, 4);
+            painter->translate(row.left() + 6, y + 3);
+            resultDoc.drawContents(painter);
+            painter->translate(-(row.left() + 6), -(y + 3));
+            y += resultHeight + 6;
+        }
+    }
+}
+
 // Paints the message footer: copy button and throughput label at the left
 // of the footer row, plus the transient "Copied" hint. For user messages
 // the footer sits inside the bubble (light colors); for assistant messages
@@ -401,6 +536,41 @@ void paintFooterRow(QPainter *painter, const QStyleOptionViewItem &option, const
         painter->drawText(
             QRect(x, footerRect.top(), footerRect.right() - x + 1, footerRect.height()),
             Qt::AlignLeft | Qt::AlignVCenter, layout.throughput);
+}
+
+// Handles a click on a message that carries tool calls: toggles the
+// expansion of the clicked row. Returns true when the click was consumed.
+bool handleToolCallClick(QAbstractItemModel *model, const QModelIndex &index,
+                         const QStyleOptionViewItem &option, const ItemLayout &layout,
+                         const QPoint &pos) {
+    const QVector<ToolCall> toolCalls = decodeToolCalls(index);
+    if (toolCalls.isEmpty())
+        return false;
+    const QStringList expanded = index.data(static_cast<int>(Qt::UserRole) + 9).toStringList();
+    const int rowHeight = toolCallRowHeight(option.font);
+    const int blockTop = layout.contentRect.top() + kBubblePadding;
+    const int clickY = pos.y() - blockTop;
+    if (clickY < 0 || clickY >= layout.toolCallsHeight)
+        return false;
+    // Find which row was clicked, accounting for expanded results.
+    int y = 0;
+    for (const auto &call : toolCalls) {
+        if (clickY >= y && clickY < y + rowHeight) {
+            model->setData(index, call.id, static_cast<int>(Qt::UserRole) + 10);
+            return true;
+        }
+        y += rowHeight;
+        if (expanded.contains(call.id)) {
+            const int maxTextWidth = layout.contentRect.width() - (2 * kBubblePadding);
+            QTextDocument resultDoc;
+            resultDoc.setDefaultFont(option.font);
+            resultDoc.setTextWidth(maxTextWidth);
+            resultDoc.setPlainText(call.result.isEmpty() ? QObject::tr("(no output)")
+                                                         : call.result);
+            y += resultDoc.size().toSize().height() + 6;
+        }
+    }
+    return false;
 }
 
 } // namespace
@@ -432,8 +602,6 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     const QString error = index.data(static_cast<int>(Qt::UserRole) + 3).toString();
     const QVector<QImage> images = decodeImages(index);
     const QVector<ToolCall> toolCalls = decodeToolCalls(index);
-    const bool isToolMessage = roleLabel == QStringLiteral("Tool");
-    const QString toolName = index.data(static_cast<int>(Qt::UserRole) + 7).toString();
 
     const ItemLayout layout = layoutItem(option, index);
     const QRect contentRect = layout.contentRect;
@@ -461,13 +629,6 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
         doc->setPlainText(QStringLiteral("\u26a0 ") + error);
     } else {
         doc = messageDocument(content, !isUser, streaming, option.font, maxTextWidth);
-    }
-    if (isToolMessage && !toolName.isEmpty()) {
-        QTextCursor cursor(doc.get());
-        cursor.movePosition(QTextCursor::Start);
-        QTextCharFormat toolFormat;
-        toolFormat.setFontItalic(true);
-        cursor.insertText(QStringLiteral("\U0001F9EA0 %1\n").arg(toolName), toolFormat);
     }
     // Text uses the message text color; markdown inline formats (code
     // background, link color) are kept.
@@ -509,23 +670,11 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
         painter->drawRoundedRect(contentRect, kBubbleRadius, kBubbleRadius);
     }
 
-    // Tool calls requested by the assistant, above the message text.
-    int toolY = contentRect.top() + kBubblePadding;
-    QFont toolFont = option.font;
-    toolFont.setItalic(true);
-    painter->setFont(toolFont);
-    painter->setPen(QColor(0x50, 0x50, 0x50));
-    for (const auto &call : toolCalls) {
-        QTextDocument callDoc;
-        callDoc.setDefaultFont(toolFont);
-        callDoc.setTextWidth(maxTextWidth);
-        callDoc.setPlainText(toolCallDisplayText(call));
-        const int callHeight = callDoc.size().toSize().height();
-        painter->translate(contentRect.left() + kBubblePadding, toolY);
-        callDoc.drawContents(painter);
-        painter->translate(-(contentRect.left() + kBubblePadding), -toolY);
-        toolY += callHeight + 2;
-    }
+    // Tool calls requested by the assistant, above the message text, as
+    // collapsed rows (expandable, with a progress indicator while running).
+    const QStringList expandedToolCalls =
+        index.data(static_cast<int>(Qt::UserRole) + 9).toStringList();
+    paintToolCalls(painter, option, toolCalls, expandedToolCalls, contentRect, maxTextWidth);
 
     // Images above the message text.
     int x = contentRect.left() + kBubblePadding;
@@ -577,6 +726,14 @@ bool ChatDelegate::editorEvent(QEvent *event, QAbstractItemModel *model,
     if (!mouse)
         return QStyledItemDelegate::editorEvent(event, model, option, index);
     const ItemLayout layout = layoutItem(option, index);
+    // Tool-call rows toggle the collapsed element instead of copying.
+    if (handleToolCallClick(model, index, option, layout, mouse->pos()))
+        return true;
+    const QVector<ToolCall> toolCalls = decodeToolCalls(index);
+    if (!toolCalls.isEmpty())
+        return QStyledItemDelegate::editorEvent(event, model, option, index);
+    if (!layout.hasFooter)
+        return QStyledItemDelegate::editorEvent(event, model, option, index);
     if (!copyButtonRect(layout.footerRect).contains(mouse->pos()))
         return QStyledItemDelegate::editorEvent(event, model, option, index);
     QString text = index.data(Qt::DisplayRole).toString();

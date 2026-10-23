@@ -86,6 +86,25 @@ void ChatSession::setToolCalls(const QUuid &id, const QVector<ToolCall> &toolCal
     }
 }
 
+void ChatSession::setToolCallStatus(const QUuid &messageId, const QString &toolCallId,
+                                    ToolCallStatus status, const QString &result) {
+    for (auto &message : m_messages) {
+        if (message.id != messageId)
+            continue;
+        for (auto &call : message.toolCalls) {
+            if (call.id != toolCallId)
+                continue;
+            if (call.status == status && call.result == result)
+                return;
+            call.status = status;
+            call.result = result;
+            emit messageUpdated(message);
+            return;
+        }
+        return;
+    }
+}
+
 void ChatSession::setThroughput(const QUuid &id, double tokensPerSecond) {
     for (auto &message : m_messages) {
         if (message.id == id) {

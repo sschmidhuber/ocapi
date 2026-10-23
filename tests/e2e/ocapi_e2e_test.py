@@ -74,8 +74,10 @@ class OcapiE2E(unittest.TestCase):
         return self.find_by_xpath(xpath)
 
     def test_01_start(self):
-        # A fresh session exists with a composer and a send button.
-        self.find_by_name("+ New chat")
+        # A fresh session exists with a composer and a send button; the
+        # toolbar offers "New chat" and "Settings".
+        self.find_by_name("New chat")
+        self.find_by_name("Settings")
         self.find_by_name("Send")
 
     def test_02_backend_setup(self):
@@ -109,7 +111,11 @@ class OcapiE2E(unittest.TestCase):
         composer.send_keys("Please use the tool for me.")
         self.find_by_name("Send").click()
 
+        # While the tool runs, the chat shows it as a collapsed element with
+        # the short tool name; after the round-trip it is marked done.
+        self.wait_for("//*[contains(@name, 'echo')]", timeout=30)
         self.wait_for("//*[contains(@name, '%s')]" % TOOL_REPLY_TEXT, timeout=60)
+        self.wait_for("//*[contains(@name, 'done')]", timeout=30)
 
 if __name__ == "__main__":
     unittest.main()

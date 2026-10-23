@@ -38,6 +38,10 @@ private slots:
     void fileAttachmentsRoundTrip();
     void deleteSessionRemovesFiles();
     void fileThumbnailSurvivesRoundTrip();
+    void toolCallsRoundTrip();
+    void toolCallStatusUpdatePersists();
+    void toolCallStatusUpdateFailsForUnknownCall();
+    void toolCallsColumnDefaultsToEmpty();
 
 private:
     ChatDatabase &db() { return m_database; }
@@ -420,6 +424,103 @@ void TestChatDatabase::fileThumbnailSurvivesRoundTrip() {
     QCOMPARE(stored.at(0).files.size(), 1);
     QCOMPARE(stored.at(0).files.at(0).thumbnail, png);
     QVERIFY(!stored.at(0).files.at(0).decodeThumbnail().isNull());
+}
+
+void TestChatDatabase::toolCallsRoundTrip() {
+    ChatSession session(QStringLiteral("Tools"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+
+    Message message;
+    message.role = Role::Assistant;
+    ToolCall call;
+    call.id = QStringLiteral("call-1");
+    call.name = QStringLiteral("srv__echo");
+    call.arguments = QJsonObject{{QStringLiteral("text"), QStringLiteral("hi")}};
+    message.toolCalls.push_back(call);
+    session.appendMessage(message);
+
+    QVERIFY(db().insertMessage(sessionId, message.id.toString(QUuid::WithoutBraces),
+                               message.roleName(), message.content, message.timestamp, {}, {},
+                               message.toolCalls));
+
+    const auto stored = db().messagesForSession(sessionId);
+    QCOMPARE(stored.size(), 1);
+    QCOMPARE(stored.at(0).toolCalls.size(), 1);
+    QCOMPARE(stored.at(0).toolCalls.at(0).id, QStringLiteral("call-1"));
+    QCOMPARE(stored.at(0).toolCalls.at(0).name, QStringLiteral("srv__echo"));
+    QCOMPARE(stored.at(0).toolCalls.at(0).arguments,
+             QJsonObject({{QStringLiteral("text"), QStringLiteral("hi")}}));
+    // Calls are stored as running until a result arrives.
+    QCOMPARE(stored.at(0).toolCalls.at(0).status, ToolCallStatus::Running);
+    QVERIFY(stored.at(0).toolCalls.at(0).result.isEmpty());
+}
+
+void TestChatDatabase::toolCallStatusUpdatePersists() {
+    ChatSession session(QStringLiteral("Tools"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+
+    Message message;
+    message.role = Role::Assistant;
+    ToolCall call;
+    call.id = QStringLiteral("call-1");
+    call.name = QStringLiteral("srv__echo");
+    message.toolCalls.push_back(call);
+    session.appendMessage(message);
+    const auto messageId = message.id.toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertMessage(sessionId, messageId, message.roleName(), message.content,
+                               message.timestamp, {}, {}, message.toolCalls));
+
+    QVERIFY(db().updateToolCallStatus(messageId, QStringLiteral("call-1"), ToolCallStatus::Done,
+                                      QStringLiteral("echo: hi")));
+    const auto stored = db().messagesForSession(sessionId);
+    QCOMPARE(stored.at(0).toolCalls.at(0).status, ToolCallStatus::Done);
+    QCOMPARE(stored.at(0).toolCalls.at(0).result, QStringLiteral("echo: hi"));
+
+    QVERIFY(db().updateToolCallStatus(messageId, QStringLiteral("call-1"), ToolCallStatus::Failed,
+                                      QStringLiteral("boom")));
+    const auto storedAgain = db().messagesForSession(sessionId);
+    QCOMPARE(storedAgain.at(0).toolCalls.at(0).status, ToolCallStatus::Failed);
+    QCOMPARE(storedAgain.at(0).toolCalls.at(0).result, QStringLiteral("boom"));
+}
+
+void TestChatDatabase::toolCallStatusUpdateFailsForUnknownCall() {
+    ChatSession session(QStringLiteral("Tools"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+
+    Message message;
+    message.role = Role::Assistant;
+    ToolCall call;
+    call.id = QStringLiteral("call-1");
+    call.name = QStringLiteral("srv__echo");
+    message.toolCalls.push_back(call);
+    session.appendMessage(message);
+    const auto messageId = message.id.toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertMessage(sessionId, messageId, message.roleName(), message.content,
+                               message.timestamp, {}, {}, message.toolCalls));
+
+    QVERIFY(!db().updateToolCallStatus(messageId, QStringLiteral("no-such-call"),
+                                       ToolCallStatus::Done, QStringLiteral("x")));
+    QVERIFY(!db().updateToolCallStatus(QUuid::createUuid().toString(QUuid::WithoutBraces),
+                                       QStringLiteral("call-1"), ToolCallStatus::Done,
+                                       QStringLiteral("x")));
+}
+
+void TestChatDatabase::toolCallsColumnDefaultsToEmpty() {
+    // Simulate an older database row without tool-call state.
+    ChatSession session(QStringLiteral("Legacy"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+    const auto message = session.appendMessage(Role::Assistant, QStringLiteral("hi"));
+    QVERIFY(db().insertMessage(sessionId, message.id.toString(QUuid::WithoutBraces),
+                               message.roleName(), message.content, message.timestamp));
+    QVERIFY(db().executeRaw(QStringLiteral("UPDATE messages SET tool_calls = ''")));
+
+    const auto stored = db().messagesForSession(sessionId);
+    QCOMPARE(stored.size(), 1);
+    QVERIFY(stored.at(0).toolCalls.isEmpty());
 }
 
 void TestChatDatabase::loadSessionsReturnsTimestampsOrderedByActivity() {

@@ -18,6 +18,7 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QPushButton>
+#include <QToolBar>
 #include <QToolButton>
 #include <QVector>
 #include <memory>
@@ -90,6 +91,8 @@ private slots:
     // Adds detected models to the picker's model list for the backend.
     void addModelsToPicker(const QString &backendId, const QStringList &models);
     void onToolCallsRequested(const QUuid &messageId, const QVector<ToolCall> &toolCalls);
+    // Marks the matching tool call finished and persists its status/result.
+    void onToolResultReady(const QString &toolName, const QString &resultText, bool isError);
     void onMcpPermissionRequested(const QString &callKey, const QString &serverName,
                                   const QString &toolName, const QJsonObject &arguments);
     void onMcpToolsChanged();
@@ -118,6 +121,9 @@ private:
     void loadOlderMessages(ChatSession *session);
     void persistSession(ChatSession *session);
     void persistMessageForSession(ChatSession *session, const Message &message);
+    // Re-persists an assistant message so its current tool calls (status and
+    // results) are stored.
+    void persistToolCalls(ChatSession *session, const QUuid &messageId);
     void syncSessionToDatabase(ChatSession *session);
     [[nodiscard]] QString messageContent(const QUuid &messageId) const;
     [[nodiscard]] double throughputFor(const QUuid &messageId);
@@ -161,6 +167,9 @@ private:
     Sidebar *m_sidebar = nullptr;
     ChatView *m_chatView = nullptr;
     Composer *m_composer = nullptr;
+    QToolBar *m_toolBar = nullptr;
+    QToolButton *m_newChatButton = nullptr;
+    QToolButton *m_settingsButton = nullptr;
     ModelPickerButton *m_modelPicker = nullptr;
     QPushButton *m_sendButton = nullptr;
     QPushButton *m_stopButton = nullptr;

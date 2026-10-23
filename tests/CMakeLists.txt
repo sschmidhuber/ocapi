@@ -43,3 +43,12 @@ add_executable(tst_sidebar tst_sidebar.cpp ${CMAKE_SOURCE_DIR}/src/ui/sidebar.cp
 target_include_directories(tst_sidebar PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(tst_sidebar PRIVATE ocapi-core Qt6::Test Qt6::Widgets)
 add_test(NAME tst_sidebar COMMAND tst_sidebar)
+
+# The chat view (and its delegate) also live in the application target; the
+# test compiles them directly like tst_sidebar.
+add_executable(tst_chatview tst_chatview.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/chatview.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/chatdelegate.cpp)
+target_include_directories(tst_chatview PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(tst_chatview PRIVATE ocapi-core Qt6::Test Qt6::Widgets)
+add_test(NAME tst_chatview COMMAND tst_chatview)

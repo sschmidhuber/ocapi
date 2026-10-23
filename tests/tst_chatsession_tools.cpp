@@ -13,6 +13,10 @@ private slots:
     void setToolCallsIgnoresUnknownId();
     void setToolCallsIgnoresIdenticalCalls();
     void toolCallEqualityComparesAllFields();
+    void toolCallStatusDefaultsToRunning();
+    void setToolCallStatusUpdatesCallAndEmits();
+    void setToolCallStatusIgnoresUnknownIds();
+    void setToolCallStatusIgnoresUnchangedCall();
     void messageIsEmptyAccountsForToolCalls();
 };
 
@@ -75,6 +79,70 @@ void TestChatSessionTools::toolCallEqualityComparesAllFields() {
     b = a;
     b.arguments = QJsonObject{{QStringLiteral("k"), 2}};
     QVERIFY(!(a == b));
+}
+
+void TestChatSessionTools::toolCallStatusDefaultsToRunning() {
+    ToolCall call;
+    QCOMPARE(call.status, ToolCallStatus::Running);
+    QVERIFY(call.result.isEmpty());
+}
+
+void TestChatSessionTools::setToolCallStatusUpdatesCallAndEmits() {
+    ChatSession session;
+    auto &message = session.appendMessage(Role::Assistant);
+    QVector<ToolCall> calls;
+    ToolCall call;
+    call.id = QStringLiteral("call-1");
+    call.name = QStringLiteral("srv__tool");
+    calls.push_back(call);
+    session.setToolCalls(message.id, calls);
+
+    QSignalSpy updatedSpy(&session, &ChatSession::messageUpdated);
+    session.setToolCallStatus(message.id, QStringLiteral("call-1"), ToolCallStatus::Done,
+                              QStringLiteral("ok"));
+    QCOMPARE(updatedSpy.count(), 1);
+    const auto &updated = session.messages().first().toolCalls.first();
+    QCOMPARE(updated.status, ToolCallStatus::Done);
+    QCOMPARE(updated.result, QStringLiteral("ok"));
+}
+
+void TestChatSessionTools::setToolCallStatusIgnoresUnknownIds() {
+    ChatSession session;
+    auto &message = session.appendMessage(Role::Assistant);
+    QVector<ToolCall> calls;
+    ToolCall call;
+    call.id = QStringLiteral("call-1");
+    call.name = QStringLiteral("srv__tool");
+    calls.push_back(call);
+    session.setToolCalls(message.id, calls);
+
+    QSignalSpy updatedSpy(&session, &ChatSession::messageUpdated);
+    // Unknown message id.
+    session.setToolCallStatus(QUuid::createUuid(), QStringLiteral("call-1"), ToolCallStatus::Done,
+                              QStringLiteral("ok"));
+    // Unknown call id.
+    session.setToolCallStatus(message.id, QStringLiteral("call-2"), ToolCallStatus::Done,
+                              QStringLiteral("ok"));
+    QCOMPARE(updatedSpy.count(), 0);
+    QCOMPARE(session.messages().first().toolCalls.first().status, ToolCallStatus::Running);
+}
+
+void TestChatSessionTools::setToolCallStatusIgnoresUnchangedCall() {
+    ChatSession session;
+    auto &message = session.appendMessage(Role::Assistant);
+    QVector<ToolCall> calls;
+    ToolCall call;
+    call.id = QStringLiteral("call-1");
+    call.name = QStringLiteral("srv__tool");
+    calls.push_back(call);
+    session.setToolCalls(message.id, calls);
+    session.setToolCallStatus(message.id, QStringLiteral("call-1"), ToolCallStatus::Failed,
+                              QStringLiteral("boom"));
+
+    QSignalSpy updatedSpy(&session, &ChatSession::messageUpdated);
+    session.setToolCallStatus(message.id, QStringLiteral("call-1"), ToolCallStatus::Failed,
+                              QStringLiteral("boom"));
+    QCOMPARE(updatedSpy.count(), 0);
 }
 
 void TestChatSessionTools::messageIsEmptyAccountsForToolCalls() {

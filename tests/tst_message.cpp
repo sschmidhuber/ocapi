@@ -17,6 +17,8 @@ private slots:
     void filesDefaultEmpty();
     void fileAttachmentsAreKept();
     void isEmptyCoversTextImagesAndFiles();
+    void toolCallStatusDefaultsToRunning();
+    void toolCallEqualityCoversStatusAndResult();
 };
 
 void TestMessage::roleNameMapsEveryRole() {
@@ -106,6 +108,25 @@ void TestMessage::isEmptyCoversTextImagesAndFiles() {
     m.files.clear();
     m.content = QStringLiteral("hello");
     QVERIFY(!m.isEmpty());
+}
+
+void TestMessage::toolCallStatusDefaultsToRunning() {
+    ToolCall call;
+    QCOMPARE(call.status, ToolCallStatus::Running);
+    QVERIFY(call.result.isEmpty());
+}
+
+void TestMessage::toolCallEqualityCoversStatusAndResult() {
+    ToolCall a;
+    a.id = QStringLiteral("1");
+    a.name = QStringLiteral("n");
+    ToolCall b = a;
+    QVERIFY(a == b);
+    b.status = ToolCallStatus::Done;
+    QVERIFY(!(a == b));
+    b = a;
+    b.result = QStringLiteral("out");
+    QVERIFY(!(a == b));
 }
 
 QTEST_GUILESS_MAIN(TestMessage)

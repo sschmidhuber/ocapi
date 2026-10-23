@@ -12,14 +12,18 @@
 #include <QDateTime>
 #include <QDir>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QJsonDocument>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSettings>
+#include <QSize>
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QStatusBar>
+#include <QToolBar>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -137,6 +141,7 @@ Message storedToMessage(const StoredMessage &stored) {
     message.tokensPerSecond = stored.tokensPerSecond;
     message.images = stored.images;
     message.files = stored.files;
+    message.toolCalls = stored.toolCalls;
     return message;
 }
 
@@ -182,6 +187,32 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
 }
 
 void MainWindow::setupUi() {
+    // Plasma-style toolbar across the top: flat buttons with icon and text.
+    m_toolBar = addToolBar(tr("Main"));
+    m_toolBar->setObjectName(QStringLiteral("mainToolBar"));
+    m_toolBar->setMovable(false);
+    m_toolBar->setFloatable(false);
+    m_toolBar->setIconSize(QSize(16, 16));
+    m_toolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_newChatButton = new QToolButton(m_toolBar);
+    m_newChatButton->setText(tr("New chat"));
+    m_newChatButton->setIcon(QIcon::fromTheme(
+        QStringLiteral("kmouth-phrase-new-symbolic"),
+        QIcon(QString::fromUtf8(":/resources/icons/kmouth-phrase-new-symbolic.svg"))));
+    // Widgets added via addWidget() don't inherit the toolbar's
+    // toolButtonStyle; set it explicitly so icon and text both show.
+    m_newChatButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_newChatButton->setToolTip(tr("Start a new chat"));
+    m_settingsButton = new QToolButton(m_toolBar);
+    m_settingsButton->setText(tr("Settings"));
+    m_settingsButton->setIcon(QIcon::fromTheme(
+        QStringLiteral("settings-configure-symbolic"),
+        QIcon(QString::fromUtf8(":/resources/icons/settings-configure-symbolic.svg"))));
+    m_settingsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_settingsButton->setToolTip(tr("Open settings"));
+    m_toolBar->addWidget(m_newChatButton);
+    m_toolBar->addWidget(m_settingsButton);
+
     auto *central = new QWidget(this);
     auto *centralLayout = new QHBoxLayout(central);
     centralLayout->setContentsMargins(0, 0, 0, 0);
@@ -278,12 +309,11 @@ void MainWindow::setupUi() {
 }
 
 void MainWindow::setupConnections() {
-    connect(m_sidebar, &Sidebar::newChatRequested, this, &MainWindow::onNewChat);
+    connect(m_newChatButton, &QToolButton::clicked, this, &MainWindow::onNewChat);
+    connect(m_settingsButton, &QToolButton::clicked, this, [this] { openSettings(QString()); });
     connect(m_sidebar, &Sidebar::sessionSelected, this, &MainWindow::onSessionSelected);
     connect(m_sidebar, &Sidebar::sessionDeleteRequested, this,
             &MainWindow::onSessionDeleteRequested);
-    connect(m_sidebar, &Sidebar::settingsRequested, this,
-            [this](const QString &pageId) { openSettings(pageId); });
     connect(m_composer, &Composer::sendRequested, this,
             [this](const QString &text, const QVector<ImageAttachment> &images,
                    const QVector<FileAttachment> &files) { onSend(text, images, files); });
@@ -373,13 +403,7 @@ void MainWindow::setupConnections() {
                     5000);
                 onMcpToolsChanged();
             });
-    connect(&m_mcpManager, &McpManager::toolResultReady, this,
-            [this](const QString &toolName, const QString &resultText, bool isError) {
-                Q_UNUSED(resultText)
-                statusBar()->showMessage(isError ? tr("MCP tool \"%1\" failed.").arg(toolName)
-                                                 : tr("MCP tool \"%1\" finished.").arg(toolName),
-                                         5000);
-            });
+    connect(&m_mcpManager, &McpManager::toolResultReady, this, &MainWindow::onToolResultReady);
     connect(&m_mcpManager, &McpManager::toolCallFailed, this,
             [this](const QString &toolName, const QString &error) {
                 statusBar()->showMessage(tr("MCP tool \"%1\" failed: %2").arg(toolName, error),
@@ -655,7 +679,7 @@ QStringList MainWindow::knownModelsForBackend(const BackendConfig &config) const
 void MainWindow::refreshSidebar() {
     // Sessions are kept sorted by last activity (newest first) so the
     // sidebar's time groups list recent chats at the top.
-    std::sort(m_sessions.begin(), m_sessions.end(), [](const ChatSession *a, const ChatSession *b) {
+    std::ranges::sort(m_sessions, [](const ChatSession *a, const ChatSession *b) {
         return a->lastActivityAt() > b->lastActivityAt();
     });
     m_sidebar->setSessions(m_sessions);
@@ -913,9 +937,54 @@ void MainWindow::onToolCallsRequested(const QUuid &messageId, const QVector<Tool
     if (!m_currentSession || toolCalls.isEmpty())
         return;
     // Record the requested tool calls on the assistant message so the chat UI
-    // can render them and the conversation history stays complete.
+    // can render them (collapsed, with a progress indicator) and the
+    // conversation history stays complete.
     m_currentSession->setToolCalls(messageId, toolCalls);
+    persistToolCalls(m_currentSession, messageId);
     runToolCalls(m_currentSession, messageId, toolCalls);
+}
+
+void MainWindow::persistToolCalls(ChatSession *session, const QUuid &messageId) {
+    if (!m_database.isOpen() || !session)
+        return;
+    const Message *message = nullptr;
+    for (const auto &candidate : session->messages()) {
+        if (candidate.id == messageId) {
+            message = &candidate;
+            break;
+        }
+    }
+    if (!message)
+        return;
+    m_database.insertMessage(session->id().toString(QUuid::WithoutBraces),
+                             messageId.toString(QUuid::WithoutBraces), message->roleName(),
+                             message->content, message->timestamp, message->images, message->files,
+                             message->toolCalls);
+}
+
+void MainWindow::onToolResultReady(const QString &toolName, const QString &resultText,
+                                   bool isError) {
+    if (!m_currentSession)
+        return;
+    // Mark the matching tool call finished on the assistant message that
+    // requested it; the chat repaints the element without the spinner.
+    for (const auto &message : m_currentSession->messages()) {
+        for (const auto &call : message.toolCalls) {
+            if (call.name == toolName && call.status == ToolCallStatus::Running) {
+                m_currentSession->setToolCallStatus(
+                    message.id, call.id, isError ? ToolCallStatus::Failed : ToolCallStatus::Done,
+                    resultText);
+                if (m_database.isOpen())
+                    m_database.updateToolCallStatus(
+                        message.id.toString(QUuid::WithoutBraces), call.id,
+                        isError ? ToolCallStatus::Failed : ToolCallStatus::Done, resultText);
+                return;
+            }
+        }
+    }
+    statusBar()->showMessage(isError ? tr("MCP tool \"%1\" failed.").arg(toolName)
+                                     : tr("MCP tool \"%1\" finished.").arg(toolName),
+                             5000);
 }
 
 void MainWindow::runToolCalls(ChatSession *session, const QUuid &assistantMessageId,

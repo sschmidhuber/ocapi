@@ -199,12 +199,16 @@ void MainWindow::setupUi() {
     m_newChatButton->setIcon(QIcon::fromTheme(
         QStringLiteral("kmouth-phrase-new-symbolic"),
         QIcon(QString::fromUtf8(":/resources/icons/kmouth-phrase-new-symbolic.svg"))));
+    // Widgets added via addWidget() don't inherit the toolbar's
+    // toolButtonStyle; set it explicitly so icon and text both show.
+    m_newChatButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_newChatButton->setToolTip(tr("Start a new chat"));
     m_settingsButton = new QToolButton(m_toolBar);
     m_settingsButton->setText(tr("Settings"));
     m_settingsButton->setIcon(QIcon::fromTheme(
         QStringLiteral("settings-configure-symbolic"),
         QIcon(QString::fromUtf8(":/resources/icons/settings-configure-symbolic.svg"))));
+    m_settingsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_settingsButton->setToolTip(tr("Open settings"));
     m_toolBar->addWidget(m_newChatButton);
     m_toolBar->addWidget(m_settingsButton);

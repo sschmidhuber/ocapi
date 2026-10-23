@@ -2,9 +2,9 @@
 
 #include <QWidget>
 
-class QListWidget;
-class QListWidgetItem;
 class QPushButton;
+class QTreeWidget;
+class QTreeWidgetItem;
 
 namespace ocapi {
 
@@ -16,6 +16,8 @@ class Sidebar : public QWidget {
 public:
     explicit Sidebar(QWidget *parent = nullptr);
 
+    // Rebuilds the tree, grouping sessions by their last activity time
+    // (Today, Yesterday, weekday, date, month, year).
     void setSessions(const QVector<ChatSession *> &sessions);
     void selectSession(const QUuid &id);
     [[nodiscard]] QUuid currentSessionId() const;
@@ -27,7 +29,7 @@ signals:
     void sessionDeleteRequested(const QUuid &id);
 
 private:
-    QListWidget *m_list;
+    QTreeWidget *m_tree;
     QPushButton *m_newChatButton;
     QPushButton *m_settingsButton;
 };

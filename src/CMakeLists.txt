@@ -32,6 +32,8 @@ set(OCAPI_CORE_SOURCES
     core/textextractor.cpp
     core/chatsession.h
     core/chatsession.cpp
+    core/sessiongrouper.h
+    core/sessiongrouper.cpp
     core/backendconfig.h
     core/backendconfig.cpp
     core/sttconfig.h

@@ -16,6 +16,16 @@ namespace ocapi {
 
 class ChatSession;
 
+// One chat session row with its timestamps, for time-based grouping.
+struct StoredSession {
+    QString id;
+    QString title;
+    QString backendId;
+    QString model;
+    QDateTime createdAt;
+    QDateTime lastActivityAt;
+};
+
 struct StoredMessage {
     QString id;
     QString role;
@@ -56,6 +66,8 @@ public:
     [[nodiscard]] QVector<McpServerConfig> loadMcpServers() const;
 
     [[nodiscard]] QStringList sessionIds() const;
+    // All sessions ordered by last activity, newest first.
+    [[nodiscard]] QVector<StoredSession> loadSessions() const;
     bool insertSession(const ChatSession &session);
     bool updateSession(const ChatSession &session);
     bool deleteSession(const QString &sessionId);
@@ -73,6 +85,10 @@ public:
     [[nodiscard]] QVector<StoredMessage> messagesForSession(const QString &sessionId,
                                                             int limit = -1, int offset = 0) const;
     [[nodiscard]] int messageCount(const QString &sessionId) const;
+
+    // Runs a raw SQL statement on the database connection (for tests and
+    // schema fixes that do not fit the typed API).
+    bool executeRaw(const QString &query);
 
 private:
     bool execute(const QString &query, const QVariantList &bindings);

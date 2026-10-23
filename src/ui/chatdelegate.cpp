@@ -363,7 +363,7 @@ QRect copyButtonRect(const QRect &footerRect) {
 int paintFileChip(QPainter *painter, const QStyleOptionViewItem &option, const FileAttachment &file,
                   const QRect &chipRect, bool isUser) {
     painter->setPen(QPen(QColor(0, 0, 0, 40), 1));
-    painter->setBrush(isUser ? QColor(0xff, 0xff, 0xff, 0x2e) : QColor(0, 0, 0, 0x0d));
+    painter->setBrush(QColor(0, 0, 0, 0x0d));
     painter->drawRoundedRect(chipRect, kBubbleRadius / 2.0, kBubbleRadius / 2.0);
 
     const QRect thumbRect(chipRect.left() + kFileChipPadding,
@@ -385,7 +385,7 @@ int paintFileChip(QPainter *painter, const QStyleOptionViewItem &option, const F
         painter->drawText(thumbRect, Qt::AlignCenter, QStringLiteral("?"));
     }
 
-    painter->setPen(isUser ? Qt::white : QColor(0x1a, 0x1a, 0x1a));
+    painter->setPen(isUser ? Qt::black : QColor(0x1a, 0x1a, 0x1a));
     painter->setFont(option.font);
     const QFontMetrics metrics(option.font);
     const QString elided =
@@ -518,7 +518,7 @@ void paintFooterRow(QPainter *painter, const QStyleOptionViewItem &option, const
     if (!layout.hasFooter)
         return;
     const QRect footerRect = layout.footerRect;
-    const QColor labelColor = isUser ? QColor(0xe0, 0xe0, 0xe0) : QColor(0x50, 0x50, 0x50);
+    const QColor labelColor = QColor(0x50, 0x50, 0x50);
     painter->setPen(labelColor);
     painter->setFont(labelFont(option));
 
@@ -527,7 +527,7 @@ void paintFooterRow(QPainter *painter, const QStyleOptionViewItem &option, const
     const int hintWidth = QFontMetrics(labelFont(option)).horizontalAdvance(QObject::tr("Copied"));
     int x = copyRect.right() + 6;
     if (showCopied) {
-        painter->setPen(QColor(0x9a, 0xd1, 0xff));
+        painter->setPen(QColor(0x2a, 0x62, 0xb5));
         painter->drawText(QRect(x, footerRect.top(), hintWidth, footerRect.height()),
                           Qt::AlignLeft | Qt::AlignVCenter, QObject::tr("Copied"));
         x += hintWidth + 6;
@@ -614,7 +614,7 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     if (!error.isEmpty()) {
         textColor = QColor(0xf6, 0xc2, 0xc2);
     } else if (isUser) {
-        textColor = Qt::white;
+        textColor = Qt::black;
     } else {
         textColor = QColor(0x1a, 0x1a, 0x1a);
     }
@@ -658,7 +658,7 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     // User messages keep a highlight bubble; assistant/tool/error messages
     // use the full chat area without a background.
     if (isUser) {
-        QColor bubbleColor(0x2a, 0x62, 0xb5);
+        QColor bubbleColor(0xc2, 0xe0, 0xf5);
         if (!error.isEmpty())
             bubbleColor = QColor(0x5a, 0x1d, 0x1d);
         painter->setPen(Qt::NoPen);

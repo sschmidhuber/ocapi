@@ -2,6 +2,7 @@
 
 #include "core/textextractor.h"
 
+#include <QGuiApplication>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -146,5 +147,14 @@ void TestFilePreview::pdfThumbnailMatchesRenderFirstPdfPage() {
     QCOMPARE(qMax(thumbImage.width(), thumbImage.height()), 96);
 }
 
-QTEST_MAIN(TestFilePreview)
+// QTEST_MAIN equivalent that forces the offscreen platform: the thumbnail
+// tests paint with QPainter/QFont, which needs a QGuiApplication, but the
+// CI test runner has no display server.
+int main(int argc, char *argv[]) {
+    qputenv("QT_QPA_PLATFORM", "offscreen");
+    QGuiApplication app(argc, argv);
+    TestFilePreview test;
+    return QTest::qExec(&test, argc, argv);
+}
+
 #include "tst_filepreview.moc"

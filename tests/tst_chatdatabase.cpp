@@ -371,9 +371,10 @@ void TestChatDatabase::fileAttachmentsRoundTrip() {
     QCOMPARE(storedFile.mimeType, QStringLiteral("application/pdf"));
     QCOMPARE(storedFile.sourcePath, QStringLiteral("/tmp/report.pdf"));
     QCOMPARE(storedFile.thumbnail, QByteArrayLiteral("\x89PNG\r\n\x1a\nthumbbytes"));
-    // The extracted text travels inside the message content, not the file row.
-    QVERIFY(storedFile.extractedText.isEmpty());
-    QVERIFY(stored.at(0).content.contains(QStringLiteral("see attached")));
+    // The extracted text travels with the file row; the message content
+    // keeps only what the user typed.
+    QCOMPARE(storedFile.extractedText, QStringLiteral("extracted text"));
+    QCOMPARE(stored.at(0).content, QStringLiteral("see attached"));
 }
 
 void TestChatDatabase::deleteSessionRemovesFiles() {

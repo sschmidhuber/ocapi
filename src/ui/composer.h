@@ -6,6 +6,7 @@
 
 #include <QPlainTextEdit>
 #include <QToolButton>
+#include <QUuid>
 #include <QVector>
 #include <QWidget>
 
@@ -85,7 +86,10 @@ protected:
 private:
     void addAttachment(const ImageAttachment &attachment);
     void addDocument(const QString &path);
+    void removeAttachment(const QUuid &id);
+    void removeDocument(const QUuid &id);
     void refreshAttachmentStrip();
+    QToolButton *removeButton(QWidget *parent, const QUuid &id, bool isDocument);
 
     MessageTextEdit *m_textEdit = nullptr;
     QToolButton *m_attachButton = nullptr;

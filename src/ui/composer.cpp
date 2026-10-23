@@ -24,9 +24,8 @@ namespace ocapi {
 namespace {
 
 constexpr int kMaxAttachmentsPerMessage = 8;
-constexpr int kThumbnailSize = 48;
-constexpr int kDocumentChipHeight = 40;
-constexpr int kDocumentThumbSize = 32;
+constexpr int kDocumentChipHeight = 80;
+constexpr int kDocumentThumbSize = 64;
 constexpr int kDocumentChipPadding = 6;
 
 const QStringList &imageSuffixes() {
@@ -320,13 +319,7 @@ void Composer::addDocument(const QString &path) {
 }
 
 QString Composer::composedText() const {
-    QStringList parts;
-    const QString typed = m_textEdit->toPlainText().trimmed();
-    if (!typed.isEmpty())
-        parts.push_back(typed);
-    for (const auto &file : m_documents)
-        parts.push_back(tr("[Attached file: %1]\n%2").arg(file.fileName, file.extractedText));
-    return parts.join(QStringLiteral("\n\n"));
+    return m_textEdit->toPlainText();
 }
 
 void Composer::clearAttachments() {
@@ -346,6 +339,39 @@ void Composer::addAttachment(const ImageAttachment &attachment) {
     refreshAttachmentStrip();
 }
 
+QToolButton *Composer::removeButton(QWidget *parent, const QUuid &id, bool isDocument) {
+    auto *button = new QToolButton(parent);
+    const QIcon icon = QIcon::fromTheme(QStringLiteral("edit-delete-symbolic"));
+    if (!icon.isNull())
+        button->setIcon(icon);
+    else
+        button->setText(QString::fromUtf8("\u2715"));
+    button->setToolTip(tr("Remove attachment"));
+    button->setAutoRaise(true);
+    button->setFixedSize(20, 20);
+    if (isDocument)
+        connect(button, &QToolButton::clicked, this, [this, id] { removeDocument(id); });
+    else
+        connect(button, &QToolButton::clicked, this, [this, id] { removeAttachment(id); });
+    return button;
+}
+
+void Composer::removeAttachment(const QUuid &id) {
+    for (qsizetype i = m_attachments.size() - 1; i >= 0; --i) {
+        if (m_attachments.at(i).id == id)
+            m_attachments.removeAt(i);
+    }
+    refreshAttachmentStrip();
+}
+
+void Composer::removeDocument(const QUuid &id) {
+    for (qsizetype i = m_documents.size() - 1; i >= 0; --i) {
+        if (m_documents.at(i).id == id)
+            m_documents.removeAt(i);
+    }
+    refreshAttachmentStrip();
+}
+
 void Composer::refreshAttachmentStrip() {
     while (m_attachmentLayout->count() > 1) {
         auto *item = m_attachmentLayout->takeAt(0);
@@ -354,23 +380,37 @@ void Composer::refreshAttachmentStrip() {
         delete item;
     }
     for (const auto &attachment : m_attachments) {
-        auto *thumb = new QLabel(m_attachmentStrip);
-        thumb->setFixedSize(kThumbnailSize, kThumbnailSize);
+        auto *chip = new QWidget(m_attachmentStrip);
+        chip->setFixedHeight(kDocumentChipHeight);
+        auto *chipLayout = new QHBoxLayout(chip);
+        chipLayout->setContentsMargins(kDocumentChipPadding, 0, kDocumentChipPadding, 0);
+        chipLayout->setSpacing(kDocumentChipPadding);
+
+        auto *thumb = new QLabel(chip);
+        thumb->setFixedSize(kDocumentThumbSize, kDocumentThumbSize);
+        thumb->setAlignment(Qt::AlignCenter);
         const QImage image = attachment.decode();
         if (!image.isNull()) {
-            thumb->setPixmap(QPixmap::fromImage(image).scaled(
-                kThumbnailSize, kThumbnailSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            thumb->setPixmap(
+                QPixmap::fromImage(image).scaled(kDocumentThumbSize, kDocumentThumbSize,
+                                                 Qt::KeepAspectRatio, Qt::SmoothTransformation));
         } else {
             thumb->setText(QStringLiteral("[image]"));
         }
+        chipLayout->addWidget(thumb);
+
+        auto *label = new QLabel(attachment.fileName, chip);
+        label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        chipLayout->addWidget(label, 1);
+
         const QString tooltip = attachment.resized ? tr("%1 (resized to %2×%3)")
                                                          .arg(attachment.fileName)
                                                          .arg(attachment.width)
                                                          .arg(attachment.height)
                                                    : attachment.fileName;
-        thumb->setToolTip(tooltip);
-        thumb->setAlignment(Qt::AlignCenter);
-        m_attachmentLayout->insertWidget(m_attachmentLayout->count() - 1, thumb);
+        chip->setToolTip(tooltip);
+        chipLayout->addWidget(removeButton(chip, attachment.id, false));
+        m_attachmentLayout->insertWidget(m_attachmentLayout->count() - 1, chip);
     }
     for (const auto &file : m_documents) {
         auto *chip = new QWidget(m_attachmentStrip);
@@ -397,8 +437,7 @@ void Composer::refreshAttachmentStrip() {
         chipLayout->addWidget(label, 1);
 
         chip->setToolTip(tr("Text extracted from %1").arg(file.fileName));
-        chip->setStyleSheet(
-            QStringLiteral("QWidget { border: 1px solid palette(mid); border-radius: 4px; }"));
+        chipLayout->addWidget(removeButton(chip, file.id, true));
         m_attachmentLayout->insertWidget(m_attachmentLayout->count() - 1, chip);
     }
     m_attachmentStrip->setVisible(!m_attachments.isEmpty() || !m_documents.isEmpty());

@@ -32,12 +32,13 @@ QNetworkRequest makeRequest(const QUrl &url, const QString &apiKey) {
 }
 
 QJsonValue contentForMessage(const Message &message) {
+    const QString text = message.textForModel();
     if (message.images.isEmpty())
-        return message.content;
+        return text;
     QJsonArray parts;
-    if (!message.content.isEmpty()) {
+    if (!text.isEmpty()) {
         parts.append(QJsonObject{{QStringLiteral("type"), QStringLiteral("text")},
-                                 {QStringLiteral("text"), message.content}});
+                                 {QStringLiteral("text"), text}});
     }
     for (const auto &image : message.images) {
         parts.append(QJsonObject{

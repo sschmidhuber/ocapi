@@ -34,7 +34,7 @@ QNetworkRequest makeRequest(const QUrl &url, const QString &apiKey) {
 QJsonObject toOllamaMessage(const Message &message) {
     QJsonObject object{
         {QStringLiteral("role"), message.roleName()},
-        {QStringLiteral("content"), message.content},
+        {QStringLiteral("content"), message.textForModel()},
     };
     if (!message.images.isEmpty()) {
         QJsonArray images;

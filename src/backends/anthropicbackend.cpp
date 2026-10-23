@@ -94,9 +94,10 @@ void AnthropicBackend::sendMessage(ChatSession *session, const QString &model) {
             continue;
         }
         QJsonArray contentParts;
-        if (!message.content.isEmpty())
+        const QString text = message.textForModel();
+        if (!text.isEmpty())
             contentParts.append(QJsonObject{{QStringLiteral("type"), QStringLiteral("text")},
-                                            {QStringLiteral("text"), message.content}});
+                                            {QStringLiteral("text"), text}});
         for (const auto &image : message.images) {
             contentParts.append(QJsonObject{
                 {QStringLiteral("type"), QStringLiteral("image")},

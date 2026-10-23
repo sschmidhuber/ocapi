@@ -88,6 +88,7 @@ void createTables(QSqlDatabase &database) {
                               "mime_type TEXT NOT NULL DEFAULT '', "
                               "source_path TEXT NOT NULL DEFAULT '', "
                               "thumbnail BLOB, "
+                              "extracted_text TEXT NOT NULL DEFAULT '', "
                               "position INTEGER NOT NULL DEFAULT 0, "
                               "FOREIGN KEY (message_id) REFERENCES messages (id) "
                               "ON DELETE CASCADE)"));
@@ -129,6 +130,12 @@ bool ChatDatabase::open(const QString &filePath) {
     // Schema evolution: older databases lack the tool-call state column.
     pragma.exec(QStringLiteral("ALTER TABLE messages ADD COLUMN tool_calls TEXT "
                                "NOT NULL DEFAULT '[]'"));
+    if (m_database.lastError().isValid() && m_database.lastError().type() != QSqlError::NoError)
+        m_lastError = m_database.lastError().text();
+    // Schema evolution: older databases lack the extracted-text column on
+    // attached files.
+    pragma.exec(QStringLiteral("ALTER TABLE message_files ADD COLUMN extracted_text TEXT "
+                               "NOT NULL DEFAULT ''"));
     if (m_database.lastError().isValid() && m_database.lastError().type() != QSqlError::NoError)
         m_lastError = m_database.lastError().text();
     return true;
@@ -271,6 +278,7 @@ FileAttachment fileFrom(const QSqlQuery &query) {
     file.mimeType = query.value(3).toString();
     file.sourcePath = query.value(4).toString();
     file.thumbnail = query.value(5).toByteArray();
+    file.extractedText = query.value(6).toString();
     return file;
 }
 
@@ -546,7 +554,8 @@ void ChatDatabase::loadAttachmentsFor(QVector<StoredMessage> &messages) const {
             it.value()->images.push_back(imageFrom(query));
     }
     if (!query.exec(QStringLiteral("SELECT message_id, id, file_name, mime_type, source_path, "
-                                   "thumbnail FROM message_files ORDER BY position ASC"))) {
+                                   "thumbnail, extracted_text FROM message_files "
+                                   "ORDER BY position ASC"))) {
         m_lastError = query.lastError().text();
         return;
     }
@@ -623,10 +632,11 @@ bool ChatDatabase::insertFile(const QString &messageId, const FileAttachment &fi
         return false;
     }
     return execute(QStringLiteral("INSERT INTO message_files (id, message_id, file_name, "
-                                  "mime_type, source_path, thumbnail, position) "
-                                  "VALUES (?, ?, ?, ?, ?, ?, ?) "
+                                  "mime_type, source_path, thumbnail, extracted_text, position) "
+                                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
                                   "ON CONFLICT (id) DO UPDATE SET file_name = "
-                                  "excluded.file_name, thumbnail = excluded.thumbnail"),
+                                  "excluded.file_name, thumbnail = excluded.thumbnail, "
+                                  "extracted_text = excluded.extracted_text"),
                    {
                        file.id.toString(QUuid::WithoutBraces),
                        messageId,
@@ -634,6 +644,7 @@ bool ChatDatabase::insertFile(const QString &messageId, const FileAttachment &fi
                        nullToEmpty(file.mimeType),
                        nullToEmpty(file.sourcePath),
                        file.thumbnail,
+                       nullToEmpty(file.extractedText),
                        position.value(0),
                    });
 }

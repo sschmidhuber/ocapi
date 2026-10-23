@@ -97,8 +97,9 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model) {
             continue;
         }
         QJsonArray parts;
-        if (!message.content.isEmpty())
-            parts.append(QJsonObject{{QStringLiteral("text"), message.content}});
+        const QString text = message.textForModel();
+        if (!text.isEmpty())
+            parts.append(QJsonObject{{QStringLiteral("text"), text}});
         for (const auto &image : message.images) {
             parts.append(QJsonObject{
                 {QStringLiteral("inlineData"),

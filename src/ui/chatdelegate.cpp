@@ -324,11 +324,11 @@ ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &ind
         // its bottom left; the bubble grows to include it.
         layout.hasFooter = true;
         QRect bubbleRect(option.rect.right() - kEdgeMargin - contentWidth, contentTop, contentWidth,
-                         contentHeight + kLabelHeight);
+                         contentHeight + kLabelHeight + kBubblePadding);
         layout.contentRect = bubbleRect;
-        layout.footerRect =
-            QRect(bubbleRect.left() + kBubblePadding, bubbleRect.bottom() - kLabelHeight + 1,
-                  bubbleRect.width() - (2 * kBubblePadding), kLabelHeight);
+        layout.footerRect = QRect(bubbleRect.left() + kBubblePadding,
+                                  bubbleRect.bottom() - kBubblePadding - kLabelHeight + 1,
+                                  bubbleRect.width() - (2 * kBubblePadding), kLabelHeight);
     } else {
         // Assistant/tool/error messages use the full chat area: no bubble.
         // The footer appears only once the message no longer streams, and

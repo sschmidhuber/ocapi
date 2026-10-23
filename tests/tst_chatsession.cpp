@@ -24,6 +24,9 @@ private slots:
     void setThroughputUpdatesMessageAndEmitsSignal();
     void setThroughputIgnoresUnknownId();
     void setThroughputIgnoresSameValue();
+    void timestampsAreInitialized();
+    void appendMessageUpdatesLastActivity();
+    void setTimestampsAcceptValidValues();
 };
 
 void TestChatSession::defaultConstructorUsesNewChatTitle() {
@@ -176,6 +179,39 @@ void TestChatSession::setThroughputIgnoresSameValue() {
     session.setThroughput(id, 30.0);
     QCOMPARE(updatedSpy.count(), 0);
     QCOMPARE(session.messages().constLast().tokensPerSecond, 30.0);
+}
+
+void TestChatSession::timestampsAreInitialized() {
+    const QDateTime before = QDateTime::currentDateTime().addSecs(-1);
+    ChatSession session;
+    const QDateTime after = QDateTime::currentDateTime().addSecs(1);
+    QVERIFY(session.createdAt().isValid());
+    QVERIFY(session.lastActivityAt().isValid());
+    QVERIFY(session.createdAt() >= before && session.createdAt() <= after);
+    QVERIFY(session.lastActivityAt() >= before && session.lastActivityAt() <= after);
+}
+
+void TestChatSession::appendMessageUpdatesLastActivity() {
+    ChatSession session;
+    const QDateTime past(QDate(2020, 1, 1), QTime(0, 0));
+    session.setLastActivityAt(past);
+    session.appendMessage(Role::User, QStringLiteral("hello"));
+    QVERIFY(session.lastActivityAt() > past);
+}
+
+void TestChatSession::setTimestampsAcceptValidValues() {
+    ChatSession session;
+    const QDateTime created(QDate(2024, 5, 1), QTime(10, 0));
+    const QDateTime activity(QDate(2024, 5, 2), QTime(11, 0));
+    session.setCreatedAt(created);
+    session.setLastActivityAt(activity);
+    QCOMPARE(session.createdAt(), created);
+    QCOMPARE(session.lastActivityAt(), activity);
+    // Invalid values are ignored.
+    session.setCreatedAt(QDateTime());
+    session.setLastActivityAt(QDateTime());
+    QCOMPARE(session.createdAt(), created);
+    QCOMPARE(session.lastActivityAt(), activity);
 }
 
 QTEST_GUILESS_MAIN(TestChatSession)

@@ -18,6 +18,8 @@ private slots:
     void settingsMissingKeyReturnsDefault();
     void insertAndListSessions();
     void sessionMetadataRoundTrip();
+    void loadSessionsReturnsTimestampsOrderedByActivity();
+    void lastActivityColumnDefaultsToCreatedAt();
     void insertAndLoadMessages();
     void messageUpdateClearsError();
     void failMessagePersistsError();
@@ -418,6 +420,38 @@ void TestChatDatabase::fileThumbnailSurvivesRoundTrip() {
     QCOMPARE(stored.at(0).files.size(), 1);
     QCOMPARE(stored.at(0).files.at(0).thumbnail, png);
     QVERIFY(!stored.at(0).files.at(0).decodeThumbnail().isNull());
+}
+
+void TestChatDatabase::loadSessionsReturnsTimestampsOrderedByActivity() {
+    ChatSession older(QStringLiteral("Older"), QStringLiteral("backend-1"));
+    older.setCreatedAt(QDateTime(QDate(2024, 1, 1), QTime(10, 0)));
+    older.setLastActivityAt(QDateTime(QDate(2024, 1, 2), QTime(10, 0)));
+    ChatSession newer(QStringLiteral("Newer"), QStringLiteral("backend-1"));
+    newer.setCreatedAt(QDateTime(QDate(2026, 10, 20), QTime(10, 0)));
+    newer.setLastActivityAt(QDateTime(QDate(2026, 10, 23), QTime(10, 0)));
+    QVERIFY(db().insertSession(older));
+    QVERIFY(db().insertSession(newer));
+
+    const auto sessions = db().loadSessions();
+    QCOMPARE(sessions.size(), 2);
+    // Newest activity first.
+    QCOMPARE(sessions.at(0).id, newer.id().toString(QUuid::WithoutBraces));
+    QCOMPARE(sessions.at(1).id, older.id().toString(QUuid::WithoutBraces));
+    QCOMPARE(sessions.at(0).title, QStringLiteral("Newer"));
+    QCOMPARE(sessions.at(0).lastActivityAt, newer.lastActivityAt());
+    QCOMPARE(sessions.at(0).createdAt, newer.createdAt());
+}
+
+void TestChatDatabase::lastActivityColumnDefaultsToCreatedAt() {
+    // Simulate an older database row that has last_activity_at = 0.
+    ChatSession session(QStringLiteral("Legacy"), QStringLiteral("backend-1"));
+    session.setCreatedAt(QDateTime(QDate(2024, 6, 1), QTime(10, 0)));
+    QVERIFY(db().insertSession(session));
+    QVERIFY(db().executeRaw(QStringLiteral("UPDATE sessions SET last_activity_at = 0")));
+
+    const auto sessions = db().loadSessions();
+    QCOMPARE(sessions.size(), 1);
+    QCOMPARE(sessions.at(0).lastActivityAt, sessions.at(0).createdAt);
 }
 
 QTEST_GUILESS_MAIN(TestChatDatabase)

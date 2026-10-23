@@ -25,17 +25,31 @@ void ChatSession::setModel(QString model) {
     m_model = std::move(model);
 }
 
+void ChatSession::setCreatedAt(const QDateTime &createdAt) {
+    if (createdAt.isValid())
+        m_createdAt = createdAt;
+}
+
+void ChatSession::setLastActivityAt(const QDateTime &lastActivityAt) {
+    if (lastActivityAt.isValid())
+        m_lastActivityAt = lastActivityAt;
+}
+
 Message &ChatSession::appendMessage(Role role, const QString &content) {
     Message message;
     message.role = role;
     message.content = content;
     m_messages.push_back(message);
+    m_lastActivityAt =
+        message.timestamp.isValid() ? message.timestamp : QDateTime::currentDateTime();
     emit messageAdded(m_messages.constLast());
     return m_messages.last();
 }
 
 Message &ChatSession::appendMessage(const Message &message) {
     m_messages.push_back(message);
+    m_lastActivityAt =
+        message.timestamp.isValid() ? message.timestamp : QDateTime::currentDateTime();
     emit messageAdded(m_messages.constLast());
     return m_messages.last();
 }

@@ -2,6 +2,7 @@
 
 #include "core/message.h"
 
+#include <QDateTime>
 #include <QObject>
 #include <QString>
 #include <QUuid>
@@ -27,6 +28,13 @@ public:
     [[nodiscard]] QString model() const { return m_model; }
     void setModel(QString model);
 
+    // When the session was created and when it last received a message.
+    // Used to group the chat history by time in the sidebar.
+    [[nodiscard]] QDateTime createdAt() const { return m_createdAt; }
+    [[nodiscard]] QDateTime lastActivityAt() const { return m_lastActivityAt; }
+    void setCreatedAt(const QDateTime &createdAt);
+    void setLastActivityAt(const QDateTime &lastActivityAt);
+
     [[nodiscard]] const QVector<Message> &messages() const { return m_messages; }
 
     Message &appendMessage(Role role, const QString &content = {});
@@ -49,6 +57,8 @@ private:
     QString m_backendId;
     QString m_model;
     QVector<Message> m_messages;
+    QDateTime m_createdAt = QDateTime::currentDateTime();
+    QDateTime m_lastActivityAt = m_createdAt;
 };
 
 } // namespace ocapi

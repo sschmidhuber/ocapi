@@ -22,6 +22,8 @@
 #include <QStatusBar>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace ocapi {
 
 namespace {
@@ -554,17 +556,20 @@ void MainWindow::configureVoiceInput() {
 bool MainWindow::openDatabase() {
     if (!m_database.open(defaultDatabasePath()))
         return false;
-    for (const auto &sessionId : m_database.sessionIds()) {
-        const QUuid id(sessionId);
+    // Sessions come back ordered by last activity (newest first); keep that
+    // order so the sidebar's time groups list recent chats first.
+    for (const auto &stored : m_database.loadSessions()) {
+        const QUuid id(stored.id);
         if (id.isNull())
             continue;
-        auto *session = new ChatSession(id, m_database.sessionTitle(sessionId),
-                                        m_database.sessionBackendId(sessionId), this);
-        session->setModel(m_database.sessionModel(sessionId));
-        const int total = m_database.messageCount(sessionId);
+        auto *session = new ChatSession(id, stored.title, stored.backendId, this);
+        session->setModel(stored.model);
+        session->setCreatedAt(stored.createdAt);
+        session->setLastActivityAt(stored.lastActivityAt);
+        const int total = m_database.messageCount(stored.id);
         const int initial = qMin(total, kMessagesPerPage);
-        for (const auto &stored : m_database.messagesForSession(sessionId, initial, 0))
-            appendStoredMessage(session, stored);
+        for (const auto &message : m_database.messagesForSession(stored.id, initial, 0))
+            appendStoredMessage(session, message);
         session->setProperty("ocapi_loadedCount", initial);
         connect(session, &ChatSession::messageAdded, this, [this, session](const Message &message) {
             persistMessageForSession(session, message);
@@ -615,6 +620,13 @@ void MainWindow::persistMessageForSession(ChatSession *session, const Message &m
     m_database.insertMessage(session->id().toString(QUuid::WithoutBraces),
                              message.id.toString(QUuid::WithoutBraces), message.roleName(),
                              message.content, message.timestamp, message.images, message.files);
+    // Keep the session's last-activity timestamp fresh so the sidebar's
+    // time groups stay current, then rebuild the tree to re-sort/re-group.
+    session->setLastActivityAt(message.timestamp.isValid() ? message.timestamp
+                                                           : QDateTime::currentDateTime());
+    m_database.updateSession(*session);
+    if (m_sessions.size() > 1)
+        refreshSidebar();
 }
 
 void MainWindow::syncSessionToDatabase(ChatSession *session) {
@@ -641,6 +653,11 @@ QStringList MainWindow::knownModelsForBackend(const BackendConfig &config) const
 }
 
 void MainWindow::refreshSidebar() {
+    // Sessions are kept sorted by last activity (newest first) so the
+    // sidebar's time groups list recent chats at the top.
+    std::sort(m_sessions.begin(), m_sessions.end(), [](const ChatSession *a, const ChatSession *b) {
+        return a->lastActivityAt() > b->lastActivityAt();
+    });
     m_sidebar->setSessions(m_sessions);
     if (m_currentSession)
         m_sidebar->selectSession(m_currentSession->id());

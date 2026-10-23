@@ -39,7 +39,8 @@ void createTables(QSqlDatabase &database) {
                               "title TEXT NOT NULL, "
                               "backend_id TEXT NOT NULL, "
                               "model TEXT, "
-                              "created_at INTEGER NOT NULL)"));
+                              "created_at INTEGER NOT NULL, "
+                              "last_activity_at INTEGER NOT NULL DEFAULT 0)"));
     query.exec(
         QStringLiteral("CREATE TABLE IF NOT EXISTS messages ("
                        "id TEXT PRIMARY KEY NOT NULL, "
@@ -117,6 +118,11 @@ bool ChatDatabase::open(const QString &filePath) {
                                "NOT NULL DEFAULT -1"));
     if (m_database.lastError().isValid() && m_database.lastError().type() != QSqlError::NoError)
         m_lastError = m_database.lastError().text();
+    // Schema evolution: older databases lack the last-activity column.
+    pragma.exec(QStringLiteral("ALTER TABLE sessions ADD COLUMN last_activity_at INTEGER "
+                               "NOT NULL DEFAULT 0"));
+    if (m_database.lastError().isValid() && m_database.lastError().type() != QSqlError::NoError)
+        m_lastError = m_database.lastError().text();
     return true;
 }
 
@@ -129,6 +135,15 @@ void ChatDatabase::close() {
     const QString name = m_connectionName;
     m_database = QSqlDatabase();
     QSqlDatabase::removeDatabase(name);
+}
+
+bool ChatDatabase::executeRaw(const QString &query) {
+    QSqlQuery statement(m_database);
+    if (!statement.exec(query)) {
+        m_lastError = statement.lastError().text();
+        return false;
+    }
+    return true;
 }
 
 bool ChatDatabase::execute(const QString &query, const QVariantList &bindings) {
@@ -213,27 +228,63 @@ QStringList ChatDatabase::sessionIds() const {
     return ids;
 }
 
+QVector<StoredSession> ChatDatabase::loadSessions() const {
+    QVector<StoredSession> result;
+    QSqlQuery query(m_database);
+    if (!query.exec(QStringLiteral("SELECT id, title, backend_id, model, created_at, "
+                                   "last_activity_at FROM sessions "
+                                   "ORDER BY last_activity_at DESC, created_at DESC"))) {
+        m_lastError = query.lastError().text();
+        return result;
+    }
+    while (query.next()) {
+        StoredSession session;
+        session.id = query.value(0).toString();
+        session.title = query.value(1).toString();
+        session.backendId = query.value(2).toString();
+        session.model = query.value(3).toString();
+        session.createdAt = QDateTime::fromSecsSinceEpoch(query.value(4).toLongLong());
+        const qint64 lastActivity = query.value(5).toLongLong();
+        session.lastActivityAt =
+            lastActivity > 0 ? QDateTime::fromSecsSinceEpoch(lastActivity) : session.createdAt;
+        result.push_back(std::move(session));
+    }
+    return result;
+}
+
 bool ChatDatabase::insertSession(const ChatSession &session) {
+    const qint64 createdAt = session.createdAt().isValid()
+                                 ? session.createdAt().toSecsSinceEpoch()
+                                 : QDateTime::currentDateTime().toSecsSinceEpoch();
+    const qint64 lastActivity = session.lastActivityAt().isValid()
+                                    ? session.lastActivityAt().toSecsSinceEpoch()
+                                    : createdAt;
     return execute(QStringLiteral("INSERT INTO sessions (id, title, backend_id, model, "
-                                  "created_at) VALUES (?, ?, ?, ?, ?) "
+                                  "created_at, last_activity_at) VALUES (?, ?, ?, ?, ?, ?) "
                                   "ON CONFLICT (id) DO UPDATE SET title = excluded.title, "
-                                  "backend_id = excluded.backend_id, model = excluded.model"),
+                                  "backend_id = excluded.backend_id, model = excluded.model, "
+                                  "created_at = excluded.created_at, "
+                                  "last_activity_at = excluded.last_activity_at"),
                    {
                        session.id().toString(QUuid::WithoutBraces),
                        session.title(),
                        session.backendId(),
                        session.model(),
-                       QDateTime::currentDateTime().toSecsSinceEpoch(),
+                       createdAt,
+                       lastActivity,
                    });
 }
 
 bool ChatDatabase::updateSession(const ChatSession &session) {
-    return execute(QStringLiteral("UPDATE sessions SET title = ?, backend_id = ?, model = ? "
-                                  "WHERE id = ?"),
+    return execute(QStringLiteral("UPDATE sessions SET title = ?, backend_id = ?, model = ?, "
+                                  "last_activity_at = ? WHERE id = ?"),
                    {
                        session.title(),
                        session.backendId(),
                        session.model(),
+                       session.lastActivityAt().isValid()
+                           ? session.lastActivityAt().toSecsSinceEpoch()
+                           : QDateTime::currentDateTime().toSecsSinceEpoch(),
                        session.id().toString(QUuid::WithoutBraces),
                    });
 }

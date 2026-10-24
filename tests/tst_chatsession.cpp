@@ -1,5 +1,6 @@
 #include "core/chatsession.h"
 
+#include <QHash>
 #include <QSignalSpy>
 #include <QtTest>
 
@@ -20,6 +21,8 @@ private slots:
     void failMessageIgnoresUnknownId();
     void setTitleEmitsOnlyOnChange();
     void clearRemovesAllMessages();
+    void prependMessagesSplicesInOlderHistory();
+    void prependMessagesWithAlreadyPresentIdsDuplicatesIds();
     void sessionsHaveUniqueIds();
     void setThroughputUpdatesMessageAndEmitsSignal();
     void setThroughputIgnoresUnknownId();
@@ -144,6 +147,48 @@ void TestChatSession::clearRemovesAllMessages() {
     QCOMPARE(session.messages().size(), 2);
     session.clear();
     QVERIFY(session.messages().isEmpty());
+}
+
+void TestChatSession::prependMessagesSplicesInOlderHistory() {
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("new question"));
+    session.appendMessage(Role::Assistant, QStringLiteral("new answer"));
+    QSignalSpy addedSpy(&session, &ChatSession::messageAdded);
+
+    QVector<Message> older;
+    Message oldMessage;
+    oldMessage.role = Role::User;
+    oldMessage.content = QStringLiteral("old question");
+    older.push_back(oldMessage);
+
+    session.prependMessages(older);
+    QCOMPARE(session.messages().size(), 3);
+    QCOMPARE(session.messages().first().content, QStringLiteral("old question"));
+    QCOMPARE(session.messages().last().content, QStringLiteral("new answer"));
+    // prependMessages must not emit messageAdded: the messages are already
+    // persisted and re-emitting would re-persist them.
+    QCOMPARE(addedSpy.count(), 0);
+}
+
+void TestChatSession::prependMessagesWithAlreadyPresentIdsDuplicatesIds() {
+    // Guards the duplication bug from issue #48: callers must not prepend
+    // messages the session already holds. The session itself trusts its
+    // caller, so this test documents the contract: after prepending the
+    // session's own messages, ids appear twice (the caller-side guard in
+    // MainWindow::loadOlderMessages prevents this in practice).
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("q"));
+    session.appendMessage(Role::Assistant, QStringLiteral("a"));
+    const QVector<Message> copy = session.messages();
+    session.prependMessages(copy);
+    QCOMPARE(session.messages().size(), 4);
+    QHash<QUuid, int> idCount;
+    for (const auto &m : session.messages())
+        idCount.insert(m.id, idCount.value(m.id) + 1);
+    for (auto it = idCount.constBegin(); it != idCount.constEnd(); ++it)
+        QCOMPARE(it.value(), 2);
+    QCOMPARE(session.messages().at(0).id, session.messages().at(2).id);
+    QCOMPARE(session.messages().at(1).id, session.messages().at(3).id);
 }
 
 void TestChatSession::sessionsHaveUniqueIds() {

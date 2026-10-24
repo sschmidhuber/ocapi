@@ -65,6 +65,11 @@ private slots:
     void tableSupportsAlignmentMarkers();
     void pipeTextWithoutDelimiterIsNotATable();
     void clearCacheForcesReRender();
+    void codeSpanDoesNotLeakMonospaceIntoFollowingText();
+    void codeSpanDoesNotLeakBackgroundIntoFollowingText();
+    void headingDoesNotLeakBoldIntoFollowingParagraph();
+    void headingDoesNotLeakSizeIntoFollowingListItem();
+    void issueTextRendersWithoutFormatLeaks();
 };
 
 void TestMarkdown::initTestCase() {
@@ -237,6 +242,139 @@ void TestMarkdown::pipeTextWithoutDelimiterIsNotATable() {
     const QString md = QStringLiteral("a | b\n1 | 2");
     const auto doc = MarkdownRenderer::render(md, 400, testFont());
     QCOMPARE(doc->toPlainText(), QStringLiteral("a | b 1 | 2"));
+}
+
+void TestMarkdown::codeSpanDoesNotLeakMonospaceIntoFollowingText() {
+    const auto doc = MarkdownRenderer::render(QStringLiteral("use `code` here"), 400, testFont());
+    // The text after the code span must not inherit the monospace family.
+    bool sawPlainAfterCode = false;
+    for (QTextBlock block = doc->begin(); block != doc->end(); block = block.next()) {
+        for (QTextBlock::iterator it = block.begin(); !it.atEnd(); ++it) {
+            const QTextCharFormat f = it.fragment().charFormat();
+            if (it.fragment().text() == QStringLiteral(" here")) {
+                sawPlainAfterCode = true;
+                const auto families = f.property(QTextFormat::FontFamilies).toStringList();
+                QVERIFY(families.isEmpty() || families.first() != QLatin1String("monospace"));
+            }
+        }
+    }
+    QVERIFY(sawPlainAfterCode);
+}
+
+void TestMarkdown::codeSpanDoesNotLeakBackgroundIntoFollowingText() {
+    const auto doc = MarkdownRenderer::render(QStringLiteral("a `x` b"), 400, testFont());
+    for (QTextBlock block = doc->begin(); block != doc->end(); block = block.next()) {
+        for (QTextBlock::iterator it = block.begin(); !it.atEnd(); ++it) {
+            const QTextCharFormat f = it.fragment().charFormat();
+            if (it.fragment().text() == QStringLiteral(" b"))
+                QCOMPARE(f.background().style(), Qt::NoBrush);
+        }
+    }
+}
+
+void TestMarkdown::headingDoesNotLeakBoldIntoFollowingParagraph() {
+    const auto doc =
+        MarkdownRenderer::render(QStringLiteral("## Title\n\nBody text."), 400, testFont());
+    bool sawBody = false;
+    for (QTextBlock block = doc->begin(); block != doc->end(); block = block.next()) {
+        for (QTextBlock::iterator it = block.begin(); !it.atEnd(); ++it) {
+            if (it.fragment().text().contains(QStringLiteral("Body text."))) {
+                sawBody = true;
+                QCOMPARE(it.fragment().charFormat().fontWeight(), QFont::Normal);
+            }
+        }
+    }
+    QVERIFY(sawBody);
+}
+
+void TestMarkdown::headingDoesNotLeakSizeIntoFollowingListItem() {
+    const auto doc =
+        MarkdownRenderer::render(QStringLiteral("## Title\n\n- item one"), 400, testFont());
+    bool sawItem = false;
+    for (QTextBlock block = doc->begin(); block != doc->end(); block = block.next()) {
+        for (QTextBlock::iterator it = block.begin(); !it.atEnd(); ++it) {
+            if (it.fragment().text().contains(QStringLiteral("item one"))) {
+                sawItem = true;
+                QCOMPARE(it.fragment().charFormat().fontWeight(), QFont::Normal);
+                QVERIFY(it.fragment().charFormat().fontPointSize() <= 10.5);
+            }
+        }
+    }
+    QVERIFY(sawItem);
+}
+
+void TestMarkdown::issueTextRendersWithoutFormatLeaks() {
+    // Regression test for the reported issue: an assistant message mixing
+    // headings, bold lead-ins, inline code and a bullet list must keep the
+    // plain body text at normal weight, normal size and the default font
+    // family (no leaked monospace/background from code spans, no leaked
+    // bold/size from headings).
+    const QString md =
+        QStringLiteral("## Dash's main advantages over bash:\n\n"
+                       "**Speed** \x2014 Dash starts faster. Testing your `/bin/sh` scripts.\n\n"
+                       "### The tradeoff:\n\n"
+                       "* Use dash for `#!/bin/sh` scripts\n"
+                       "* Use bash as your interactive shell\n\n"
+                       "The two aren't really competitors \x2014 dash is optimized for scripts.\n");
+    const auto doc = MarkdownRenderer::render(md, 800, testFont());
+    QCOMPARE(doc->toPlainText(),
+             QStringLiteral("Dash's main advantages over bash:\n"
+                            "Speed \x2014 Dash starts faster. Testing your /bin/sh scripts.\n"
+                            "The tradeoff:\n"
+                            "\x2022 Use dash for #!/bin/sh scripts\n"
+                            "\x2022 Use bash as your interactive shell\n"
+                            "The two aren't really competitors \x2014 dash is optimized for "
+                            "scripts."));
+    // Fragments that must stay plain: text after a code span in the same
+    // paragraph, and text in blocks that follow a heading. Each entry is a
+    // (block text, fragment text) pair; the fragment must have normal
+    // weight, normal size, default font family and no background.
+    struct PlainFragment {
+        QString blockText;
+        QString fragmentText;
+    };
+    const QVector<PlainFragment> plainFragments = {
+        {
+            .blockText =
+                QStringLiteral("Speed \x2014 Dash starts faster. Testing your /bin/sh scripts."),
+            .fragmentText = QStringLiteral(" scripts."),
+        },
+        {
+            .blockText = QStringLiteral("\x2022 Use dash for #!/bin/sh scripts"),
+            .fragmentText = QStringLiteral("\x2022 Use dash for "),
+        },
+        {
+            .blockText = QStringLiteral("\x2022 Use bash as your interactive shell"),
+            .fragmentText = QStringLiteral("\x2022 Use bash as your interactive shell"),
+        },
+        {
+            .blockText = QStringLiteral(
+                "The two aren't really competitors \x2014 dash is optimized for scripts."),
+            .fragmentText = QStringLiteral(
+                "The two aren't really competitors \x2014 dash is optimized for scripts."),
+        },
+    };
+    for (const auto &[blockText, fragmentText] : plainFragments) {
+        bool found = false;
+        for (QTextBlock block = doc->begin(); block != doc->end(); block = block.next()) {
+            if (block.text() != blockText)
+                continue;
+            for (QTextBlock::iterator it = block.begin(); !it.atEnd(); ++it) {
+                if (it.fragment().text() != fragmentText)
+                    continue;
+                found = true;
+                const QTextCharFormat f = it.fragment().charFormat();
+                QCOMPARE(f.fontWeight(), QFont::Normal);
+                QVERIFY(f.fontPointSize() <= 10.5);
+                const auto families = f.property(QTextFormat::FontFamilies).toStringList();
+                QVERIFY(families.isEmpty() || families.first() != QLatin1String("monospace"));
+                QCOMPARE(f.background().style(), Qt::NoBrush);
+            }
+        }
+        QVERIFY2(
+            found,
+            qPrintable(QStringLiteral("fragment not found: %1 / %2").arg(blockText, fragmentText)));
+    }
 }
 
 QTEST_GUILESS_MAIN(TestMarkdown)

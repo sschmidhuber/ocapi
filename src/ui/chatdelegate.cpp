@@ -1,12 +1,17 @@
 #include "ui/chatdelegate.h"
+#include "core/attachmentopener.h"
 #include "core/markdown.h"
 #include "core/message.h"
 
+#include <QAbstractItemView>
 #include <QApplication>
 #include <QClipboard>
 #include <QEvent>
+#include <QFileInfo>
 #include <QFontMetrics>
 #include <QGuiApplication>
+#include <QHelpEvent>
+#include <QHoverEvent>
 #include <QIcon>
 #include <QImage>
 #include <QMouseEvent>
@@ -16,6 +21,7 @@
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTimer>
+#include <QToolTip>
 
 #include <QJsonDocument>
 
@@ -53,6 +59,10 @@ QVector<QImage> decodeImages(const QModelIndex &index) {
 
 QVector<FileAttachment> decodeFiles(const QModelIndex &index) {
     return index.data(static_cast<int>(Qt::UserRole) + 8).value<QVector<FileAttachment>>();
+}
+
+QVector<ImageAttachment> decodeImageAttachments(const QModelIndex &index) {
+    return index.data(static_cast<int>(Qt::UserRole) + 5).value<QVector<ImageAttachment>>();
 }
 
 int fileChipWidth(const QString &fileName, const QFontMetrics &metrics) {
@@ -251,6 +261,71 @@ struct ItemLayout {
     QString throughput; // empty when the message has no tok/s label
 };
 
+// Layout of the attachment area shared by paint() and the click/hover
+// hit-testing: image rects first (in message order), then the wrapping
+// rows of file chips. Rects are in item coordinates.
+struct AttachmentLayout {
+    QVector<QRect> imageRects;
+    QVector<QRect> fileChipRects;
+};
+
+AttachmentLayout attachmentLayout(const QVector<QImage> &images,
+                                  const QVector<FileAttachment> &files,
+                                  const QStyleOptionViewItem &option, const ItemLayout &layout) {
+    const QRect &contentRect = layout.contentRect;
+    AttachmentLayout result;
+    result.imageRects.reserve(images.size());
+    int x = contentRect.left() + kBubblePadding;
+    const int imageTop = contentRect.top() + kBubblePadding + layout.toolCallsHeight;
+    for (const auto &image : images) {
+        const int targetWidth = qMin(image.width(), kImageSize);
+        const int targetHeight = qMin(image.height(), kImageSize);
+        result.imageRects.push_back(QRect(x, imageTop, targetWidth, targetHeight));
+        x += targetWidth + kImageSpacing;
+    }
+
+    result.fileChipRects.reserve(files.size());
+    const int chipsTop =
+        contentRect.top() + kBubblePadding + layout.toolCallsHeight + layout.imageBlockHeight;
+    const int maxChipsWidth = contentRect.width() - (2 * kBubblePadding);
+    const QFontMetrics metrics(option.font);
+    const int chipsLeft = contentRect.left() + kBubblePadding;
+    int chipX = chipsLeft;
+    int chipY = chipsTop;
+    for (const auto &file : files) {
+        const int chipWidth = fileChipWidth(file.fileName, metrics);
+        if (chipX > chipsLeft && chipX + chipWidth > chipsLeft + maxChipsWidth) {
+            chipX = chipsLeft;
+            chipY += kFileChipHeight + kImageSpacing;
+        }
+        result.fileChipRects.push_back(QRect(chipX, chipY, chipWidth, kFileChipHeight));
+        chipX += chipWidth + kImageSpacing;
+    }
+    return result;
+}
+
+// Index of the attachment at \p pos, or -1. Images come first (in message
+// order), then file chips. The source path identifies the file to open.
+int hitTestAttachment(const QVector<ImageAttachment> &images, const QVector<FileAttachment> &files,
+                      const AttachmentLayout &layout, const QPoint &pos, QString *sourcePath) {
+    for (qsizetype i = 0; i < layout.imageRects.size(); ++i) {
+        if (layout.imageRects.at(i).contains(pos)) {
+            if (sourcePath)
+                *sourcePath = images.value(i).sourcePath;
+            return static_cast<int>(i);
+        }
+    }
+    const int imageCount = static_cast<int>(layout.imageRects.size());
+    for (qsizetype i = 0; i < layout.fileChipRects.size(); ++i) {
+        if (layout.fileChipRects.at(i).contains(pos)) {
+            if (sourcePath)
+                *sourcePath = files.value(i).sourcePath;
+            return imageCount + static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
 QString throughputText(double tokensPerSecond) {
     return QStringLiteral("%1 tok/s").arg(QString::number(tokensPerSecond, 'f', 1));
 }
@@ -345,6 +420,21 @@ ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &ind
     return layout;
 }
 
+// Index of the attachment at \p pos (item coordinates), or -1; shared by
+// the delegate's hover tracking, click handling, tooltip and the view's
+// cursor switching.
+int attachmentIndexAt(const QStyleOptionViewItem &option, const QModelIndex &index,
+                      const QPoint &pos, QString *sourcePath = nullptr) {
+    const QVector<ImageAttachment> images = decodeImageAttachments(index);
+    const QVector<FileAttachment> files = decodeFiles(index);
+    if (images.isEmpty() && files.isEmpty())
+        return -1;
+    const ItemLayout layout = layoutItem(option, index);
+    const QVector<QImage> decoded = decodeImages(index);
+    const AttachmentLayout attachments = attachmentLayout(decoded, files, option, layout);
+    return hitTestAttachment(images, files, attachments, pos, sourcePath);
+}
+
 const QIcon &copyIcon() {
     static const QIcon icon =
         QIcon::fromTheme(QStringLiteral("edit-copy-symbolic"),
@@ -361,9 +451,9 @@ QRect copyButtonRect(const QRect &footerRect) {
 }
 
 // Paints one file chip: a rounded tile with the file thumbnail and its
-// (elided) name. Returns the x position right after the chip.
-int paintFileChip(QPainter *painter, const QStyleOptionViewItem &option, const FileAttachment &file,
-                  const QRect &chipRect, bool isUser) {
+// (elided) name.
+void paintFileChip(QPainter *painter, const QStyleOptionViewItem &option,
+                   const FileAttachment &file, const QRect &chipRect, bool isUser) {
     painter->setPen(Qt::NoPen);
     painter->setBrush(QColor(0, 0, 0, 0x0d));
     painter->drawRoundedRect(chipRect, kBubbleRadius / 2.0, kBubbleRadius / 2.0);
@@ -397,30 +487,22 @@ int paintFileChip(QPainter *painter, const QStyleOptionViewItem &option, const F
                               kFileChipPadding,
                           chipRect.height());
     painter->drawText(labelRect, Qt::AlignLeft | Qt::AlignVCenter, elided);
-    return chipRect.right() + kImageSpacing;
 }
 
-// Paints the wrapping row of file chips below the images, above the text.
+// Paints the file chips below the images, above the text, using the
+// precomputed rects from attachmentLayout(). \p hoveredChip highlights the
+// chip under the mouse (it opens on click); -1 highlights none.
 void paintFileChips(QPainter *painter, const QStyleOptionViewItem &option,
-                    const QVector<FileAttachment> &files, const QRect &contentRect,
-                    const ItemLayout &layout, bool isUser) {
-    if (files.isEmpty())
-        return;
-    const int chipsTop =
-        contentRect.top() + kBubblePadding + layout.toolCallsHeight + layout.imageBlockHeight;
-    const int maxChipsWidth = contentRect.width() - (2 * kBubblePadding);
-    const QFontMetrics metrics(option.font);
-    const int chipsLeft = contentRect.left() + kBubblePadding;
-    int chipX = chipsLeft;
-    int chipY = chipsTop;
-    for (const auto &file : files) {
-        const int chipWidth = fileChipWidth(file.fileName, metrics);
-        if (chipX > chipsLeft && chipX + chipWidth > chipsLeft + maxChipsWidth) {
-            chipX = chipsLeft;
-            chipY += kFileChipHeight + kImageSpacing;
+                    const QVector<FileAttachment> &files, const QVector<QRect> &chipRects,
+                    bool isUser, int hoveredChip) {
+    for (qsizetype i = 0; i < files.size(); ++i) {
+        const QRect chipRect = chipRects.value(i);
+        paintFileChip(painter, option, files.at(i), chipRect, isUser);
+        if (i == hoveredChip) {
+            painter->setPen(QPen(QColor(0x2a, 0x62, 0xb5), 2));
+            painter->setBrush(Qt::NoBrush);
+            painter->drawRoundedRect(chipRect, kBubbleRadius / 2.0, kBubbleRadius / 2.0);
         }
-        chipX = paintFileChip(painter, option, file,
-                              QRect(chipX, chipY, chipWidth, kFileChipHeight), isUser);
     }
 }
 
@@ -680,30 +762,37 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
         index.data(static_cast<int>(Qt::UserRole) + 9).toStringList();
     paintToolCalls(painter, option, toolCalls, expandedToolCalls, contentRect, maxTextWidth);
 
-    // Images above the message text, each with its file name below.
-    int x = contentRect.left() + kBubblePadding;
-    const int imageTop = contentRect.top() + kBubblePadding + layout.toolCallsHeight;
+    // Images above the message text, each with its file name below. The
+    // rects come from the shared attachment layout so hit-testing matches
+    // the painted geometry exactly.
+    const AttachmentLayout attachments = attachmentLayout(images, files, option, layout);
     const QFontMetrics captionMetrics(option.font);
     for (qsizetype i = 0; i < images.size(); ++i) {
         const QImage &image = images.at(i);
-        const int targetWidth = qMin(image.width(), kImageSize);
-        const int targetHeight = qMin(image.height(), kImageSize);
-        const QRect target(x, imageTop, targetWidth, targetHeight);
+        const QRect target = attachments.imageRects.at(i);
         painter->drawImage(target, image);
+        // Highlight the attachment under the mouse: it opens on click.
+        if (m_hoveredIndex == index && m_hoveredAttachment == i) {
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(QColor(0, 0, 0, 0x1a));
+            painter->drawRoundedRect(target, 4, 4);
+        }
         const QString fileName = imageAttachments.value(i).fileName;
         if (!fileName.isEmpty()) {
             painter->setFont(option.font);
             painter->setPen(textColor);
-            painter->drawText(QRect(x, imageTop + targetHeight, targetWidth, kImageCaptionHeight),
+            painter->drawText(QRect(target.left(), target.top() + target.height(), target.width(),
+                                    kImageCaptionHeight),
                               Qt::AlignHCenter | Qt::AlignTop,
-                              captionMetrics.elidedText(fileName, Qt::ElideMiddle, targetWidth));
+                              captionMetrics.elidedText(fileName, Qt::ElideMiddle, target.width()));
         }
-        x += targetWidth + kImageSpacing;
     }
 
     // File chips below the images, above the message text: rounded tiles
     // with the file thumbnails and their (elided) names.
-    paintFileChips(painter, option, files, contentRect, layout, isUser);
+    const int imageCount = static_cast<int>(images.size());
+    paintFileChips(painter, option, files, attachments.fileChipRects, isUser,
+                   m_hoveredIndex == index ? m_hoveredAttachment - imageCount : -1);
 
     // Message text.
     painter->setPen(textColor);
@@ -734,8 +823,31 @@ QSize ChatDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelInd
 
 bool ChatDelegate::editorEvent(QEvent *event, QAbstractItemModel *model,
                                const QStyleOptionViewItem &option, const QModelIndex &index) {
-    if (event->type() != QEvent::MouseButtonRelease)
-        return QStyledItemDelegate::editorEvent(event, model, option, index);
+    switch (event->type()) {
+    case QEvent::MouseButtonRelease:
+        return handleMouseRelease(event, model, option, index);
+    case QEvent::HoverMove: {
+        // Track the hovered attachment so paint() can highlight it. Hover
+        // events reach the delegate because the view enables WA_Hover on its
+        // viewport.
+        const auto *hover = dynamic_cast<const QHoverEvent *>(event);
+        if (!hover)
+            break;
+        setHoveredAttachment(index, attachmentIndexAt(option, index, hover->pos()));
+        return false;
+    }
+    case QEvent::HoverLeave:
+        setHoveredAttachment(index, -1);
+        return false;
+    default:
+        break;
+    }
+    return QStyledItemDelegate::editorEvent(event, model, option, index);
+}
+
+bool ChatDelegate::handleMouseRelease(QEvent *event, QAbstractItemModel *model,
+                                      const QStyleOptionViewItem &option,
+                                      const QModelIndex &index) {
     const auto *mouse = dynamic_cast<const QMouseEvent *>(event);
     if (!mouse)
         return QStyledItemDelegate::editorEvent(event, model, option, index);
@@ -743,6 +855,15 @@ bool ChatDelegate::editorEvent(QEvent *event, QAbstractItemModel *model,
     // Tool-call rows toggle the collapsed element instead of copying.
     if (handleToolCallClick(model, index, option, layout, mouse->pos()))
         return true;
+    // Clicking an image or file chip opens the attachment with the
+    // system's default application.
+    QString sourcePath;
+    if (attachmentIndexAt(option, index, mouse->pos(), &sourcePath) >= 0 && !sourcePath.isEmpty()) {
+        QString openError;
+        if (!AttachmentOpener::open(sourcePath, &openError))
+            emit attachmentOpenFailed(openError);
+        return true;
+    }
     const QVector<ToolCall> toolCalls = decodeToolCalls(index);
     if (!toolCalls.isEmpty())
         return QStyledItemDelegate::editorEvent(event, model, option, index);
@@ -759,6 +880,46 @@ bool ChatDelegate::editorEvent(QEvent *event, QAbstractItemModel *model,
         showCopiedFeedback(index);
     }
     return true;
+}
+
+bool ChatDelegate::helpEvent(QHelpEvent *event, QAbstractItemView *view,
+                             const QStyleOptionViewItem &option, const QModelIndex &index) {
+    if (event->type() != QEvent::ToolTip)
+        return QStyledItemDelegate::helpEvent(event, view, option, index);
+    const QVector<ImageAttachment> images = decodeImageAttachments(index);
+    const QVector<FileAttachment> files = decodeFiles(index);
+    if (images.isEmpty() && files.isEmpty())
+        return QStyledItemDelegate::helpEvent(event, view, option, index);
+    QString sourcePath;
+    const int hit = attachmentIndexAt(option, index, event->pos(), &sourcePath);
+    if (hit < 0)
+        return QStyledItemDelegate::helpEvent(event, view, option, index);
+    QString name;
+    const int imageCount = static_cast<int>(images.size());
+    if (hit < imageCount)
+        name = images.value(hit).fileName;
+    else
+        name = files.value(hit - imageCount).fileName;
+    if (name.isEmpty())
+        name = QFileInfo(sourcePath).fileName();
+    QToolTip::showText(event->globalPos(), tr("%1\nClick to open").arg(name), view->viewport());
+    return true;
+}
+
+bool ChatDelegate::attachmentAt(const QModelIndex &index, const QRect &itemRect,
+                                const QPoint &pos) {
+    QStyleOptionViewItem option;
+    option.rect = itemRect;
+    option.font = QGuiApplication::font();
+    return attachmentIndexAt(option, index, pos) >= 0;
+}
+
+void ChatDelegate::setHoveredAttachment(const QModelIndex &index, int attachmentIndex) {
+    if (m_hoveredIndex == index && m_hoveredAttachment == attachmentIndex)
+        return;
+    m_hoveredIndex = QPersistentModelIndex(index);
+    m_hoveredAttachment = attachmentIndex;
+    emit hoverChanged();
 }
 
 } // namespace ocapi

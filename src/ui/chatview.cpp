@@ -7,6 +7,7 @@
 #include <QContextMenuEvent>
 #include <QGuiApplication>
 #include <QMenu>
+#include <QMessageBox>
 #include <QResizeEvent>
 #include <QScrollBar>
 
@@ -209,6 +210,17 @@ ChatView::ChatView(QWidget *parent) : QListView(parent) {
     setItemDelegate(delegate);
     connect(delegate, &ChatDelegate::copiedFeedbackChanged, viewport(),
             QOverload<>::of(&QWidget::update));
+    connect(delegate, &ChatDelegate::hoverChanged, viewport(), QOverload<>::of(&QWidget::update));
+    connect(delegate, &ChatDelegate::attachmentOpenFailed, this, [this](const QString &error) {
+        // Non-modal so a missing default application never blocks the UI.
+        auto *box = new QMessageBox(QMessageBox::Warning, tr("Could not open attachment"), error,
+                                    QMessageBox::Ok, this);
+        box->setAttribute(Qt::WA_DeleteOnClose);
+        box->setModal(false);
+        box->show();
+    });
+    // WA_Hover lets the delegate track the attachment under the cursor.
+    viewport()->setAttribute(Qt::WA_Hover, true);
     connect(verticalScrollBar(), &QAbstractSlider::valueChanged, this, &ChatView::checkScrollTop);
     setSelectionMode(QAbstractItemView::NoSelection);
     setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
@@ -285,6 +297,17 @@ void ChatView::resizeEvent(QResizeEvent *event) {
     // Force size hints to be recomputed for the new width.
     if (model())
         emit model() -> layoutChanged();
+}
+
+void ChatView::mouseMoveEvent(QMouseEvent *event) {
+    // Switch to a pointing hand while hovering a clickable attachment so
+    // the affordance matches the composer chips.
+    const QModelIndex index = indexAt(event->pos());
+    bool overAttachment = false;
+    if (index.isValid())
+        overAttachment = ChatDelegate::attachmentAt(index, visualRect(index), event->pos());
+    viewport()->setCursor(overAttachment ? Qt::PointingHandCursor : Qt::ArrowCursor);
+    QListView::mouseMoveEvent(event);
 }
 
 void ChatView::contextMenuEvent(QContextMenuEvent *event) {

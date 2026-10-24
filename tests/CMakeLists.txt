@@ -3,6 +3,7 @@ set(OCAPI_TESTS
     tst_markdown
     tst_message
     tst_imagemessage
+    tst_attachmentopener
     tst_filepreview
     tst_chatsession
     tst_chatsession_tools

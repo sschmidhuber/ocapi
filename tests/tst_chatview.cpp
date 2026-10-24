@@ -1,8 +1,11 @@
 #include "core/chatsession.h"
+#include "ui/chatdelegate.h"
 #include "ui/chatview.h"
 
 #include <QAbstractItemModel>
 #include <QApplication>
+#include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QtTest>
 
 using namespace ocapi;
@@ -42,6 +45,10 @@ private slots:
     void accessibleTextCombinesToolCallsAndContent();
     void accessibleTextUpdatesWhenToolCallFinishes();
     void accessibleTextFailedHasFailedWord();
+    void clickOnFileChipEmitsOpenFailureForMissingFile();
+    void clickOnFileChipOpensExistingFile();
+    void clickOutsideAttachmentsDoesNotOpen();
+    void attachmentAtMatchesChipGeometry();
 };
 
 void TestChatView::accessibleTextIsMessageContent() {
@@ -129,6 +136,140 @@ void TestChatView::accessibleTextFailedHasFailedWord() {
     const QString text = modelOf(view)->index(0, 0).data(Qt::AccessibleTextRole).toString();
     QVERIFY(text.contains(QStringLiteral("failed")));
     QVERIFY(!text.contains(QStringLiteral("done")));
+}
+
+namespace {
+
+// A message with one file chip whose source path points at \p path.
+Message makeFileMessage(const QString &path) {
+    Message message = makeMessage(Role::User, QStringLiteral("see attachment"));
+    FileAttachment file;
+    file.fileName = QStringLiteral("notes.txt");
+    file.sourcePath = path;
+    message.files = {file};
+    return message;
+}
+
+// Center of the first file chip of \p index, in item coordinates; a null
+// point when no attachment is found.
+QPoint fileChipCenter(ChatView &view, const QModelIndex &index) {
+    auto *delegate = qobject_cast<ChatDelegate *>(view.itemDelegate());
+    if (!delegate)
+        return {};
+    const QRect itemRect = view.visualRect(index);
+    if (!itemRect.isValid())
+        return {};
+    // The chip lives inside the content area; scan the item rect for the
+    // chip by asking the delegate where attachments are.
+    for (int y = itemRect.top(); y < itemRect.bottom(); ++y) {
+        for (int x = itemRect.left(); x < itemRect.right(); ++x) {
+            const QPoint pos(x, y);
+            if (ChatDelegate::attachmentAt(index, itemRect, pos))
+                return pos;
+        }
+    }
+    return {};
+}
+
+} // namespace
+
+void TestChatView::clickOnFileChipEmitsOpenFailureForMissingFile() {
+    ChatSession session(QStringLiteral("t"), QStringLiteral("b"));
+    session.appendMessage(makeFileMessage(QStringLiteral("/nonexistent/ocapi-missing.txt")));
+    ChatView view;
+    view.resize(600, 400);
+    view.setSession(&session);
+    auto *delegate = qobject_cast<ChatDelegate *>(view.itemDelegate());
+    QVERIFY(delegate);
+    QSignalSpy failureSpy(delegate, &ChatDelegate::attachmentOpenFailed);
+
+    const QModelIndex idx = modelOf(view)->index(0, 0);
+    const QPoint chipPos = fileChipCenter(view, idx);
+    QVERIFY(!chipPos.isNull());
+    QStyleOptionViewItem option;
+    option.rect = view.visualRect(idx);
+    QMouseEvent release(QEvent::MouseButtonRelease, chipPos, view.viewport()->mapToGlobal(chipPos),
+                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QVERIFY(delegate->editorEvent(&release, modelOf(view), option, idx));
+    // The click hit the chip of a file that no longer exists, so the open
+    // fails and the failure signal is emitted. The view's signal handler
+    // would show a modal message box; the delegate only emits the signal.
+    QCOMPARE(failureSpy.count(), 1);
+}
+
+void TestChatView::clickOnFileChipOpensExistingFile() {
+    // Outside a sandbox QDesktopServices::openUrl delegates to xdg-open;
+    // with no xdg-open on the CI runner the call fails, which still proves
+    // the click reached the open path (a failure is reported, no crash).
+    // Inside a sandbox the portal path is taken. Either way the delegate
+    // must consume the click.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("notes.txt"));
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("hello");
+    file.close();
+
+    ChatSession session(QStringLiteral("t"), QStringLiteral("b"));
+    session.appendMessage(makeFileMessage(path));
+    ChatView view;
+    view.resize(600, 400);
+    view.setSession(&session);
+    auto *delegate = qobject_cast<ChatDelegate *>(view.itemDelegate());
+    QVERIFY(delegate);
+
+    const QModelIndex idx = modelOf(view)->index(0, 0);
+    const QPoint chipPos = fileChipCenter(view, idx);
+    QVERIFY(!chipPos.isNull());
+    QStyleOptionViewItem option;
+    option.rect = view.visualRect(idx);
+    QMouseEvent release(QEvent::MouseButtonRelease, chipPos, view.viewport()->mapToGlobal(chipPos),
+                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    // The click on the chip is consumed whether or not the open succeeds.
+    QVERIFY(delegate->editorEvent(&release, modelOf(view), option, idx));
+}
+
+void TestChatView::clickOutsideAttachmentsDoesNotOpen() {
+    ChatSession session(QStringLiteral("t"), QStringLiteral("b"));
+    session.appendMessage(makeFileMessage(QStringLiteral("/nonexistent/ocapi-missing.txt")));
+    ChatView view;
+    view.resize(600, 400);
+    view.setSession(&session);
+    auto *delegate = qobject_cast<ChatDelegate *>(view.itemDelegate());
+    QVERIFY(delegate);
+    QSignalSpy failureSpy(delegate, &ChatDelegate::attachmentOpenFailed);
+
+    const QModelIndex idx = modelOf(view)->index(0, 0);
+    const QRect itemRect = view.visualRect(idx);
+    // Click in the top-left corner of the item (the role label row), far
+    // away from any attachment chip.
+    const QPoint pos(itemRect.left() + 2, itemRect.top() + 2);
+    QVERIFY(!ChatDelegate::attachmentAt(idx, itemRect, pos));
+    QStyleOptionViewItem option;
+    option.rect = itemRect;
+    QMouseEvent release(QEvent::MouseButtonRelease, pos, view.viewport()->mapToGlobal(pos),
+                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    delegate->editorEvent(&release, modelOf(view), option, idx);
+    QCOMPARE(failureSpy.count(), 0);
+}
+
+void TestChatView::attachmentAtMatchesChipGeometry() {
+    ChatSession session(QStringLiteral("t"), QStringLiteral("b"));
+    session.appendMessage(makeFileMessage(QStringLiteral("/tmp/notes.txt")));
+    ChatView view;
+    view.resize(600, 400);
+    view.setSession(&session);
+    auto *delegate = qobject_cast<ChatDelegate *>(view.itemDelegate());
+    QVERIFY(delegate);
+
+    const QModelIndex idx = modelOf(view)->index(0, 0);
+    const QRect itemRect = view.visualRect(idx);
+    const QPoint chipPos = fileChipCenter(view, idx);
+    QVERIFY(!chipPos.isNull());
+    QVERIFY(ChatDelegate::attachmentAt(idx, itemRect, chipPos));
+    // Just outside the item there is no attachment.
+    QVERIFY(!ChatDelegate::attachmentAt(idx, itemRect, QPoint(itemRect.left() - 50, chipPos.y())));
 }
 
 // ChatView is a QWidget, so the test needs a QApplication; force the

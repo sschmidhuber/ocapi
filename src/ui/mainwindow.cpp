@@ -430,6 +430,11 @@ void MainWindow::createSession(const QString &backendId, const QString &model) {
     auto *session = new ChatSession(tr("New chat"), effectiveBackendId, this);
     if (!model.isEmpty())
         session->setModel(model);
+    // The session starts empty and every message is persisted live, so the
+    // database already holds all of them; initialize the pagination counter
+    // to the live message count (0 here) so loadOlderMessages() never
+    // re-loads messages the session already has.
+    session->setProperty("ocapi_loadedCount", 0);
 
     // Auto-generate a title from the first user message.
     connect(session, &ChatSession::messageAdded, this, [this, session](const Message &message) {
@@ -613,7 +618,13 @@ void MainWindow::loadOlderMessages(ChatSession *session) {
         return;
     const QString sessionId = session->id().toString(QUuid::WithoutBraces);
     const int total = m_database.messageCount(sessionId);
-    const int loaded = session->property("ocapi_loadedCount").toInt();
+    // Sessions created live persist every message as it arrives, so the
+    // database count includes messages the session already holds. The
+    // pagination offset must account for the live tail: messages already in
+    // the session are the newest ones, and the offset skips exactly that
+    // many rows from the top (the query returns newest-first).
+    const int liveCount = static_cast<int>(session->messages().size());
+    const int loaded = session->property("ocapi_loadedCount").toInt() + liveCount;
     if (loaded >= total)
         return;
     m_loadingOlder = true;
@@ -621,13 +632,20 @@ void MainWindow::loadOlderMessages(ChatSession *session) {
     QVector<Message> older;
     for (const auto &stored : m_database.messagesForSession(sessionId, pageSize, loaded)) {
         Message message = storedToMessage(stored);
-        if (!message.id.isNull())
+        // Skip messages the session already holds (e.g. after a live stream
+        // that raced a page load); prepending them would duplicate rows.
+        if (!message.id.isNull() &&
+            std::ranges::none_of(session->messages(),
+                                 [&message](const Message &m) { return m.id == message.id; }))
             older.push_back(message);
     }
     if (!older.isEmpty()) {
         session->prependMessages(older);
         m_chatView->prependMessages(older);
-        session->setProperty("ocapi_loadedCount", loaded + static_cast<int>(older.size()));
+        // Track how many DB rows sit above the live tail: previously paged-in
+        // history plus the live messages themselves.
+        session->setProperty("ocapi_loadedCount", session->property("ocapi_loadedCount").toInt() +
+                                                      liveCount + static_cast<int>(older.size()));
     }
     m_loadingOlder = false;
 }

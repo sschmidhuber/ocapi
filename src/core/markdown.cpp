@@ -287,6 +287,10 @@ void insertInline(QTextCursor &cursor, const QString &text) {
             codeFormat.setFontFamilies({QStringLiteral("monospace")});
             codeFormat.setBackground(QColor(0x40, 0x40, 0x40, 0x60));
             cursor.insertText(run.text, codeFormat);
+            // insertText(text, format) leaves that format as the cursor's
+            // current char format; reset it so following plain text does not
+            // inherit the monospace family and code background.
+            cursor.setCharFormat(QTextCharFormat());
             continue;
         }
         QString remaining = run.text;
@@ -437,6 +441,9 @@ void insertHeading(QTextCursor &cursor, bool &firstBlock, const QString &line, i
     QTextCursor blockCursor(cursor.block());
     blockCursor.select(QTextCursor::BlockUnderCursor);
     blockCursor.mergeCharFormat(headingFormat);
+    // The heading's bold/large format must not leak into the blocks that
+    // follow: insertText() without an explicit format would reuse it.
+    cursor.setCharFormat(QTextCharFormat());
 }
 
 void insertHorizontalRule(QTextCursor &cursor, bool &firstBlock) {

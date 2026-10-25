@@ -57,43 +57,43 @@ void TestSettingsDialog::categoriesAreTopLevelItems() {
     auto *list = categoriesList(*dialog);
     QVERIFY(list);
     QCOMPARE(list->count(), 2);
-    QCOMPARE(list->item(0)->text(), QStringLiteral("Backend"));
-    QCOMPARE(list->item(1)->text(), QStringLiteral("Speech"));
+    QCOMPARE(list->item(0)->text(), QStringLiteral("Models"));
+    QCOMPARE(list->item(1)->text(), QStringLiteral("Tools"));
 }
 
 void TestSettingsDialog::pagesAreTabsOfTheirCategory() {
     std::unique_ptr<SettingsDialog> dialog(makeDialog());
-    auto *backendTabs = tabsOf(*dialog, 0);
-    auto *speechTabs = tabsOf(*dialog, 1);
-    QVERIFY(backendTabs);
-    QVERIFY(speechTabs);
+    auto *modelsTabs = tabsOf(*dialog, 0);
+    auto *toolsTabs = tabsOf(*dialog, 1);
+    QVERIFY(modelsTabs);
+    QVERIFY(toolsTabs);
 
-    QCOMPARE(backendTabs->count(), 2);
-    QCOMPARE(backendTabs->tabText(0), QStringLiteral("LLM"));
-    QCOMPARE(backendTabs->tabText(1), QStringLiteral("MCP"));
+    QCOMPARE(modelsTabs->count(), 3);
+    QCOMPARE(modelsTabs->tabText(0), QStringLiteral("LLM"));
+    QCOMPARE(modelsTabs->tabText(1), QStringLiteral("STT"));
+    QCOMPARE(modelsTabs->tabText(2), QStringLiteral("TTS"));
 
-    QCOMPARE(speechTabs->count(), 2);
-    QCOMPARE(speechTabs->tabText(0), QStringLiteral("Speech-to-text"));
-    QCOMPARE(speechTabs->tabText(1), QStringLiteral("Text-to-speech"));
+    QCOMPARE(toolsTabs->count(), 1);
+    QCOMPARE(toolsTabs->tabText(0), QStringLiteral("MCP"));
 }
 
 void TestSettingsDialog::selectPageSelectsCategoryAndTab() {
     std::unique_ptr<SettingsDialog> dialog(makeDialog());
     auto *list = categoriesList(*dialog);
-    auto *backendTabs = tabsOf(*dialog, 0);
-    auto *speechTabs = tabsOf(*dialog, 1);
+    auto *modelsTabs = tabsOf(*dialog, 0);
+    auto *toolsTabs = tabsOf(*dialog, 1);
 
-    dialog->selectPage(QStringLiteral("speech/tts"));
+    dialog->selectPage(QStringLiteral("tools/mcp"));
     QCOMPARE(list->currentRow(), 1);
-    QCOMPARE(speechTabs->currentIndex(), 1);
+    QCOMPARE(toolsTabs->currentIndex(), 0);
 
-    dialog->selectPage(QStringLiteral("backend/llm"));
+    dialog->selectPage(QStringLiteral("models/llm"));
     QCOMPARE(list->currentRow(), 0);
-    QCOMPARE(backendTabs->currentIndex(), 0);
+    QCOMPARE(modelsTabs->currentIndex(), 0);
 
-    dialog->selectPage(QStringLiteral("backend/mcp"));
+    dialog->selectPage(QStringLiteral("models/tts"));
     QCOMPARE(list->currentRow(), 0);
-    QCOMPARE(backendTabs->currentIndex(), 1);
+    QCOMPARE(modelsTabs->currentIndex(), 2);
 }
 
 // The settings dialog is a QWidget, so the test needs a QApplication; force

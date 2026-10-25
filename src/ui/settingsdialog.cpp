@@ -34,13 +34,13 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
 
     m_stack = new QStackedWidget(splitter);
 
-    addCategory(tr("Backend"), QStringLiteral("backend"));
+    addCategory(tr("Models"), QStringLiteral("models"));
     addTab(tr("LLM"), QStringLiteral("llm"), new BackendPage(backendRegistry, m_stack));
-    addTab(tr("MCP"), QStringLiteral("mcp"), new McpPage(mcpRegistry, mcpManager, m_stack));
+    addTab(tr("STT"), QStringLiteral("stt"), new SttPage(sttRegistry, m_stack));
+    addTab(tr("TTS"), QStringLiteral("tts"), new TtsPage(ttsRegistry, m_stack));
 
-    addCategory(tr("Speech"), QStringLiteral("speech"));
-    addTab(tr("Speech-to-text"), QStringLiteral("stt"), new SttPage(sttRegistry, m_stack));
-    addTab(tr("Text-to-speech"), QStringLiteral("tts"), new TtsPage(ttsRegistry, m_stack));
+    addCategory(tr("Tools"), QStringLiteral("tools"));
+    addTab(tr("MCP"), QStringLiteral("mcp"), new McpPage(mcpRegistry, mcpManager, m_stack));
 
     splitter->addWidget(m_categories);
     splitter->addWidget(m_stack);

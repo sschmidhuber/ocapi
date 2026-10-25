@@ -16,9 +16,9 @@ class SttRegistry;
 class TtsRegistry;
 
 // Settings dialog following the structure of KDE's KCM configuration
-// dialogs: the top-level categories (for example "Backend" or "Speech")
+// dialogs: the top-level categories (for example "Models" or "Tools")
 // are listed in a sidebar on the left, and each category shows its pages
-// (for example "LLM", "MCP", "STT", "TTS") as tabs on the right.
+// (for example "LLM", "STT", "TTS", "MCP") as tabs on the right.
 class SettingsDialog : public QDialog {
     Q_OBJECT
 
@@ -28,8 +28,8 @@ public:
                    QWidget *parent = nullptr);
     ~SettingsDialog() override;
 
-    // Selects the category ("backend", "speech") and, if the category has
-    // tabs, the tab with the given id ("llm", "mcp", "stt", "tts").
+    // Selects the category ("models", "tools") and, if the category has
+    // tabs, the tab with the given id ("llm", "stt", "tts", "mcp").
     void selectPage(const QString &pageId);
 
 private:

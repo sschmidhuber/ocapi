@@ -70,7 +70,7 @@ void SettingsDialog::selectPage(const QString &pageId) {
         }
     }
 
-    const int tabIndex = m_tabIds.indexOf(tab);
+    const int tabIndex = static_cast<int>(m_tabIds.indexOf(tab));
     if (tabIndex >= 0) {
         const int categoryRow = m_categories->currentRow();
         if (categoryRow >= 0 && categoryRow < m_tabWidgets.size()) {
@@ -87,7 +87,7 @@ void SettingsDialog::addCategory(const QString &title, const QString &categoryId
     tabs->setDocumentMode(true);
     m_stack->addWidget(tabs);
     m_tabWidgets.append(tabs);
-    m_tabOffsets.append(m_tabIds.count());
+    m_tabOffsets.append(static_cast<int>(m_tabIds.count()));
 
     auto *item = new QListWidgetItem(title, m_categories);
     item->setData(Qt::UserRole, m_stack->count() - 1);
@@ -95,11 +95,7 @@ void SettingsDialog::addCategory(const QString &title, const QString &categoryId
 }
 
 void SettingsDialog::addTab(const QString &title, const QString &tabId, QWidget *page) {
-    const int categoryRow = m_categories->count() - 1;
-    if (categoryRow < 0 || categoryRow >= m_tabWidgets.size())
-        return;
-
-    m_tabWidgets.at(categoryRow)->addTab(page, title);
+    m_tabWidgets.constLast()->addTab(page, title);
     m_tabIds.append(tabId);
 }
 

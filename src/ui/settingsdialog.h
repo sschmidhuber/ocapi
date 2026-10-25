@@ -37,7 +37,8 @@ private:
     // registered with addTab().
     void addCategory(const QString &title, const QString &categoryId);
 
-    // Adds a page as a new tab of the category selected in the sidebar.
+    // Adds a page as a new tab of the most recently added category. The
+    // dialog takes ownership of the page.
     void addTab(const QString &title, const QString &tabId, QWidget *page);
 
     QListWidget *m_categories = nullptr;

@@ -33,7 +33,7 @@ import unittest
 from appium import webdriver
 from appium.options.common.base import AppiumOptions
 from appium.webdriver.common.appiumby import AppiumBy
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 
 REPLY_TEXT = "Hello from the mock backend!"
@@ -69,9 +69,16 @@ class OcapiE2E(unittest.TestCase):
         return self.driver.find_element(by=AppiumBy.XPATH, value=xpath)
 
     def wait_for(self, xpath, timeout=20):
-        WebDriverWait(self.driver, timeout).until(
-            lambda d: self.find_by_xpath(xpath))
-        return self.find_by_xpath(xpath)
+        # Return the element found by the wait itself. Looking it up a
+        # second time after a successful wait races with the UI: accessible
+        # objects are recreated while the chat streams (for example the
+        # collapsed tool element being re-rendered), so a second lookup can
+        # miss an element the wait just saw. NoSuchElementException is
+        # ignored explicitly so the wait polls until the timeout instead of
+        # aborting on the first miss.
+        return WebDriverWait(self.driver, timeout,
+                              ignored_exceptions=(NoSuchElementException,)
+                              ).until(lambda d: self.find_by_xpath(xpath))
 
     def test_01_start(self):
         # A fresh session exists with a composer and a send button; the

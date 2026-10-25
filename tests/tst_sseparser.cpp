@@ -13,6 +13,10 @@ private slots:
     void extractLeavesIncompleteDataInBuffer();
     void extractHandlesCrLfLineEndings();
     void extractHandlesMixedLineEndings();
+    void extractHandlesCrLfFollowedByLfEvents();
+    void extractHandlesLfFollowedByCrLfEvents();
+    void extractHandlesCrOnlyTerminators();
+    void extractKeepsTrailingCrAwaitingCrlf();
     void extractEmptyBufferYieldsNothing();
     void parseSimpleDataLine();
     void parseEventAndDataFields();
@@ -75,6 +79,62 @@ void TestSseParser::extractHandlesMixedLineEndings() {
     QCOMPARE(events.size(), 2);
     QCOMPARE(events.at(0), QByteArray("data: a"));
     QCOMPARE(events.at(1), QByteArray("data: b"));
+    QVERIFY(buffer.isEmpty());
+}
+
+void TestSseParser::extractHandlesCrLfFollowedByLfEvents() {
+    // Regression: an early CRLF blank line must win over a later LF blank
+    // line. The old indexOf-based scan found "\n\n" inside the second
+    // event's "\r\n\r\n" first context and merged both events into one
+    // block, dropping the stream's leading tokens.
+    QByteArray buffer = "data: one\r\n\r\ndata: two\n\ndata: three\n\n";
+    const auto events = extractCompleteEvents(buffer);
+    QCOMPARE(events.size(), 3);
+    QCOMPARE(events.at(0), QByteArray("data: one"));
+    QCOMPARE(events.at(1), QByteArray("data: two"));
+    QCOMPARE(events.at(2), QByteArray("data: three"));
+    QVERIFY(buffer.isEmpty());
+}
+
+void TestSseParser::extractHandlesLfFollowedByCrLfEvents() {
+    QByteArray buffer = "data: one\n\ndata: two\r\n\r\n";
+    const auto events = extractCompleteEvents(buffer);
+    QCOMPARE(events.size(), 2);
+    QCOMPARE(events.at(0), QByteArray("data: one"));
+    QCOMPARE(events.at(1), QByteArray("data: two"));
+    QVERIFY(buffer.isEmpty());
+}
+
+void TestSseParser::extractHandlesCrOnlyTerminators() {
+    // The SSE spec allows a bare CR as a line terminator.
+    QByteArray buffer = "data: one\r\rdata: two\r\r\n";
+    const auto events = extractCompleteEvents(buffer);
+    QCOMPARE(events.size(), 2);
+    QCOMPARE(events.at(0), QByteArray("data: one"));
+    QCOMPARE(events.at(1), QByteArray("data: two"));
+    QVERIFY(buffer.isEmpty());
+
+    // A trailing lone '\r' may still become a CRLF; it stays buffered like an
+    // unterminated LF event.
+    QByteArray partial = "data: one\r\rdata: two\r";
+    const auto first = extractCompleteEvents(partial);
+    QCOMPARE(first.size(), 1);
+    QCOMPARE(first.at(0), QByteArray("data: one"));
+    QCOMPARE(partial, QByteArray("data: two\r"));
+}
+
+void TestSseParser::extractKeepsTrailingCrAwaitingCrlf() {
+    // A trailing '\r' may still become a CRLF terminator; it must stay buffered.
+    QByteArray buffer = "data: one\n\ndata: two\r";
+    const auto events = extractCompleteEvents(buffer);
+    QCOMPARE(events.size(), 1);
+    QCOMPARE(events.at(0), QByteArray("data: one"));
+    QCOMPARE(buffer, QByteArray("data: two\r"));
+
+    buffer.append("\n\r\n");
+    const auto more = extractCompleteEvents(buffer);
+    QCOMPARE(more.size(), 1);
+    QCOMPARE(more.first(), QByteArray("data: two"));
     QVERIFY(buffer.isEmpty());
 }
 

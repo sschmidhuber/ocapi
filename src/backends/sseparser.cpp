@@ -4,23 +4,49 @@
 
 namespace ocapi {
 
+namespace {
+
+// Length of the line terminator starting at \p i (CRLF, LF or a lone CR),
+// or 0 when a trailing '\r' could still become a CRLF once more bytes arrive.
+int terminatorLengthAt(const QByteArray &buffer, int i) {
+    const char c = buffer.at(i);
+    if (c == '\n')
+        return 1;
+    if (c != '\r')
+        return 0;
+    if (i + 1 >= buffer.size())
+        return 0;
+    return buffer.at(i + 1) == '\n' ? 2 : 1;
+}
+
+} // namespace
+
 QList<QByteArray> extractCompleteEvents(QByteArray &buffer) {
     QList<QByteArray> events;
-    int pos = 0;
-    while (true) {
-        qsizetype idx = buffer.indexOf("\n\n", pos);
-        qsizetype sepLen = 2;
-        if (idx < 0) {
-            idx = buffer.indexOf("\r\n\r\n", pos);
-            sepLen = 4;
+    // An event ends at a blank line: two consecutive line terminators. Scan
+    // for the earliest such boundary so that mixed line endings cannot make an
+    // early '\r\n\r\n' boundary lose against a later '\n\n' (which merged
+    // the two events into one unparsable block and dropped the tokens).
+    int start = 0;
+    int i = 0;
+    while (i < buffer.size()) {
+        const int t1 = terminatorLengthAt(buffer, i);
+        if (t1 == 0) {
+            ++i;
+            continue;
         }
-        if (idx < 0)
-            break;
-
-        events.append(buffer.mid(pos, idx - pos));
-        buffer.remove(0, idx + sepLen - pos);
-        pos = 0;
+        const int j = i + t1;
+        const int t2 = j < buffer.size() ? terminatorLengthAt(buffer, j) : 0;
+        if (t2 > 0) {
+            events.append(buffer.mid(start, i - start));
+            start = j + t2;
+            i = start;
+            continue;
+        }
+        i = j;
     }
+    if (start > 0)
+        buffer.remove(0, start);
     return events;
 }
 

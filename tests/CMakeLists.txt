@@ -65,3 +65,15 @@ add_executable(tst_settingsdialog tst_settingsdialog.cpp
 target_include_directories(tst_settingsdialog PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(tst_settingsdialog PRIVATE ocapi-core Qt6::Test Qt6::Widgets)
 add_test(NAME tst_settingsdialog COMMAND tst_settingsdialog)
+
+# The settings dialog shows themed icons with bundled SVGs from the app's
+# resource file; the test needs the same resources embedded to resolve them.
+set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icons/ai_chip.svg
+    PROPERTIES QT_RESOURCE_ALIAS "resources/icons/ai_chip.svg")
+set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icons/tools.svg
+    PROPERTIES QT_RESOURCE_ALIAS "resources/icons/tools.svg")
+qt_add_resources(tst_settingsdialog "ocapi_resources"
+    PREFIX "/"
+    FILES
+        ${CMAKE_SOURCE_DIR}/resources/icons/ai_chip.svg
+        ${CMAKE_SOURCE_DIR}/resources/icons/tools.svg)

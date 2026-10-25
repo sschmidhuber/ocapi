@@ -34,8 +34,10 @@ public:
 
 private:
     // Adds a top-level category to the sidebar; its pages can then be
-    // registered with addTab().
-    void addCategory(const QString &title, const QString &categoryId);
+    // registered with addTab(). The category shows the icon looked up under
+    // the given theme name, with the bundled SVG as fallback.
+    void addCategory(const QString &title, const QString &categoryId, const QString &iconThemeName,
+                     const QString &iconPath);
 
     // Adds a page as a new tab of the most recently added category. The
     // dialog takes ownership of the page.

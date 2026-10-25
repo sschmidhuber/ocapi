@@ -59,6 +59,11 @@ void TestSettingsDialog::categoriesAreTopLevelItems() {
     QCOMPARE(list->count(), 2);
     QCOMPARE(list->item(0)->text(), QStringLiteral("Models"));
     QCOMPARE(list->item(1)->text(), QStringLiteral("Tools"));
+
+    // Each category carries its themed icon with the bundled SVG fallback,
+    // so it renders even without an icon theme providing the name.
+    QVERIFY(!list->item(0)->icon().isNull());
+    QVERIFY(!list->item(1)->icon().isNull());
 }
 
 void TestSettingsDialog::pagesAreTabsOfTheirCategory() {

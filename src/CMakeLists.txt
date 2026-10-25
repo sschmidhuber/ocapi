@@ -159,5 +159,7 @@ qt_add_resources(ocapi "ocapi_resources"
         ../resources/icons/configure-symbolic.svg
         ../resources/icons/kmouth-phrase-new-symbolic.svg
         ../resources/icons/settings-configure-symbolic.svg
+        ../resources/icons/ai_chip.svg
+        ../resources/icons/tools.svg
         ../resources/icons/media-playback-start-symbolic.svg
 )

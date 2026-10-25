@@ -12,6 +12,7 @@
 
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QListWidget>
 #include <QSplitter>
 #include <QStackedWidget>
@@ -34,12 +35,14 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
 
     m_stack = new QStackedWidget(splitter);
 
-    addCategory(tr("Models"), QStringLiteral("models"));
+    addCategory(tr("Models"), QStringLiteral("models"), QStringLiteral("ai_chip"),
+                QStringLiteral(":/resources/icons/ai_chip.svg"));
     addTab(tr("LLM"), QStringLiteral("llm"), new BackendPage(backendRegistry, m_stack));
     addTab(tr("STT"), QStringLiteral("stt"), new SttPage(sttRegistry, m_stack));
     addTab(tr("TTS"), QStringLiteral("tts"), new TtsPage(ttsRegistry, m_stack));
 
-    addCategory(tr("Tools"), QStringLiteral("tools"));
+    addCategory(tr("Tools"), QStringLiteral("tools"), QStringLiteral("tools"),
+                QStringLiteral(":/resources/icons/tools.svg"));
     addTab(tr("MCP"), QStringLiteral("mcp"), new McpPage(mcpRegistry, mcpManager, m_stack));
 
     splitter->addWidget(m_categories);
@@ -82,7 +85,8 @@ void SettingsDialog::selectPage(const QString &pageId) {
 
 SettingsDialog::~SettingsDialog() = default;
 
-void SettingsDialog::addCategory(const QString &title, const QString &categoryId) {
+void SettingsDialog::addCategory(const QString &title, const QString &categoryId,
+                                 const QString &iconThemeName, const QString &iconPath) {
     auto *tabs = new QTabWidget(m_stack);
     tabs->setDocumentMode(true);
     m_stack->addWidget(tabs);
@@ -90,6 +94,7 @@ void SettingsDialog::addCategory(const QString &title, const QString &categoryId
     m_tabOffsets.append(static_cast<int>(m_tabIds.count()));
 
     auto *item = new QListWidgetItem(title, m_categories);
+    item->setIcon(QIcon::fromTheme(iconThemeName, QIcon(iconPath)));
     item->setData(Qt::UserRole, m_stack->count() - 1);
     item->setData(Qt::UserRole + 1, categoryId);
 }

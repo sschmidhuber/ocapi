@@ -833,7 +833,7 @@ bool ChatDelegate::editorEvent(QEvent *event, QAbstractItemModel *model,
         const auto *hover = dynamic_cast<const QHoverEvent *>(event);
         if (!hover)
             break;
-        setHoveredAttachment(index, attachmentIndexAt(option, index, hover->pos()));
+        setHoveredAttachment(index, attachmentIndexAt(option, index, hover->position().toPoint()));
         return false;
     }
     case QEvent::HoverLeave:

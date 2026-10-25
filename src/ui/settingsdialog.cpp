@@ -12,9 +12,11 @@
 
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QListWidget>
 #include <QSplitter>
 #include <QStackedWidget>
+#include <QTabWidget>
 #include <QVBoxLayout>
 
 namespace ocapi {
@@ -27,20 +29,23 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
     resize(880, 580);
 
     auto *splitter = new QSplitter(this);
-    m_pages = new QListWidget(splitter);
-    m_pages->setMinimumWidth(160);
-    m_pages->setMaximumWidth(220);
+    m_categories = new QListWidget(splitter);
+    m_categories->setMinimumWidth(160);
+    m_categories->setMaximumWidth(220);
 
     m_stack = new QStackedWidget(splitter);
 
-    addPage(tr("Model backends"), QStringLiteral("backends"),
-            new BackendPage(backendRegistry, m_stack));
-    addPage(tr("MCP servers"), QStringLiteral("mcp"),
-            new McpPage(mcpRegistry, mcpManager, m_stack));
-    addPage(tr("Speech-to-text"), QStringLiteral("stt"), new SttPage(sttRegistry, m_stack));
-    addPage(tr("Text-to-speech"), QStringLiteral("tts"), new TtsPage(ttsRegistry, m_stack));
+    addCategory(tr("Models"), QStringLiteral("models"), QStringLiteral("ai_chip"),
+                QStringLiteral(":/resources/icons/ai_chip.svg"));
+    addTab(tr("LLM"), QStringLiteral("llm"), new BackendPage(backendRegistry, m_stack));
+    addTab(tr("STT"), QStringLiteral("stt"), new SttPage(sttRegistry, m_stack));
+    addTab(tr("TTS"), QStringLiteral("tts"), new TtsPage(ttsRegistry, m_stack));
 
-    splitter->addWidget(m_pages);
+    addCategory(tr("Tools"), QStringLiteral("tools"), QStringLiteral("tools"),
+                QStringLiteral(":/resources/icons/tools.svg"));
+    addTab(tr("MCP"), QStringLiteral("mcp"), new McpPage(mcpRegistry, mcpManager, m_stack));
+
+    splitter->addWidget(m_categories);
     splitter->addWidget(m_stack);
     splitter->setStretchFactor(1, 1);
 
@@ -49,30 +54,54 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
     auto *buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, this);
     layout->addWidget(buttonBox);
 
-    connect(m_pages, &QListWidget::currentRowChanged, this,
+    connect(m_categories, &QListWidget::currentRowChanged, this,
             [this](int row) { m_stack->setCurrentIndex(row); });
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
-    m_pages->setCurrentRow(0);
+    m_categories->setCurrentRow(0);
 }
 
 void SettingsDialog::selectPage(const QString &pageId) {
-    for (int i = 0; i < m_pages->count(); ++i) {
-        if (m_pages->item(i)->data(Qt::UserRole + 1).toString() == pageId) {
-            m_pages->setCurrentRow(i);
+    const QString category = pageId.section(u'/', 0, 0);
+    const QString tab = pageId.section(u'/', 1);
+
+    for (int i = 0; i < m_categories->count(); ++i) {
+        if (m_categories->item(i)->data(Qt::UserRole + 1).toString() == category) {
+            m_categories->setCurrentRow(i);
             m_stack->setCurrentIndex(i);
-            return;
+            break;
+        }
+    }
+
+    const int tabIndex = static_cast<int>(m_tabIds.indexOf(tab));
+    if (tabIndex >= 0) {
+        const int categoryRow = m_categories->currentRow();
+        if (categoryRow >= 0 && categoryRow < m_tabWidgets.size()) {
+            const int offset = m_tabOffsets.value(categoryRow, 0);
+            m_tabWidgets.at(categoryRow)->setCurrentIndex(tabIndex - offset);
         }
     }
 }
 
 SettingsDialog::~SettingsDialog() = default;
 
-void SettingsDialog::addPage(const QString &title, const QString &pageId, QWidget *page) {
-    m_stack->addWidget(page);
-    auto *item = new QListWidgetItem(title, m_pages);
+void SettingsDialog::addCategory(const QString &title, const QString &categoryId,
+                                 const QString &iconThemeName, const QString &iconPath) {
+    auto *tabs = new QTabWidget(m_stack);
+    tabs->setDocumentMode(true);
+    m_stack->addWidget(tabs);
+    m_tabWidgets.append(tabs);
+    m_tabOffsets.append(static_cast<int>(m_tabIds.count()));
+
+    auto *item = new QListWidgetItem(title, m_categories);
+    item->setIcon(QIcon::fromTheme(iconThemeName, QIcon(iconPath)));
     item->setData(Qt::UserRole, m_stack->count() - 1);
-    item->setData(Qt::UserRole + 1, pageId);
+    item->setData(Qt::UserRole + 1, categoryId);
+}
+
+void SettingsDialog::addTab(const QString &title, const QString &tabId, QWidget *page) {
+    m_tabWidgets.constLast()->addTab(page, title);
+    m_tabIds.append(tabId);
 }
 
 } // namespace ocapi

@@ -53,3 +53,27 @@ add_executable(tst_chatview tst_chatview.cpp
 target_include_directories(tst_chatview PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(tst_chatview PRIVATE ocapi-core Qt6::Test Qt6::Widgets)
 add_test(NAME tst_chatview COMMAND tst_chatview)
+
+# The settings dialog lives in the application target; the test compiles it
+# directly like tst_sidebar and needs the page widgets it hosts.
+add_executable(tst_settingsdialog tst_settingsdialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/settingsdialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/backendpage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/mcppage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/sttpage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/ttspage.cpp)
+target_include_directories(tst_settingsdialog PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(tst_settingsdialog PRIVATE ocapi-core Qt6::Test Qt6::Widgets)
+add_test(NAME tst_settingsdialog COMMAND tst_settingsdialog)
+
+# The settings dialog shows themed icons with bundled SVGs from the app's
+# resource file; the test needs the same resources embedded to resolve them.
+set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icons/ai_chip.svg
+    PROPERTIES QT_RESOURCE_ALIAS "resources/icons/ai_chip.svg")
+set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icons/tools.svg
+    PROPERTIES QT_RESOURCE_ALIAS "resources/icons/tools.svg")
+qt_add_resources(tst_settingsdialog "ocapi_resources"
+    PREFIX "/"
+    FILES
+        ${CMAKE_SOURCE_DIR}/resources/icons/ai_chip.svg
+        ${CMAKE_SOURCE_DIR}/resources/icons/tools.svg)

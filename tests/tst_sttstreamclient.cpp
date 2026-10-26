@@ -139,6 +139,12 @@ void TestSttStreamClient::mistralDeltasAndDone() {
     QCOMPARE(intermediate.count(), 2);
     QCOMPARE(intermediate.last().first().toString(), QStringLiteral("Hello world"));
     QCOMPARE(done.first().first().toString(), QStringLiteral("Hello world"));
+    // Regression: the done event and the disconnect that follows must not
+    // both emit the final transcript - the second copy duplicated the
+    // dictated text in the composer.
+    QTest::qWait(500);
+    QCOMPARE(done.count(), 1);
+    QCOMPARE(failedSpy.count(), 0);
 }
 
 void TestSttStreamClient::openAiSessionUpdateShape() {

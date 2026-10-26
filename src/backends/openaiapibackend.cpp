@@ -188,6 +188,42 @@ void OpenAiApiBackend::sendMessage(ChatSession *session, const QString &model) {
         QJsonDocument(payload).toJson(QJsonDocument::Compact));
 }
 
+namespace {
+
+// Extracts the visible text of a streamed delta's "content" field.
+// Content is usually a plain string, but servers that stream reasoning
+// (e.g. Z.ai's GLM models via the OpenAI-compatible API) send it as an
+// array of typed parts, where answer text arrives as {"type":"text"}
+// parts and reasoning as {"type":"thinking"} parts. Reading it with
+// toString() alone silently dropped the first token of a reply when the
+// server switched from parts to plain strings mid-stream.
+QString contentText(const QJsonObject &delta) {
+    const QJsonValue content = delta.value(QStringLiteral("content"));
+    if (content.isString())
+        return content.toString();
+    if (!content.isArray())
+        return {};
+    QString text;
+    const QJsonArray parts = content.toArray();
+    for (const auto &partValue : parts) {
+        const QJsonObject part = partValue.toObject();
+        if (part.value(QStringLiteral("type")).toString() != QStringLiteral("text"))
+            continue;
+        // {"type":"text","text":...} with either a string or an array of
+        // {"type":"text","text":...} segments.
+        const QJsonValue textValue = part.value(QStringLiteral("text"));
+        if (textValue.isString()) {
+            text += textValue.toString();
+        } else if (textValue.isArray()) {
+            for (const auto &segment : textValue.toArray())
+                text += segment.toObject().value(QStringLiteral("text")).toString();
+        }
+    }
+    return text;
+}
+
+} // namespace
+
 void OpenAiApiBackend::onStreamEvent(const QByteArray &data) {
     const QString text = QString::fromUtf8(data);
     if (text == QStringLiteral("[DONE]"))
@@ -207,7 +243,7 @@ void OpenAiApiBackend::onStreamEvent(const QByteArray &data) {
         return;
     const auto choice = choices.first().toObject();
     const auto delta = choice.value(QStringLiteral("delta")).toObject();
-    const QString token = delta.value(QStringLiteral("content")).toString();
+    const QString token = contentText(delta);
     if (!token.isEmpty()) {
         m_accumulated.append(token);
         emit tokenReceived(m_currentMessageId, m_accumulated);

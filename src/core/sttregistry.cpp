@@ -27,7 +27,11 @@ void SttRegistry::loadSettings(QSettings &settings) {
     }
     m_inputDevice = settings.value(kInputDeviceKey).toString();
     m_activeServiceId = settings.value(kActiveServiceKey).toString();
-    m_persistSettings = &settings;
+    // Persist through a fresh QSettings created from the path/format: the
+    // caller's object is frequently stack-local (MainWindow opens one per
+    // load), so keeping a pointer to it dangles and crashes on save().
+    m_persistPath = settings.fileName();
+    m_persistFormat = settings.format();
     emit changed();
 }
 
@@ -42,8 +46,10 @@ void SttRegistry::saveSettings(QSettings &settings) const {
 }
 
 void SttRegistry::save() const {
-    if (m_persistSettings)
-        saveSettings(*m_persistSettings);
+    if (m_persistPath.isEmpty())
+        return;
+    QSettings settings(m_persistPath, m_persistFormat);
+    saveSettings(settings);
 }
 
 SttServiceConfig &SttRegistry::add(const QString &name, SttServiceKind kind) {

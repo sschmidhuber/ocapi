@@ -1,4 +1,5 @@
 #include "backends/sttclient.h"
+#include "core/sttdebug.h"
 
 #include <QHttpMultiPart>
 #include <QJsonDocument>
@@ -74,6 +75,11 @@ void SttClient::transcribeChunk(const QByteArray &wav, bool emitReady) {
     QNetworkReply *reply = m_nam->post(request, multiPart);
     multiPart->setParent(reply);
 
+    if (sttDebug::sttEnabled())
+        sttDebug::log(QStringLiteral("[ocapi STT] http request: %1 (%2 bytes audio, model %3)")
+                          .arg(transcriptionUrl(m_config).toString(), QString::number(wav.size()),
+                               m_config.effectiveModel()));
+
     ++m_pendingRequests;
     connect(reply, &QNetworkReply::finished, this, [this, reply, emitReady]() {
         reply->deleteLater();
@@ -81,11 +87,20 @@ void SttClient::transcribeChunk(const QByteArray &wav, bool emitReady) {
 
         const QByteArray payload = reply->readAll();
         if (reply->error() != QNetworkReply::NoError) {
+            if (sttDebug::sttEnabled())
+                sttDebug::log(
+                    QStringLiteral("[ocapi STT] http error: %1 (status %2, body: %3)")
+                        .arg(reply->errorString())
+                        .arg(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt())
+                        .arg(QString::fromUtf8(payload.left(500))));
             if (!m_failed) {
                 m_failed = true;
                 emit error(reply->errorString());
             }
         } else {
+            if (sttDebug::sttEnabled())
+                sttDebug::log(QStringLiteral("[ocapi STT] http response: %1")
+                                  .arg(QString::fromUtf8(payload.left(500))));
             const QJsonDocument document = QJsonDocument::fromJson(payload);
             const QString text =
                 document.object().value(QStringLiteral("text")).toString().trimmed();

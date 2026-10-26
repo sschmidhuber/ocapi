@@ -19,6 +19,8 @@ private slots:
     void streamingKindsAreFlagged();
     void newKindRoundTrip();
     void jsonRoundTrip();
+    void selectableKindsSkipNonStreamingVariants();
+    void llmProviderMapping();
 };
 
 void TestSttConfig::defaults() {
@@ -130,6 +132,32 @@ void TestSttConfig::jsonRoundTrip() {
     QCOMPARE(restored.language, config.language);
     QCOMPARE(restored.chunkDurationMs, 3000);
     QCOMPARE(restored.enabled, false);
+}
+
+void TestSttConfig::selectableKindsSkipNonStreamingVariants() {
+    // Providers with a streaming API must not offer their non-streaming
+    // (chunked HTTP) variant for new services; self-hosted servers have no
+    // streaming API and keep all their kinds.
+    const auto selectable = SttServiceConfig::selectableKinds();
+    QVERIFY(!selectable.contains(SttServiceKind::OpenAiApi));
+    QVERIFY(!selectable.contains(SttServiceKind::Mistral));
+    QVERIFY(selectable.contains(SttServiceKind::OpenAiRealtime));
+    QVERIFY(selectable.contains(SttServiceKind::MistralRealtime));
+    QVERIFY(selectable.contains(SttServiceKind::Groq));
+    QVERIFY(selectable.contains(SttServiceKind::WhisperApi));
+    QVERIFY(selectable.contains(SttServiceKind::WhisperCpp));
+}
+
+void TestSttConfig::llmProviderMapping() {
+    QCOMPARE(SttServiceConfig::llmProviderKind(SttServiceKind::OpenAiApi), BackendKind::OpenAi);
+    QCOMPARE(SttServiceConfig::llmProviderKind(SttServiceKind::OpenAiRealtime),
+             BackendKind::OpenAi);
+    QCOMPARE(SttServiceConfig::llmProviderKind(SttServiceKind::Groq), BackendKind::Groq);
+    QCOMPARE(SttServiceConfig::llmProviderKind(SttServiceKind::Mistral), BackendKind::Mistral);
+    QCOMPARE(SttServiceConfig::llmProviderKind(SttServiceKind::MistralRealtime),
+             BackendKind::Mistral);
+    QCOMPARE(SttServiceConfig::llmProviderKind(SttServiceKind::WhisperApi), std::nullopt);
+    QCOMPARE(SttServiceConfig::llmProviderKind(SttServiceKind::WhisperCpp), std::nullopt);
 }
 
 QTEST_GUILESS_MAIN(TestSttConfig)

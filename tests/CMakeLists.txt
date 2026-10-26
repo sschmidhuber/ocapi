@@ -23,6 +23,7 @@ set(OCAPI_TESTS
     tst_mcpmanager
     tst_sttconfig
     tst_sttregistry
+    tst_voiceinput
     tst_audiochunker
     tst_sttclient
     tst_sttstreamclient

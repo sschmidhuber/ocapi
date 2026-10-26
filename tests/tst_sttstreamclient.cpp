@@ -23,10 +23,14 @@ public:
         : QObject(parent), m_server(QStringLiteral("fake-stt"), QWebSocketServer::NonSecureMode) {
         connect(&m_server, &QWebSocketServer::newConnection, this, [this]() {
             auto *socket = m_server.nextPendingConnection();
+            // The Mistral realtime endpoint greets with session.created;
+            // the settings update is only accepted afterwards.
+            socket->sendTextMessage(
+                QStringLiteral("{\"type\":\"session.created\",\"session\":{}}"));
             connect(socket, &QWebSocket::textMessageReceived, this,
                     [this, socket](const QString &message) {
                         m_received.push_back(message);
-                        if (message.contains(QLatin1String("input_audio_buffer.append")))
+                        if (message.contains(QLatin1String("input_audio.append")))
                             sendResponse(socket);
                     });
             connect(socket, &QWebSocket::disconnected, socket, &QWebSocket::deleteLater);
@@ -93,6 +97,9 @@ void TestSttStreamClient::mistralSessionUpdateAndAudio() {
     client.start(16000);
 
     QSignalSpy connected(&client, &SttStreamClient::intermediateTranscription);
+    // Wait for the connection (and the session handshake) before sending
+    // audio: sendAudio drops messages while the socket is still connecting.
+    QTest::qWait(500);
     // Sending audio queues the append message after the session update.
     client.sendAudio(QByteArray(320, 0));
     QVERIFY(connected.wait(5000) || connected.count() >= 0);
@@ -106,6 +113,14 @@ void TestSttStreamClient::mistralSessionUpdateAndAudio() {
     QCOMPARE(
         first.value("session").toObject().value("audio_format").toObject().value("sample_rate"),
         16000);
+    // The audio append uses the realtime protocol's input_audio.append event;
+    // input_audio_buffer.append is rejected by Mistral's tagged-union
+    // validation ("Dictation failed: 1 validation error ...").
+    QVERIFY(m_server.receivedMessages().size() >= 2);
+    const QJsonObject second =
+        QJsonDocument::fromJson(m_server.receivedMessages().at(1).toUtf8()).object();
+    QCOMPARE(second.value("type").toString(), QStringLiteral("input_audio.append"));
+    QVERIFY(!second.value("audio").toString().isEmpty());
 }
 
 void TestSttStreamClient::mistralDeltasAndDone() {

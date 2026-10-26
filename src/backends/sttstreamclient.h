@@ -59,6 +59,8 @@ private:
     // True once the final transcript was emitted; the disconnect handler
     // must not emit it a second time (duplicated dictated text).
     bool m_finalEmitted = false;
+    // Mistral's session.update must wait for the session.created event.
+    bool m_sessionCreated = false;
 };
 
 } // namespace ocapi

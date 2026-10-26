@@ -1,6 +1,7 @@
 #include "backends/ttsclient.h"
 
 #include "core/audioformat.h"
+#include "core/sttdebug.h"
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -104,6 +105,10 @@ void TtsClient::sendNext() {
         }
 
         const int sequence = request.sequence;
+        if (sttDebug::ttsEnabled())
+            sttDebug::log(QStringLiteral("[ocapi TTS] request #%1: %2 (%3)")
+                              .arg(QString::number(sequence), reply->url().toString(),
+                                   request.text.left(120)));
         connect(reply, &QNetworkReply::finished, this,
                 [this, reply, sequence]() { onReplyFinished(reply, sequence); });
     }
@@ -121,12 +126,22 @@ void TtsClient::onReplyFinished(QNetworkReply *reply, int sequence) {
         return;
 
     if (reply->error() != QNetworkReply::NoError) {
+        if (sttDebug::ttsEnabled())
+            sttDebug::log(
+                QStringLiteral("[ocapi TTS] error #%1: %2 (status %3, body: %4)")
+                    .arg(QString::number(sequence), reply->errorString())
+                    .arg(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt())
+                    .arg(QString::fromUtf8(reply->readAll().left(300))));
         emit error(reply->errorString());
         // Keep sequence numbers gapless for ordering: treat failures as empty.
         m_completed.insert(sequence, {QByteArray(), QString()});
     } else {
         const QByteArray audio = reply->readAll();
         const auto kind = AudioFormat::detect(audio);
+        if (sttDebug::ttsEnabled())
+            sttDebug::log(QStringLiteral("[ocapi TTS] response #%1: %2 bytes, format %3")
+                              .arg(QString::number(sequence), QString::number(audio.size()),
+                                   QString::number(static_cast<int>(kind))));
         if (audio.isEmpty() || kind == AudioFormat::Kind::Unknown) {
             emit error(tr("The TTS service returned no decodable audio."));
             m_completed.insert(sequence, {QByteArray(), QString()});

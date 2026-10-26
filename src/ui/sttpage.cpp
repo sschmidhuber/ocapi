@@ -2,6 +2,7 @@
 
 #include "backends/sttclient.h"
 #include "core/audiorecorder.h"
+#include "core/backendregistry.h"
 #include "core/sttregistry.h"
 
 #include <QCheckBox>
@@ -19,9 +20,12 @@
 #include <QSplitter>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace ocapi {
 
-SttPage::SttPage(SttRegistry *registry, QWidget *parent) : QWidget(parent), m_registry(registry) {
+SttPage::SttPage(SttRegistry *registry, BackendRegistry *backendRegistry, QWidget *parent)
+    : QWidget(parent), m_registry(registry), m_backendRegistry(backendRegistry) {
     auto *splitter = new QSplitter(this);
     m_list = new QListWidget(splitter);
     m_list->setMinimumWidth(200);
@@ -30,7 +34,7 @@ SttPage::SttPage(SttRegistry *registry, QWidget *parent) : QWidget(parent), m_re
     auto *formLayout = new QFormLayout(formWidget);
     m_nameEdit = new QLineEdit(formWidget);
     m_kindCombo = new QComboBox(formWidget);
-    for (auto kind : SttServiceConfig::allKinds()) {
+    for (auto kind : SttServiceConfig::selectableKinds()) {
         m_kindCombo->addItem(SttServiceConfig::kindName(kind),
                              QVariant::fromValue(static_cast<int>(kind)));
     }
@@ -56,11 +60,11 @@ SttPage::SttPage(SttRegistry *registry, QWidget *parent) : QWidget(parent), m_re
     m_testResultLabel = new QLabel(formWidget);
     m_testResultLabel->setWordWrap(true);
 
+    formLayout->addRow(tr("Provider:"), m_kindCombo);
     formLayout->addRow(tr("Name:"), m_nameEdit);
-    formLayout->addRow(tr("Type:"), m_kindCombo);
     formLayout->addRow(tr("Base URL:"), m_urlEdit);
     formLayout->addRow(tr("API key:"), m_apiKeyEdit);
-    formLayout->addRow(tr("Model:"), m_modelEdit);
+    formLayout->addRow(tr("Default model:"), m_modelEdit);
     formLayout->addRow(tr("Language:"), m_languageEdit);
     formLayout->addRow(tr("Live transcription interval:"), m_chunkDurationSpin);
     formLayout->addRow(m_enabledBox);
@@ -135,7 +139,8 @@ void SttPage::populateInputDevices() {
 }
 
 void SttPage::onAddService() {
-    auto &config = m_registry->add(tr("New STT service"), SttServiceKind::WhisperApi);
+    const auto kind = SttServiceKind::OpenAiRealtime;
+    auto &config = m_registry->add(SttServiceConfig::kindName(kind), kind);
     populateList();
     for (int i = 0; i < m_list->count(); ++i) {
         if (QUuid(m_list->item(i)->data(Qt::UserRole).toString()) == config.id) {
@@ -165,6 +170,7 @@ void SttPage::onSelectionChanged() {
     m_updatingForm = true;
     auto *item = m_list->currentItem();
     const bool hasSelection = item != nullptr;
+    m_hasSelection = hasSelection;
     m_nameEdit->setEnabled(hasSelection);
     m_kindCombo->setEnabled(hasSelection);
     m_urlEdit->setEnabled(hasSelection);
@@ -189,19 +195,40 @@ void SttPage::onSelectionChanged() {
         m_chunkDurationSpin->setValue(2500 / 1000);
         m_enabledBox->setChecked(true);
     }
-    updateUrlVisibility();
+    updateUrlState();
     m_updatingForm = false;
 }
 
 void SttPage::onKindChanged(int index) {
-    if (m_updatingForm || !m_urlEdit->isEnabled())
+    if (m_updatingForm || !m_kindCombo->isEnabled())
         return;
     const auto kind = static_cast<SttServiceKind>(m_kindCombo->itemData(index).toInt());
-    if (m_urlEdit->text().isEmpty())
+    // Follow the provider name while the user has not chosen a custom name,
+    // like the LLM settings page does.
+    if (m_nameEdit->text().trimmed().isEmpty() ||
+        std::ranges::any_of(SttServiceConfig::allKinds(), [&](SttServiceKind anyKind) {
+            return m_nameEdit->text().trimmed() == SttServiceConfig::kindName(anyKind);
+        }))
+        m_nameEdit->setText(SttServiceConfig::kindName(kind));
+    // Self-hosted servers get the provider's default URL prefilled; cloud
+    // providers use their built-in endpoint and the field is disabled.
+    if (SttServiceConfig::isCloud(kind))
+        m_urlEdit->clear();
+    else if (m_urlEdit->text().isEmpty())
         m_urlEdit->setText(SttServiceConfig::defaultBaseUrl(kind));
-    if (m_modelEdit->text().isEmpty())
+    if (m_modelEdit->text().trimmed().isEmpty() ||
+        std::ranges::any_of(SttServiceConfig::allKinds(), [&](SttServiceKind anyKind) {
+            return m_modelEdit->text().trimmed() == SttServiceConfig::defaultModel(anyKind);
+        }))
         m_modelEdit->setText(SttServiceConfig::defaultModel(kind));
-    updateUrlVisibility();
+    // Reuse the API key already configured for the same provider's LLM
+    // backend when the field is still empty.
+    if (m_apiKeyEdit->text().trimmed().isEmpty()) {
+        const QString knownKey = knownApiKey();
+        if (!knownKey.isEmpty())
+            m_apiKeyEdit->setText(knownKey);
+    }
+    updateUrlState();
     onFieldEdited();
 }
 
@@ -283,7 +310,14 @@ void SttPage::onTestFailed(const QString &error) {
 
 void SttPage::loadConfigIntoForm(const SttServiceConfig &config) {
     m_nameEdit->setText(config.name);
-    const int kindIndex = m_kindCombo->findData(QVariant::fromValue(static_cast<int>(config.kind)));
+    const int kindData = static_cast<int>(config.kind);
+    int kindIndex = m_kindCombo->findData(kindData);
+    if (kindIndex < 0) {
+        // Services configured before the non-streaming variants stopped
+        // being offered stay selectable (and editable) while they exist.
+        m_kindCombo->addItem(SttServiceConfig::kindName(config.kind), kindData);
+        kindIndex = m_kindCombo->findData(kindData);
+    }
     m_kindCombo->setCurrentIndex(kindIndex < 0 ? 0 : kindIndex);
     m_urlEdit->setText(config.baseUrl);
     m_apiKeyEdit->setText(config.apiKey);
@@ -301,21 +335,27 @@ void SttPage::saveFormIntoConfig(SttServiceConfig &config) {
     if (config.baseUrl.isEmpty() && !SttServiceConfig::isCloud(config.kind))
         config.baseUrl = SttServiceConfig::defaultBaseUrl(config.kind);
     config.apiKey = m_apiKeyEdit->text().trimmed();
+    // The model stays empty unless the user picks another one: the config
+    // falls back to the provider's default model.
     config.model = m_modelEdit->text().trimmed();
+    if (config.model.isEmpty() ||
+        std::ranges::any_of(SttServiceConfig::allKinds(), [&](SttServiceKind anyKind) {
+            return config.model == SttServiceConfig::defaultModel(anyKind);
+        }))
+        config.model = SttServiceConfig::defaultModel(config.kind);
     config.language = m_languageEdit->text().trimmed();
     config.chunkDurationMs = m_chunkDurationSpin->value() * 1000;
     config.enabled = m_enabledBox->isChecked();
 }
 
-void SttPage::updateUrlVisibility() {
+void SttPage::updateUrlState() {
+    // Self-hosted servers require an explicit base URL; for cloud providers
+    // the built-in endpoint is used and the field is disabled, like the LLM
+    // settings page.
     const bool cloud = SttServiceConfig::isCloud(currentKind());
-    const bool visible = !cloud || !m_urlEdit->text().trimmed().isEmpty();
-    m_urlEdit->setVisible(visible);
-    m_urlEdit->setPlaceholderText(cloud ? tr("Custom endpoint (optional)")
+    m_urlEdit->setEnabled(m_hasSelection && !cloud);
+    m_urlEdit->setPlaceholderText(cloud ? tr("Built-in endpoint")
                                         : QStringLiteral("http://127.0.0.1:8000/v1"));
-    if (auto *form = qobject_cast<QFormLayout *>(m_urlEdit->parentWidget()->layout()))
-        if (auto *label = form->labelForField(m_urlEdit))
-            label->setVisible(visible);
 
     // Streaming services transcribe word-by-word over a WebSocket; the
     // chunk interval only applies to the chunked HTTP fallback.
@@ -324,6 +364,19 @@ void SttPage::updateUrlVisibility() {
     if (auto *form = qobject_cast<QFormLayout *>(m_chunkDurationSpin->parentWidget()->layout()))
         if (auto *label = form->labelForField(m_chunkDurationSpin))
             label->setVisible(!streaming);
+}
+
+QString SttPage::knownApiKey() const {
+    // The API key of an LLM backend configured for the same provider: the
+    // STT and chat APIs share one account.
+    const auto provider = SttServiceConfig::llmProviderKind(currentKind());
+    if (!m_backendRegistry || !provider)
+        return {};
+    for (const auto &config : m_backendRegistry->backends()) {
+        if (config.kind == *provider && !config.apiKey.trimmed().isEmpty())
+            return config.apiKey.trimmed();
+    }
+    return {};
 }
 
 SttServiceKind SttPage::currentKind() const {

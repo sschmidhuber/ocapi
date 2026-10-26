@@ -46,7 +46,10 @@ private:
     QString m_outputDevice;    // empty = system default
     QString m_activeServiceId; // empty = first enabled service
     bool m_speakResponses = false;
-    QSettings *m_persistSettings = nullptr;
+    // Where loadSettings() read from; save() reopens the file instead of
+    // keeping a pointer to the (often stack-local) caller's QSettings.
+    QString m_persistPath;
+    QSettings::Format m_persistFormat = QSettings::IniFormat;
 };
 
 } // namespace ocapi

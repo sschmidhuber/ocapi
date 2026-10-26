@@ -26,6 +26,7 @@
 
 #include <QJsonDocument>
 
+#include <algorithm>
 #include <memory>
 
 namespace ocapi {
@@ -546,10 +547,8 @@ void paintSpinner(QPainter *painter, const QRect &rect, int phase) {
 bool spinnerActive(const QModelIndex &index, const QVector<ToolCall> &toolCalls) {
     if (index.data(static_cast<int>(Qt::UserRole) + 12).toBool())
         return true;
-    for (const auto &call : toolCalls)
-        if (call.status == ToolCallStatus::Running)
-            return true;
-    return false;
+    return std::ranges::any_of(
+        toolCalls, [](const ToolCall &call) { return call.status == ToolCallStatus::Running; });
 }
 
 // Paints the collapsed "Thinking" element above the message text: a chevron,

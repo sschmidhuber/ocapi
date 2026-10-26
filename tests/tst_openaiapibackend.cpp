@@ -105,6 +105,8 @@ private slots:
     void sendMessageStreamsText();
     void contentPartsArrayIsRendered();
     void thinkingPartsAreIgnored();
+    void reasoningContentIsStreamed();
+    void thinkingPartsAreStreamedAsReasoning();
 
 private:
     FakeOpenAiServer m_server;
@@ -190,6 +192,66 @@ void TestOpenAiApiBackend::thinkingPartsAreIgnored() {
 
     QVERIFY(tokenSpy.wait(10000));
     QCOMPARE(tokenSpy.count(), 1);
+    QCOMPARE(tokenSpy.first().at(1).toString(), QStringLiteral("Answer."));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+}
+
+void TestOpenAiApiBackend::reasoningContentIsStreamed() {
+    // DeepSeek-style servers stream reasoning as "reasoning_content" delta
+    // fields before the visible answer; both must arrive on their signals.
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {chunkJson(QJsonObject{{QStringLiteral("role"), QStringLiteral("assistant")},
+                               {QStringLiteral("content"), QString()}},
+                   QString()),
+         chunkJson(QJsonObject{{QStringLiteral("reasoning_content"), QStringLiteral("Pondering ")}},
+                   QString()),
+         chunkJson(QJsonObject{{QStringLiteral("reasoning_content"), QStringLiteral("hard.")}},
+                   QString()),
+         chunkJson(QJsonObject{{QStringLiteral("content"), QStringLiteral("Answer.")}},
+                   QStringLiteral("stop"))});
+
+    OpenAiApiBackend backend(apiConfig(m_server.port()));
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hello"));
+    QSignalSpy reasoningSpy(&backend, &IBackend::reasoningReceived);
+    QSignalSpy tokenSpy(&backend, &IBackend::tokenReceived);
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("fake-model"));
+
+    QVERIFY(reasoningSpy.wait(10000));
+    QTRY_COMPARE_WITH_TIMEOUT(reasoningSpy.count(), 2, 10000);
+    QCOMPARE(reasoningSpy.last().at(1).toString(), QStringLiteral("Pondering hard."));
+    QTRY_VERIFY_WITH_TIMEOUT(tokenSpy.count() >= 1, 10000);
+    QCOMPARE(tokenSpy.first().at(1).toString(), QStringLiteral("Answer."));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+}
+
+void TestOpenAiApiBackend::thinkingPartsAreStreamedAsReasoning() {
+    // GLM-style servers stream reasoning as thinking parts of the content
+    // array; the reasoning text must not leak into the visible answer.
+    QVERIFY(m_server.start());
+    const QJsonObject thinkingPart{{QStringLiteral("type"), QStringLiteral("thinking")},
+                                   {QStringLiteral("thinking"), QStringLiteral("Let me think")}};
+    m_server.setStreamEvents(
+        {chunkJson(QJsonObject{{QStringLiteral("role"), QStringLiteral("assistant")},
+                               {QStringLiteral("content"), QString()}},
+                   QString()),
+         chunkJson(QJsonObject{{QStringLiteral("content"), QJsonArray{thinkingPart}}}, QString()),
+         chunkJson(QJsonObject{{QStringLiteral("content"), QStringLiteral("Answer.")}},
+                   QStringLiteral("stop"))});
+
+    OpenAiApiBackend backend(apiConfig(m_server.port()));
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hello"));
+    QSignalSpy reasoningSpy(&backend, &IBackend::reasoningReceived);
+    QSignalSpy tokenSpy(&backend, &IBackend::tokenReceived);
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("fake-model"));
+
+    QVERIFY(reasoningSpy.wait(10000));
+    QCOMPARE(reasoningSpy.first().at(1).toString(), QStringLiteral("Let me think"));
+    QTRY_VERIFY_WITH_TIMEOUT(tokenSpy.count() >= 1, 10000);
     QCOMPARE(tokenSpy.first().at(1).toString(), QStringLiteral("Answer."));
     QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
 }

@@ -15,6 +15,7 @@ private slots:
     void appendMessageAddsMessageAndEmitsSignal();
     void appendMessageReturnsReferenceToStoredMessage();
     void updateMessageModifiesContentAndStreamingFlag();
+    void updateReasoningAccumulatesAndSignals();
     void updateMessageClearsError();
     void updateMessageIgnoresUnknownId();
     void failMessageSetsErrorAndStopsStreaming();
@@ -82,6 +83,31 @@ void TestChatSession::updateMessageModifiesContentAndStreamingFlag() {
     QCOMPARE(session.messages().constLast().content, QStringLiteral("full text"));
     QVERIFY(!session.messages().constLast().streaming);
     QCOMPARE(updatedSpy.count(), 2);
+}
+
+void TestChatSession::updateReasoningAccumulatesAndSignals() {
+    ChatSession session;
+    const QUuid id = session.appendMessage(Role::Assistant).id;
+    QSignalSpy updatedSpy(&session, &ChatSession::messageUpdated);
+
+    session.updateReasoning(id, QStringLiteral("Step 1."), true);
+    const auto &message = session.messages().constLast();
+    QCOMPARE(message.reasoning, QStringLiteral("Step 1."));
+    QVERIFY(message.reasoningStreaming);
+    QCOMPARE(updatedSpy.count(), 1);
+
+    session.updateReasoning(id, QStringLiteral("Step 1. Step 2."), true);
+    QCOMPARE(session.messages().constLast().reasoning, QStringLiteral("Step 1. Step 2."));
+    QCOMPARE(updatedSpy.count(), 2);
+
+    // Ending the reasoning phase clears the flag and emits once more.
+    session.setReasoningStreaming(id, false);
+    QVERIFY(!session.messages().constLast().reasoningStreaming);
+    QCOMPARE(updatedSpy.count(), 3);
+
+    // A repeated no-op write does not emit.
+    session.setReasoningStreaming(id, false);
+    QCOMPARE(updatedSpy.count(), 3);
 }
 
 void TestChatSession::updateMessageClearsError() {

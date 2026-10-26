@@ -88,6 +88,7 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model) {
     // copy button that belongs to a finished message.
     m_currentMessageId = session->appendMessage(Role::Assistant, {}, true).id;
     m_accumulated.clear();
+    m_accumulatedReasoning.clear();
 
     QString systemPrompt;
     QJsonArray contents;
@@ -158,7 +159,16 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model) {
                                        .value(QStringLiteral("parts"))
                                        .toArray();
                 for (const auto &part : parts) {
-                    const QString token = part.toObject().value(QStringLiteral("text")).toString();
+                    const QJsonObject partObject = part.toObject();
+                    // Thinking models mark their reasoning parts with
+                    // "thought": true (Gemini 2.5 stream/body style).
+                    if (partObject.value(QStringLiteral("thought")).toBool()) {
+                        m_accumulatedReasoning.append(
+                            partObject.value(QStringLiteral("text")).toString());
+                        emit reasoningReceived(m_currentMessageId, m_accumulatedReasoning);
+                        continue;
+                    }
+                    const QString token = partObject.value(QStringLiteral("text")).toString();
                     m_accumulated.append(token);
                 }
                 emit tokenReceived(m_currentMessageId, m_accumulated);

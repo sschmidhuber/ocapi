@@ -10,6 +10,7 @@
 #include <QMessageBox>
 #include <QResizeEvent>
 #include <QScrollBar>
+#include <QSet>
 
 namespace ocapi {
 
@@ -33,6 +34,17 @@ enum DataRoles { // NOLINT(cppcoreguidelines-use-enum-class)
     // Write-only: the delegate reports a click on a tool-call row by setting
     // this role to the clicked call's id; the model toggles its expansion.
     ToolCallClickedRole,
+    // Reasoning ("thinking") text of an assistant message, shown in a
+    // collapsed "Thinking" element above the answer.
+    ReasoningRole,
+    // True while reasoning tokens are still streaming; the collapsed
+    // element shows a progress indicator.
+    ReasoningStreamingRole,
+    // Write-only: the delegate reports a click on the "Thinking" header by
+    // setting this role; the model toggles the element's expansion.
+    ReasoningClickedRole,
+    // Per-message expansion state of the reasoning element.
+    ReasoningExpandedRole,
 };
 
 class ChatModel : public QAbstractListModel {
@@ -66,6 +78,8 @@ public:
                 line += QStringLiteral(": %1").arg(call.result);
             lines.append(line);
         }
+        if (!message.reasoning.isEmpty())
+            lines.append(tr("Thinking: %1").arg(message.reasoning));
         if (!message.content.isEmpty())
             lines.append(message.content);
         return lines.join(QStringLiteral("\n"));
@@ -108,6 +122,12 @@ public:
             return QVariant::fromValue(message.files);
         case ExpandedToolCallsRole:
             return m_expandedToolCalls.value(message.id);
+        case ReasoningRole:
+            return message.reasoning;
+        case ReasoningStreamingRole:
+            return message.reasoningStreaming;
+        case ReasoningExpandedRole:
+            return m_expandedReasoning.contains(message.id);
         default:
             return {};
         }
@@ -133,15 +153,28 @@ public:
     // QAbstractItemModel::setData override: a write to ToolCallClickedRole
     // toggles the expansion of the given tool call on that message.
     bool setData(const QModelIndex &index, const QVariant &value, int role) override {
-        if (role != ToolCallClickedRole || !index.isValid() || index.row() >= m_messages.size())
+        if (!index.isValid() || index.row() >= m_messages.size())
             return QAbstractItemModel::setData(index, value, role);
-        const QString toolCallId = value.toString();
-        if (toolCallId.isEmpty())
-            return false;
-        setToolCallExpanded(
-            m_messages.at(index.row()).id, toolCallId,
-            !m_expandedToolCalls.value(m_messages.at(index.row()).id).contains(toolCallId));
-        return true;
+        if (role == ToolCallClickedRole) {
+            const QString toolCallId = value.toString();
+            if (toolCallId.isEmpty())
+                return false;
+            setToolCallExpanded(
+                m_messages.at(index.row()).id, toolCallId,
+                !m_expandedToolCalls.value(m_messages.at(index.row()).id).contains(toolCallId));
+            return true;
+        }
+        if (role == ReasoningClickedRole) {
+            const QUuid id = m_messages.at(index.row()).id;
+            if (m_expandedReasoning.contains(id))
+                m_expandedReasoning.remove(id);
+            else
+                m_expandedReasoning.insert(id);
+            const QModelIndex idx = index.row() == 0 ? index : index.sibling(index.row(), 0);
+            emit dataChanged(idx, idx, {ReasoningExpandedRole});
+            return true;
+        }
+        return QAbstractItemModel::setData(index, value, role);
     }
 
     void setMessages(const QVector<Message> &messages) {
@@ -178,6 +211,8 @@ public:
                                      ToolCallsRole,
                                      FilesRole,
                                      ExpandedToolCallsRole,
+                                     ReasoningRole,
+                                     ReasoningStreamingRole,
                                  });
                 return;
             }
@@ -199,6 +234,7 @@ private:
 
     QVector<Message> m_messages;
     QHash<QUuid, QStringList> m_expandedToolCalls;
+    QSet<QUuid> m_expandedReasoning;
 };
 
 } // namespace

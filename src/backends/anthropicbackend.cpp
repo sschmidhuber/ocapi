@@ -85,6 +85,7 @@ void AnthropicBackend::sendMessage(ChatSession *session, const QString &model) {
     // copy button that belongs to a finished message.
     m_currentMessageId = session->appendMessage(Role::Assistant, {}, true).id;
     m_accumulated.clear();
+    m_accumulatedReasoning.clear();
 
     QString systemPrompt;
     QJsonArray messages;
@@ -138,12 +139,18 @@ void AnthropicBackend::sendMessage(ChatSession *session, const QString &model) {
                 const QString eventName = QString::fromUtf8(event);
                 const auto object = QJsonDocument::fromJson(data).object();
                 if (eventName == QStringLiteral("content_block_delta")) {
-                    const QString token = object.value(QStringLiteral("delta"))
-                                              .toObject()
-                                              .value(QStringLiteral("text"))
-                                              .toString();
+                    const QJsonObject delta = object.value(QStringLiteral("delta")).toObject();
+                    // Extended-thinking models stream their reasoning as
+                    // thinking_delta events before the answer text arrives.
+                    const QString thinking = delta.value(QStringLiteral("thinking")).toString();
+                    if (!thinking.isEmpty()) {
+                        m_accumulatedReasoning.append(thinking);
+                        emit reasoningReceived(m_currentMessageId, m_accumulatedReasoning);
+                    }
+                    const QString token = delta.value(QStringLiteral("text")).toString();
                     m_accumulated.append(token);
-                    emit tokenReceived(m_currentMessageId, m_accumulated);
+                    if (!token.isEmpty())
+                        emit tokenReceived(m_currentMessageId, m_accumulated);
                 } else if (eventName == QStringLiteral("message_stop")) {
                     emit finished(m_currentMessageId);
                 } else if (eventName == QStringLiteral("error")) {

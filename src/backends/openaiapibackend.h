@@ -41,6 +41,7 @@ private:
     QNetworkReply *m_modelsReply = nullptr;
     QUuid m_currentMessageId;
     QString m_accumulated;
+    QString m_accumulatedReasoning;
     QJsonArray m_availableTools;
     bool m_toolsEnabled = false;
     QVector<ToolCall> m_pendingToolCalls;

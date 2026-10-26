@@ -74,6 +74,32 @@ void ChatSession::updateMessage(const QUuid &id, const QString &content, bool st
     }
 }
 
+void ChatSession::updateReasoning(const QUuid &id, const QString &reasoning, bool streaming) {
+    for (auto &message : m_messages) {
+        if (message.id == id) {
+            if (message.reasoning == reasoning && message.reasoningStreaming == streaming)
+                return;
+            message.reasoning = reasoning;
+            message.reasoningStreaming = streaming;
+            message.error.clear();
+            emit messageUpdated(message);
+            return;
+        }
+    }
+}
+
+void ChatSession::setReasoningStreaming(const QUuid &id, bool streaming) {
+    for (auto &message : m_messages) {
+        if (message.id == id) {
+            if (message.reasoningStreaming == streaming)
+                return;
+            message.reasoningStreaming = streaming;
+            emit messageUpdated(message);
+            return;
+        }
+    }
+}
+
 void ChatSession::setToolCalls(const QUuid &id, const QVector<ToolCall> &toolCalls) {
     for (auto &message : m_messages) {
         if (message.id == id) {
@@ -122,6 +148,7 @@ void ChatSession::failMessage(const QUuid &id, const QString &error) {
     for (auto &message : m_messages) {
         if (message.id == id) {
             message.streaming = false;
+            message.reasoningStreaming = false;
             message.error = error;
             emit messageUpdated(message);
             return;

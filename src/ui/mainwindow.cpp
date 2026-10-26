@@ -136,6 +136,7 @@ Message storedToMessage(const StoredMessage &stored) {
     message.id = QUuid(stored.id);
     message.role = roleFromName(stored.role);
     message.content = stored.content;
+    message.reasoning = stored.reasoning;
     message.timestamp = stored.timestamp;
     message.streaming = false;
     message.error = stored.error;
@@ -669,7 +670,8 @@ void MainWindow::persistMessageForSession(ChatSession *session, const Message &m
         return;
     m_database.insertMessage(session->id().toString(QUuid::WithoutBraces),
                              message.id.toString(QUuid::WithoutBraces), message.roleName(),
-                             message.content, message.timestamp, message.images, message.files);
+                             message.content, message.timestamp, message.images, message.files,
+                             message.toolCalls, message.reasoning);
     // Keep the session's last-activity timestamp fresh so the sidebar's
     // time groups stay current, then rebuild the tree to re-sort/re-group.
     session->setLastActivityAt(message.timestamp.isValid() ? message.timestamp
@@ -881,6 +883,7 @@ void MainWindow::connectBackend(IBackend *backend) {
 
 void MainWindow::connectStreamingSignals(IBackend *backend) const {
     connect(backend, &IBackend::tokenReceived, this, &MainWindow::onTokenReceived);
+    connect(backend, &IBackend::reasoningReceived, this, &MainWindow::onReasoningReceived);
     connect(backend, &IBackend::finished, this, &MainWindow::onStreamFinished);
     connect(backend, &IBackend::failed, this, &MainWindow::onStreamFailed);
 }
@@ -894,12 +897,30 @@ void MainWindow::onTokenReceived(const QUuid &messageId, const QString &text) {
         if (!m_firstToken.isValid())
             m_firstToken = QDateTime::currentDateTime();
     }
-    if (m_currentSession)
+    if (m_currentSession) {
         m_currentSession->updateMessage(messageId, text, true);
+        // The first visible answer token ends the reasoning phase.
+        m_currentSession->setReasoningStreaming(messageId, false);
+    }
     if (m_ttsRegistry.speakResponses())
         m_ttsPlayer.feedText(text);
     if (m_database.isOpen())
         m_database.updateMessage(messageId.toString(QUuid::WithoutBraces), text, true);
+}
+
+void MainWindow::onReasoningReceived(const QUuid &messageId, const QString &text) {
+    // Reasoning streams before the visible answer; keep the message in the
+    // reasoning-streaming state until the answer or the stream end arrives.
+    if (m_currentSession) {
+        m_currentSession->updateReasoning(messageId, text, true);
+        if (messageId == m_streamedMessageId) {
+            ++m_streamedTokens;
+            if (!m_firstToken.isValid())
+                m_firstToken = QDateTime::currentDateTime();
+        }
+    }
+    if (m_database.isOpen())
+        m_database.setReasoning(messageId.toString(QUuid::WithoutBraces), text);
 }
 
 void MainWindow::onStreamFinished(const QUuid &messageId) {
@@ -907,8 +928,10 @@ void MainWindow::onStreamFinished(const QUuid &messageId) {
     if (qEnvironmentVariableIsSet("OCAPI_DEBUG_SSE"))
         qWarning().noquote() << "[ocapi debug] streamFinished" << messageId.toString()
                              << "len:" << content.size() << "content:" << content.left(300);
-    if (m_currentSession)
+    if (m_currentSession) {
         m_currentSession->updateMessage(messageId, content, false);
+        m_currentSession->setReasoningStreaming(messageId, false);
+    }
     if (m_ttsRegistry.speakResponses())
         m_ttsPlayer.endOfText();
     const double tokensPerSecond = throughputFor(messageId);

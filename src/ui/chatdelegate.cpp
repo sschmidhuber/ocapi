@@ -154,6 +154,24 @@ int toolCallRowHeight(const QFont &font) {
     return qMax(kCopyButtonSize, QFontMetrics(font).height()) + 4;
 }
 
+// Height of the collapsed "Thinking" header row (chevron + label + spinner).
+int reasoningRowHeight(const QFont &font) {
+    return qMax(kCopyButtonSize, QFontMetrics(font).height()) + 4;
+}
+
+// Total height of the reasoning block: the header row plus the reasoning
+// text (plain, elided by the text document's width) when expanded.
+int reasoningBlockHeight(const QString &reasoning, bool expanded, const QFont &font,
+                         int maxTextWidth) {
+    if (reasoning.isEmpty() || !expanded)
+        return reasoningRowHeight(font);
+    QTextDocument reasoningDoc;
+    reasoningDoc.setDefaultFont(font);
+    reasoningDoc.setTextWidth(maxTextWidth);
+    reasoningDoc.setPlainText(reasoning);
+    return reasoningRowHeight(font) + reasoningDoc.size().toSize().height() + 6;
+}
+
 // Total height of the tool-call block: one row per call, plus the expanded
 // result area for each expanded call.
 int toolCallsBlockHeight(const QVector<ToolCall> &toolCalls, const QStringList &expandedIds,
@@ -255,6 +273,8 @@ struct ItemLayout {
     // collapsed elements and never get a copy button.
     bool hasToolCalls = false;
     int toolCallsHeight = 0;
+    // Collapsed "Thinking" element above everything else.
+    int reasoningHeight = 0;
     int imageBlockHeight = 0;
     int filesBlockHeight = 0;
     int textHeight = 0;
@@ -276,7 +296,8 @@ AttachmentLayout attachmentLayout(const QVector<QImage> &images,
     AttachmentLayout result;
     result.imageRects.reserve(images.size());
     int x = contentRect.left() + kBubblePadding;
-    const int imageTop = contentRect.top() + kBubblePadding + layout.toolCallsHeight;
+    const int imageTop =
+        contentRect.top() + kBubblePadding + layout.reasoningHeight + layout.toolCallsHeight;
     for (const auto &image : images) {
         const int targetWidth = qMin(image.width(), kImageSize);
         const int targetHeight = qMin(image.height(), kImageSize);
@@ -285,8 +306,8 @@ AttachmentLayout attachmentLayout(const QVector<QImage> &images,
     }
 
     result.fileChipRects.reserve(files.size());
-    const int chipsTop =
-        contentRect.top() + kBubblePadding + layout.toolCallsHeight + layout.imageBlockHeight;
+    const int chipsTop = contentRect.top() + kBubblePadding + layout.reasoningHeight +
+                         layout.toolCallsHeight + layout.imageBlockHeight;
     const int maxChipsWidth = contentRect.width() - (2 * kBubblePadding);
     const QFontMetrics metrics(option.font);
     const int chipsLeft = contentRect.left() + kBubblePadding;
@@ -354,9 +375,13 @@ ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &ind
 
     const QStringList expandedToolCalls =
         index.data(static_cast<int>(Qt::UserRole) + 9).toStringList();
+    const QString reasoning = index.data(static_cast<int>(Qt::UserRole) + 11).toString();
+    const bool reasoningExpanded = index.data(static_cast<int>(Qt::UserRole) + 14).toBool();
 
     ItemLayout layout;
     layout.hasToolCalls = !toolCalls.isEmpty();
+    layout.reasoningHeight =
+        reasoningBlockHeight(reasoning, reasoningExpanded, option.font, maxTextWidth);
     layout.toolCallsHeight =
         toolCallsBlockHeight(toolCalls, expandedToolCalls, option.font, maxTextWidth);
     layout.imageBlockHeight = images.isEmpty() ? 0 : imagesBlockHeight(images) + kImageSpacing;
@@ -384,7 +409,7 @@ ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &ind
                              (2 * kBubblePadding);
     const int contentHeight = layout.textHeight + layout.imageBlockHeight +
                               layout.filesBlockHeight + layout.toolCallsHeight +
-                              (2 * kBubblePadding);
+                              layout.reasoningHeight + (2 * kBubblePadding);
 
     const double tokensPerSecond = index.data(static_cast<int>(Qt::UserRole) + 4).toDouble();
     layout.throughput = tokensPerSecond > 0.0 ? throughputText(tokensPerSecond) : QString();
@@ -502,6 +527,69 @@ void paintFileChips(QPainter *painter, const QStyleOptionViewItem &option,
             painter->drawRoundedRect(chipRect, kBubbleRadius / 2.0, kBubbleRadius / 2.0);
         }
     }
+}
+
+// Paints the collapsed "Thinking" element above the message text: a chevron,
+// the "Thinking" label, a spinner while reasoning tokens are still arriving
+// and the reasoning text below the header when expanded.
+void paintReasoning(QPainter *painter, const QStyleOptionViewItem &option, const QString &reasoning,
+                    bool reasoningStreaming, bool expanded, const QRect &contentRect,
+                    int maxTextWidth) {
+    if (reasoning.isEmpty())
+        return;
+    const int rowHeight = reasoningRowHeight(option.font);
+    const QColor rowColor(0x50, 0x50, 0x50);
+    const QColor expandedBg(0, 0, 0, 0x0d);
+    const QRect row(contentRect.left() + kBubblePadding, contentRect.top() + kBubblePadding,
+                    contentRect.width(), rowHeight);
+
+    painter->setPen(QPen(rowColor, 1.5));
+    const int chevX = row.left() + 2;
+    const int chevY = row.top() + (row.height() / 2);
+    if (expanded) {
+        painter->drawLine(chevX, chevY - 4, chevX + 4, chevY + 1);
+        painter->drawLine(chevX + 4, chevY + 1, chevX + 8, chevY - 4);
+    } else {
+        painter->drawLine(chevX, chevY - 4, chevX + 5, chevY);
+        painter->drawLine(chevX + 5, chevY, chevX, chevY + 4);
+    }
+
+    QFont label = option.font;
+    label.setItalic(true);
+    painter->setFont(label);
+    painter->setPen(QColor(0x1a, 0x1a, 0x1a));
+    painter->drawText(
+        QRect(row.left() + 16, row.top(), row.width() - 16 - kCopyButtonSize - 4, row.height()),
+        Qt::AlignLeft | Qt::AlignVCenter, QObject::tr("Thinking"));
+
+    // Progress indicator at the right edge while the reasoning streams.
+    if (reasoningStreaming) {
+        const int spinnerSize = kCopyButtonSize;
+        const QRect spinnerRect(row.right() - spinnerSize - 2,
+                                row.top() + ((row.height() - spinnerSize) / 2), spinnerSize,
+                                spinnerSize);
+        painter->setPen(QPen(QColor(0x2a, 0x62, 0xb5), 2));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawArc(spinnerRect, 45 * 16, 270 * 16);
+    }
+
+    if (!expanded)
+        return;
+    QTextDocument reasoningDoc;
+    reasoningDoc.setDefaultFont(option.font);
+    reasoningDoc.setTextWidth(maxTextWidth);
+    reasoningDoc.setPlainText(reasoning);
+    const int reasoningTextHeight = reasoningDoc.size().toSize().height();
+    const QRect textRect(row.left(), row.bottom() + 6, row.width(), reasoningTextHeight + 6);
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(expandedBg);
+    painter->drawRoundedRect(textRect, 4, 4);
+    painter->setFont(option.font);
+    painter->setPen(rowColor);
+    painter->save();
+    painter->translate(row.left() + 6, row.bottom() + 9);
+    reasoningDoc.drawContents(painter);
+    painter->restore();
 }
 
 // Paints the collapsed tool-call elements above the message text: one row
@@ -630,7 +718,7 @@ bool handleToolCallClick(QAbstractItemModel *model, const QModelIndex &index,
         return false;
     const QStringList expanded = index.data(static_cast<int>(Qt::UserRole) + 9).toStringList();
     const int rowHeight = toolCallRowHeight(option.font);
-    const int blockTop = layout.contentRect.top() + kBubblePadding;
+    const int blockTop = layout.contentRect.top() + kBubblePadding + layout.reasoningHeight;
     const int clickY = pos.y() - blockTop;
     if (clickY < 0 || clickY >= layout.toolCallsHeight)
         return false;
@@ -653,6 +741,24 @@ bool handleToolCallClick(QAbstractItemModel *model, const QModelIndex &index,
         }
     }
     return false;
+}
+
+// Handles a click on the collapsed "Thinking" header: toggles the element's
+// expansion. Returns true when the click was consumed.
+bool handleReasoningClick(QAbstractItemModel *model, const QModelIndex &index,
+                          const QStyleOptionViewItem &option, const ItemLayout &layout,
+                          const QPoint &pos) {
+    const QString reasoning = index.data(static_cast<int>(Qt::UserRole) + 11).toString();
+    if (reasoning.isEmpty() || layout.reasoningHeight <= 0)
+        return false;
+    const int rowHeight = reasoningRowHeight(option.font);
+    const QRect row(layout.contentRect.left() + kBubblePadding,
+                    layout.contentRect.top() + kBubblePadding, layout.contentRect.width(),
+                    rowHeight);
+    if (!row.contains(pos))
+        return false;
+    model->setData(index, {}, static_cast<int>(Qt::UserRole) + 13);
+    return true;
 }
 
 } // namespace
@@ -754,11 +860,21 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
         painter->drawRoundedRect(contentRect, kBubbleRadius, kBubbleRadius);
     }
 
+    // Reasoning ("thinking") tokens above everything else, in a collapsed
+    // element with a progress indicator while the tokens are streaming.
+    const QString reasoning = index.data(static_cast<int>(Qt::UserRole) + 11).toString();
+    const bool reasoningStreaming = index.data(static_cast<int>(Qt::UserRole) + 12).toBool();
+    const bool reasoningExpanded = index.data(static_cast<int>(Qt::UserRole) + 14).toBool();
+    paintReasoning(painter, option, reasoning, reasoningStreaming, reasoningExpanded, contentRect,
+                   maxTextWidth);
+
     // Tool calls requested by the assistant, above the message text, as
     // collapsed rows (expandable, with a progress indicator while running).
     const QStringList expandedToolCalls =
         index.data(static_cast<int>(Qt::UserRole) + 9).toStringList();
-    paintToolCalls(painter, option, toolCalls, expandedToolCalls, contentRect, maxTextWidth);
+    paintToolCalls(painter, option, toolCalls, expandedToolCalls,
+                   contentRect.adjusted(0, layout.reasoningHeight, 0, layout.reasoningHeight),
+                   maxTextWidth);
 
     // Images above the message text, each with its file name below. The
     // rects come from the shared attachment layout so hit-testing matches
@@ -795,12 +911,14 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     // Message text.
     painter->setPen(textColor);
     painter->translate(contentRect.left() + kBubblePadding,
-                       (contentRect.top() + kBubblePadding + layout.toolCallsHeight +
-                        layout.imageBlockHeight + layout.filesBlockHeight));
+                       (contentRect.top() + kBubblePadding + layout.reasoningHeight +
+                        layout.toolCallsHeight + layout.imageBlockHeight +
+                        layout.filesBlockHeight));
     doc->drawContents(painter);
     painter->translate(-(contentRect.left() + kBubblePadding),
-                       -(contentRect.top() + kBubblePadding + layout.toolCallsHeight +
-                         layout.imageBlockHeight + layout.filesBlockHeight));
+                       -(contentRect.top() + kBubblePadding + layout.reasoningHeight +
+                         layout.toolCallsHeight + layout.imageBlockHeight +
+                         layout.filesBlockHeight));
 
     // Footer below the content: copy button and throughput label.
     paintFooterRow(painter, option, layout, isUser, m_copiedIndex == index);
@@ -850,6 +968,9 @@ bool ChatDelegate::handleMouseRelease(QEvent *event, QAbstractItemModel *model,
     if (!mouse)
         return QStyledItemDelegate::editorEvent(event, model, option, index);
     const ItemLayout layout = layoutItem(option, index);
+    // The "Thinking" header toggles the reasoning element.
+    if (handleReasoningClick(model, index, option, layout, mouse->pos()))
+        return true;
     // Tool-call rows toggle the collapsed element instead of copying.
     if (handleToolCallClick(model, index, option, layout, mouse->pos()))
         return true;

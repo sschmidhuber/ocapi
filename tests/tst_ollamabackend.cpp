@@ -98,6 +98,7 @@ private slots:
     void supportsToolsAndAcceptsTools();
     void sendMessageStreamsText();
     void sendMessageReasoningModelParts();
+    void sendMessageThinkingFieldStreamsReasoning();
     void sendMessageEmitsToolCalls();
     void toolCallsIncludedInConversationHistory();
     void toolsSentOnlyWhenEnabled();
@@ -171,6 +172,33 @@ void TestOllamaBackend::sendMessageReasoningModelParts() {
     const QString accumulated = tokenSpy.last().at(1).toString();
     QCOMPARE(accumulated, QStringLiteral("Hello from the reasoning mock!"));
     QVERIFY(!accumulated.contains(QLatin1String("Let me think")));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+}
+
+void TestOllamaBackend::sendMessageThinkingFieldStreamsReasoning() {
+    // Ollama streams the chain of thought of reasoning models in a separate
+    // "thinking" field of the message; it must arrive on reasoningReceived,
+    // and never leak into the visible answer.
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"","thinking":"Okay, "}})"),
+         QStringLiteral(R"({"message":{"role":"assistant","content":"","thinking":"so 2+2=4."}})"),
+         QStringLiteral(R"({"message":{"role":"assistant","content":"Four."},"done":true})")});
+
+    OllamaBackend backend(ollamaConfig(m_server.port()));
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("2+2?"));
+    QSignalSpy reasoningSpy(&backend, &IBackend::reasoningReceived);
+    QSignalSpy tokenSpy(&backend, &IBackend::tokenReceived);
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+
+    QVERIFY(reasoningSpy.wait(10000));
+    QTRY_COMPARE_WITH_TIMEOUT(reasoningSpy.count(), 2, 10000);
+    QCOMPARE(reasoningSpy.last().at(1).toString(), QStringLiteral("Okay, so 2+2=4."));
+    QTRY_COMPARE_WITH_TIMEOUT(tokenSpy.count(), 1, 10000);
+    QCOMPARE(tokenSpy.first().at(1).toString(), QStringLiteral("Four."));
+    QVERIFY(!tokenSpy.first().at(1).toString().contains(QLatin1String("Okay")));
     QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
 }
 

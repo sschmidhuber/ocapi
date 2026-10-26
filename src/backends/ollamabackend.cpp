@@ -100,6 +100,7 @@ void OllamaBackend::sendMessage(ChatSession *session, const QString &model) {
     // copy button that belongs to a finished message.
     m_currentMessageId = session->appendMessage(Role::Assistant, {}, true).id;
     m_accumulated.clear();
+    m_accumulatedReasoning.clear();
 
     QJsonArray messages;
     for (const auto &message : session->messages()) {
@@ -163,11 +164,30 @@ void OllamaBackend::onStreamEvent(const QByteArray &data) {
         return;
     }
 
+    // Reasoning-capable models stream their chain of thought either as a
+    // dedicated "thinking" field (Ollama) or as thinking content-parts;
+    // both surface in the collapsed "Thinking" element. The reasoning
+    // stream ends as soon as visible content starts.
+    QString reasoningToken;
+    const QJsonValue content = message.value(QStringLiteral("content"));
+    reasoningToken = message.value(QStringLiteral("thinking")).toString();
+    if (reasoningToken.isEmpty())
+        reasoningToken = ocapiContentThinking(content);
+    if (!reasoningToken.isEmpty()) {
+        m_accumulatedReasoning.append(reasoningToken);
+        emit reasoningReceived(m_currentMessageId, m_accumulatedReasoning);
+    }
+
     // Reasoning-capable models can stream "content" as an array of typed
     // parts (thinking/text); ocapiContentText() keeps only the visible text.
-    const QString token = ocapiContentText(message.value(QStringLiteral("content")));
-    m_accumulated.append(token);
-    emit tokenReceived(m_currentMessageId, m_accumulated);
+    const QString token = ocapiContentText(content);
+    if (!token.isEmpty()) {
+        m_accumulated.append(token);
+        emit tokenReceived(m_currentMessageId, m_accumulated);
+    } else if (!m_accumulatedReasoning.isEmpty() && object.value(QStringLiteral("done")).toBool()) {
+        // Answer finished without any visible text: end the reasoning stream.
+        emit reasoningReceived(m_currentMessageId, m_accumulatedReasoning);
+    }
     if (object.value(QStringLiteral("done")).toBool())
         emit finished(m_currentMessageId);
 }

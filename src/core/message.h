@@ -76,6 +76,12 @@ struct Message {
     QString content;
     QDateTime timestamp = QDateTime::currentDateTime();
     bool streaming = false;
+    // Reasoning ("thinking") tokens streamed by reasoning-capable models
+    // before the visible answer. Shown in a collapsed "Thinking" element.
+    QString reasoning;
+    // True while reasoning tokens are still arriving; the collapsed element
+    // shows a progress indicator until the answer starts.
+    bool reasoningStreaming = false;
     QString error;
     double tokensPerSecond = -1.0;   // output tokens/s; negative when unknown
     QVector<ImageAttachment> images; // images attached to this message

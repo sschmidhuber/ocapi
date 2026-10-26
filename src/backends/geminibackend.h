@@ -28,6 +28,7 @@ private:
     QNetworkReply *m_modelsReply = nullptr;
     QUuid m_currentMessageId;
     QString m_accumulated;
+    QString m_accumulatedReasoning;
 };
 
 } // namespace ocapi

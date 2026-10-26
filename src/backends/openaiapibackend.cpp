@@ -157,6 +157,7 @@ void OpenAiApiBackend::sendMessage(ChatSession *session, const QString &model) {
     // copy button that belongs to a finished message.
     m_currentMessageId = session->appendMessage(Role::Assistant, {}, true).id;
     m_accumulated.clear();
+    m_accumulatedReasoning.clear();
     m_pendingToolCalls.clear();
     m_argumentsBuffer.clear();
     m_hasToolCalls = false;
@@ -199,6 +200,18 @@ QString contentText(const QJsonObject &delta) {
     return ocapiContentText(delta.value(QStringLiteral("content")));
 }
 
+// Reasoning ("thinking") delta: OpenAI-compatible servers send it either
+// as "reasoning_content" (DeepSeek-style) or "reasoning" (OpenRouter-style)
+// fields, or as thinking parts of the "content" array (GLM-style).
+QString reasoningText(const QJsonObject &delta) {
+    QString text = delta.value(QStringLiteral("reasoning_content")).toString();
+    if (text.isEmpty())
+        text = delta.value(QStringLiteral("reasoning")).toString();
+    if (text.isEmpty())
+        text = ocapiContentThinking(delta.value(QStringLiteral("content")));
+    return text;
+}
+
 } // namespace
 
 void OpenAiApiBackend::onStreamEvent(const QByteArray &data) {
@@ -220,6 +233,11 @@ void OpenAiApiBackend::onStreamEvent(const QByteArray &data) {
         return;
     const auto choice = choices.first().toObject();
     const auto delta = choice.value(QStringLiteral("delta")).toObject();
+    const QString reasoningToken = reasoningText(delta);
+    if (!reasoningToken.isEmpty()) {
+        m_accumulatedReasoning.append(reasoningToken);
+        emit reasoningReceived(m_currentMessageId, m_accumulatedReasoning);
+    }
     const QString token = contentText(delta);
     if (!token.isEmpty()) {
         m_accumulated.append(token);

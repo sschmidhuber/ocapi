@@ -41,6 +41,13 @@ public:
     Message &appendMessage(const Message &message);
     void prependMessages(const QVector<Message> &messages);
     void updateMessage(const QUuid &id, const QString &content, bool streaming);
+    // Appends reasoning tokens to a message and marks whether the reasoning
+    // stream is still running; emits messageUpdated so the collapsed
+    // "Thinking" element repaints with its progress indicator.
+    void updateReasoning(const QUuid &id, const QString &reasoning, bool streaming);
+    // Ends the reasoning phase (first answer token arrived or the stream
+    // finished) so the progress indicator disappears.
+    void setReasoningStreaming(const QUuid &id, bool streaming);
     void setToolCalls(const QUuid &id, const QVector<ToolCall> &toolCalls);
     // Updates one tool call of a message (status/result); emits
     // messageUpdated so the chat view repaints the collapsed element.

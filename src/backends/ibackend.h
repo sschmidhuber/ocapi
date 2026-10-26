@@ -42,6 +42,9 @@ signals:
     void modelsFailed(const QString &error);
 
     void tokenReceived(const QUuid &messageId, const QString &accumulatedText);
+    // Reasoning ("thinking") tokens streamed before the visible answer;
+    // \p accumulatedReasoning is the full reasoning text so far.
+    void reasoningReceived(const QUuid &messageId, const QString &accumulatedReasoning);
     void finished(const QUuid &messageId);
     void failed(const QUuid &messageId, const QString &error);
     // The model wants to invoke tools; the UI/agent layer executes them and

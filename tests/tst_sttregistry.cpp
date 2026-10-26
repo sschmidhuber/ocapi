@@ -18,6 +18,7 @@ private slots:
     void settingsRoundTrip();
     void inputDevicePersists();
     void activeServiceIdPersists();
+    void saveAfterSettingsObjectDestroyed();
 
 private:
     [[nodiscard]] QSettings settings() const;
@@ -53,10 +54,12 @@ void TestSttRegistry::removeDeletesServiceAndFixesActiveId() {
     SttRegistry registry;
     QSettings s = settings();
     registry.loadSettings(s);
-    auto &first = registry.add(QStringLiteral("a"), SttServiceKind::OpenAiApi);
+    // The id is captured by value: add() returns a reference into the
+    // services vector, which a later add() reallocates.
+    const QUuid firstId = registry.add(QStringLiteral("a"), SttServiceKind::OpenAiApi).id;
     registry.add(QStringLiteral("b"), SttServiceKind::Groq);
-    QCOMPARE(registry.activeServiceId(), first.id.toString(QUuid::WithoutBraces));
-    QVERIFY(registry.remove(first.id));
+    QCOMPARE(registry.activeServiceId(), firstId.toString(QUuid::WithoutBraces));
+    QVERIFY(registry.remove(firstId));
     QCOMPARE(registry.activeServiceId(),
              registry.services().first().id.toString(QUuid::WithoutBraces));
 }
@@ -117,6 +120,29 @@ void TestSttRegistry::activeServiceIdPersists() {
     QSettings s2 = settings();
     restored.loadSettings(s2);
     QCOMPARE(restored.activeServiceId(), id.toString(QUuid::WithoutBraces));
+}
+
+void TestSttRegistry::saveAfterSettingsObjectDestroyed() {
+    // Regression (#60): loadSettings() used to keep a pointer to the
+    // caller's QSettings. MainWindow passes a stack-local object, so the
+    // first save() after it went out of scope (e.g. clicking "Add" in the
+    // STT settings) dereferenced a dangling pointer and crashed.
+    {
+        QSettings s = settings();
+        s.setValue(QStringLiteral("stt/services"), QStringLiteral("[]"));
+    }
+    SttRegistry registry;
+    {
+        QSettings s = settings();
+        registry.loadSettings(s);
+    }
+    registry.add(QStringLiteral("Added after load"), SttServiceKind::WhisperApi);
+
+    SttRegistry restored;
+    QSettings s2 = settings();
+    restored.loadSettings(s2);
+    QCOMPARE(restored.services().size(), 1);
+    QCOMPARE(restored.services().first().name, QStringLiteral("Added after load"));
 }
 
 QTEST_GUILESS_MAIN(TestSttRegistry)

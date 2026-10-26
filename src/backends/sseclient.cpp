@@ -84,8 +84,20 @@ void SseClient::onReadyRead() {
                  " bytes\n--- hex: " + hexDump(chunk) + "\n--- text: " + chunk + "\n");
     m_buffer.append(chunk);
 
-    for (const auto &rawEvent : extractCompleteEvents(m_buffer)) {
-        const auto parsed = parseSseEventBlock(rawEvent);
+    QList<QByteArray> events;
+    if (m_framing == Framing::Ndjson)
+        events = extractCompleteNdjsonRecords(m_buffer);
+    else
+        events = extractCompleteEvents(m_buffer);
+
+    for (const auto &rawEvent : events) {
+        std::optional<SseEvent> parsed;
+        if (m_framing == Framing::Ndjson) {
+            if (!rawEvent.trimmed().isEmpty())
+                parsed = SseEvent{"message", rawEvent.trimmed()};
+        } else {
+            parsed = parseSseEventBlock(rawEvent);
+        }
         if (sseDebugEnabled()) {
             sseDebug(">>> raw event hex: " + hexDump(rawEvent) +
                      "\n>>> raw event text: " + rawEvent + "\n");

@@ -121,6 +121,7 @@ void OllamaBackend::sendMessage(ChatSession *session, const QString &model) {
     }
 
     m_stream = std::make_unique<SseClient>(m_nam, this);
+    m_stream->setFraming(SseClient::Framing::Ndjson);
     connect(m_stream.get(), &SseClient::eventReceived, this,
             [this](const QByteArray &, const QByteArray &data) { onStreamEvent(data); });
     connect(m_stream.get(), &SseClient::httpError, this, [this](int, const QByteArray &body) {

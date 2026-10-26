@@ -50,6 +50,25 @@ QList<QByteArray> extractCompleteEvents(QByteArray &buffer) {
     return events;
 }
 
+QList<QByteArray> extractCompleteNdjsonRecords(QByteArray &buffer) {
+    QList<QByteArray> records;
+    int start = 0;
+    int i = 0;
+    while (i < buffer.size()) {
+        const int t = terminatorLengthAt(buffer, i);
+        if (t == 0) {
+            ++i;
+            continue;
+        }
+        records.append(buffer.mid(start, i - start));
+        start = i + t;
+        i = start;
+    }
+    if (start > 0)
+        buffer.remove(0, start);
+    return records;
+}
+
 std::optional<SseEvent> parseSseEventBlock(const QByteArray &rawEvent) {
     if (rawEvent.trimmed().isEmpty())
         return std::nullopt;

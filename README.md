@@ -178,6 +178,22 @@ To build without tests: `cmake -B build -DOCAPI_BUILD_TESTS=OFF`.
 Backend settings, API keys and chat history are stored in an SQLite database
 (`$XDG_DATA_HOME/sschmidhuber/ocapi/ocapi.sqlite`).
 
+### Debugging streaming issues
+
+When a model's reply looks truncated or garbled, run with stream debugging
+turned on:
+
+```bash
+OCAPI_DEBUG_SSE=1 ocapi
+```
+
+Every chunk read from the network (as hex and as text), every parsed SSE
+event and the accumulated message text are then written to a log file
+`sse-debug-<timestamp>.log` in the app data directory, and streamed messages
+are traced on stderr (`[ocapi debug] tokenReceived …`). The log makes the
+exact wire bytes of a problematic conversation available for bug reports.
+The setting adds no overhead when unset.
+
 ## Project layout
 
 ```

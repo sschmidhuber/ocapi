@@ -21,6 +21,7 @@ std::unique_ptr<IBackend> createBackend(const BackendConfig &config) {
     case BackendKind::Qwen:
     case BackendKind::DeepSeek:
     case BackendKind::Groq:
+    case BackendKind::OpenRouter:
         return std::make_unique<OpenAiApiBackend>(config);
     case BackendKind::Anthropic:
         return std::make_unique<AnthropicBackend>(config);

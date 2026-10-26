@@ -28,6 +28,8 @@ QString BackendConfig::kindName(BackendKind kind) {
         return QStringLiteral("DeepSeek");
     case BackendKind::Groq:
         return QStringLiteral("Groq");
+    case BackendKind::OpenRouter:
+        return QStringLiteral("OpenRouter");
     }
     return QStringLiteral("Unknown");
 }
@@ -56,6 +58,8 @@ QString BackendConfig::kindKey(BackendKind kind) {
         return QStringLiteral("deepseek");
     case BackendKind::Groq:
         return QStringLiteral("groq");
+    case BackendKind::OpenRouter:
+        return QStringLiteral("openrouter");
     }
     return {};
 }
@@ -73,6 +77,7 @@ BackendKind BackendConfig::kindFromString(const QString &key) {
         {QStringLiteral("qwen"), BackendKind::Qwen},
         {QStringLiteral("deepseek"), BackendKind::DeepSeek},
         {QStringLiteral("groq"), BackendKind::Groq},
+        {QStringLiteral("openrouter"), BackendKind::OpenRouter},
     };
     return map.value(key, BackendKind::Ollama);
 }
@@ -101,6 +106,8 @@ QString BackendConfig::kindDescription(BackendKind kind) {
         return QStringLiteral("DeepSeek API (OpenAI-compatible)");
     case BackendKind::Groq:
         return QStringLiteral("Groq API (OpenAI-compatible)");
+    case BackendKind::OpenRouter:
+        return QStringLiteral("OpenRouter API (OpenAI-compatible access to many models)");
     }
     return {};
 }
@@ -129,6 +136,8 @@ QString BackendConfig::defaultBaseUrl(BackendKind kind) {
         return QStringLiteral("https://api.deepseek.com/v1");
     case BackendKind::Groq:
         return QStringLiteral("https://api.groq.com/openai/v1");
+    case BackendKind::OpenRouter:
+        return QStringLiteral("https://openrouter.ai/api/v1");
     }
     return {};
 }
@@ -147,6 +156,7 @@ bool BackendConfig::isCloud(BackendKind kind) {
     case BackendKind::Qwen:
     case BackendKind::DeepSeek:
     case BackendKind::Groq:
+    case BackendKind::OpenRouter:
         return true;
     }
     return false;
@@ -158,9 +168,10 @@ bool BackendConfig::requiresApiKey(BackendKind kind) {
 
 const QVector<BackendKind> &BackendConfig::allKinds() {
     static const QVector<BackendKind> kinds{
-        BackendKind::Ollama,    BackendKind::LlamaCpp, BackendKind::Vllm,    BackendKind::OpenAi,
-        BackendKind::Anthropic, BackendKind::Gemini,   BackendKind::Mistral, BackendKind::Zai,
-        BackendKind::Qwen,      BackendKind::DeepSeek, BackendKind::Groq,
+        BackendKind::Ollama,   BackendKind::LlamaCpp,  BackendKind::Vllm,
+        BackendKind::OpenAi,   BackendKind::Anthropic, BackendKind::Gemini,
+        BackendKind::Mistral,  BackendKind::Zai,       BackendKind::Qwen,
+        BackendKind::DeepSeek, BackendKind::Groq,      BackendKind::OpenRouter,
     };
     return kinds;
 }

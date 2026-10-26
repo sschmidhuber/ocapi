@@ -15,6 +15,7 @@
 #include <QSplitter>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QVector>
 #include <algorithm>
 
 namespace ocapi {
@@ -35,9 +36,16 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
     auto *formLayout = new QFormLayout(formWidget);
     formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     m_kindCombo = new QComboBox(formWidget);
-    for (auto kind : BackendConfig::allKinds()) {
-        m_kindCombo->addItem(BackendConfig::kindName(kind),
-                             QVariant::fromValue(static_cast<int>(kind)));
+    {
+        // Show the providers sorted alphabetically by their display name.
+        QVector<BackendKind> kinds = BackendConfig::allKinds();
+        std::ranges::sort(kinds, [](BackendKind a, BackendKind b) {
+            return BackendConfig::kindName(a).localeAwareCompare(BackendConfig::kindName(b)) < 0;
+        });
+        for (auto kind : kinds) {
+            m_kindCombo->addItem(BackendConfig::kindName(kind),
+                                 QVariant::fromValue(static_cast<int>(kind)));
+        }
     }
     m_nameEdit = new QLineEdit(formWidget);
     m_urlEdit = new QLineEdit(formWidget);

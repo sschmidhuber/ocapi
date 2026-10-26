@@ -20,8 +20,10 @@ private slots:
 
 void TestBackendConfig::kindNameIsUniqueAndNonEmpty() {
     const QList<BackendKind> kinds{
-        BackendKind::Ollama,    BackendKind::LlamaCpp, BackendKind::Vllm,    BackendKind::OpenAi,
-        BackendKind::Anthropic, BackendKind::Gemini,   BackendKind::Mistral,
+        BackendKind::Ollama,   BackendKind::LlamaCpp,  BackendKind::Vllm,
+        BackendKind::OpenAi,   BackendKind::Anthropic, BackendKind::Gemini,
+        BackendKind::Mistral,  BackendKind::Zai,       BackendKind::Qwen,
+        BackendKind::DeepSeek, BackendKind::Groq,      BackendKind::OpenRouter,
     };
     QSet<QString> names;
     for (const auto kind : kinds) {
@@ -36,8 +38,10 @@ void TestBackendConfig::kindNameIsUniqueAndNonEmpty() {
 
 void TestBackendConfig::kindDescriptionIsNonEmpty() {
     const QList<BackendKind> kinds{
-        BackendKind::Ollama,    BackendKind::LlamaCpp, BackendKind::Vllm,    BackendKind::OpenAi,
-        BackendKind::Anthropic, BackendKind::Gemini,   BackendKind::Mistral,
+        BackendKind::Ollama,   BackendKind::LlamaCpp,  BackendKind::Vllm,
+        BackendKind::OpenAi,   BackendKind::Anthropic, BackendKind::Gemini,
+        BackendKind::Mistral,  BackendKind::Zai,       BackendKind::Qwen,
+        BackendKind::DeepSeek, BackendKind::Groq,      BackendKind::OpenRouter,
     };
     for (const auto kind : kinds)
         QVERIFY2(
@@ -48,8 +52,10 @@ void TestBackendConfig::kindDescriptionIsNonEmpty() {
 
 void TestBackendConfig::defaultBaseUrlIsValidHttpUrl() {
     const QList<BackendKind> kinds{
-        BackendKind::Ollama,    BackendKind::LlamaCpp, BackendKind::Vllm,    BackendKind::OpenAi,
-        BackendKind::Anthropic, BackendKind::Gemini,   BackendKind::Mistral,
+        BackendKind::Ollama,   BackendKind::LlamaCpp,  BackendKind::Vllm,
+        BackendKind::OpenAi,   BackendKind::Anthropic, BackendKind::Gemini,
+        BackendKind::Mistral,  BackendKind::Zai,       BackendKind::Qwen,
+        BackendKind::DeepSeek, BackendKind::Groq,      BackendKind::OpenRouter,
     };
     for (const auto kind : kinds) {
         const QUrl url(BackendConfig::defaultBaseUrl(kind));
@@ -83,6 +89,11 @@ void TestBackendConfig::everyKindHasMatchingRoundTripName() {
     QCOMPARE(BackendConfig::kindName(BackendKind::Qwen), QStringLiteral("Alibaba Qwen"));
     QCOMPARE(BackendConfig::kindName(BackendKind::DeepSeek), QStringLiteral("DeepSeek"));
     QCOMPARE(BackendConfig::kindName(BackendKind::Groq), QStringLiteral("Groq"));
+    QCOMPARE(BackendConfig::kindName(BackendKind::OpenRouter), QStringLiteral("OpenRouter"));
+    QCOMPARE(BackendConfig::kindKey(BackendKind::OpenRouter), QStringLiteral("openrouter"));
+    QCOMPARE(BackendConfig::kindFromString(QStringLiteral("openrouter")), BackendKind::OpenRouter);
+    QCOMPARE(BackendConfig::defaultBaseUrl(BackendKind::OpenRouter),
+             QStringLiteral("https://openrouter.ai/api/v1"));
 }
 
 void TestBackendConfig::cloudKindsDoNotRequireBaseUrl() {
@@ -97,6 +108,7 @@ void TestBackendConfig::cloudKindsDoNotRequireBaseUrl() {
     QVERIFY(BackendConfig::isCloud(BackendKind::OpenAi));
     QVERIFY(BackendConfig::isCloud(BackendKind::Zai));
     QVERIFY(BackendConfig::isCloud(BackendKind::Qwen));
+    QVERIFY(BackendConfig::isCloud(BackendKind::OpenRouter));
     QVERIFY(!BackendConfig::isCloud(BackendKind::Ollama));
     QVERIFY(!BackendConfig::isCloud(BackendKind::LlamaCpp));
     QVERIFY(!BackendConfig::isCloud(BackendKind::Vllm));
@@ -113,7 +125,7 @@ void TestBackendConfig::effectiveBaseUrlPrefersUserValue() {
 
 void TestBackendConfig::allKindsAreKnown() {
     const auto kinds = BackendConfig::allKinds();
-    QVERIFY(kinds.size() >= 11);
+    QVERIFY(kinds.size() >= 12);
     for (const auto kind : kinds) {
         QVERIFY2(!BackendConfig::kindName(kind).isEmpty(), "every kind has a name");
         QVERIFY2(!BackendConfig::defaultBaseUrl(kind).isEmpty(), "every kind has a default URL");

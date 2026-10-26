@@ -21,6 +21,7 @@ machines.
 | Anthropic (Claude) | Messages API | `https://api.anthropic.com/v1` |
 | Google Gemini | generateContent API | `https://generativelanguage.googleapis.com/v1beta` |
 | Mistral AI | OpenAI-compatible | `https://api.mistral.ai/v1` |
+| OpenRouter | OpenAI-compatible | `https://openrouter.ai/api/v1` |
 
 Any OpenAI-compatible server (LM Studio, LocalAI, text-generation-webui with
 the OpenAI extension, …) can be added as an "OpenAI" backend by setting its

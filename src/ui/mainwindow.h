@@ -77,6 +77,9 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
 
+protected:
+    void showEvent(QShowEvent *event) override;
+
 private slots:
     void onNewChat();
     void onSessionSelected(const QUuid &id);

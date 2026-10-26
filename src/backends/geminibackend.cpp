@@ -82,7 +82,11 @@ void GeminiBackend::listModels() {
 
 void GeminiBackend::sendMessage(ChatSession *session, const QString &model) {
     cancel();
-    m_currentMessageId = session->appendMessage(Role::Assistant).id;
+    // The assistant message is streaming from the moment it exists: the
+    // reply is being generated even before the first token arrives (reasoning
+    // models can think for a long time), and the chat must not yet show the
+    // copy button that belongs to a finished message.
+    m_currentMessageId = session->appendMessage(Role::Assistant, {}, true).id;
     m_accumulated.clear();
 
     QString systemPrompt;

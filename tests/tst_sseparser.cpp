@@ -1,5 +1,6 @@
 #include "backends/sseparser.h"
 
+#include <QJsonDocument>
 #include <QtTest>
 
 using namespace ocapi;
@@ -32,6 +33,10 @@ private slots:
     void parseReturnsNulloptForCommentOnlyBlock();
     void parseReturnsNulloptWhenOnlyEventNoData();
     void endToEndTypicalOpenAiStream();
+    void ndjsonExtractsCompleteRecords();
+    void ndjsonLeavesIncompleteRecordInBuffer();
+    void ndjsonHandlesCrLfTerminators();
+    void endToEndTypicalOllamaNdjsonStream();
 };
 
 void TestSseParser::extractSingleCompleteEvent() {
@@ -278,6 +283,56 @@ void TestSseParser::endToEndBomPrefixedStreamKeepsFirstEvent() {
              QByteArray("{\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}"));
     QCOMPARE(received.at(1).data,
              QByteArray("{\"choices\":[{\"delta\":{\"content\":\" there\"}}]}"));
+}
+
+void TestSseParser::ndjsonExtractsCompleteRecords() {
+    QByteArray buffer = QByteArrayLiteral("{\"a\":1}\n{\"a\":2}\n{\"a\":3}\n");
+    const auto records = extractCompleteNdjsonRecords(buffer);
+    QCOMPARE(records.size(), 3);
+    QCOMPARE(records.at(0), QByteArray("{\"a\":1}"));
+    QCOMPARE(records.at(1), QByteArray("{\"a\":2}"));
+    QCOMPARE(records.at(2), QByteArray("{\"a\":3}"));
+    QVERIFY(buffer.isEmpty());
+}
+
+void TestSseParser::ndjsonLeavesIncompleteRecordInBuffer() {
+    QByteArray buffer = QByteArrayLiteral("{\"a\":1}\n{\"a\":");
+    const auto records = extractCompleteNdjsonRecords(buffer);
+    QCOMPARE(records.size(), 1);
+    QCOMPARE(records.first(), QByteArray("{\"a\":1}"));
+    QCOMPARE(buffer, QByteArray("{\"a\":"));
+}
+
+void TestSseParser::ndjsonHandlesCrLfTerminators() {
+    QByteArray buffer = QByteArrayLiteral("{\"a\":1}\r\n{\"a\":2}\r\n");
+    const auto records = extractCompleteNdjsonRecords(buffer);
+    QCOMPARE(records.size(), 2);
+    QCOMPARE(records.at(0), QByteArray("{\"a\":1}"));
+    QCOMPARE(records.at(1), QByteArray("{\"a\":2}"));
+    QVERIFY(buffer.isEmpty());
+}
+
+void TestSseParser::endToEndTypicalOllamaNdjsonStream() {
+    // Ollama streams one JSON object per line, with no blank-line event
+    // separator (as observed in the sse-debug log of a real qwen3.5 chat).
+    QByteArray buffer;
+    QList<QByteArray> received;
+    buffer.append(QByteArrayLiteral("{\"message\":{\"role\":\"assistant\",\"content\":\"He\"}}\n"));
+    buffer.append(QByteArrayLiteral(
+        "{\"message\":{\"role\":\"assistant\",\"content\":\"llo\"},\"done\":true}\n"));
+    for (const auto &raw : extractCompleteNdjsonRecords(buffer)) {
+        if (!raw.trimmed().isEmpty())
+            received.append(raw.trimmed());
+    }
+    QCOMPARE(received.size(), 2);
+    QVERIFY(QJsonDocument::fromJson(received.at(0))
+                .object()
+                .value(QStringLiteral("message"))
+                .toObject()
+                .value(QStringLiteral("content"))
+                .toString() == QStringLiteral("He"));
+    QVERIFY(
+        QJsonDocument::fromJson(received.at(1)).object().value(QStringLiteral("done")).toBool());
 }
 
 QTEST_GUILESS_MAIN(TestSseParser)

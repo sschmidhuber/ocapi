@@ -16,6 +16,11 @@ struct SseEvent {
 // contain only the remaining incomplete trailing data.
 [[nodiscard]] QList<QByteArray> extractCompleteEvents(QByteArray &buffer);
 
+// Extracts complete newline-delimited JSON records from \a buffer. Each
+// record ends at a line terminator (CRLF, LF or a lone CR). The buffer is
+// modified in place to contain only the remaining incomplete trailing data.
+[[nodiscard]] QList<QByteArray> extractCompleteNdjsonRecords(QByteArray &buffer);
+
 // Parses a single raw SSE event block (without the terminating blank line)
 // into an event name and data payload. Returns std::nullopt when the block
 // carries no data (e.g. comment-only / heartbeat blocks).

@@ -61,11 +61,11 @@ private:
 
         QByteArray body;
         for (const QString &event : m_events) {
-            body += "data: " + event.toUtf8() + "\n\n";
+            body += event.toUtf8() + "\n";
         }
         QByteArray response;
         response += "HTTP/1.1 200 OK\r\n";
-        response += "Content-Type: text/event-stream\r\n";
+        response += "Content-Type: application/x-ndjson\r\n";
         response += "Content-Length: " + QByteArray::number(body.size()) + "\r\n";
         response += "\r\n";
         response += body;

@@ -90,6 +90,7 @@ bool SttStreamClient::start(int sampleRate) {
     m_accumulated.clear();
     m_closing = false;
     m_failed = false;
+    m_finalEmitted = false;
     m_sessionCreated = false;
 
     m_socket = new QWebSocket(QString(), QWebSocketProtocol::VersionLatest, this);
@@ -212,6 +213,7 @@ void SttStreamClient::onTextMessageReceived(const QString &message) {
             emit intermediateTranscription(m_accumulated);
         } else if (type == QLatin1String("conversation.item.input_audio_transcription.completed")) {
             m_accumulated = event.value(QStringLiteral("transcript")).toString();
+            m_finalEmitted = true;
             emit transcriptionUpdated(m_accumulated);
             m_socket->close();
         }
@@ -224,14 +226,19 @@ void SttStreamClient::onTextMessageReceived(const QString &message) {
         emit intermediateTranscription(m_accumulated);
     } else if (type == QLatin1String("transcription.done")) {
         m_accumulated = event.value(QStringLiteral("text")).toString(m_accumulated);
+        m_finalEmitted = true;
         emit transcriptionUpdated(m_accumulated);
         m_socket->close();
     }
 }
 
 void SttStreamClient::emitAccumulated() {
-    if (!m_failed)
+    // The final transcript is emitted exactly once: either by the done event
+    // or, when the provider closes without one, here on disconnect.
+    if (!m_failed && !m_finalEmitted) {
+        m_finalEmitted = true;
         emit transcriptionUpdated(m_accumulated);
+    }
 }
 
 } // namespace ocapi

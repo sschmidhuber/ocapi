@@ -56,6 +56,9 @@ private:
     int m_sampleRate = 16000;
     bool m_closing = false;
     bool m_failed = false;
+    // True once the final transcript was emitted; the disconnect handler
+    // must not emit it a second time (duplicated dictated text).
+    bool m_finalEmitted = false;
     // Mistral's session.update must wait for the session.created event.
     bool m_sessionCreated = false;
 };

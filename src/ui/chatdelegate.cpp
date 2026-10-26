@@ -528,9 +528,10 @@ void paintFileChips(QPainter *painter, const QStyleOptionViewItem &option,
 }
 
 // Spinner phase (degrees) for the animated progress indicators; derived
-// from elapsed time so every repaint advances the rotation.
+// from elapsed time so every repaint advances the rotation. Qt arc angles
+// are counter-clockwise, so the phase is negated to spin clockwise.
 int spinnerPhase() {
-    return static_cast<int>((QDateTime::currentMSecsSinceEpoch() / 16) % 360);
+    return -static_cast<int>((QDateTime::currentMSecsSinceEpoch() / 8) % 360);
 }
 
 // Paints a spinning arc into \p rect with the given rotation phase.

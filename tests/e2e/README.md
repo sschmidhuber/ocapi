@@ -15,7 +15,13 @@ the Linux accessibility API, never through pixel comparison.
    against the mock server (visible in the model picker's button text).
 3. **Chat** — a message typed into the composer is sent, and the mock
    backend's reply streams back into the chat view.
-4. **MCP setup and tool usage** — the seeded mock MCP server connects and
+4. **Reasoning model** — a message containing the word "reasoning" makes
+   the mock backend answer like a reasoning-capable model: it first streams
+   `thinking` content parts, then the first visible token as a typed
+   content-part array, then plain string content (the wire shape observed
+   from GLM reasoning models). The complete answer must appear in the chat
+   and the reasoning must not leak into it.
+5. **MCP setup and tool usage** — the seeded mock MCP server connects and
    offers its `echo` tool (status bar shows "MCP: 1 tool(s)"). A chat
    message with a trigger phrase makes the mock backend request the tool;
    ocapi runs it against the mock MCP server, feeds the result back to the
@@ -36,7 +42,11 @@ populates rather than through the menu.
 the Ollama API ocapi uses:
 
 - `GET /api/tags` — reports a single `mock-model`
-- `POST /api/chat` — streams a fixed reply as Server-Sent Events
+- `POST /api/chat` — streams a fixed reply as Server-Sent Events; when the
+  last user message contains the trigger words, it simulates tool calling
+  ("use the tool") or a reasoning model's wire format ("reasoning":
+  thinking parts, then a content-part array for the first visible token,
+  then plain strings)
 
 The test run sets `OCAPI_E2E_MOCK_BACKEND=1`, which makes ocapi pre-seed a
 "Mock backend" entry pointing at the mock server

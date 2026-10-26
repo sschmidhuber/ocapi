@@ -37,6 +37,8 @@ from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.support.ui import WebDriverWait
 
 REPLY_TEXT = "Hello from the mock backend!"
+REASONING_REPLY_TEXT = "Hello from the reasoning mock! I thought about it first."
+THINKING_TEXT = "The user greets me, so I should greet back."
 TOOL_REPLY_TEXT = "The tool says: echo: Hello from the MCP tool!"
 
 
@@ -105,8 +107,25 @@ class OcapiE2E(unittest.TestCase):
 
         self.wait_for("//*[contains(@name, '%s')]" % REPLY_TEXT, timeout=30)
 
+    def test_04_reasoning_model(self):
+        # A reasoning-capable model streams "thinking" content parts before
+        # the visible answer, and its first visible token arrives as a typed
+        # content-part array (the wire shape observed from GLM reasoning
+        # models). The reply must appear complete and must not leak any
+        # reasoning text into the chat.
+        composer = self.find_by_name("Message input")
+        composer.send_keys("Please answer with reasoning.")
+        self.find_by_name("Send").click()
 
-    def test_04_mcp_tool_roundtrip(self):
+        # The complete visible answer streams in...
+        self.wait_for("//*[contains(@name, '%s')]" % REASONING_REPLY_TEXT, timeout=60)
+        # ...and the thinking text never leaks into the chat: the reply's
+        # accessible name is the full message text, so the reasoning must not
+        # appear in it.
+        reply = self.find_by_xpath("//*[contains(@name, '%s')]" % REASONING_REPLY_TEXT)
+        self.assertNotIn(THINKING_TEXT, reply.text)
+
+    def test_05_mcp_tool_roundtrip(self):
         # The seeded mock MCP server connected on startup and offered its
         # echo tool (status bar: "MCP: 1 tool(s)"). A chat message with the
         # trigger phrase makes the mock backend request the tool; ocapi runs

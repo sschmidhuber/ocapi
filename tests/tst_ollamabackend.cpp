@@ -97,6 +97,7 @@ class TestOllamaBackend : public QObject {
 private slots:
     void supportsToolsAndAcceptsTools();
     void sendMessageStreamsText();
+    void sendMessageReasoningModelParts();
     void sendMessageEmitsToolCalls();
     void toolCallsIncludedInConversationHistory();
     void toolsSentOnlyWhenEnabled();
@@ -136,6 +137,37 @@ void TestOllamaBackend::sendMessageStreamsText() {
     QCOMPARE(accumulated, QStringLiteral("Hi there"));
     QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
     QVERIFY(m_server.lastRequest().contains(QStringLiteral("model")));
+}
+
+void TestOllamaBackend::sendMessageReasoningModelParts() {
+    // Reasoning-capable models stream "thinking" content parts first, then
+    // the first visible token as a typed content-part array, then plain
+    // string content (the wire shape observed from GLM reasoning models).
+    // The first visible token must not be dropped and the thinking text
+    // must not leak into the accumulated reply.
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":""}})"),
+         QStringLiteral(
+             R"({"message":{"role":"assistant","content":[{"type":"thinking","thinking":[{"type":"text","text":"Let me think"}],"closed":true}]}})"),
+         QStringLiteral(
+             R"({"message":{"role":"assistant","content":[{"type":"text","text":"Hello"}]}})"),
+         QStringLiteral(
+             R"({"message":{"role":"assistant","content":" from the reasoning mock!"},"done":true})")});
+
+    OllamaBackend backend(ollamaConfig(m_server.port()));
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("answer with reasoning"));
+    QSignalSpy tokenSpy(&backend, &IBackend::tokenReceived);
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+
+    QVERIFY(tokenSpy.wait(10000));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+    const QString accumulated = tokenSpy.last().at(1).toString();
+    QCOMPARE(accumulated, QStringLiteral("Hello from the reasoning mock!"));
+    QVERIFY(!accumulated.contains(QLatin1String("Let me think")));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
 }
 
 void TestOllamaBackend::sendMessageEmitsToolCalls() {

@@ -10,6 +10,7 @@
 #include "ui/sidebar.h"
 
 #include <QDateTime>
+#include <QDebug>
 #include <QDir>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -878,6 +879,9 @@ void MainWindow::connectStreamingSignals(IBackend *backend) const {
 }
 
 void MainWindow::onTokenReceived(const QUuid &messageId, const QString &text) {
+    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_SSE"))
+        qWarning().noquote() << "[ocapi debug] tokenReceived" << messageId.toString()
+                             << "len:" << text.size() << "text:" << text.left(200);
     if (messageId == m_streamedMessageId) {
         ++m_streamedTokens;
         if (!m_firstToken.isValid())
@@ -893,6 +897,9 @@ void MainWindow::onTokenReceived(const QUuid &messageId, const QString &text) {
 
 void MainWindow::onStreamFinished(const QUuid &messageId) {
     const QString content = messageContent(messageId);
+    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_SSE"))
+        qWarning().noquote() << "[ocapi debug] streamFinished" << messageId.toString()
+                             << "len:" << content.size() << "content:" << content.left(300);
     if (m_currentSession)
         m_currentSession->updateMessage(messageId, content, false);
     if (m_ttsRegistry.speakResponses())

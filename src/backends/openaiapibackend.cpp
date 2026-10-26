@@ -1,10 +1,13 @@
 #include "backends/openaiapibackend.h"
+#include "backends/contentparts.h"
 #include "backends/sseclient.h"
 #include "core/chatsession.h"
 
+#include <QDebug>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonParseError>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -186,17 +189,34 @@ void OpenAiApiBackend::sendMessage(ChatSession *session, const QString &model) {
         QJsonDocument(payload).toJson(QJsonDocument::Compact));
 }
 
+namespace {
+
+QString contentText(const QJsonObject &delta) {
+    return ocapiContentText(delta.value(QStringLiteral("content")));
+}
+
+} // namespace
+
 void OpenAiApiBackend::onStreamEvent(const QByteArray &data) {
     const QString text = QString::fromUtf8(data);
     if (text == QStringLiteral("[DONE]"))
         return;
-    const auto object = QJsonDocument::fromJson(data).object();
+    QJsonParseError parseError;
+    const auto doc = QJsonDocument::fromJson(data, &parseError);
+    if (parseError.error != QJsonParseError::NoError) {
+        // Malformed events would otherwise be dropped silently, hiding stream
+        // corruption from the user (e.g. the first tokens of a reply).
+        qWarning() << "OpenAI-compatible stream: JSON parse error at offset" << parseError.offset
+                   << ":" << parseError.errorString() << "in" << data;
+        return;
+    }
+    const auto object = doc.object();
     const auto choices = object.value(QStringLiteral("choices")).toArray();
     if (choices.isEmpty())
         return;
     const auto choice = choices.first().toObject();
     const auto delta = choice.value(QStringLiteral("delta")).toObject();
-    const QString token = delta.value(QStringLiteral("content")).toString();
+    const QString token = contentText(delta);
     if (!token.isEmpty()) {
         m_accumulated.append(token);
         emit tokenReceived(m_currentMessageId, m_accumulated);

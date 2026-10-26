@@ -1,4 +1,5 @@
 #include "backends/ollamabackend.h"
+#include "backends/contentparts.h"
 #include "backends/sseclient.h"
 #include "core/chatsession.h"
 
@@ -157,7 +158,9 @@ void OllamaBackend::onStreamEvent(const QByteArray &data) {
         return;
     }
 
-    const QString token = message.value(QStringLiteral("content")).toString();
+    // Reasoning-capable models can stream "content" as an array of typed
+    // parts (thinking/text); ocapiContentText() keeps only the visible text.
+    const QString token = ocapiContentText(message.value(QStringLiteral("content")));
     m_accumulated.append(token);
     emit tokenReceived(m_currentMessageId, m_accumulated);
     if (object.value(QStringLiteral("done")).toBool())

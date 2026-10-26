@@ -18,6 +18,13 @@
 # server; the next round (with the tool result in the conversation) streams
 # a plain text reply again.
 #
+# Reasoning simulation: when the last user message contains the word
+# "reasoning", the mock answers the way reasoning-capable models stream
+# through OpenAI-compatible surfaces (as observed from Z.ai's GLM models):
+# first "thinking" content parts, then the first visible token as a
+# {"type":"text"} content part array, and the rest as plain string content.
+# ocapi must keep the visible text and drop the reasoning.
+#
 # Anything else returns 404. No dependencies beyond the Python standard
 # library; used only for local tests and CI end-to-end runs.
 
@@ -28,9 +35,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MODEL_NAME = "mock-model"
 REPLY_TEXT = "Hello from the mock backend!"
+REASONING_REPLY_TEXT = "Hello from the reasoning mock! I thought about it first."
+THINKING_TEXT = "The user greets me, so I should greet back."
 TOOL_REPLY_TEXT = "The tool says: echo: Hello from the MCP tool!"
 TOOL_NAME = "Mock MCP__echo"
 TOOL_TRIGGER = "use the tool"
+REASONING_TRIGGER = "reasoning"
 
 
 class OllamaMockHandler(BaseHTTPRequestHandler):
@@ -90,6 +100,9 @@ class OllamaMockHandler(BaseHTTPRequestHandler):
                         "done": True})
             self.wfile.write(b"0\r\n\r\n")
             return
+        elif self._wants_reasoning(request):
+            self._stream_reasoning_reply(send_event)
+            return
         else:
             reply = REPLY_TEXT
         for token in reply.split(" "):
@@ -101,6 +114,43 @@ class OllamaMockHandler(BaseHTTPRequestHandler):
                     "message": {"role": "assistant", "content": ""},
                     "done": True})
         self.wfile.write(b"0\r\n\r\n")
+
+    def _stream_reasoning_reply(self, send_event):
+        # Wire shape of a reasoning model: thinking parts first, then the
+        # first visible token as a content-parts array, then plain strings.
+        send_event({"model": MODEL_NAME,
+                    "message": {"role": "assistant", "content": ""},
+                    "done": False})
+        for segment in THINKING_TEXT.split(" "):
+            send_event({"model": MODEL_NAME,
+                        "message": {"role": "assistant",
+                                    "content": [{"type": "thinking",
+                                                 "thinking": [{"type": "text",
+                                                               "text": segment + " "}],
+                                                 "closed": True}]},
+                    "done": False})
+            time.sleep(0.05)
+        tokens = REASONING_REPLY_TEXT.split(" ")
+        # First visible token as a typed content-part array.
+        send_event({"model": MODEL_NAME,
+                    "message": {"role": "assistant",
+                                "content": [{"type": "text", "text": tokens[0]}]},
+                    "done": False})
+        time.sleep(0.05)
+        # Remaining tokens as plain string content.
+        for token in tokens[1:]:
+            send_event({"model": MODEL_NAME,
+                        "message": {"role": "assistant", "content": " " + token},
+                        "done": False})
+            time.sleep(0.05)
+        send_event({"model": MODEL_NAME,
+                    "message": {"role": "assistant", "content": ""},
+                    "done": True})
+        self.wfile.write(b"0\r\n\r\n")
+
+    @staticmethod
+    def _wants_reasoning(request):
+        return REASONING_TRIGGER in OllamaMockHandler._last_user_message(request).lower()
 
     @staticmethod
     def _last_user_message(request):

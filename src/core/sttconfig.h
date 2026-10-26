@@ -1,9 +1,12 @@
 #pragma once
 
+#include "core/backendconfig.h"
+
 #include <QJsonObject>
 #include <QString>
 #include <QUuid>
 #include <QVector>
+#include <optional>
 
 namespace ocapi {
 
@@ -38,6 +41,12 @@ struct SttServiceConfig {
     [[nodiscard]] static bool isCloud(SttServiceKind kind);
     [[nodiscard]] static bool requiresApiKey(SttServiceKind kind);
     [[nodiscard]] static const QVector<SttServiceKind> &allKinds();
+    // Kinds offered for new services: every kind, except the non-streaming
+    // variants of providers that also offer a streaming (WebSocket) API.
+    [[nodiscard]] static QVector<SttServiceKind> selectableKinds();
+    // The LLM provider that shares this STT provider's account/API key,
+    // or std::nullopt when there is no corresponding LLM provider.
+    [[nodiscard]] static std::optional<BackendKind> llmProviderKind(SttServiceKind kind);
     // Clamps a live-chunk duration to the supported range (1-10 s).
     [[nodiscard]] static int clampChunkDurationMs(int ms);
     [[nodiscard]] int effectiveChunkDurationMs() const {

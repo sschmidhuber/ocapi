@@ -169,6 +169,41 @@ const QVector<SttServiceKind> &SttServiceConfig::allKinds() {
     return kinds;
 }
 
+QVector<SttServiceKind> SttServiceConfig::selectableKinds() {
+    // Providers with a streaming (WebSocket) API are offered only in their
+    // streaming variant; the chunked HTTP fallback stays available for the
+    // self-hosted servers (which have no streaming API).
+    QVector<SttServiceKind> kinds;
+    for (const auto kind : allKinds()) {
+        switch (kind) {
+        case SttServiceKind::OpenAiApi:
+        case SttServiceKind::Mistral:
+            continue;
+        default:
+            kinds.push_back(kind);
+            break;
+        }
+    }
+    return kinds;
+}
+
+std::optional<BackendKind> SttServiceConfig::llmProviderKind(SttServiceKind kind) {
+    switch (kind) {
+    case SttServiceKind::OpenAiApi:
+    case SttServiceKind::OpenAiRealtime:
+        return BackendKind::OpenAi;
+    case SttServiceKind::Groq:
+        return BackendKind::Groq;
+    case SttServiceKind::Mistral:
+    case SttServiceKind::MistralRealtime:
+        return BackendKind::Mistral;
+    case SttServiceKind::WhisperApi:
+    case SttServiceKind::WhisperCpp:
+        break;
+    }
+    return std::nullopt;
+}
+
 QJsonObject SttServiceConfig::toJson() const {
     return QJsonObject{
         {QStringLiteral("id"), id.toString(QUuid::WithoutBraces)},

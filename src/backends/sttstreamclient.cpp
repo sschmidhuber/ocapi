@@ -1,4 +1,5 @@
 #include "backends/sttstreamclient.h"
+#include "core/sttdebug.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -15,6 +16,11 @@ namespace {
 // Streaming audio is 16-bit mono PCM at the capture rate; both providers
 // support 16 kHz, so the recorder is configured for it in VoiceInput.
 constexpr int kDefaultSampleRate = 16000;
+
+void debugLog(const QByteArray &line) {
+    if (sttDebug::sttEnabled())
+        sttDebug::log(QStringLiteral("[ocapi STT] %1").arg(QString::fromUtf8(line)));
+}
 
 } // namespace
 
@@ -71,6 +77,8 @@ QByteArray SttStreamClient::sessionUpdateJson(int sampleRate) const {
          QJsonObject{{QStringLiteral("encoding"), QStringLiteral("pcm_s16le")},
                      {QStringLiteral("sample_rate"), sampleRate}}},
     };
+    if (!m_config.language.trimmed().isEmpty())
+        session[QStringLiteral("language")] = m_config.language.trimmed();
     return QJsonDocument(QJsonObject{{QStringLiteral("type"), QStringLiteral("session.update")},
                                      {QStringLiteral("session"), session}})
         .toJson(QJsonDocument::Compact);
@@ -82,6 +90,7 @@ bool SttStreamClient::start(int sampleRate) {
     m_accumulated.clear();
     m_closing = false;
     m_failed = false;
+    m_sessionCreated = false;
 
     m_socket = new QWebSocket(QString(), QWebSocketProtocol::VersionLatest, this);
     connect(m_socket, &QWebSocket::textMessageReceived, this,
@@ -101,21 +110,36 @@ bool SttStreamClient::start(int sampleRate) {
     QNetworkRequest request;
     request.setUrl(sessionUrl());
     request.setRawHeader("Authorization", QByteArray("Bearer ") + m_config.apiKey.toUtf8());
+    if (sttDebug::sttEnabled())
+        debugLog("stream connect: " + sessionUrl().toString().toUtf8());
     m_socket->open(request);
     return true;
 }
 
 void SttStreamClient::onConnected() {
+    // Mistral: the session must be created before it accepts settings; the
+    // OpenAI realtime endpoint accepts the session update immediately.
+    if (m_config.kind == SttServiceKind::MistralRealtime && !m_sessionCreated)
+        return;
+    if (sttDebug::sttEnabled())
+        debugLog("send: " + sessionUpdateJson(m_sampleRate));
     m_socket->sendTextMessage(QString::fromUtf8(sessionUpdateJson(m_sampleRate)));
 }
 
 void SttStreamClient::sendAudio(const QByteArray &pcm) {
     if (!m_socket || m_socket->state() != QAbstractSocket::ConnectedState)
         return;
+    // OpenAI's realtime endpoint buffers via input_audio_buffer.append;
+    // Mistral's realtime protocol appends via input_audio.append.
+    const QString appendType = m_config.kind == SttServiceKind::OpenAiRealtime
+                                   ? QStringLiteral("input_audio_buffer.append")
+                                   : QStringLiteral("input_audio.append");
     QJsonObject message{
-        {QStringLiteral("type"), QStringLiteral("input_audio_buffer.append")},
+        {QStringLiteral("type"), appendType},
         {QStringLiteral("audio"), QString::fromLatin1(pcm.toBase64())},
     };
+    if (sttDebug::sttEnabled())
+        debugLog("send audio: " + QByteArray::number(pcm.size()) + " bytes");
     m_socket->sendTextMessage(
         QString::fromUtf8(QJsonDocument(message).toJson(QJsonDocument::Compact)));
 }
@@ -148,13 +172,30 @@ void SttStreamClient::onErrorOccurred() {
     if (m_failed || !m_socket)
         return;
     m_failed = true;
+    debugLog("stream error: " + m_socket->errorString().toUtf8());
     emit error(m_socket->errorString());
     m_socket->abort();
 }
 
 void SttStreamClient::onTextMessageReceived(const QString &message) {
+    if (sttDebug::sttEnabled())
+        debugLog("recv: " + message.toUtf8());
     const QJsonObject event = QJsonDocument::fromJson(message.toUtf8()).object();
     const QString type = event.value(QStringLiteral("type")).toString();
+
+    // Mistral: the settings update is only accepted once the session
+    // exists; session.updated echoes the applied settings.
+    if (type == QLatin1String("session.created")) {
+        m_sessionCreated = true;
+        if (m_config.kind == SttServiceKind::MistralRealtime &&
+            m_socket->state() == QAbstractSocket::ConnectedState) {
+            debugLog("send: " + sessionUpdateJson(m_sampleRate));
+            m_socket->sendTextMessage(QString::fromUtf8(sessionUpdateJson(m_sampleRate)));
+        }
+        return;
+    }
+    if (type == QLatin1String("session.updated"))
+        return;
 
     if (type == QLatin1String("error")) {
         const QJsonObject errorObject = event.value(QStringLiteral("error")).toObject();

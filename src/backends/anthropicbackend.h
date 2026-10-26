@@ -23,6 +23,8 @@ public:
     void cancel() override;
 
 private:
+    void onStreamEvent(const QString &eventName, const QByteArray &data);
+
     QNetworkAccessManager *m_nam;
     std::unique_ptr<SseClient> m_stream;
     QNetworkReply *m_modelsReply = nullptr;

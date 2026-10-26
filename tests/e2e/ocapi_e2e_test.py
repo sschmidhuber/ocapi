@@ -111,19 +111,20 @@ class OcapiE2E(unittest.TestCase):
         # A reasoning-capable model streams "thinking" content parts before
         # the visible answer, and its first visible token arrives as a typed
         # content-part array (the wire shape observed from GLM reasoning
-        # models). The reply must appear complete and must not leak any
-        # reasoning text into the chat.
+        # models). The reply must appear complete, the reasoning must stay
+        # out of the visible answer, and it must surface in the collapsed
+        # "Thinking" element (issue #54).
         composer = self.find_by_name("Message input")
         composer.send_keys("Please answer with reasoning.")
         self.find_by_name("Send").click()
 
         # The complete visible answer streams in...
         self.wait_for("//*[contains(@name, '%s')]" % REASONING_REPLY_TEXT, timeout=60)
-        # ...and the thinking text never leaks into the chat: the reply's
-        # accessible name is the full message text, so the reasoning must not
-        # appear in it.
+        # ...and the thinking text appears in the collapsed "Thinking"
+        # element of the same message (the accessible name carries it), but
+        # never inside the visible answer text itself.
         reply = self.find_by_xpath("//*[contains(@name, '%s')]" % REASONING_REPLY_TEXT)
-        self.assertNotIn(THINKING_TEXT, reply.text)
+        self.assertIn(THINKING_TEXT, reply.text)
 
     def test_05_mcp_tool_roundtrip(self):
         # The seeded mock MCP server connected on startup and offered its

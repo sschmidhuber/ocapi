@@ -17,6 +17,8 @@ private slots:
     void extractHandlesLfFollowedByCrLfEvents();
     void extractHandlesCrOnlyTerminators();
     void extractKeepsTrailingCrAwaitingCrlf();
+    void parseIgnoresUtf8BomBeforeFirstField();
+    void endToEndBomPrefixedStreamKeepsFirstEvent();
     void extractEmptyBufferYieldsNothing();
     void parseSimpleDataLine();
     void parseEventAndDataFields();
@@ -243,6 +245,39 @@ void TestSseParser::endToEndTypicalOpenAiStream() {
              QByteArray("{\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}"));
     QCOMPARE(received.at(3).data, QByteArray("[DONE]"));
     QVERIFY(buffer.isEmpty());
+}
+
+void TestSseParser::parseIgnoresUtf8BomBeforeFirstField() {
+    // Some servers/gateways prefix the stream with a UTF-8 BOM. The SSE spec
+    // requires it to be ignored; without handling, the first field name is
+    // corrupted and the entire first event (the reply's first token) is
+    // dropped.
+    const QByteArray raw =
+        QByteArrayLiteral("\xEF\xBB\xBF") + QByteArrayLiteral("data: {\"token\":\"Hi\"}\n");
+    const auto parsed = parseSseEventBlock(raw);
+    QVERIFY(parsed.has_value());
+    QCOMPARE(parsed->event, QByteArray("message"));
+    QCOMPARE(parsed->data, QByteArray("{\"token\":\"Hi\"}"));
+}
+
+void TestSseParser::endToEndBomPrefixedStreamKeepsFirstEvent() {
+    QByteArray buffer;
+    QList<SseEvent> received;
+    buffer.append(
+        QByteArrayLiteral("\xEF\xBB\xBF") +
+        QByteArrayLiteral("data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}\n\n"));
+    buffer.append(
+        QByteArrayLiteral("data: {\"choices\":[{\"delta\":{\"content\":\" there\"}}]}\n\n"));
+    for (const auto &raw : extractCompleteEvents(buffer)) {
+        const auto parsed = parseSseEventBlock(raw);
+        if (parsed)
+            received.append(*parsed);
+    }
+    QCOMPARE(received.size(), 2);
+    QCOMPARE(received.at(0).data,
+             QByteArray("{\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}"));
+    QCOMPARE(received.at(1).data,
+             QByteArray("{\"choices\":[{\"delta\":{\"content\":\" there\"}}]}"));
 }
 
 QTEST_GUILESS_MAIN(TestSseParser)

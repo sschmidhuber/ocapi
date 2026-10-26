@@ -56,9 +56,19 @@ std::optional<SseEvent> parseSseEventBlock(const QByteArray &rawEvent) {
 
     QByteArray event = QStringLiteral("message").toUtf8();
     QByteArray data;
+    // A UTF-8 byte-order mark may precede the first field of the stream; the
+    // SSE spec requires it to be ignored, and some gateways/servers prepend
+    // it. Left in place it corrupts the first field name ("data" becomes
+    // "\xEF\xBB\xBFdata") and the whole first event is dropped.
     const auto lines = rawEvent.split('\n');
+    bool firstLine = true;
     for (const auto &line : lines) {
-        const QByteArray trimmed = line.trimmed();
+        QByteArray trimmed = line.trimmed();
+        if (firstLine) {
+            firstLine = false;
+            if (trimmed.startsWith("\xEF\xBB\xBF"))
+                trimmed.remove(0, 3);
+        }
         if (trimmed.startsWith(':'))
             continue; // comment / heartbeat
         const qsizetype colon = trimmed.indexOf(':');

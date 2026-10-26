@@ -30,6 +30,7 @@ struct StoredMessage {
     QString id;
     QString role;
     QString content;
+    QString reasoning;
     QString error;
     QDateTime timestamp;
     bool streaming = false;
@@ -76,8 +77,11 @@ public:
                        const QString &content, const QDateTime &timestamp,
                        const QVector<ImageAttachment> &images = {},
                        const QVector<FileAttachment> &files = {},
-                       const QVector<ToolCall> &toolCalls = {});
+                       const QVector<ToolCall> &toolCalls = {}, const QString &reasoning = {});
     bool updateMessage(const QString &messageId, const QString &content, bool streaming);
+    // Appends to a message's stored reasoning text without touching the
+    // visible content (the reasoning stream runs before the answer).
+    bool setReasoning(const QString &messageId, const QString &reasoning);
     // Marks one tool call of an assistant message finished and stores its
     // result text (empty for still-running calls).
     bool updateToolCallStatus(const QString &messageId, const QString &toolCallId,

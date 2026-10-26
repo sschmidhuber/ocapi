@@ -85,6 +85,7 @@ void AnthropicBackend::sendMessage(ChatSession *session, const QString &model) {
     // copy button that belongs to a finished message.
     m_currentMessageId = session->appendMessage(Role::Assistant, {}, true).id;
     m_accumulated.clear();
+    m_accumulatedReasoning.clear();
 
     QString systemPrompt;
     QJsonArray messages;
@@ -135,21 +136,7 @@ void AnthropicBackend::sendMessage(ChatSession *session, const QString &model) {
     m_stream = std::make_unique<SseClient>(m_nam, this);
     connect(m_stream.get(), &SseClient::eventReceived, this,
             [this](const QByteArray &event, const QByteArray &data) {
-                const QString eventName = QString::fromUtf8(event);
-                const auto object = QJsonDocument::fromJson(data).object();
-                if (eventName == QStringLiteral("content_block_delta")) {
-                    const QString token = object.value(QStringLiteral("delta"))
-                                              .toObject()
-                                              .value(QStringLiteral("text"))
-                                              .toString();
-                    m_accumulated.append(token);
-                    emit tokenReceived(m_currentMessageId, m_accumulated);
-                } else if (eventName == QStringLiteral("message_stop")) {
-                    emit finished(m_currentMessageId);
-                } else if (eventName == QStringLiteral("error")) {
-                    emit failed(m_currentMessageId,
-                                object.value(QStringLiteral("message")).toString());
-                }
+                onStreamEvent(QString::fromUtf8(event), data);
             });
     connect(m_stream.get(), &SseClient::httpError, this, [this](int, const QByteArray &body) {
         const auto error = QJsonDocument::fromJson(body)
@@ -165,6 +152,28 @@ void AnthropicBackend::sendMessage(ChatSession *session, const QString &model) {
 
     m_stream->post(makeRequest(endpoint(m_config, QStringLiteral("messages")), m_config.apiKey),
                    QJsonDocument(payload).toJson(QJsonDocument::Compact));
+}
+
+void AnthropicBackend::onStreamEvent(const QString &eventName, const QByteArray &data) {
+    const auto object = QJsonDocument::fromJson(data).object();
+    if (eventName == QStringLiteral("content_block_delta")) {
+        const QJsonObject delta = object.value(QStringLiteral("delta")).toObject();
+        // Extended-thinking models stream their reasoning as
+        // thinking_delta events before the answer text arrives.
+        const QString thinking = delta.value(QStringLiteral("thinking")).toString();
+        if (!thinking.isEmpty()) {
+            m_accumulatedReasoning.append(thinking);
+            emit reasoningReceived(m_currentMessageId, m_accumulatedReasoning);
+        }
+        const QString token = delta.value(QStringLiteral("text")).toString();
+        m_accumulated.append(token);
+        if (!token.isEmpty())
+            emit tokenReceived(m_currentMessageId, m_accumulated);
+    } else if (eventName == QStringLiteral("message_stop")) {
+        emit finished(m_currentMessageId);
+    } else if (eventName == QStringLiteral("error")) {
+        emit failed(m_currentMessageId, object.value(QStringLiteral("message")).toString());
+    }
 }
 
 void AnthropicBackend::cancel() {

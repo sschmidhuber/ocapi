@@ -47,6 +47,8 @@ private slots:
     void accessibleTextUpdatesWhenToolCallFinishes();
     void accessibleTextFailedHasFailedWord();
     void newAssistantMessageIsStreamingImmediately();
+    void reasoningRolesExposeStreamAndText();
+    void reasoningClickTogglesExpansion();
     void streamingAssistantShowsNoCopyFooter();
     void clickOnFileChipEmitsOpenFailureForMissingFile();
     void clickOnFileChipOpensExistingFile();
@@ -315,6 +317,41 @@ void TestChatView::attachmentAtMatchesChipGeometry() {
 
 // ChatView is a QWidget, so the test needs a QApplication; force the
 // offscreen platform because the CI test runner has no display server.
+void TestChatView::reasoningRolesExposeStreamAndText() {
+    ChatSession session(QStringLiteral("t"), QStringLiteral("b"));
+    const QUuid id = session.appendMessage(Role::Assistant, {}, true).id;
+    session.updateReasoning(id, QStringLiteral("Thinking..."), true);
+
+    ChatView view;
+    view.setSession(&session);
+    const QModelIndex idx = modelOf(view)->index(0, 0);
+    QCOMPARE(idx.data(static_cast<int>(Qt::UserRole) + 11).toString(),
+             QStringLiteral("Thinking..."));
+    QCOMPARE(idx.data(static_cast<int>(Qt::UserRole) + 12).toBool(), true);
+
+    // Ending the reasoning phase clears the streaming flag in the view too.
+    session.setReasoningStreaming(id, false);
+    QCOMPARE(modelOf(view)->index(0, 0).data(static_cast<int>(Qt::UserRole) + 12).toBool(), false);
+}
+
+void TestChatView::reasoningClickTogglesExpansion() {
+    ChatSession session(QStringLiteral("t"), QStringLiteral("b"));
+    const QUuid id = session.appendMessage(Role::Assistant, {}, true).id;
+    session.updateReasoning(id, QStringLiteral("Chain of thought"), false);
+
+    ChatView view;
+    view.setSession(&session);
+    auto *model = modelOf(view);
+    const QModelIndex idx = model->index(0, 0);
+    QCOMPARE(idx.data(static_cast<int>(Qt::UserRole) + 14).toBool(), false);
+
+    QVERIFY(model->setData(idx, {}, static_cast<int>(Qt::UserRole) + 13));
+    QCOMPARE(model->index(0, 0).data(static_cast<int>(Qt::UserRole) + 14).toBool(), true);
+
+    QVERIFY(model->setData(model->index(0, 0), {}, static_cast<int>(Qt::UserRole) + 13));
+    QCOMPARE(model->index(0, 0).data(static_cast<int>(Qt::UserRole) + 14).toBool(), false);
+}
+
 int main(int argc, char *argv[]) {
     qputenv("QT_QPA_PLATFORM", "offscreen");
     QApplication app(argc, argv);

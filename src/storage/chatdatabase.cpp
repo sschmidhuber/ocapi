@@ -55,6 +55,7 @@ void createTables(QSqlDatabase &database) {
                        "timestamp INTEGER NOT NULL, "
                        "position INTEGER NOT NULL, "
                        "tool_calls TEXT NOT NULL DEFAULT '[]', "
+                       "reasoning TEXT NOT NULL DEFAULT '', "
                        "FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE)"));
     query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS mcp_servers ("
                               "id TEXT PRIMARY KEY NOT NULL, "
@@ -135,6 +136,11 @@ bool ChatDatabase::open(const QString &filePath) {
     // Schema evolution: older databases lack the extracted-text column on
     // attached files.
     pragma.exec(QStringLiteral("ALTER TABLE message_files ADD COLUMN extracted_text TEXT "
+                               "NOT NULL DEFAULT ''"));
+    if (m_database.lastError().isValid() && m_database.lastError().type() != QSqlError::NoError)
+        m_lastError = m_database.lastError().text();
+    // Schema evolution: older databases lack the reasoning column.
+    pragma.exec(QStringLiteral("ALTER TABLE messages ADD COLUMN reasoning TEXT "
                                "NOT NULL DEFAULT ''"));
     if (m_database.lastError().isValid() && m_database.lastError().type() != QSqlError::NoError)
         m_lastError = m_database.lastError().text();
@@ -255,6 +261,7 @@ StoredMessage storedMessageFrom(const QSqlQuery &query) {
     message.timestamp = QDateTime::fromSecsSinceEpoch(query.value(5).toLongLong());
     message.tokensPerSecond = query.value(6).toDouble();
     message.toolCalls = toolCallsFromJson(query.value(7).toString());
+    message.reasoning = query.value(8).toString();
     return message;
 }
 
@@ -505,7 +512,7 @@ QVector<StoredMessage> ChatDatabase::messagesForSession(const QString &sessionId
     QSqlQuery query(m_database);
     if (limit >= 0) {
         query.prepare(QStringLiteral("SELECT id, role, content, streaming, error, timestamp, "
-                                     "tokens_per_second, tool_calls FROM messages "
+                                     "tokens_per_second, tool_calls, reasoning FROM messages "
                                      "WHERE session_id = ? "
                                      "ORDER BY position DESC LIMIT ? OFFSET ?"));
         query.addBindValue(sessionId);
@@ -523,7 +530,8 @@ QVector<StoredMessage> ChatDatabase::messagesForSession(const QString &sessionId
     }
     query.prepare(
         QStringLiteral("SELECT id, role, content, streaming, error, timestamp, tokens_per_second, "
-                       "tool_calls FROM messages WHERE session_id = ? ORDER BY position ASC"));
+                       "tool_calls, reasoning FROM messages WHERE session_id = ? "
+                       "ORDER BY position ASC"));
     query.addBindValue(sessionId);
     if (!query.exec()) {
         m_lastError = query.lastError().text();
@@ -570,7 +578,7 @@ bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messag
                                  const QString &role, const QString &content,
                                  const QDateTime &timestamp, const QVector<ImageAttachment> &images,
                                  const QVector<FileAttachment> &files,
-                                 const QVector<ToolCall> &toolCalls) {
+                                 const QVector<ToolCall> &toolCalls, const QString &reasoning) {
     QSqlQuery position(m_database);
     position.prepare(QStringLiteral("SELECT COALESCE(MAX(position) + 1, 0) FROM messages "
                                     "WHERE session_id = ?"));
@@ -583,8 +591,9 @@ bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messag
         QJsonDocument(toolCallsToJson(toolCalls)).toJson(QJsonDocument::Compact);
     const bool stored =
         execute(QStringLiteral("INSERT INTO messages (id, session_id, role, "
-                               "content, streaming, error, timestamp, position, tool_calls) "
-                               "VALUES (?, ?, ?, ?, 0, '', ?, ?, ?) "
+                               "content, streaming, error, timestamp, position, tool_calls, "
+                               "reasoning) "
+                               "VALUES (?, ?, ?, ?, 0, '', ?, ?, ?, ?) "
                                "ON CONFLICT (id) DO UPDATE SET role = "
                                "excluded.role, content = excluded.content"),
                 {
@@ -595,6 +604,7 @@ bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messag
                     timestamp.isValid() ? timestamp.toSecsSinceEpoch() : 0,
                     position.value(0),
                     toolCallsJson,
+                    nullToEmpty(reasoning),
                 });
     if (!stored)
         return false;
@@ -681,6 +691,11 @@ bool ChatDatabase::updateMessage(const QString &messageId, const QString &conten
     return execute(QStringLiteral("UPDATE messages SET content = ?, streaming = ?, "
                                   "error = '' WHERE id = ?"),
                    {content, streaming ? 1 : 0, messageId});
+}
+
+bool ChatDatabase::setReasoning(const QString &messageId, const QString &reasoning) {
+    return execute(QStringLiteral("UPDATE messages SET reasoning = ? WHERE id = ?"),
+                   {reasoning, messageId});
 }
 
 bool ChatDatabase::updateToolCallStatus(const QString &messageId, const QString &toolCallId,

@@ -39,8 +39,14 @@ signals:
     void attachmentOpenFailed(const QString &error);
     // Fired when the hovered attachment changes; the view repaints the item.
     void hoverChanged();
+    // Fired while an animated spinner is visible (reasoning streaming or a
+    // running tool call); the view repaints so the spinner rotates.
+    void spinnerAnimationChanged();
 
 private:
+    // Starts/stops the animation repaint timer depending on whether the
+    // painted item shows a spinner.
+    void updateSpinnerAnimation(bool spinnerVisible) const;
     // Briefly shows a "Copied" hint on the message that was copied.
     void showCopiedFeedback(const QModelIndex &index);
     // Repaints the item when the hovered attachment changes.
@@ -51,6 +57,11 @@ private:
 
     QPersistentModelIndex m_copiedIndex;
     QTimer m_copiedTimer;
+    // Repeating timer while any spinner is visible; repaints the view so
+    // the spinner keeps rotating.
+    mutable QTimer m_spinnerTimer;
+    // True when the last paint() drew a spinner.
+    mutable bool m_spinnerVisible = false;
     // Index of the attachment (image first, then files) currently hovered,
     // or -1. Combined with the item index to repaint only when it changes.
     QPersistentModelIndex m_hoveredIndex;

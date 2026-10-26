@@ -88,6 +88,7 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model) {
     // copy button that belongs to a finished message.
     m_currentMessageId = session->appendMessage(Role::Assistant, {}, true).id;
     m_accumulated.clear();
+    m_accumulatedReasoning.clear();
 
     QString systemPrompt;
     QJsonArray contents;
@@ -144,32 +145,7 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model) {
 
     m_stream = std::make_unique<SseClient>(m_nam, this);
     connect(m_stream.get(), &SseClient::eventReceived, this,
-            [this](const QByteArray &, const QByteArray &data) {
-                const auto candidates = QJsonDocument::fromJson(data)
-                                            .object()
-                                            .value(QStringLiteral("candidates"))
-                                            .toArray();
-                if (candidates.isEmpty())
-                    return;
-                const auto parts = candidates.first()
-                                       .toObject()
-                                       .value(QStringLiteral("content"))
-                                       .toObject()
-                                       .value(QStringLiteral("parts"))
-                                       .toArray();
-                for (const auto &part : parts) {
-                    const QString token = part.toObject().value(QStringLiteral("text")).toString();
-                    m_accumulated.append(token);
-                }
-                emit tokenReceived(m_currentMessageId, m_accumulated);
-                const bool done = !candidates.first()
-                                       .toObject()
-                                       .value(QStringLiteral("finishReason"))
-                                       .toString()
-                                       .isEmpty();
-                if (done)
-                    emit finished(m_currentMessageId);
-            });
+            [this](const QByteArray &, const QByteArray &data) { onStreamEvent(data); });
     connect(m_stream.get(), &SseClient::httpError, this, [this](int, const QByteArray &body) {
         const auto message = QJsonDocument::fromJson(body)
                                  .object()
@@ -185,6 +161,36 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model) {
             [this]() { emit finished(m_currentMessageId); });
 
     m_stream->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+}
+
+void GeminiBackend::onStreamEvent(const QByteArray &data) {
+    const auto candidates =
+        QJsonDocument::fromJson(data).object().value(QStringLiteral("candidates")).toArray();
+    if (candidates.isEmpty())
+        return;
+    const auto parts = candidates.first()
+                           .toObject()
+                           .value(QStringLiteral("content"))
+                           .toObject()
+                           .value(QStringLiteral("parts"))
+                           .toArray();
+    for (const auto &part : parts) {
+        const QJsonObject partObject = part.toObject();
+        // Thinking models mark their reasoning parts with
+        // "thought": true (Gemini 2.5 stream/body style).
+        if (partObject.value(QStringLiteral("thought")).toBool()) {
+            m_accumulatedReasoning.append(partObject.value(QStringLiteral("text")).toString());
+            emit reasoningReceived(m_currentMessageId, m_accumulatedReasoning);
+            continue;
+        }
+        const QString token = partObject.value(QStringLiteral("text")).toString();
+        m_accumulated.append(token);
+    }
+    emit tokenReceived(m_currentMessageId, m_accumulated);
+    const bool done =
+        !candidates.first().toObject().value(QStringLiteral("finishReason")).toString().isEmpty();
+    if (done)
+        emit finished(m_currentMessageId);
 }
 
 void GeminiBackend::cancel() {

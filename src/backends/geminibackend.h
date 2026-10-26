@@ -23,11 +23,14 @@ public:
     void cancel() override;
 
 private:
+    void onStreamEvent(const QByteArray &data);
+
     QNetworkAccessManager *m_nam;
     std::unique_ptr<SseClient> m_stream;
     QNetworkReply *m_modelsReply = nullptr;
     QUuid m_currentMessageId;
     QString m_accumulated;
+    QString m_accumulatedReasoning;
 };
 
 } // namespace ocapi

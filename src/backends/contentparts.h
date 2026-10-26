@@ -38,4 +38,33 @@ inline QString ocapiContentText(const QJsonValue &content) {
     return text;
 }
 
+// Extracts the reasoning ("thinking") text of a streamed message's
+// "content" field when it arrives as an array of typed parts: reasoning
+// comes as {"type":"thinking"} parts whose "thinking" value is a string
+// or an array of {"type":"text","text":...} segments. Plain-string
+// content carries no reasoning.
+inline QString ocapiContentThinking(const QJsonValue &content) {
+    if (!content.isArray())
+        return {};
+    QString text;
+    const QJsonArray parts = content.toArray();
+    for (const auto &partValue : parts) {
+        const QJsonObject part = partValue.toObject();
+        if (part.value(QStringLiteral("type")).toString() != QStringLiteral("thinking"))
+            continue;
+        const QJsonValue thinkingValue = part.value(QStringLiteral("thinking"));
+        if (thinkingValue.isString()) {
+            text += thinkingValue.toString();
+        } else if (thinkingValue.isArray()) {
+            for (const auto &segment : thinkingValue.toArray()) {
+                const QJsonObject segmentObject = segment.toObject();
+                if (segmentObject.value(QStringLiteral("type")).toString() ==
+                    QStringLiteral("text"))
+                    text += segmentObject.value(QStringLiteral("text")).toString();
+            }
+        }
+    }
+    return text;
+}
+
 } // namespace ocapi

@@ -21,6 +21,7 @@ private slots:
     void loadSessionsReturnsTimestampsOrderedByActivity();
     void lastActivityColumnDefaultsToCreatedAt();
     void insertAndLoadMessages();
+    void reasoningRoundTrip();
     void messageUpdateClearsError();
     void failMessagePersistsError();
     void deleteSessionRemovesMessages();
@@ -117,6 +118,23 @@ void TestChatDatabase::insertAndLoadMessages() {
     QCOMPARE(stored.at(0).content, QStringLiteral("hello"));
     QCOMPARE(stored.at(1).role, QStringLiteral("assistant"));
     QCOMPARE(stored.at(1).content, QStringLiteral("hi"));
+}
+
+void TestChatDatabase::reasoningRoundTrip() {
+    ChatSession session(QStringLiteral("Chat"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+    const auto assistantMsg = session.appendMessage(Role::Assistant, QStringLiteral("answer"));
+    const auto messageId = assistantMsg.id.toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertMessage(sessionId, messageId, assistantMsg.roleName(), assistantMsg.content,
+                               assistantMsg.timestamp, {}, {}, {},
+                               QStringLiteral("chain of thought")));
+
+    // Streaming reasoning updates arrive incrementally.
+    QVERIFY(db().setReasoning(messageId, QStringLiteral("chain of thought, refined")));
+    const auto stored = db().messagesForSession(sessionId);
+    QCOMPARE(stored.size(), 1);
+    QCOMPARE(stored.at(0).reasoning, QStringLiteral("chain of thought, refined"));
 }
 
 void TestChatDatabase::messageUpdateClearsError() {

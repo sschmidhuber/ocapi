@@ -7,9 +7,9 @@
 # work.
 #
 #   GET  /api/tags        -> {"models": [{"name": "mock-model"}, ...]}
-#   POST /api/chat        -> Server-Sent Events (ocapi consumes the stream
-#                            through its SSE client):
-#                            data: {"message": {"role": "assistant", "content": ...}}
+#   POST /api/chat        -> newline-delimited JSON (Ollama's actual stream
+#                            format, one JSON object per line):
+#                            {"message": {"role": "assistant", "content": ...}}
 #                            ... final chunk with "done": true
 #
 # Tool calling: when tools were offered in the request and the last user
@@ -72,13 +72,13 @@ class OllamaMockHandler(BaseHTTPRequestHandler):
         request = json.loads(self.rfile.read(length) or b"{}")
 
         self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Content-Type", "application/x-ndjson")
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Transfer-Encoding", "chunked")
         self.end_headers()
 
         def send_event(payload):
-            event = "data: " + json.dumps(payload) + "\n\n"
+            event = json.dumps(payload) + "\n"
             self._write_chunk(event.encode())
 
         # A tool result already in the conversation means the tool round is

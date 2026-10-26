@@ -14,6 +14,7 @@ class QPushButton;
 
 namespace ocapi {
 
+class BackendRegistry;
 class SttRegistry;
 
 // Embedded settings page for speech-to-text: manage transcription services
@@ -23,7 +24,8 @@ class SttPage : public QWidget {
     Q_OBJECT
 
 public:
-    explicit SttPage(SttRegistry *registry, QWidget *parent = nullptr);
+    explicit SttPage(SttRegistry *registry, BackendRegistry *backendRegistry = nullptr,
+                     QWidget *parent = nullptr);
 
 private slots:
     void onAddService();
@@ -41,10 +43,12 @@ private:
     void populateInputDevices();
     void loadConfigIntoForm(const SttServiceConfig &config);
     void saveFormIntoConfig(SttServiceConfig &config);
-    void updateUrlVisibility();
+    void updateUrlState();
+    [[nodiscard]] QString knownApiKey() const;
     [[nodiscard]] SttServiceKind currentKind() const;
 
     SttRegistry *m_registry;
+    BackendRegistry *m_backendRegistry;
     QListWidget *m_list;
     QLineEdit *m_nameEdit;
     QComboBox *m_kindCombo;
@@ -58,6 +62,7 @@ private:
     QPushButton *m_testButton;
     QLabel *m_testResultLabel;
     bool m_updatingForm = false;
+    bool m_hasSelection = false;
 };
 
 } // namespace ocapi

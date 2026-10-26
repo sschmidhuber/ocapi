@@ -56,6 +56,8 @@ private:
     int m_sampleRate = 16000;
     bool m_closing = false;
     bool m_failed = false;
+    // Mistral's session.update must wait for the session.created event.
+    bool m_sessionCreated = false;
 };
 
 } // namespace ocapi

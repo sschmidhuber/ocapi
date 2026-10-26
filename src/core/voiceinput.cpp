@@ -13,6 +13,20 @@ VoiceInput::VoiceInput(QObject *parent) : QObject(parent) {
 
 void VoiceInput::setService(const SttServiceConfig &config) {
     delete m_client;
+    delete m_streamClient;
+    m_client = nullptr;
+    m_streamClient = nullptr;
+    if (config.isStreaming()) {
+        // Streaming services speak a WebSocket protocol; their wss:// URL
+        // must not go through the HTTP client ("unknown protocol" error).
+        m_streamClient = new SttStreamClient(config, this);
+        connect(m_streamClient, &SttStreamClient::transcriptionUpdated, this,
+                &VoiceInput::transcriptionUpdated);
+        connect(m_streamClient, &SttStreamClient::intermediateTranscription, this,
+                &VoiceInput::intermediateTranscription);
+        connect(m_streamClient, &SttStreamClient::error, this, &VoiceInput::error);
+        return;
+    }
     m_client = new SttClient(config, this);
     connect(m_client, &SttClient::transcriptionUpdated, this, &VoiceInput::transcriptionUpdated);
     connect(m_client, &SttClient::intermediateTranscription, this,

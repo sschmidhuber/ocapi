@@ -37,7 +37,7 @@ public:
 
     [[nodiscard]] const QVector<Message> &messages() const { return m_messages; }
 
-    Message &appendMessage(Role role, const QString &content = {});
+    Message &appendMessage(Role role, const QString &content = {}, bool streaming = false);
     Message &appendMessage(const Message &message);
     void prependMessages(const QVector<Message> &messages);
     void updateMessage(const QUuid &id, const QString &content, bool streaming);

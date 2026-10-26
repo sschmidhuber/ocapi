@@ -131,6 +131,10 @@ void TestOllamaBackend::sendMessageStreamsText() {
     QSignalSpy finishedSpy(&backend, &IBackend::finished);
     backend.sendMessage(&session, QStringLiteral("mock-model"));
 
+    // The assistant message is streaming from the moment the backend creates
+    // it, before any token arrives.
+    QCOMPARE(session.messages().constLast().streaming, true);
+
     QVERIFY(tokenSpy.wait(10000));
     QTRY_COMPARE_WITH_TIMEOUT(tokenSpy.count(), 2, 10000);
     const QString accumulated = tokenSpy.last().at(1).toString();

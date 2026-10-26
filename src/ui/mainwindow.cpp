@@ -187,6 +187,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
         onSessionSelected(m_sessions.first()->id());
 }
 
+void MainWindow::showEvent(QShowEvent *event) {
+    QMainWindow::showEvent(event);
+    // The chat composer is where a conversation starts: focus it on every
+    // show of the main window (first launch and re-show alike) so the user
+    // can start typing immediately.
+    if (m_composer)
+        m_composer->focusInput();
+}
+
 void MainWindow::setupUi() {
     // Plasma-style toolbar across the top: flat buttons with icon and text.
     m_toolBar = addToolBar(tr("Main"));
@@ -197,9 +206,9 @@ void MainWindow::setupUi() {
     m_toolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_newChatButton = new QToolButton(m_toolBar);
     m_newChatButton->setText(tr("New chat"));
-    m_newChatButton->setIcon(QIcon::fromTheme(
-        QStringLiteral("kmouth-phrase-new-symbolic"),
-        QIcon(QString::fromUtf8(":/resources/icons/kmouth-phrase-new-symbolic.svg"))));
+    m_newChatButton->setIcon(
+        QIcon::fromTheme(QStringLiteral("contact-new-symbolic"),
+                         QIcon(QString::fromUtf8(":/resources/icons/contact-new-symbolic.svg"))));
     // Widgets added via addWidget() don't inherit the toolbar's
     // toolButtonStyle; set it explicitly so icon and text both show.
     m_newChatButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);

@@ -35,10 +35,11 @@ void ChatSession::setLastActivityAt(const QDateTime &lastActivityAt) {
         m_lastActivityAt = lastActivityAt;
 }
 
-Message &ChatSession::appendMessage(Role role, const QString &content) {
+Message &ChatSession::appendMessage(Role role, const QString &content, bool streaming) {
     Message message;
     message.role = role;
     message.content = content;
+    message.streaming = streaming;
     m_messages.push_back(message);
     m_lastActivityAt =
         message.timestamp.isValid() ? message.timestamp : QDateTime::currentDateTime();

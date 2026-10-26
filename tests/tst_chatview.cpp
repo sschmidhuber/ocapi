@@ -5,6 +5,7 @@
 #include <QAbstractItemModel>
 #include <QApplication>
 #include <QSignalSpy>
+#include <QStyleOptionViewItem>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -45,6 +46,8 @@ private slots:
     void accessibleTextCombinesToolCallsAndContent();
     void accessibleTextUpdatesWhenToolCallFinishes();
     void accessibleTextFailedHasFailedWord();
+    void newAssistantMessageIsStreamingImmediately();
+    void streamingAssistantShowsNoCopyFooter();
     void clickOnFileChipEmitsOpenFailureForMissingFile();
     void clickOnFileChipOpensExistingFile();
     void clickOutsideAttachmentsDoesNotOpen();
@@ -172,6 +175,44 @@ QPoint fileChipCenter(ChatView &view, const QModelIndex &index) {
 }
 
 } // namespace
+
+void TestChatView::newAssistantMessageIsStreamingImmediately() {
+    // Backends append the assistant message before the first token arrives
+    // (reasoning models can think for a long time). It must be streaming
+    // from the start so the chat shows no copy button during generation.
+    ChatSession session(QStringLiteral("t"), QStringLiteral("b"));
+    const QUuid id = session.appendMessage(Role::Assistant, {}, true).id;
+    QCOMPARE(session.messages().constLast().streaming, true);
+
+    ChatView view;
+    view.setSession(&session);
+    const QModelIndex idx = modelOf(view)->index(0, 0);
+    QCOMPARE(idx.data(static_cast<int>(Qt::UserRole) + 2).toBool(), true);
+}
+
+void TestChatView::streamingAssistantShowsNoCopyFooter() {
+    // The footer (copy button, throughput) is only laid out for assistant
+    // messages that are no longer streaming, and it adds its own row below
+    // the content: the finished item must be taller than the streaming one.
+    ChatSession session(QStringLiteral("t"), QStringLiteral("b"));
+    const QUuid id = session.appendMessage(Role::Assistant, {}, true).id;
+    ChatView view;
+    view.setSession(&session);
+
+    ChatDelegate delegate;
+    QStyleOptionViewItem option;
+    option.rect = QRect(0, 0, 1200, 500);
+    option.font = QApplication::font();
+    const QModelIndex idx = modelOf(view)->index(0, 0);
+
+    session.updateMessage(id, QStringLiteral("A reply being generated."), true);
+    const int streamingHeight = delegate.sizeHint(option, idx).height();
+
+    session.updateMessage(id, QStringLiteral("A reply being generated."), false);
+    const int finishedHeight = delegate.sizeHint(option, idx).height();
+
+    QVERIFY(finishedHeight > streamingHeight);
+}
 
 void TestChatView::clickOnFileChipEmitsOpenFailureForMissingFile() {
     ChatSession session(QStringLiteral("t"), QStringLiteral("b"));

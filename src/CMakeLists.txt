@@ -158,6 +158,7 @@ qt_add_resources(ocapi "ocapi_resources"
         ../resources/icons/document-new-symbolic.svg
         ../resources/icons/configure-symbolic.svg
         ../resources/icons/kmouth-phrase-new-symbolic.svg
+        ../resources/icons/contact-new-symbolic.svg
         ../resources/icons/settings-configure-symbolic.svg
         ../resources/icons/ai_chip.svg
         ../resources/icons/tools.svg

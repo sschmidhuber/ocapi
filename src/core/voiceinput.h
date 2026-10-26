@@ -28,6 +28,9 @@ public:
     void setInputDevice(const QString &deviceId);
 
     [[nodiscard]] bool isActive() const;
+    // True when the configured service speaks the streaming (WebSocket)
+    // protocol instead of the chunked HTTP fallback.
+    [[nodiscard]] bool usesStreaming() const { return m_streamClient != nullptr; }
 
     bool start();
     void stop();
@@ -44,7 +47,6 @@ signals:
 
 private:
     void onSamplesCaptured(const QByteArray &pcm);
-    void connectStreamSignals();
 
     AudioChunker m_chunker;
     AudioRecorder *m_recorder = nullptr;

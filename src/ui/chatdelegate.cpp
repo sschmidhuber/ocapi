@@ -6,6 +6,7 @@
 #include <QAbstractItemView>
 #include <QApplication>
 #include <QClipboard>
+#include <QDateTime>
 #include <QEvent>
 #include <QFileInfo>
 #include <QFontMetrics>
@@ -219,8 +220,7 @@ std::unique_ptr<QTextDocument> messageDocument(const QString &content, bool rend
         QString displayText = content;
         if (streaming && !displayText.isEmpty())
             displayText.append(QChar(0x2588)); // block cursor while streaming
-        doc->setPlainText(displayText.isEmpty() && streaming ? QStringLiteral("\u2026")
-                                                             : displayText);
+        doc->setPlainText(displayText);
         return doc;
     }
     // While streaming, the last line may be an unterminated code fence or
@@ -246,10 +246,8 @@ std::unique_ptr<QTextDocument> messageDocument(const QString &content, bool rend
         cursor.insertBlock();
         cursor.insertText(trailing);
     }
-    if (doc->isEmpty() && content.isEmpty() && streaming) {
-        doc->setPlainText(QStringLiteral("\u2026"));
-        return doc;
-    }
+    if (doc->isEmpty() && content.isEmpty() && streaming)
+        return doc; // reasoning spinner replaces the old placeholder
     if (streaming) {
         QTextCursor cursor(doc.get());
         cursor.movePosition(QTextCursor::End);
@@ -529,9 +527,34 @@ void paintFileChips(QPainter *painter, const QStyleOptionViewItem &option,
     }
 }
 
+// Spinner phase (degrees) for the animated progress indicators; derived
+// from elapsed time so every repaint advances the rotation.
+int spinnerPhase() {
+    return static_cast<int>((QDateTime::currentMSecsSinceEpoch() / 16) % 360);
+}
+
+// Paints a spinning arc into \p rect with the given rotation phase.
+void paintSpinner(QPainter *painter, const QRect &rect, int phase) {
+    painter->setPen(QPen(QColor(0x2a, 0x62, 0xb5), 2));
+    painter->setBrush(Qt::NoBrush);
+    painter->drawArc(rect, (phase + 45) * 16, 270 * 16);
+}
+
+// True when the painted item needs a spinner: reasoning tokens still
+// streaming or a tool call still running.
+bool spinnerActive(const QModelIndex &index, const QVector<ToolCall> &toolCalls) {
+    if (index.data(static_cast<int>(Qt::UserRole) + 12).toBool())
+        return true;
+    for (const auto &call : toolCalls)
+        if (call.status == ToolCallStatus::Running)
+            return true;
+    return false;
+}
+
 // Paints the collapsed "Thinking" element above the message text: a chevron,
-// the "Thinking" label, a spinner while reasoning tokens are still arriving
-// and the reasoning text below the header when expanded.
+// the "Thinking" label, an animated spinner next to the label while
+// reasoning tokens are still arriving, and the reasoning text below the
+// header when expanded.
 void paintReasoning(QPainter *painter, const QStyleOptionViewItem &option, const QString &reasoning,
                     bool reasoningStreaming, bool expanded, const QRect &contentRect,
                     int maxTextWidth) {
@@ -558,19 +581,19 @@ void paintReasoning(QPainter *painter, const QStyleOptionViewItem &option, const
     label.setItalic(true);
     painter->setFont(label);
     painter->setPen(QColor(0x1a, 0x1a, 0x1a));
-    painter->drawText(
-        QRect(row.left() + 16, row.top(), row.width() - 16 - kCopyButtonSize - 4, row.height()),
-        Qt::AlignLeft | Qt::AlignVCenter, QObject::tr("Thinking"));
+    const QString labelText = QObject::tr("Thinking");
+    painter->drawText(QRect(row.left() + 16, row.top(),
+                            QFontMetrics(label).horizontalAdvance(labelText), row.height()),
+                      Qt::AlignLeft | Qt::AlignVCenter, labelText);
 
-    // Progress indicator at the right edge while the reasoning streams.
+    // Animated progress indicator directly next to the "Thinking" label
+    // while the reasoning tokens stream in.
     if (reasoningStreaming) {
         const int spinnerSize = kCopyButtonSize;
-        const QRect spinnerRect(row.right() - spinnerSize - 2,
-                                row.top() + ((row.height() - spinnerSize) / 2), spinnerSize,
-                                spinnerSize);
-        painter->setPen(QPen(QColor(0x2a, 0x62, 0xb5), 2));
-        painter->setBrush(Qt::NoBrush);
-        painter->drawArc(spinnerRect, 45 * 16, 270 * 16);
+        const QRect spinnerRect(
+            row.left() + 16 + QFontMetrics(label).horizontalAdvance(labelText) + 6,
+            row.top() + ((row.height() - spinnerSize) / 2), spinnerSize, spinnerSize);
+        paintSpinner(painter, spinnerRect, spinnerPhase());
     }
 
     if (!expanded)
@@ -640,16 +663,14 @@ void paintToolCalls(QPainter *painter, const QStyleOptionViewItem &option,
                                 row.right() - (row.left() + 16 + nameWidth + 6) - 60, row.height()),
                           Qt::AlignLeft | Qt::AlignVCenter, summary);
 
-        // Status at the right edge: spinner while running, status word when
-        // finished.
+        // Status at the right edge: animated spinner while running, status
+        // word when finished.
         if (call.status == ToolCallStatus::Running) {
             const int spinnerSize = kCopyButtonSize;
             const QRect spinnerRect(row.right() - spinnerSize - 2,
                                     row.top() + ((row.height() - spinnerSize) / 2), spinnerSize,
                                     spinnerSize);
-            painter->setPen(QPen(QColor(0x2a, 0x62, 0xb5), 2));
-            painter->setBrush(Qt::NoBrush);
-            painter->drawArc(spinnerRect, 45 * 16, 270 * 16);
+            paintSpinner(painter, spinnerRect, spinnerPhase());
         } else {
             const QString status = toolCallStatusText(call);
             if (!status.isEmpty()) {
@@ -769,6 +790,18 @@ ChatDelegate::ChatDelegate(QObject *parent) : QStyledItemDelegate(parent) {
         m_copiedIndex = QPersistentModelIndex();
         emit copiedFeedbackChanged();
     });
+    m_spinnerTimer.setInterval(16);
+    connect(&m_spinnerTimer, &QTimer::timeout, this, &ChatDelegate::spinnerAnimationChanged);
+}
+
+void ChatDelegate::updateSpinnerAnimation(bool spinnerVisible) const {
+    if (m_spinnerVisible == spinnerVisible)
+        return;
+    m_spinnerVisible = spinnerVisible;
+    if (spinnerVisible)
+        m_spinnerTimer.start();
+    else
+        m_spinnerTimer.stop();
 }
 
 void ChatDelegate::showCopiedFeedback(const QModelIndex &index) {
@@ -875,6 +908,9 @@ void ChatDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
     paintToolCalls(painter, option, toolCalls, expandedToolCalls,
                    contentRect.adjusted(0, layout.reasoningHeight, 0, layout.reasoningHeight),
                    maxTextWidth);
+
+    // Keep the animation timer running while this item shows a spinner.
+    updateSpinnerAnimation(spinnerActive(index, toolCalls));
 
     // Images above the message text, each with its file name below. The
     // rects come from the shared attachment layout so hit-testing matches

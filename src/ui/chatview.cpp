@@ -247,6 +247,8 @@ ChatView::ChatView(QWidget *parent) : QListView(parent) {
     connect(delegate, &ChatDelegate::copiedFeedbackChanged, viewport(),
             QOverload<>::of(&QWidget::update));
     connect(delegate, &ChatDelegate::hoverChanged, viewport(), QOverload<>::of(&QWidget::update));
+    connect(delegate, &ChatDelegate::spinnerAnimationChanged, viewport(),
+            QOverload<>::of(&QWidget::update));
     connect(delegate, &ChatDelegate::attachmentOpenFailed, this, [this](const QString &error) {
         // Non-modal so a missing default application never blocks the UI.
         auto *box = new QMessageBox(QMessageBox::Warning, tr("Could not open attachment"), error,

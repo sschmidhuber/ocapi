@@ -173,9 +173,7 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     rowLayout->setSpacing(2);
     m_textEdit = new MessageTextEdit(row);
     m_attachButton = new QToolButton(this);
-    const QIcon attachIcon =
-        QIcon::fromTheme(QStringLiteral("folder-new-symbolic"),
-                         QIcon(QString::fromUtf8(":/resources/icons/folder-new-symbolic.svg")));
+    const QIcon attachIcon(QString::fromUtf8(":/resources/icons/folder-new-symbolic.svg"));
     if (!attachIcon.isNull()) {
         m_attachButton->setIcon(attachIcon);
         m_attachButton->setIconSize(QSize(18, 18));
@@ -186,9 +184,7 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     m_attachButton->setAutoRaise(true);
     m_attachButton->setFixedSize(28, 28);
     m_micButton = new QToolButton(this);
-    const QIcon micIcon =
-        QIcon::fromTheme(QStringLiteral("audio-input-microphone"),
-                         QIcon(QString::fromUtf8(":/resources/icons/microphone.svg")));
+    const QIcon micIcon(QString::fromUtf8(":/resources/icons/microphone.svg"));
     if (!micIcon.isNull()) {
         m_micButton->setIcon(micIcon);
         m_micButton->setIconSize(QSize(18, 18));
@@ -379,7 +375,10 @@ void Composer::addAttachment(const ImageAttachment &attachment) {
 
 QToolButton *Composer::removeButton(QWidget *parent, const QUuid &id, bool isDocument) {
     auto *button = new QToolButton(parent);
-    const QIcon icon = QIcon::fromTheme(QStringLiteral("edit-delete-symbolic"));
+    // Always use the bundled breeze icon: theme lookups resolve to whatever
+    // the installed icon theme provides, which may differ between (older or
+    // newer) KDE installations and other desktops.
+    const QIcon icon(QString::fromUtf8(":/resources/icons/edit-delete-symbolic.svg"));
     if (!icon.isNull())
         button->setIcon(icon);
     else

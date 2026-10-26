@@ -436,9 +436,7 @@ int attachmentIndexAt(const QStyleOptionViewItem &option, const QModelIndex &ind
 }
 
 const QIcon &copyIcon() {
-    static const QIcon icon =
-        QIcon::fromTheme(QStringLiteral("edit-copy-symbolic"),
-                         QIcon(QString::fromUtf8(":/resources/icons/edit-copy-symbolic.svg")));
+    static const QIcon icon(QString::fromUtf8(":/resources/icons/edit-copy-symbolic.svg"));
     return icon;
 }
 

@@ -17,6 +17,7 @@ enum class BackendKind {
     Qwen,
     DeepSeek,
     Groq,
+    OpenRouter,
 };
 
 struct BackendConfig {

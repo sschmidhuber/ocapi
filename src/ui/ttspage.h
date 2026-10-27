@@ -10,6 +10,7 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPushButton;
+class QTimer;
 
 namespace ocapi {
 
@@ -40,6 +41,7 @@ private slots:
     void onTestService();
     void onTestSpeakingChanged(bool speaking);
     void onTestError(const QString &message);
+    void onTestTimeout();
 
 private:
     void populateList();
@@ -66,6 +68,7 @@ private:
     QComboBox *m_deviceCombo;
     QPushButton *m_testButton;
     QLabel *m_testResultLabel;
+    QTimer *m_testTimer = nullptr;
     bool m_updatingForm = false;
     bool m_hasSelection = false;
 };

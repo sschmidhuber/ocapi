@@ -48,7 +48,7 @@ void TtsPlayer::setService(const TtsServiceConfig &config) {
     delete m_client;
     m_client = new TtsClient(config, this);
     connect(m_client, &TtsClient::audioReady, this, &TtsPlayer::onAudioReady);
-    connect(m_client, &TtsClient::error, this, &TtsPlayer::error);
+    connect(m_client, &TtsClient::error, this, &TtsPlayer::onServiceError);
 }
 
 void TtsPlayer::setOutputDevice(const QString &deviceId) {
@@ -71,6 +71,8 @@ void TtsPlayer::feedText(const QString &accumulatedText) {
         // New playback after a stop: start fresh.
         m_stopped = false;
         m_endOfText = false;
+        m_pendingRequests = 0;
+        m_hasPending = false;
         m_splitter.reset();
         m_lastFedText.clear();
         m_pendingPcm.clear();
@@ -102,6 +104,8 @@ void TtsPlayer::endOfText() {
 void TtsPlayer::stop() {
     m_stopped = true;
     m_endOfText = false;
+    m_pendingRequests = 0;
+    m_hasPending = false;
     m_splitter.reset();
     m_lastFedText.clear();
     m_pendingPcm.clear();
@@ -123,12 +127,30 @@ void TtsPlayer::stop() {
 void TtsPlayer::enqueueSentence(const QString &sentence) {
     if (!m_client || sentence.trimmed().isEmpty())
         return;
+    // Synthesis requests are still in flight; speaking ends when they all
+    // completed (successfully or not), even without audible output.
+    ++m_pendingRequests;
+    m_hasPending = true;
     m_client->synthesize(sentence);
+}
+
+void TtsPlayer::onServiceError(const QString &message) {
+    // A failed request completes as empty in the client, so waiting work
+    // still drains; drop the pending marker so the player leaves the
+    // speaking state even when no audio ever arrives.
+    if (m_pendingRequests > 0)
+        --m_pendingRequests;
+    m_hasPending = m_pendingRequests > 0;
+    emit error(message);
+    updateSpeaking();
 }
 
 void TtsPlayer::onAudioReady(const QByteArray &audio, const QString &mimeType) {
     if (m_stopped)
         return;
+    if (m_pendingRequests > 0)
+        --m_pendingRequests;
+    m_hasPending = m_pendingRequests > 0;
     if (mimeType == QLatin1String("audio/wav")) {
         // WAV (Piper) is already PCM; hand the samples to the sink directly.
         int sampleRate = 0;
@@ -268,8 +290,8 @@ void TtsPlayer::writePendingPcm() {
 
 void TtsPlayer::updateSpeaking() {
     const bool sinkActive = m_sink && m_sink->state() == QAudio::ActiveState;
-    const bool speaking =
-        !m_stopped && (!m_pendingPcm.isEmpty() || m_decoder != nullptr || sinkActive);
+    const bool speaking = !m_stopped && (m_hasPending || !m_pendingPcm.isEmpty() ||
+                                         m_decoder != nullptr || sinkActive);
     if (speaking != m_speaking) {
         m_speaking = speaking;
         emit speakingChanged(speaking);

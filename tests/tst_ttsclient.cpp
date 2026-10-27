@@ -45,6 +45,12 @@ public:
     // When set, the response body is WAV whose PCM data is the request's
     // "input" text, so each response can be attributed to its request.
     void setEchoInput(bool on) { m_echoInput = on; }
+    // When set, the server answers with this HTTP status and body instead
+    // of audio, to simulate a service error.
+    void setErrorResponse(int status, const QByteArray &body) {
+        m_errorStatus = status;
+        m_errorBody = body;
+    }
     // Responses whose body contains \p marker are delayed by \p ms, so
     // out-of-order replies can be simulated.
     void setSlowMarker(const QString &marker, int ms) {
@@ -104,12 +110,22 @@ private:
         int delayMs = m_delayMs;
         if (!m_slowMarker.isEmpty() && requestBody.contains(m_slowMarker))
             delayMs = m_slowMarkerMs;
-        QByteArray response = "HTTP/1.1 200 OK\r\n";
-        response += "Content-Type: audio/wav\r\n";
-        response += "Content-Length: " + QByteArray::number(audio.size()) + "\r\n";
-        response += "Connection: keep-alive\r\n";
-        response += "\r\n";
-        response += audio;
+        QByteArray response;
+        if (m_errorStatus > 0) {
+            response = "HTTP/1.1 " + QByteArray::number(m_errorStatus) + " Error\r\n";
+            response += "Content-Type: application/json\r\n";
+            response += "Content-Length: " + QByteArray::number(m_errorBody.size()) + "\r\n";
+            response += "Connection: keep-alive\r\n";
+            response += "\r\n";
+            response += m_errorBody;
+        } else {
+            response = "HTTP/1.1 200 OK\r\n";
+            response += "Content-Type: audio/wav\r\n";
+            response += "Content-Length: " + QByteArray::number(audio.size()) + "\r\n";
+            response += "Connection: keep-alive\r\n";
+            response += "\r\n";
+            response += audio;
+        }
         auto *pending = new QTimer(socket);
         pending->setSingleShot(true);
         connect(pending, &QTimer::timeout, socket, [socket, response, pending]() {
@@ -127,6 +143,8 @@ private:
     bool m_echoInput = false;
     QString m_slowMarker;
     int m_slowMarkerMs = 0;
+    int m_errorStatus = 0;
+    QByteArray m_errorBody;
     QStringList m_bodies;
     QStringList m_authHeaders;
     QStringList m_xiApiKeys;
@@ -156,6 +174,7 @@ private slots:
     void sendsElevenLabsPayloadWithXiApiKey();
     void emitsAudioInEnqueueOrder();
     void reportsErrorOnFailure();
+    void reportsHttpStatusAndBodyOnServiceError();
     void ignoresEmptyText();
     void cancelDropsQueue();
 
@@ -253,6 +272,24 @@ void TestTtsClient::reportsErrorOnFailure() {
 
     client.synthesize(QStringLiteral("Hello."));
     QVERIFY(failed.wait(5000));
+}
+
+void TestTtsClient::reportsHttpStatusAndBodyOnServiceError() {
+    QVERIFY(m_server.start());
+    m_server.setErrorResponse(401, QByteArrayLiteral("{\"error\":\"invalid api key\"}"));
+    TtsClient client(serviceConfig(m_server.port()));
+    QSignalSpy failed(&client, &TtsClient::error);
+    QSignalSpy audio(&client, &TtsClient::audioReady);
+
+    client.synthesize(QStringLiteral("Hello."));
+    QVERIFY(failed.wait(5000));
+    // The bare QNetworkReply wording ("server replied: ...") is useless for
+    // diagnosing a rejected request; the error must carry the HTTP status
+    // and the service's error body.
+    const QString message = failed.first().at(0).toString();
+    QVERIFY2(message.contains(QStringLiteral("401")), qPrintable(message));
+    QVERIFY2(message.contains(QStringLiteral("invalid api key")), qPrintable(message));
+    QCOMPARE(audio.count(), 0);
 }
 
 void TestTtsClient::ignoresEmptyText() {

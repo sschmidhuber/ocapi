@@ -60,6 +60,7 @@ private:
     void onAudioReady(const QByteArray &audio, const QString &mimeType);
     void onDecodeBufferReady();
     void onDecodeFinished();
+    void onServiceError(const QString &message);
     void updateSpeaking();
     void writePendingPcm();
     bool ensureSink(int sampleRate, int channels);
@@ -70,6 +71,8 @@ private:
     SentenceSplitter m_splitter;
     QString m_lastFedText;
     QString m_outputDeviceId;
+    int m_pendingRequests = 0; // synthesis requests in flight
+    bool m_hasPending = false;
     QMediaDevices *m_devices = nullptr;
     QAudioSink *m_sink = nullptr;
     QIODevice *m_sinkIo = nullptr;

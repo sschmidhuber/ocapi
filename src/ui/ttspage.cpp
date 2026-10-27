@@ -14,11 +14,18 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSplitter>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
 
 namespace ocapi {
+
+namespace {
+
+constexpr int TestTimeoutMs = 30000;
+
+} // namespace
 
 TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidget *parent)
     : QWidget(parent), m_registry(registry), m_backendRegistry(backendRegistry),
@@ -54,6 +61,8 @@ TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidge
     m_testButton = new QPushButton(tr("Test voice"), formWidget);
     m_testResultLabel = new QLabel(formWidget);
     m_testResultLabel->setWordWrap(true);
+    m_testTimer = new QTimer(this);
+    m_testTimer->setSingleShot(true);
 
     formLayout->addRow(m_speakResponsesBox);
     formLayout->addRow(tr("Provider:"), m_kindCombo);
@@ -106,6 +115,7 @@ TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidge
     connect(m_enabledBox, &QCheckBox::toggled, this, &TtsPage::onFieldEdited);
     connect(m_testPlayer, &TtsPlayer::speakingChanged, this, &TtsPage::onTestSpeakingChanged);
     connect(m_testPlayer, &TtsPlayer::error, this, &TtsPage::onTestError);
+    connect(m_testTimer, &QTimer::timeout, this, &TtsPage::onTestTimeout);
 
     populateList();
     populateOutputDevices();
@@ -185,6 +195,7 @@ void TtsPage::onSelectionChanged() {
     m_testButton->setEnabled(hasSelection);
     m_testResultLabel->clear();
     m_testResultLabel->hide();
+    m_testTimer->stop();
     if (hasSelection) {
         const auto *config = m_registry->find(QUuid(item->data(Qt::UserRole).toString()));
         if (config)
@@ -282,6 +293,10 @@ void TtsPage::onTestService() {
     m_testButton->setEnabled(false);
     m_testResultLabel->setText(tr("Synthesizing sample sentence\u2026"));
     m_testResultLabel->show();
+    // Safety net: playback ends via speakingChanged, but when synthesis
+    // never produces audio the player never starts speaking and no signal
+    // arrives; the timer keeps the page from being stuck in test mode.
+    m_testTimer->start(TestTimeoutMs);
     m_testPlayer->feedText(tr("This is a test of the text to speech service."));
     m_testPlayer->endOfText();
 }
@@ -289,13 +304,22 @@ void TtsPage::onTestService() {
 void TtsPage::onTestSpeakingChanged(bool speaking) {
     if (speaking)
         return;
+    m_testTimer->stop();
     m_testButton->setEnabled(true);
     m_testResultLabel->setText(tr("Playback finished."));
 }
 
 void TtsPage::onTestError(const QString &message) {
+    m_testTimer->stop();
     m_testButton->setEnabled(true);
     m_testResultLabel->setText(tr("Test failed: %1").arg(message));
+}
+
+void TtsPage::onTestTimeout() {
+    m_testPlayer->stop();
+    m_testButton->setEnabled(true);
+    m_testResultLabel->setText(
+        tr("Test failed: no response within %1 seconds.").arg(TestTimeoutMs / 1000));
 }
 
 void TtsPage::loadConfigIntoForm(const TtsServiceConfig &config) {

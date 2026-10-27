@@ -126,13 +126,24 @@ void TtsClient::onReplyFinished(QNetworkReply *reply, int sequence) {
         return;
 
     if (reply->error() != QNetworkReply::NoError) {
+        const QByteArray body = reply->readAll();
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (sttDebug::ttsEnabled())
-            sttDebug::log(
-                QStringLiteral("[ocapi TTS] error #%1: %2 (status %3, body: %4)")
-                    .arg(QString::number(sequence), reply->errorString())
-                    .arg(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt())
-                    .arg(QString::fromUtf8(reply->readAll().left(300))));
-        emit error(reply->errorString());
+            sttDebug::log(QStringLiteral("[ocapi TTS] error #%1: %2 (status %3, body: %4)")
+                              .arg(QString::number(sequence), reply->errorString())
+                              .arg(status)
+                              .arg(QString::fromUtf8(body.left(300))));
+        // Surface the HTTP status and the service's error body (e.g. an
+        // auth or model error message) so the settings page can show why
+        // the request failed instead of a bare "server replied:".
+        QString message = reply->errorString();
+        if (status > 0) {
+            message += QStringLiteral(" (HTTP %1)").arg(status);
+            const QString bodyText = QString::fromUtf8(body).trimmed();
+            if (!bodyText.isEmpty())
+                message += QStringLiteral(": ") + bodyText.left(300);
+        }
+        emit error(message);
         // Keep sequence numbers gapless for ordering: treat failures as empty.
         m_completed.insert(sequence, {QByteArray(), QString()});
     } else {

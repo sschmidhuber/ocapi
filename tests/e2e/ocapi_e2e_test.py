@@ -33,7 +33,11 @@ import unittest
 from appium import webdriver
 from appium.options.common.base import AppiumOptions
 from appium.webdriver.common.appiumby import AppiumBy
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    TimeoutException,
+    WebDriverException,
+)
 from selenium.webdriver.support.ui import WebDriverWait
 
 REPLY_TEXT = "Hello from the mock backend!"
@@ -77,9 +81,12 @@ class OcapiE2E(unittest.TestCase):
         # collapsed tool element being re-rendered), so a second lookup can
         # miss an element the wait just saw. NoSuchElementException is
         # ignored explicitly so the wait polls until the timeout instead of
-        # aborting on the first miss.
+        # aborting on the first miss. WebDriverException is ignored as well:
+        # while the chat streams, the AT-SPI tree is rebuilt and the
+        # WebDriver can hit a node that vanished mid-walk
+        # ("atspi_error: No such object path"); polling past it is safe.
         return WebDriverWait(self.driver, timeout,
-                              ignored_exceptions=(NoSuchElementException,)
+                              ignored_exceptions=(NoSuchElementException, WebDriverException)
                               ).until(lambda d: self.find_by_xpath(xpath))
 
     def test_01_start(self):
@@ -119,11 +126,10 @@ class OcapiE2E(unittest.TestCase):
         self.find_by_name("Send").click()
 
         # The complete visible answer streams in...
-        self.wait_for("//*[contains(@name, '%s')]" % REASONING_REPLY_TEXT, timeout=60)
+        reply = self.wait_for("//*[contains(@name, '%s')]" % REASONING_REPLY_TEXT, timeout=60)
         # ...and the thinking text appears in the collapsed "Thinking"
         # element of the same message (the accessible name carries it), but
         # never inside the visible answer text itself.
-        reply = self.find_by_xpath("//*[contains(@name, '%s')]" % REASONING_REPLY_TEXT)
         self.assertIn(THINKING_TEXT, reply.text)
 
     def test_05_mcp_tool_roundtrip(self):

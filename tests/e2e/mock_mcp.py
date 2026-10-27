@@ -48,15 +48,17 @@ class McpMockHandler(BaseHTTPRequestHandler):
         params = message.get("params") or {}
 
         if method == "initialize":
-            self._send_json({
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": {
-                    "protocolVersion": "2025-06-18",
-                    "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "mock-mcp", "version": "0.1.0"},
-                },
-            })
+            self._send_json(
+                {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "protocolVersion": "2025-06-18",
+                        "capabilities": {"tools": {}},
+                        "serverInfo": {"name": "mock-mcp", "version": "0.1.0"},
+                    },
+                }
+            )
             return
         if method == "notifications/initialized":
             self.send_response(202)
@@ -64,45 +66,57 @@ class McpMockHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         if method == "tools/list":
-            self._send_json({
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": {"tools": [{
-                    "name": "echo",
-                    "description": "Echo the given text back to the caller",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {"text": {"type": "string"}},
-                        "required": ["text"],
+            self._send_json(
+                {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "tools": [
+                            {
+                                "name": "echo",
+                                "description": "Echo the given text back to the caller",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {"text": {"type": "string"}},
+                                    "required": ["text"],
+                                },
+                            }
+                        ]
                     },
-                }]},
-            })
+                }
+            )
             return
         if method == "tools/call":
             arguments = params.get("arguments") or {}
             text = arguments.get("text", "")
-            self._send_json({
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "result": {
-                    "content": [{"type": "text", "text": TOOL_RESULT_PREFIX + text}],
-                    "isError": False,
-                },
-            })
+            self._send_json(
+                {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "content": [{"type": "text", "text": TOOL_RESULT_PREFIX + text}],
+                        "isError": False,
+                    },
+                }
+            )
             return
         if method in ("resources/list", "resources/templates/list", "prompts/list"):
-            key = {"resources/list": "resources",
-                   "resources/templates/list": "resourceTemplates",
-                   "prompts/list": "prompts"}[method]
+            key = {
+                "resources/list": "resources",
+                "resources/templates/list": "resourceTemplates",
+                "prompts/list": "prompts",
+            }[method]
             self._send_json({"jsonrpc": "2.0", "id": request_id, "result": {key: []}})
             return
 
         if request_id is not None:
-            self._send_json({
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "error": {"code": -32601, "message": f"method not found: {method}"},
-            })
+            self._send_json(
+                {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {"code": -32601, "message": f"method not found: {method}"},
+                }
+            )
             return
         self.send_response(202)
         self.send_header("Content-Length", "0")

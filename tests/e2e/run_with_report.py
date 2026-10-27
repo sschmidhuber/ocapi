@@ -29,13 +29,16 @@ DISPLAY = os.environ.get("DISPLAY", ":99")
 
 def screenshot(name):
     os.makedirs(SCREENSHOT_DIR, exist_ok=True)
-    for attempt in range(3):
+    for _attempt in range(3):
         path = os.path.join(SCREENSHOT_DIR, name)
         try:
             subprocess.run(
                 ["import", "-window", "root", "-display", DISPLAY, path],
-                check=True, timeout=30,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                check=True,
+                timeout=30,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             if os.path.getsize(path) > 0:
                 return path
         except (subprocess.SubprocessError, OSError):
@@ -47,6 +50,7 @@ def run():
     # Imported here so the reporting functions below stay usable without
     # the appium/selenium dependencies installed.
     import ocapi_e2e_test
+
     suite = unittest.defaultTestLoader.loadTestsFromModule(ocapi_e2e_test)
     runner = unittest.TextTestRunner(verbosity=2, resultclass=TestResult)
     result = runner.run(suite)
@@ -62,8 +66,9 @@ class TestResult(unittest.TextTestResult):
 
     def startTest(self, test):
         super().startTest(test)
-        self.records.append({"name": str(test), "status": "ran", "seconds": None,
-                             "screenshot": None, "error": None})
+        self.records.append(
+            {"name": str(test), "status": "ran", "seconds": None, "screenshot": None, "error": None}
+        )
         self._started = time.monotonic()
 
     def addSuccess(self, test):
@@ -88,6 +93,7 @@ class TestResult(unittest.TextTestResult):
         record["seconds"] = round(time.monotonic() - self._started, 1)
         if err:
             import traceback
+
             exctype, value, tb = err
             record["error"] = "".join(traceback.format_exception(exctype, value, tb))
         shot = screenshot(record["name"].split(" ")[0] + ".png")
@@ -98,17 +104,23 @@ def write_junit(result):
     if not JUNIT_XML:
         return
     import xml.etree.ElementTree as ET
-    testsuite = ET.Element("testsuite", name="ocapi-e2e",
-                           tests=str(len(result.records)),
-                           failures=str(sum(1 for r in result.records
-                                            if r["status"] == "failed")),
-                           errors=str(sum(1 for r in result.records
-                                          if r["status"] == "error")),
-                           time=str(sum(r["seconds"] or 0 for r in result.records)))
+
+    testsuite = ET.Element(
+        "testsuite",
+        name="ocapi-e2e",
+        tests=str(len(result.records)),
+        failures=str(sum(1 for r in result.records if r["status"] == "failed")),
+        errors=str(sum(1 for r in result.records if r["status"] == "error")),
+        time=str(sum(r["seconds"] or 0 for r in result.records)),
+    )
     for r in result.records:
-        tc = ET.SubElement(testsuite, "testcase",
-                           classname="ocapi-e2e", name=r["name"],
-                           time=str(r["seconds"] or 0))
+        tc = ET.SubElement(
+            testsuite,
+            "testcase",
+            classname="ocapi-e2e",
+            name=r["name"],
+            time=str(r["seconds"] or 0),
+        )
         if r["error"]:
             child = ET.SubElement(tc, "error" if r["status"] == "error" else "failure")
             child.text = r["error"]
@@ -120,28 +132,34 @@ def write_markdown(result):
         return
     icon = {"passed": "✅", "failed": "❌", "error": "💥", "skipped": "⏭️", "ran": "⏳"}
     lines = ["## ocapi E2E test results", ""]
-    passed = sum(1 for r in result.records if r['status'] == 'passed')
+    passed = sum(1 for r in result.records if r["status"] == "passed")
     lines.append(f"**{passed}/{len(result.records)} tests passed**")
     lines.append("")
     lines += ["| # | Test | Result | Duration |", "|---|------|--------|----------|"]
     for i, r in enumerate(result.records, 1):
         name = r["name"].split(" ")[0]
         seconds = f"{r['seconds']}s" if r["seconds"] is not None else "–"
-        lines.append(f"| {i} | `{name}` | {icon.get(r['status'], '⏳')} {r['status']} | {seconds} |")
+        status = f"{icon.get(r['status'], '⏳')} {r['status']}"
+        lines.append(f"| {i} | `{name}` | {status} | {seconds} |")
     lines.append("")
     lines.append("### Screenshots")
     lines.append("")
-    lines.append(f"Screenshots of the app after each test are uploaded as the "
-                 f"`e2e-report` artifact of this run.")
+    lines.append(
+        "Screenshots of the app after each test are uploaded as the "
+        "`e2e-report` artifact of this run."
+    )
     lines.append("")
     shots = [r for r in result.records if r["screenshot"]]
     for r in shots:
         name = r["name"].split(" ")[0]
         rel = os.path.relpath(r["screenshot"], SCREENSHOT_DIR)
-        lines.append(f"| `{name}` | `screenshots/{rel}` | {icon.get(r['status'], '')} {r['status']} |")
+        status = f"{icon.get(r['status'], '')} {r['status']}"
+        lines.append(f"| `{name}` | `screenshots/{rel}` | {status} |")
     if shots:
-        lines.insert(len(lines) - len(shots),
-                     "| Test | Screenshot | Result |\n|------|------------|--------|")
+        lines.insert(
+            len(lines) - len(shots),
+            "| Test | Screenshot | Result |\n|------|------------|--------|",
+        )
     lines.append("")
     failed = [r for r in result.records if r["error"]]
     if failed:

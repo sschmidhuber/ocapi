@@ -35,7 +35,6 @@ from appium.options.common.base import AppiumOptions
 from appium.webdriver.common.appiumby import AppiumBy
 from selenium.common.exceptions import (
     NoSuchElementException,
-    TimeoutException,
     WebDriverException,
 )
 from selenium.webdriver.support.ui import WebDriverWait
@@ -47,21 +46,22 @@ TOOL_REPLY_TEXT = "The tool says: echo: Hello from the MCP tool!"
 
 
 class OcapiE2E(unittest.TestCase):
-
     @classmethod
     def setUpClass(cls):
         port = os.environ.get("OCAPI_E2E_MOCK_PORT", "11434")
         mcp_port = os.environ.get("OCAPI_E2E_MOCK_MCP_PORT", "11435")
         options = AppiumOptions()
         options.set_capability("app", os.environ["OCAPI_E2E_APP"])
-        options.set_capability("appium:environ", {
-            "OCAPI_E2E_MOCK_BACKEND": "1",
-            "OCAPI_E2E_MOCK_PORT": port,
-            "OCAPI_E2E_MOCK_MCP": "1",
-            "OCAPI_E2E_MOCK_MCP_PORT": mcp_port,
-        })
-        cls.driver = webdriver.Remote(command_executor="http://127.0.0.1:4723",
-                                      options=options)
+        options.set_capability(
+            "appium:environ",
+            {
+                "OCAPI_E2E_MOCK_BACKEND": "1",
+                "OCAPI_E2E_MOCK_PORT": port,
+                "OCAPI_E2E_MOCK_MCP": "1",
+                "OCAPI_E2E_MOCK_MCP_PORT": mcp_port,
+            },
+        )
+        cls.driver = webdriver.Remote(command_executor="http://127.0.0.1:4723", options=options)
         cls.driver.implicitly_wait = 10
 
     @classmethod
@@ -85,9 +85,9 @@ class OcapiE2E(unittest.TestCase):
         # while the chat streams, the AT-SPI tree is rebuilt and the
         # WebDriver can hit a node that vanished mid-walk
         # ("atspi_error: No such object path"); polling past it is safe.
-        return WebDriverWait(self.driver, timeout,
-                              ignored_exceptions=(NoSuchElementException, WebDriverException)
-                              ).until(lambda d: self.find_by_xpath(xpath))
+        return WebDriverWait(
+            self.driver, timeout, ignored_exceptions=(NoSuchElementException, WebDriverException)
+        ).until(lambda d: self.find_by_xpath(xpath))
 
     def test_01_start(self):
         # A fresh session exists with a composer and a send button; the
@@ -112,7 +112,7 @@ class OcapiE2E(unittest.TestCase):
         composer.send_keys("Hello mock!")
         self.find_by_name("Send").click()
 
-        self.wait_for("//*[contains(@name, '%s')]" % REPLY_TEXT, timeout=30)
+        self.wait_for(f"//*[contains(@name, '{REPLY_TEXT}')]", timeout=30)
 
     def test_04_reasoning_model(self):
         # A reasoning-capable model streams "thinking" content parts before
@@ -126,7 +126,7 @@ class OcapiE2E(unittest.TestCase):
         self.find_by_name("Send").click()
 
         # The complete visible answer streams in...
-        reply = self.wait_for("//*[contains(@name, '%s')]" % REASONING_REPLY_TEXT, timeout=60)
+        reply = self.wait_for(f"//*[contains(@name, '{REASONING_REPLY_TEXT}')]", timeout=60)
         # ...and the thinking text appears in the collapsed "Thinking"
         # element of the same message (the accessible name carries it), but
         # never inside the visible answer text itself.
@@ -147,8 +147,9 @@ class OcapiE2E(unittest.TestCase):
         # While the tool runs, the chat shows it as a collapsed element with
         # the short tool name; after the round-trip it is marked done.
         self.wait_for("//*[contains(@name, 'echo')]", timeout=30)
-        self.wait_for("//*[contains(@name, '%s')]" % TOOL_REPLY_TEXT, timeout=60)
+        self.wait_for(f"//*[contains(@name, '{TOOL_REPLY_TEXT}')]", timeout=60)
         self.wait_for("//*[contains(@name, 'done')]", timeout=30)
+
 
 if __name__ == "__main__":
     unittest.main()

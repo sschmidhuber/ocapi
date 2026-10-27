@@ -102,6 +102,7 @@ private slots:
     void sendMessageEmitsToolCalls();
     void toolCallsIncludedInConversationHistory();
     void toolsSentOnlyWhenEnabled();
+    void reasoningIsNotSentBackInConversationHistory();
 
 private:
     FakeOllamaServer m_server;
@@ -290,6 +291,35 @@ void TestOllamaBackend::toolsSentOnlyWhenEnabled() {
     backend.sendMessage(&session, QStringLiteral("mock-model"));
     QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
     QVERIFY(!m_server.lastRequest().contains(QLatin1String("tools")));
+}
+
+void TestOllamaBackend::reasoningIsNotSentBackInConversationHistory() {
+    // Regression: the reasoning ("thinking") text of a previous answer is
+    // display-only and must never be replayed into the model's context.
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
+
+    OllamaBackend backend(ollamaConfig(m_server.port()));
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("2+2?"));
+    const QUuid answerId = session.appendMessage(Role::Assistant, QStringLiteral("Four.")).id;
+    session.updateReasoning(answerId, QStringLiteral("secret chain of thought"), false);
+    session.appendMessage(Role::User, QStringLiteral("thanks"));
+
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+
+    const auto messages = m_server.lastRequest().value(QLatin1String("messages")).toArray();
+    QCOMPARE(messages.size(), 3);
+    const auto replayed = messages.at(1).toObject();
+    QCOMPARE(replayed.value(QLatin1String("role")).toString(), QStringLiteral("assistant"));
+    QCOMPARE(replayed.value(QLatin1String("content")).toString(), QStringLiteral("Four."));
+    QVERIFY(!replayed.contains(QLatin1String("thinking")));
+    QVERIFY(!replayed.value(QLatin1String("content"))
+                 .toString()
+                 .contains(QLatin1String("secret chain of thought")));
 }
 
 QTEST_GUILESS_MAIN(TestOllamaBackend)

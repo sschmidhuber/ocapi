@@ -101,7 +101,7 @@ class McpMockHandler(BaseHTTPRequestHandler):
             self._send_json({
                 "jsonrpc": "2.0",
                 "id": request_id,
-                "error": {"code": -32601, "message": "method not found: %s" % method},
+                "error": {"code": -32601, "message": f"method not found: {method}"},
             })
             return
         self.send_response(202)

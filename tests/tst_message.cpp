@@ -19,6 +19,7 @@ private slots:
     void isEmptyCoversTextImagesAndFiles();
     void toolCallStatusDefaultsToRunning();
     void toolCallEqualityCoversStatusAndResult();
+    void textForModelExcludesReasoning();
 };
 
 void TestMessage::roleNameMapsEveryRole() {
@@ -127,6 +128,19 @@ void TestMessage::toolCallEqualityCoversStatusAndResult() {
     b = a;
     b.result = QStringLiteral("out");
     QVERIFY(!(a == b));
+}
+
+void TestMessage::textForModelExcludesReasoning() {
+    // Reasoning ("thinking") text is shown in the collapsed "Thinking"
+    // element but must never be sent back to the model as context.
+    Message m;
+    m.role = Role::Assistant;
+    m.content = QStringLiteral("Four.");
+    m.reasoning = QStringLiteral("The user asks 2+2, so the answer is 4.");
+    m.reasoningStreaming = false;
+    QCOMPARE(m.textForModel(), QStringLiteral("Four."));
+    QVERIFY(!m.textForModel().contains(QLatin1String("thinking")));
+    QVERIFY(!m.textForModel().contains(m.reasoning));
 }
 
 QTEST_GUILESS_MAIN(TestMessage)

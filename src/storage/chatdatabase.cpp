@@ -24,6 +24,18 @@ int nextConnectionCounter() {
     return counter.fetchAndAddRelaxed(1);
 }
 
+// Schema evolution: adds a column to an existing table. On databases that
+// already have the column, SQLite fails with "duplicate column name"; that
+// expected error is ignored so m_lastError only ever holds genuine failures.
+void addColumnIfMissing(QSqlDatabase &database, const QString &statement, QString &lastError) {
+    QSqlQuery query(database);
+    query.exec(statement);
+    const QSqlError error = query.lastError();
+    if (error.isValid() && error.type() != QSqlError::NoError &&
+        !error.text().contains(QStringLiteral("duplicate column name"), Qt::CaseInsensitive))
+        lastError = error.text();
+}
+
 void createTables(QSqlDatabase &database) {
     QSqlQuery query(database);
     query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS backends ("
@@ -118,32 +130,29 @@ bool ChatDatabase::open(const QString &filePath) {
     QSqlQuery pragma(m_database);
     pragma.exec(QStringLiteral("PRAGMA foreign_keys = ON"));
     createTables(m_database);
-    // Schema evolution: older databases lack the throughput column.
-    pragma.exec(QStringLiteral("ALTER TABLE messages ADD COLUMN tokens_per_second REAL "
-                               "NOT NULL DEFAULT -1"));
-    if (m_database.lastError().isValid() && m_database.lastError().type() != QSqlError::NoError)
-        m_lastError = m_database.lastError().text();
-    // Schema evolution: older databases lack the last-activity column.
-    pragma.exec(QStringLiteral("ALTER TABLE sessions ADD COLUMN last_activity_at INTEGER "
-                               "NOT NULL DEFAULT 0"));
-    if (m_database.lastError().isValid() && m_database.lastError().type() != QSqlError::NoError)
-        m_lastError = m_database.lastError().text();
-    // Schema evolution: older databases lack the tool-call state column.
-    pragma.exec(QStringLiteral("ALTER TABLE messages ADD COLUMN tool_calls TEXT "
-                               "NOT NULL DEFAULT '[]'"));
-    if (m_database.lastError().isValid() && m_database.lastError().type() != QSqlError::NoError)
-        m_lastError = m_database.lastError().text();
-    // Schema evolution: older databases lack the extracted-text column on
-    // attached files.
-    pragma.exec(QStringLiteral("ALTER TABLE message_files ADD COLUMN extracted_text TEXT "
-                               "NOT NULL DEFAULT ''"));
-    if (m_database.lastError().isValid() && m_database.lastError().type() != QSqlError::NoError)
-        m_lastError = m_database.lastError().text();
-    // Schema evolution: older databases lack the reasoning column.
-    pragma.exec(QStringLiteral("ALTER TABLE messages ADD COLUMN reasoning TEXT "
-                               "NOT NULL DEFAULT ''"));
-    if (m_database.lastError().isValid() && m_database.lastError().type() != QSqlError::NoError)
-        m_lastError = m_database.lastError().text();
+    // Schema evolution for older databases; each helper ignores the expected
+    // "duplicate column name" error so a healthy, up-to-date database does not
+    // leave a bogus error in m_lastError.
+    addColumnIfMissing(m_database,
+                       QStringLiteral("ALTER TABLE messages ADD COLUMN tokens_per_second REAL "
+                                      "NOT NULL DEFAULT -1"),
+                       m_lastError);
+    addColumnIfMissing(m_database,
+                       QStringLiteral("ALTER TABLE sessions ADD COLUMN last_activity_at INTEGER "
+                                      "NOT NULL DEFAULT 0"),
+                       m_lastError);
+    addColumnIfMissing(m_database,
+                       QStringLiteral("ALTER TABLE messages ADD COLUMN tool_calls TEXT "
+                                      "NOT NULL DEFAULT '[]'"),
+                       m_lastError);
+    addColumnIfMissing(m_database,
+                       QStringLiteral("ALTER TABLE message_files ADD COLUMN extracted_text TEXT "
+                                      "NOT NULL DEFAULT ''"),
+                       m_lastError);
+    addColumnIfMissing(m_database,
+                       QStringLiteral("ALTER TABLE messages ADD COLUMN reasoning TEXT "
+                                      "NOT NULL DEFAULT ''"),
+                       m_lastError);
     return true;
 }
 

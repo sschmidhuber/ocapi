@@ -175,7 +175,7 @@ class OllamaMockHandler(BaseHTTPRequestHandler):
                    for message in request.get("messages") or [])
 
     def _write_chunk(self, data):
-        self.wfile.write(("%x\r\n" % len(data)).encode() + data + b"\r\n")
+        self.wfile.write(f"{len(data):x}\r\n".encode() + data + b"\r\n")
         self.wfile.flush()
 
 

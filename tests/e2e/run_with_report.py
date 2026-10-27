@@ -29,7 +29,7 @@ DISPLAY = os.environ.get("DISPLAY", ":99")
 
 def screenshot(name):
     os.makedirs(SCREENSHOT_DIR, exist_ok=True)
-    for attempt in range(3):
+    for _attempt in range(3):
         path = os.path.join(SCREENSHOT_DIR, name)
         try:
             subprocess.run(
@@ -127,18 +127,20 @@ def write_markdown(result):
     for i, r in enumerate(result.records, 1):
         name = r["name"].split(" ")[0]
         seconds = f"{r['seconds']}s" if r["seconds"] is not None else "–"
-        lines.append(f"| {i} | `{name}` | {icon.get(r['status'], '⏳')} {r['status']} | {seconds} |")
+        status = f"{icon.get(r['status'], '⏳')} {r['status']}"
+        lines.append(f"| {i} | `{name}` | {status} | {seconds} |")
     lines.append("")
     lines.append("### Screenshots")
     lines.append("")
-    lines.append(f"Screenshots of the app after each test are uploaded as the "
-                 f"`e2e-report` artifact of this run.")
+    lines.append("Screenshots of the app after each test are uploaded as the "
+                 "`e2e-report` artifact of this run.")
     lines.append("")
     shots = [r for r in result.records if r["screenshot"]]
     for r in shots:
         name = r["name"].split(" ")[0]
         rel = os.path.relpath(r["screenshot"], SCREENSHOT_DIR)
-        lines.append(f"| `{name}` | `screenshots/{rel}` | {icon.get(r['status'], '')} {r['status']} |")
+        status = f"{icon.get(r['status'], '')} {r['status']}"
+        lines.append(f"| `{name}` | `screenshots/{rel}` | {status} |")
     if shots:
         lines.insert(len(lines) - len(shots),
                      "| Test | Screenshot | Result |\n|------|------------|--------|")

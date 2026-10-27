@@ -35,7 +35,6 @@ from appium.options.common.base import AppiumOptions
 from appium.webdriver.common.appiumby import AppiumBy
 from selenium.common.exceptions import (
     NoSuchElementException,
-    TimeoutException,
     WebDriverException,
 )
 from selenium.webdriver.support.ui import WebDriverWait
@@ -112,7 +111,7 @@ class OcapiE2E(unittest.TestCase):
         composer.send_keys("Hello mock!")
         self.find_by_name("Send").click()
 
-        self.wait_for("//*[contains(@name, '%s')]" % REPLY_TEXT, timeout=30)
+        self.wait_for(f"//*[contains(@name, '{REPLY_TEXT}')]", timeout=30)
 
     def test_04_reasoning_model(self):
         # A reasoning-capable model streams "thinking" content parts before
@@ -126,7 +125,7 @@ class OcapiE2E(unittest.TestCase):
         self.find_by_name("Send").click()
 
         # The complete visible answer streams in...
-        reply = self.wait_for("//*[contains(@name, '%s')]" % REASONING_REPLY_TEXT, timeout=60)
+        reply = self.wait_for(f"//*[contains(@name, '{REASONING_REPLY_TEXT}')]", timeout=60)
         # ...and the thinking text appears in the collapsed "Thinking"
         # element of the same message (the accessible name carries it), but
         # never inside the visible answer text itself.
@@ -147,7 +146,7 @@ class OcapiE2E(unittest.TestCase):
         # While the tool runs, the chat shows it as a collapsed element with
         # the short tool name; after the round-trip it is marked done.
         self.wait_for("//*[contains(@name, 'echo')]", timeout=30)
-        self.wait_for("//*[contains(@name, '%s')]" % TOOL_REPLY_TEXT, timeout=60)
+        self.wait_for(f"//*[contains(@name, '{TOOL_REPLY_TEXT}')]", timeout=60)
         self.wait_for("//*[contains(@name, 'done')]", timeout=30)
 
 if __name__ == "__main__":

@@ -70,3 +70,7 @@ vcpkg_installed/
 Testing/
 .cache/
 tests/*.moc
+
+# Python bytecode & caches (e2e tests, mock servers)
+__pycache__/
+*.py[cod]

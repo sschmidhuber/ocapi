@@ -96,6 +96,8 @@ struct Message {
     // Text sent to the model: the typed message plus the extracted content
     // of every attached file. The chat UI shows only the typed content; the
     // file contents travel with the attachments instead of the message text.
+    // The reasoning ("thinking") text is intentionally NOT included: it is
+    // display-only and must never leak back into the model's context.
     [[nodiscard]] QString textForModel() const {
         QString text = content;
         for (const auto &file : files) {

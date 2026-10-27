@@ -1,5 +1,6 @@
 #include "ui/ttspage.h"
 
+#include "core/backendregistry.h"
 #include "core/ttsplayer.h"
 #include "core/ttsregistry.h"
 
@@ -15,10 +16,13 @@
 #include <QSplitter>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace ocapi {
 
-TtsPage::TtsPage(TtsRegistry *registry, QWidget *parent)
-    : QWidget(parent), m_registry(registry), m_testPlayer(new TtsPlayer(this)) {
+TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidget *parent)
+    : QWidget(parent), m_registry(registry), m_backendRegistry(backendRegistry),
+      m_testPlayer(new TtsPlayer(this)) {
     auto *splitter = new QSplitter(this);
     m_list = new QListWidget(splitter);
     m_list->setMinimumWidth(200);
@@ -52,11 +56,11 @@ TtsPage::TtsPage(TtsRegistry *registry, QWidget *parent)
     m_testResultLabel->setWordWrap(true);
 
     formLayout->addRow(m_speakResponsesBox);
+    formLayout->addRow(tr("Provider:"), m_kindCombo);
     formLayout->addRow(tr("Name:"), m_nameEdit);
-    formLayout->addRow(tr("Type:"), m_kindCombo);
     formLayout->addRow(tr("Base URL:"), m_urlEdit);
     formLayout->addRow(tr("API key:"), m_apiKeyEdit);
-    formLayout->addRow(tr("Model:"), m_modelEdit);
+    formLayout->addRow(tr("Default model:"), m_modelEdit);
     formLayout->addRow(tr("Voice:"), m_voiceEdit);
     formLayout->addRow(tr("Language:"), m_languageEdit);
     formLayout->addRow(m_enabledBox);
@@ -138,7 +142,8 @@ void TtsPage::populateOutputDevices() {
 }
 
 void TtsPage::onAddService() {
-    auto &config = m_registry->add(tr("New TTS service"), TtsServiceKind::OpenAiTts);
+    const auto kind = TtsServiceKind::OpenAiTts;
+    auto &config = m_registry->add(TtsServiceConfig::kindName(kind), kind);
     populateList();
     for (int i = 0; i < m_list->count(); ++i) {
         if (QUuid(m_list->item(i)->data(Qt::UserRole).toString()) == config.id) {
@@ -168,6 +173,7 @@ void TtsPage::onSelectionChanged() {
     m_updatingForm = true;
     auto *item = m_list->currentItem();
     const bool hasSelection = item != nullptr;
+    m_hasSelection = hasSelection;
     m_nameEdit->setEnabled(hasSelection);
     m_kindCombo->setEnabled(hasSelection);
     m_urlEdit->setEnabled(hasSelection);
@@ -192,21 +198,42 @@ void TtsPage::onSelectionChanged() {
         m_languageEdit->clear();
         m_enabledBox->setChecked(true);
     }
-    updateUrlVisibility();
+    updateUrlState();
     m_updatingForm = false;
 }
 
 void TtsPage::onKindChanged(int index) {
-    if (m_updatingForm || !m_urlEdit->isEnabled())
+    if (m_updatingForm || !m_kindCombo->isEnabled())
         return;
     const auto kind = static_cast<TtsServiceKind>(m_kindCombo->itemData(index).toInt());
-    if (m_urlEdit->text().isEmpty())
+    // Follow the provider name while the user has not chosen a custom name,
+    // like the LLM settings page does.
+    if (m_nameEdit->text().trimmed().isEmpty() ||
+        std::ranges::any_of(TtsServiceConfig::allKinds(), [&](TtsServiceKind anyKind) {
+            return m_nameEdit->text().trimmed() == TtsServiceConfig::kindName(anyKind);
+        }))
+        m_nameEdit->setText(TtsServiceConfig::kindName(kind));
+    // Self-hosted servers get the provider's default URL prefilled; cloud
+    // providers use their built-in endpoint and the field is disabled.
+    if (TtsServiceConfig::isCloud(kind))
+        m_urlEdit->clear();
+    else if (m_urlEdit->text().isEmpty())
         m_urlEdit->setText(TtsServiceConfig::defaultBaseUrl(kind));
-    if (m_modelEdit->text().isEmpty())
+    if (m_modelEdit->text().trimmed().isEmpty() ||
+        std::ranges::any_of(TtsServiceConfig::allKinds(), [&](TtsServiceKind anyKind) {
+            return m_modelEdit->text().trimmed() == TtsServiceConfig::defaultModel(anyKind);
+        }))
         m_modelEdit->setText(TtsServiceConfig::defaultModel(kind));
-    if (m_voiceEdit->text().isEmpty() && !TtsServiceConfig::defaultVoice(kind).isEmpty())
+    if (m_voiceEdit->text().trimmed().isEmpty() && !TtsServiceConfig::defaultVoice(kind).isEmpty())
         m_voiceEdit->setText(TtsServiceConfig::defaultVoice(kind));
-    updateUrlVisibility();
+    // Reuse the API key already configured for the same provider's LLM
+    // backend when the field is still empty.
+    if (m_apiKeyEdit->text().trimmed().isEmpty()) {
+        const QString knownKey = knownApiKey();
+        if (!knownKey.isEmpty())
+            m_apiKeyEdit->setText(knownKey);
+    }
+    updateUrlState();
     onFieldEdited();
 }
 
@@ -291,21 +318,27 @@ void TtsPage::saveFormIntoConfig(TtsServiceConfig &config) {
     if (config.baseUrl.isEmpty() && !TtsServiceConfig::isCloud(config.kind))
         config.baseUrl = TtsServiceConfig::defaultBaseUrl(config.kind);
     config.apiKey = m_apiKeyEdit->text().trimmed();
+    // The model stays empty unless the user picks another one: the config
+    // falls back to the provider's default model.
     config.model = m_modelEdit->text().trimmed();
+    if (config.model.isEmpty() ||
+        std::ranges::any_of(TtsServiceConfig::allKinds(), [&](TtsServiceKind anyKind) {
+            return config.model == TtsServiceConfig::defaultModel(anyKind);
+        }))
+        config.model = TtsServiceConfig::defaultModel(config.kind);
     config.voice = m_voiceEdit->text().trimmed();
     config.language = m_languageEdit->text().trimmed();
     config.enabled = m_enabledBox->isChecked();
 }
 
-void TtsPage::updateUrlVisibility() {
+void TtsPage::updateUrlState() {
+    // Self-hosted servers require an explicit base URL; for cloud providers
+    // the built-in endpoint is used and the field is disabled, like the LLM
+    // settings page.
     const bool cloud = TtsServiceConfig::isCloud(currentKind());
-    const bool visible = !cloud || !m_urlEdit->text().trimmed().isEmpty();
-    m_urlEdit->setVisible(visible);
+    m_urlEdit->setEnabled(m_hasSelection && !cloud);
     m_urlEdit->setPlaceholderText(cloud ? tr("Custom endpoint (optional)")
                                         : QStringLiteral("http://127.0.0.1:5000"));
-    if (auto *form = qobject_cast<QFormLayout *>(m_urlEdit->parentWidget()->layout()))
-        if (auto *label = form->labelForField(m_urlEdit))
-            label->setVisible(visible);
 
     // Piper has no voice concept (the model file selects the voice).
     const bool hasVoice = currentKind() != TtsServiceKind::Piper;
@@ -313,6 +346,19 @@ void TtsPage::updateUrlVisibility() {
     if (auto *form = qobject_cast<QFormLayout *>(m_voiceEdit->parentWidget()->layout()))
         if (auto *label = form->labelForField(m_voiceEdit))
             label->setVisible(hasVoice);
+}
+
+QString TtsPage::knownApiKey() const {
+    // The API key of an LLM backend configured for the same provider: the
+    // TTS and chat APIs share one account.
+    const auto provider = TtsServiceConfig::llmProviderKind(currentKind());
+    if (!m_backendRegistry || !provider)
+        return {};
+    for (const auto &config : m_backendRegistry->backends()) {
+        if (config.kind == *provider && !config.apiKey.trimmed().isEmpty())
+            return config.apiKey.trimmed();
+    }
+    return {};
 }
 
 TtsServiceKind TtsPage::currentKind() const {

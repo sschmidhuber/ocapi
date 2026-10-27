@@ -1,9 +1,12 @@
 #pragma once
 
+#include "core/backendconfig.h"
+
 #include <QJsonObject>
 #include <QString>
 #include <QUuid>
 #include <QVector>
+#include <optional>
 
 namespace ocapi {
 
@@ -41,6 +44,9 @@ struct TtsServiceConfig {
     [[nodiscard]] static bool isCloud(TtsServiceKind kind);
     [[nodiscard]] static bool requiresApiKey(TtsServiceKind kind);
     [[nodiscard]] static const QVector<TtsServiceKind> &allKinds();
+    // The LLM provider that shares this TTS provider's account/API key,
+    // or std::nullopt when there is no corresponding LLM provider.
+    [[nodiscard]] static std::optional<BackendKind> llmProviderKind(TtsServiceKind kind);
     // Audio format requested from the service. Piper serves WAV; everything
     // else gets MP3 (decoded by QAudioDecoder for playback).
     [[nodiscard]] static QString responseFormat(TtsServiceKind kind);

@@ -39,7 +39,7 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
                 QStringLiteral(":/resources/icons/ai_chip.svg"));
     addTab(tr("LLM"), QStringLiteral("llm"), new BackendPage(backendRegistry, m_stack));
     addTab(tr("STT"), QStringLiteral("stt"), new SttPage(sttRegistry, backendRegistry, m_stack));
-    addTab(tr("TTS"), QStringLiteral("tts"), new TtsPage(ttsRegistry, m_stack));
+    addTab(tr("TTS"), QStringLiteral("tts"), new TtsPage(ttsRegistry, backendRegistry, m_stack));
 
     addCategory(tr("Tools"), QStringLiteral("tools"),
                 QStringLiteral(":/resources/icons/tools.svg"));

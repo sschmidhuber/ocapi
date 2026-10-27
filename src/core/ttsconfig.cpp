@@ -147,6 +147,22 @@ const QVector<TtsServiceKind> &TtsServiceConfig::allKinds() {
     return kinds;
 }
 
+std::optional<BackendKind> TtsServiceConfig::llmProviderKind(TtsServiceKind kind) {
+    switch (kind) {
+    case TtsServiceKind::OpenAiApi:
+        return BackendKind::OpenAi;
+    case TtsServiceKind::Groq:
+        return BackendKind::Groq;
+    case TtsServiceKind::Mistral:
+        return BackendKind::Mistral;
+    case TtsServiceKind::ElevenLabs:
+    case TtsServiceKind::OpenAiTts:
+    case TtsServiceKind::Piper:
+        break;
+    }
+    return std::nullopt;
+}
+
 QString TtsServiceConfig::responseFormat(TtsServiceKind kind) {
     return kind == TtsServiceKind::Piper ? QStringLiteral("wav") : QStringLiteral("mp3");
 }

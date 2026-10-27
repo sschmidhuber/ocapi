@@ -17,6 +17,7 @@ private slots:
     void responseFormatPerKind();
     void speechPathPerKind();
     void jsonRoundTrip();
+    void llmProviderMapping();
 };
 
 void TestTtsConfig::defaults() {
@@ -103,6 +104,15 @@ void TestTtsConfig::jsonRoundTrip() {
     QCOMPARE(restored.voice, config.voice);
     QCOMPARE(restored.language, config.language);
     QCOMPARE(restored.enabled, false);
+}
+
+void TestTtsConfig::llmProviderMapping() {
+    QCOMPARE(TtsServiceConfig::llmProviderKind(TtsServiceKind::OpenAiApi), BackendKind::OpenAi);
+    QCOMPARE(TtsServiceConfig::llmProviderKind(TtsServiceKind::Groq), BackendKind::Groq);
+    QCOMPARE(TtsServiceConfig::llmProviderKind(TtsServiceKind::Mistral), BackendKind::Mistral);
+    QCOMPARE(TtsServiceConfig::llmProviderKind(TtsServiceKind::ElevenLabs), std::nullopt);
+    QCOMPARE(TtsServiceConfig::llmProviderKind(TtsServiceKind::OpenAiTts), std::nullopt);
+    QCOMPARE(TtsServiceConfig::llmProviderKind(TtsServiceKind::Piper), std::nullopt);
 }
 
 QTEST_GUILESS_MAIN(TestTtsConfig)

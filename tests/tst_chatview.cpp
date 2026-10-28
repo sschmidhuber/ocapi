@@ -48,6 +48,7 @@ private slots:
     void accessibleTextFailedHasFailedWord();
     void newAssistantMessageIsStreamingImmediately();
     void reasoningRolesExposeStreamAndText();
+    void reasoningStaysOutOfVisibleContent();
     void reasoningClickTogglesExpansion();
     void streamingAssistantShowsNoCopyFooter();
     void clickOnFileChipEmitsOpenFailureForMissingFile();
@@ -332,6 +333,27 @@ void TestChatView::reasoningRolesExposeStreamAndText() {
     // Ending the reasoning phase clears the streaming flag in the view too.
     session.setReasoningStreaming(id, false);
     QCOMPARE(modelOf(view)->index(0, 0).data(static_cast<int>(Qt::UserRole) + 12).toBool(), false);
+}
+
+void TestChatView::reasoningStaysOutOfVisibleContent() {
+    // A message with both reasoning and an answer: the visible content
+    // (DisplayRole, what the delegate paints and Copy message uses) is the
+    // answer only; the reasoning surfaces exclusively through the
+    // "Thinking" element (AccessibleTextRole spells it out for AT).
+    ChatSession session(QStringLiteral("t"), QStringLiteral("b"));
+    const QUuid id =
+        session.appendMessage(Role::Assistant, QStringLiteral("Visible answer"), true).id;
+    session.updateReasoning(id, QStringLiteral("Secret chain of thought"), false);
+
+    ChatView view;
+    view.setSession(&session);
+    const QModelIndex idx = modelOf(view)->index(0, 0);
+    QCOMPARE(idx.data(Qt::DisplayRole).toString(), QStringLiteral("Visible answer"));
+    QVERIFY(
+        !idx.data(Qt::DisplayRole).toString().contains(QStringLiteral("Secret chain of thought")));
+    QVERIFY(idx.data(Qt::AccessibleTextRole)
+                .toString()
+                .contains(QStringLiteral("Secret chain of thought")));
 }
 
 void TestChatView::reasoningClickTogglesExpansion() {

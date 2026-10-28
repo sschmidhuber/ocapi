@@ -59,6 +59,7 @@ signals:
 private:
     void enqueueSentence(const QString &sentence);
     void onAudioReady(const QByteArray &audio, const QString &mimeType);
+    void startNextDecode(); // starts decoding the oldest queued MP3, if idle
     void onDecodeBufferReady();
     void onDecodeFinished();
     void onServiceError(const QString &message);
@@ -77,8 +78,9 @@ private:
     QMediaDevices *m_devices = nullptr;
     QAudioSink *m_sink = nullptr;
     QIODevice *m_sinkIo = nullptr;
-    QAudioDecoder *m_decoder = nullptr;
-    QBuffer *m_sourceBuffer = nullptr;
+    QAudioDecoder *m_decoder = nullptr; // active decoder (nullptr when idle)
+    QBuffer *m_sourceBuffer = nullptr;  // source of the active decoder
+    QQueue<QByteArray> m_decodeQueue;   // compressed audio waiting to decode
     QTimer *m_feedTimer = nullptr;
     QQueue<QByteArray> m_pendingPcm; // decoded PCM waiting for sink space
     QByteArray m_decodedPcm;         // PCM accumulated during one decode run

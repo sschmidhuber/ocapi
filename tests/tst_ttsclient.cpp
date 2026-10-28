@@ -25,10 +25,11 @@ class FakeTtsServer : public QObject {
 
 public:
     explicit FakeTtsServer(QObject *parent = nullptr) : QObject(parent) {
-        connect(&m_server, &QTcpServer::newConnection, this, [this]() {
+        connect(&m_server, &QTcpServer::newConnection, this, [this] {
             auto *socket = m_server.nextPendingConnection();
             connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
-            connect(socket, &QTcpSocket::readyRead, this, [this, socket]() {
+            connect(socket, &QTcpSocket::readyRead, this, [this, socket] {
+                // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
                 m_requests[socket].append(socket->readAll());
                 respondIfComplete(socket);
             });
@@ -82,6 +83,7 @@ public:
 
 private:
     void respondIfComplete(QTcpSocket *socket) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
         const QByteArray &buffer = m_requests[socket];
         const auto headerEnd = buffer.indexOf("\r\n\r\n");
         if (headerEnd < 0)
@@ -130,7 +132,8 @@ private:
             QByteArray contentType = "audio/wav";
             if (m_jsonEnvelope) {
                 const QJsonObject envelope{
-                    {QStringLiteral("audio_data"), QString::fromLatin1(audio.toBase64())}};
+                    {QStringLiteral("audio_data"), QString::fromLatin1(audio.toBase64())},
+                };
                 body = QJsonDocument(envelope).toJson(QJsonDocument::Compact);
                 contentType = "application/json";
             }
@@ -143,11 +146,12 @@ private:
         }
         auto *pending = new QTimer(socket);
         pending->setSingleShot(true);
-        connect(pending, &QTimer::timeout, socket, [socket, response, pending]() {
+        connect(pending, &QTimer::timeout, socket, [socket, response, pending] {
             socket->write(response);
             pending->deleteLater();
         });
         pending->start(delayMs);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
         m_requests[socket].clear();
     }
 

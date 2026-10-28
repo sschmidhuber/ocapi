@@ -66,7 +66,7 @@ TtsClient::~TtsClient() = default;
 void TtsClient::synthesize(const QString &text) {
     if (text.trimmed().isEmpty())
         return;
-    m_queue.push_back({text, m_nextSequence++});
+    m_queue.push_back(PendingRequest{.text = text, .sequence = m_nextSequence++});
 
     sendNext();
 }
@@ -112,13 +112,12 @@ void TtsClient::sendNext() {
             httpRequest.setHeader(QNetworkRequest::ContentTypeHeader,
                                   QStringLiteral("application/json"));
             applyCommonHeaders(httpRequest, m_config);
-            QJsonObject payload{
-                {QStringLiteral("model"), m_config.effectiveModel()},
-                {QStringLiteral("input"), request.text},
-                {QStringLiteral("voice"), m_config.effectiveVoice()},
-                {QStringLiteral("response_format"),
-                 TtsServiceConfig::responseFormat(m_config.kind)},
-            };
+            QJsonObject payload;
+            payload.insert(QStringLiteral("model"), m_config.effectiveModel());
+            payload.insert(QStringLiteral("input"), request.text);
+            payload.insert(QStringLiteral("voice"), m_config.effectiveVoice());
+            payload.insert(QStringLiteral("response_format"),
+                           TtsServiceConfig::responseFormat(m_config.kind));
             if (m_config.kind == TtsServiceKind::ElevenLabs) {
                 // ElevenLabs expects "text" and "model_id" instead of
                 // "input" and "model".
@@ -146,7 +145,7 @@ void TtsClient::sendNext() {
                               .arg(QString::number(sequence), reply->url().toString(),
                                    request.text.left(120)));
         connect(reply, &QNetworkReply::finished, this,
-                [this, reply, sequence]() { onReplyFinished(reply, sequence); });
+                [this, reply, sequence] { onReplyFinished(reply, sequence); });
     }
 }
 

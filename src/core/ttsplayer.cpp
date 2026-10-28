@@ -117,7 +117,10 @@ void TtsPlayer::stop() {
         m_decoder->stop();
         m_decoder->deleteLater();
         m_decoder = nullptr;
+        m_sourceBuffer = nullptr;
     }
+    m_decodeQueue.clear();
+    m_decodedPcm.clear();
     if (m_sink) {
         m_sink->stop();
         m_sink->reset();
@@ -168,11 +171,18 @@ void TtsPlayer::onAudioReady(const QByteArray &audio, const QString &mimeType) {
         return;
     }
 
-    // MP3 (and any other compressed format): decode to PCM first.
-    if (m_decoder) {
-        m_decoder->stop();
-        m_decoder->deleteLater();
-    }
+    // MP3 (and any other compressed format): decode to PCM first. Only one
+    // QAudioDecoder runs at a time; further responses queue up and are
+    // decoded in arrival order once the active decode finishes.
+    m_decodeQueue.enqueue(audio);
+    startNextDecode();
+    updateSpeaking();
+}
+
+void TtsPlayer::startNextDecode() {
+    if (m_stopped || m_decoder || m_decodeQueue.isEmpty())
+        return;
+    const QByteArray audio = m_decodeQueue.dequeue();
     m_decodedPcm.clear();
     m_decodedFormat = QAudioFormat();
     m_decoder = new QAudioDecoder(this);
@@ -185,22 +195,34 @@ void TtsPlayer::onAudioReady(const QByteArray &audio, const QString &mimeType) {
     m_sourceBuffer = new QBuffer(m_decoder);
     m_sourceBuffer->setData(audio);
     m_sourceBuffer->open(QIODevice::ReadOnly);
-    connect(m_decoder, &QAudioDecoder::bufferReady, this, &TtsPlayer::onDecodeBufferReady);
-    connect(m_decoder, &QAudioDecoder::finished, this, &TtsPlayer::onDecodeFinished);
-    connect(m_decoder, QOverload<QAudioDecoder::Error>::of(&QAudioDecoder::error), this,
-            [this](QAudioDecoder::Error decodeError) {
+    // Capture the decoder pointer: a finished/error signal from a previous
+    // decoder (deleteLater'd but not yet destroyed) must not touch the new
+    // one. The context object also drops the connection if either dies.
+    QAudioDecoder *decoder = m_decoder;
+    connect(decoder, &QAudioDecoder::bufferReady, this, [this, decoder] {
+        if (m_decoder != decoder)
+            return; // stale signal from a replaced decoder
+        onDecodeBufferReady();
+    });
+    connect(decoder, &QAudioDecoder::finished, this, [this, decoder] {
+        if (m_decoder != decoder)
+            return; // stale signal from a replaced decoder
+        onDecodeFinished();
+    });
+    connect(decoder, QOverload<QAudioDecoder::Error>::of(&QAudioDecoder::error), this,
+            [this, decoder](QAudioDecoder::Error decodeError) {
                 Q_UNUSED(decodeError)
-                if (m_decoder) {
-                    emit error(m_decoder->errorString());
-                    m_decoder->deleteLater();
-                    m_decoder = nullptr;
-                    m_sourceBuffer = nullptr;
-                }
+                if (m_decoder != decoder)
+                    return; // stale signal from a replaced decoder
+                emit error(decoder->errorString());
+                decoder->deleteLater();
+                m_decoder = nullptr;
+                m_sourceBuffer = nullptr;
                 m_decodedPcm.clear();
+                startNextDecode(); // keep the queue moving past failures
             });
-    m_decoder->setSourceDevice(m_sourceBuffer);
-    m_decoder->start();
-    updateSpeaking();
+    decoder->setSourceDevice(m_sourceBuffer);
+    decoder->start();
 }
 
 void TtsPlayer::onDecodeBufferReady() {
@@ -253,13 +275,14 @@ void TtsPlayer::onDecodeFinished() {
     m_decoder->deleteLater();
     m_decoder = nullptr;
     m_sourceBuffer = nullptr;
-    if (m_stopped || m_decodedPcm.isEmpty())
-        return;
-    if (!ensureSink(format.sampleRate(), format.channelCount()))
-        return;
-    m_pendingPcm.enqueue(m_decodedPcm);
+    if (!m_stopped && !m_decodedPcm.isEmpty() &&
+        ensureSink(format.sampleRate(), format.channelCount())) {
+        m_pendingPcm.enqueue(m_decodedPcm);
+        writePendingPcm();
+    }
     m_decodedPcm.clear();
-    writePendingPcm();
+    // Decode the next queued response, if any.
+    startNextDecode();
 }
 
 bool TtsPlayer::ensureSink(int sampleRate, int channels) {
@@ -326,8 +349,9 @@ void TtsPlayer::writePendingPcm() {
 
 void TtsPlayer::updateSpeaking() {
     const bool sinkActive = m_sink && m_sink->state() == QAudio::ActiveState;
-    const bool speaking = !m_stopped && (m_hasPending || !m_pendingPcm.isEmpty() ||
-                                         m_decoder != nullptr || sinkActive);
+    const bool speaking =
+        !m_stopped && (m_hasPending || !m_pendingPcm.isEmpty() || m_decoder != nullptr ||
+                       !m_decodeQueue.isEmpty() || sinkActive);
     if (speaking != m_speaking) {
         m_speaking = speaking;
         emit speakingChanged(speaking);

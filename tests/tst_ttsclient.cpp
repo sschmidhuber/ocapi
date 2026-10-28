@@ -172,6 +172,7 @@ private slots:
     void synthesizesAndEmitsAudio();
     void sendsOpenAiPayloadWithApiKey();
     void sendsElevenLabsPayloadWithXiApiKey();
+    void sendsMistralPayloadWithVoiceId();
     void emitsAudioInEnqueueOrder();
     void reportsErrorOnFailure();
     void reportsHttpStatusAndBodyOnServiceError();
@@ -237,6 +238,32 @@ void TestTtsClient::sendsElevenLabsPayloadWithXiApiKey() {
     QVERIFY(!body.contains(QStringLiteral("\"model\":")));
     QCOMPARE(m_server.xiApiKeyHeaders().first(), QStringLiteral("xi-secret"));
     QVERIFY(m_server.authorizationHeaders().first().isEmpty());
+}
+
+void TestTtsClient::sendsMistralPayloadWithVoiceId() {
+    // Mistral's speech API takes the voice as "voice_id" (preset slug or
+    // saved voice ID), not the OpenAI-style "voice" name; sending "voice"
+    // fails with 404 invalid_voice.
+    QVERIFY(m_server.start());
+    auto config = serviceConfig(m_server.port());
+    config.kind = TtsServiceKind::Mistral;
+    config.baseUrl = QStringLiteral("http://127.0.0.1:%1/v1").arg(m_server.port());
+    config.apiKey = QStringLiteral("mistral-key");
+    config.model = QStringLiteral("voxtral-mini-tts-2603");
+    config.voice = QStringLiteral("gb_jane_neutral");
+    TtsClient client(config);
+    QSignalSpy audio(&client, &TtsClient::audioReady);
+
+    client.synthesize(QStringLiteral("Hello."));
+    QVERIFY(audio.wait(5000));
+
+    QCOMPARE(m_server.requestCount(), 1);
+    const QString body = m_server.requestBodies().first();
+    QVERIFY(body.contains(QStringLiteral("\"model\":\"voxtral-mini-tts-2603\"")));
+    QVERIFY(body.contains(QStringLiteral("\"input\":\"Hello.\"")));
+    QVERIFY(body.contains(QStringLiteral("\"voice_id\":\"gb_jane_neutral\"")));
+    QVERIFY(!body.contains(QStringLiteral("\"voice\":")));
+    QCOMPARE(m_server.authorizationHeaders().first(), QStringLiteral("Bearer mistral-key"));
 }
 
 void TestTtsClient::emitsAudioInEnqueueOrder() {

@@ -99,6 +99,14 @@ void TtsClient::sendNext() {
                 payload.insert(QStringLiteral("text"), request.text);
                 payload.insert(QStringLiteral("model_id"), m_config.effectiveModel());
             }
+            if (m_config.kind == TtsServiceKind::Mistral) {
+                // Mistral's speech API takes the voice as "voice_id" (a
+                // preset slug like gb_jane_neutral or a saved voice ID), not
+                // the OpenAI-style "voice" name.
+                payload.remove(QStringLiteral("voice"));
+                if (!m_config.effectiveVoice().isEmpty())
+                    payload.insert(QStringLiteral("voice_id"), m_config.effectiveVoice());
+            }
             if (!m_config.language.trimmed().isEmpty())
                 payload.insert(QStringLiteral("language"), m_config.language.trimmed());
             reply = m_nam->post(httpRequest, QJsonDocument(payload).toJson(QJsonDocument::Compact));

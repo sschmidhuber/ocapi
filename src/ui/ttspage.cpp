@@ -54,6 +54,7 @@ TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidge
     m_modelEdit->setPlaceholderText(tr("Model (optional)"));
     m_voiceEdit = new QLineEdit(formWidget);
     m_voiceEdit->setPlaceholderText(tr("Voice (optional)"));
+    m_voiceEdit->setToolTip(tr("Voice name (OpenAI, Groq), voice ID (Mistral, ElevenLabs)"));
     m_languageEdit = new QLineEdit(formWidget);
     m_languageEdit->setPlaceholderText(tr("ISO 639-1 code, e.g. en, de (optional)"));
     m_enabledBox = new QCheckBox(tr("Enabled"), formWidget);
@@ -235,7 +236,10 @@ void TtsPage::onKindChanged(int index) {
             return m_modelEdit->text().trimmed() == TtsServiceConfig::defaultModel(anyKind);
         }))
         m_modelEdit->setText(TtsServiceConfig::defaultModel(kind));
-    if (m_voiceEdit->text().trimmed().isEmpty() && !TtsServiceConfig::defaultVoice(kind).isEmpty())
+    if (m_voiceEdit->text().trimmed().isEmpty() ||
+        std::ranges::any_of(TtsServiceConfig::allKinds(), [&](TtsServiceKind anyKind) {
+            return m_voiceEdit->text().trimmed() == TtsServiceConfig::defaultVoice(anyKind);
+        }))
         m_voiceEdit->setText(TtsServiceConfig::defaultVoice(kind));
     // Reuse the API key already configured for the same provider's LLM
     // backend when the field is still empty.

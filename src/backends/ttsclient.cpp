@@ -78,6 +78,16 @@ void TtsClient::cancel() {
     m_completed.clear();
 }
 
+void TtsClient::resume() {
+    // Undo a previous cancel(): the client accepts synthesis requests again.
+    // Already-aborted requests are gone; new ones get fresh sequence numbers
+    // continuing after the old ones so no stale completion can match.
+    if (!m_cancelled)
+        return;
+    m_cancelled = false;
+    m_nextPlaySequence = m_nextSequence;
+}
+
 void TtsClient::sendNext() {
     if (m_cancelled)
         return;

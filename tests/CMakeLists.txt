@@ -31,7 +31,8 @@ set(OCAPI_TESTS
     tst_ttsregistry
     tst_sentencesplitter
     tst_audioformat
-    tst_ttsclient)
+    tst_ttsclient
+    tst_ttsplayer)
 
 
 foreach(test_name ${OCAPI_TESTS})

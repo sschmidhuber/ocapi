@@ -37,6 +37,8 @@ public:
     void synthesize(const QString &text);
     // Aborts all pending requests and clears the queue.
     void cancel();
+    // Undoes a previous cancel(): the client accepts requests again.
+    void resume();
 
 signals:
     void audioReady(const QByteArray &audio, const QString &mimeType);

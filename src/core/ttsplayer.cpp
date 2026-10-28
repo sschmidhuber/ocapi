@@ -68,7 +68,9 @@ void TtsPlayer::feedText(const QString &accumulatedText) {
     if (!m_client)
         return;
     if (m_stopped) {
-        // New playback after a stop: start fresh.
+        // New playback after a stop: start fresh. cancel() left the client
+        // in the cancelled state; resume it so new requests go out.
+        m_client->resume();
         m_stopped = false;
         m_endOfText = false;
         m_pendingRequests = 0;
@@ -172,6 +174,7 @@ void TtsPlayer::onAudioReady(const QByteArray &audio, const QString &mimeType) {
         m_decoder->deleteLater();
     }
     m_decodedPcm.clear();
+    m_decodedFormat = QAudioFormat();
     m_decoder = new QAudioDecoder(this);
     // Ask for Int16 PCM: the sink is configured with Int16, and without an
     // explicit format the decoder's native output (often Float32) would be
@@ -227,15 +230,25 @@ void TtsPlayer::onDecodeBufferReady() {
         }
         const QByteArray pcm = AudioFormat::toInt16Pcm(
             buffer.constData<void>(), buffer.frameCount(), format.channelCount(), sampleFormat);
-        if (!pcm.isEmpty())
+        if (!pcm.isEmpty()) {
+            // Remember the buffer's real format: QAudioDecoder::audioFormat()
+            // can stay invalid (0 Hz) when no explicit format was set, and
+            // the sink must be created with the decoded rate/channels.
+            m_decodedFormat = format;
             m_decodedPcm.append(pcm);
+        }
     }
 }
 
 void TtsPlayer::onDecodeFinished() {
     if (!m_decoder)
         return;
-    const QAudioFormat format = m_decoder->audioFormat();
+    // The decoder's reported format can be invalid when no audioFormat was
+    // set and the backend never produced a buffer; fall back to the format
+    // of the last decoded buffer (stored in m_decodedFormat).
+    QAudioFormat format = m_decoder->audioFormat();
+    if (!format.isValid() || format.sampleRate() <= 0 || format.channelCount() <= 0)
+        format = m_decodedFormat;
     onDecodeBufferReady(); // drain whatever is left after the final buffer
     m_decoder->deleteLater();
     m_decoder = nullptr;

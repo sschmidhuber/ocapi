@@ -3,6 +3,7 @@
 #include "core/sentencesplitter.h"
 #include "core/ttsconfig.h"
 
+#include <QAudioFormat>
 #include <QByteArray>
 #include <QObject>
 #include <QQueue>
@@ -81,6 +82,7 @@ private:
     QTimer *m_feedTimer = nullptr;
     QQueue<QByteArray> m_pendingPcm; // decoded PCM waiting for sink space
     QByteArray m_decodedPcm;         // PCM accumulated during one decode run
+    QAudioFormat m_decodedFormat;    // format of the last decoded buffer
     bool m_speaking = false;
     bool m_endOfText = false;
     bool m_stopped = true;

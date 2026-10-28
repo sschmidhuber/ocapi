@@ -17,6 +17,10 @@ private slots:
     void wavInfoRejectsNonWav();
     void wavPcmDataExtractsDataChunk();
     void mimeTypes();
+    void toInt16PcmCopiesInt16();
+    void toInt16PcmConvertsFloat();
+    void toInt16PcmConvertsInt32();
+    void toInt16PcmRejectsUnknown();
 };
 
 void TestAudioFormat::detectsWav() {
@@ -71,6 +75,47 @@ void TestAudioFormat::mimeTypes() {
     QCOMPARE(AudioFormat::mimeType(AudioFormat::Kind::Wav), QStringLiteral("audio/wav"));
     QCOMPARE(AudioFormat::mimeType(AudioFormat::Kind::Unknown),
              QStringLiteral("application/octet-stream"));
+}
+
+void TestAudioFormat::toInt16PcmCopiesInt16() {
+    const qint16 samples[] = {0, 1000, -1000, 32767, -32768};
+    const QByteArray pcm = AudioFormat::toInt16Pcm(samples, 5, 1, AudioFormat::SampleFormat::Int16);
+    QCOMPARE(pcm.size(), 5 * int(sizeof(qint16)));
+    QCOMPARE(reinterpret_cast<const qint16 *>(pcm.constData())[1], qint16(1000));
+    QCOMPARE(reinterpret_cast<const qint16 *>(pcm.constData())[4], qint16(-32768));
+}
+
+void TestAudioFormat::toInt16PcmConvertsFloat() {
+    // FFmpeg decodes MP3 to float32; the conversion must scale to Int16.
+    // Float 0.5 must become ~16383, float 1.0 must clip to 32767 (not wrap).
+    const float samples[] = {0.0f, 0.5f, -0.5f, 1.0f, -1.0f, 2.0f};
+    const QByteArray pcm = AudioFormat::toInt16Pcm(samples, 6, 1, AudioFormat::SampleFormat::Float);
+    QCOMPARE(pcm.size(), 6 * int(sizeof(qint16)));
+    const auto *out = reinterpret_cast<const qint16 *>(pcm.constData());
+    QCOMPARE(out[0], qint16(0));
+    QVERIFY(qAbs(out[1] - 16383) <= 1);
+    QVERIFY(qAbs(out[2] + 16383) <= 1);
+    QCOMPARE(out[3], qint16(32767));
+    QCOMPARE(out[4], qint16(-32767));
+    QCOMPARE(out[5], qint16(32767)); // clipped, not wrapped
+}
+
+void TestAudioFormat::toInt16PcmConvertsInt32() {
+    const qint32 samples[] = {0, 1 << 16, -(1 << 16), 0x7FFFFFFF, qint32(0x80000000)};
+    const QByteArray pcm = AudioFormat::toInt16Pcm(samples, 5, 1, AudioFormat::SampleFormat::Int32);
+    const auto *out = reinterpret_cast<const qint16 *>(pcm.constData());
+    QCOMPARE(out[0], qint16(0));
+    QCOMPARE(out[1], qint16(1));
+    QCOMPARE(out[2], qint16(-1));
+    QCOMPARE(out[3], qint16(32767));
+    QCOMPARE(out[4], qint16(-32768));
+}
+
+void TestAudioFormat::toInt16PcmRejectsUnknown() {
+    const float samples[] = {0.5f};
+    QVERIFY(AudioFormat::toInt16Pcm(samples, 1, 1, AudioFormat::SampleFormat::Unknown).isEmpty());
+    QVERIFY(AudioFormat::toInt16Pcm(nullptr, 1, 1, AudioFormat::SampleFormat::Float).isEmpty());
+    QVERIFY(AudioFormat::toInt16Pcm(samples, 0, 1, AudioFormat::SampleFormat::Float).isEmpty());
 }
 
 QTEST_GUILESS_MAIN(TestAudioFormat)

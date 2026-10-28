@@ -173,6 +173,12 @@ void TtsPlayer::onAudioReady(const QByteArray &audio, const QString &mimeType) {
     }
     m_decodedPcm.clear();
     m_decoder = new QAudioDecoder(this);
+    // Ask for Int16 PCM: the sink is configured with Int16, and without an
+    // explicit format the decoder's native output (often Float32) would be
+    // copied as raw bytes and play back as noise.
+    QAudioFormat decodeFormat;
+    decodeFormat.setSampleFormat(QAudioFormat::Int16);
+    m_decoder->setAudioFormat(decodeFormat);
     m_sourceBuffer = new QBuffer(m_decoder);
     m_sourceBuffer->setData(audio);
     m_sourceBuffer->open(QIODevice::ReadOnly);
@@ -201,12 +207,28 @@ void TtsPlayer::onDecodeBufferReady() {
         const QAudioBuffer buffer = m_decoder->read();
         if (buffer.frameCount() <= 0)
             break;
-        const qsizetype bytes = buffer.byteCount();
-        const auto *samples = buffer.constData<qint16>();
-        const qsizetype oldSize = m_decodedPcm.size();
-        m_decodedPcm.resize(oldSize + bytes);
-        auto destination = m_decodedPcm.mid(oldSize);
-        std::memcpy(destination.data(), samples, size_t(bytes));
+        // The decoder may output any sample format (FFmpeg typically
+        // delivers Float32 for MP3); convert to the Int16 PCM the sink
+        // is configured with, otherwise the raw bytes play back as noise.
+        const QAudioFormat format = buffer.format();
+        AudioFormat::SampleFormat sampleFormat = AudioFormat::SampleFormat::Unknown;
+        switch (format.sampleFormat()) {
+        case QAudioFormat::Int16:
+            sampleFormat = AudioFormat::SampleFormat::Int16;
+            break;
+        case QAudioFormat::Int32:
+            sampleFormat = AudioFormat::SampleFormat::Int32;
+            break;
+        case QAudioFormat::Float:
+            sampleFormat = AudioFormat::SampleFormat::Float;
+            break;
+        default:
+            break;
+        }
+        const QByteArray pcm = AudioFormat::toInt16Pcm(
+            buffer.constData<void>(), buffer.frameCount(), format.channelCount(), sampleFormat);
+        if (!pcm.isEmpty())
+            m_decodedPcm.append(pcm);
     }
 }
 

@@ -2,6 +2,9 @@
 
 #include <QtEndian>
 
+#include <algorithm>
+#include <cstring>
+
 namespace ocapi {
 
 namespace {
@@ -94,6 +97,36 @@ QByteArray AudioFormat::wavPcmData(const QByteArray &data) {
         offset += 8 + chunk.size + (chunk.size % 2);
     }
     return {};
+}
+
+QByteArray AudioFormat::toInt16Pcm(const void *samples, qsizetype frameCount, int channels,
+                                   SampleFormat format) {
+    if (frameCount <= 0 || channels <= 0 || samples == nullptr)
+        return {};
+    const qsizetype count = frameCount * channels;
+    QByteArray out;
+    out.resize(count * qsizetype(sizeof(qint16)));
+    auto *destination = reinterpret_cast<qint16 *>(out.data());
+    switch (format) {
+    case SampleFormat::Int16:
+        std::memcpy(destination, samples, size_t(count * sizeof(qint16)));
+        break;
+    case SampleFormat::Int32: {
+        const auto *src = static_cast<const qint32 *>(samples);
+        for (qsizetype i = 0; i < count; ++i)
+            destination[i] = qint16(src[i] >> 16);
+        break;
+    }
+    case SampleFormat::Float: {
+        const auto *src = static_cast<const float *>(samples);
+        for (qsizetype i = 0; i < count; ++i)
+            destination[i] = qint16(std::clamp(src[i], -1.0f, 1.0f) * 32767.0f);
+        break;
+    }
+    case SampleFormat::Unknown:
+        return {};
+    }
+    return out;
 }
 
 } // namespace ocapi

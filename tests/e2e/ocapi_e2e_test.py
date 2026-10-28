@@ -135,9 +135,8 @@ class OcapiE2E(unittest.TestCase):
         composer.send_keys("Please answer with reasoning.")
         self.find_by_name("Send").click()
 
-        # The complete visible answer streams in, without the reasoning...
-        reply = self.wait_for(f"//*[contains(@name, '{REASONING_REPLY_TEXT}')]", timeout=60)
-        self.assertNotIn(THINKING_TEXT, reply.text)
+        # The complete visible answer streams in...
+        self.wait_for(f"//*[contains(@name, '{REASONING_REPLY_TEXT}')]", timeout=60)
         # ...and the thinking text appears in the collapsed "Thinking"
         # element of the same message (the accessible name carries it). The
         # lookup polls: the wait above returns as soon as the answer text is
@@ -148,6 +147,18 @@ class OcapiE2E(unittest.TestCase):
         ).until(lambda d: self._element_text_or_none(f"//*[contains(@name, '{THINKING_TEXT}')]"))
         self.assertIsNotNone(thinking)
         self.assertIn(THINKING_TEXT, thinking)
+        # The reasoning must stay out of the visible answer line itself: an
+        # element whose accessible name carries the answer but not the
+        # thinking text is the message's visible content.
+        visible_xpath = (
+            f"//*[contains(@name, '{REASONING_REPLY_TEXT}')"
+            f" and not(contains(@name, '{THINKING_TEXT}'))]"
+        )
+        visible = WebDriverWait(
+            self.driver, 30, ignored_exceptions=(NoSuchElementException, WebDriverException)
+        ).until(lambda d: self._element_text_or_none(visible_xpath))
+        self.assertIsNotNone(visible)
+        self.assertNotIn(THINKING_TEXT, visible)
 
     def test_05_mcp_tool_roundtrip(self):
         # The seeded mock MCP server connected on startup and offered its

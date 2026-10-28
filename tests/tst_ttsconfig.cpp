@@ -47,6 +47,11 @@ void TestTtsConfig::defaultUrlsModelsVoices() {
     QVERIFY(!TtsServiceConfig::defaultModel(TtsServiceKind::Piper).isEmpty());
     QVERIFY(!TtsServiceConfig::defaultVoice(TtsServiceKind::OpenAiApi).isEmpty());
     QVERIFY(TtsServiceConfig::defaultVoice(TtsServiceKind::Piper).isEmpty());
+    // Mistral's speech API serves Voxtral TTS; the retired "mistral-tts-latest"
+    // model id is rejected with 400 invalid_model.
+    QCOMPARE(TtsServiceConfig::defaultModel(TtsServiceKind::Mistral),
+             QStringLiteral("voxtral-mini-tts-2603"));
+    QVERIFY(!TtsServiceConfig::defaultVoice(TtsServiceKind::Mistral).isEmpty());
 }
 
 void TestTtsConfig::cloudAndApiKey() {

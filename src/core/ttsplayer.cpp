@@ -131,6 +131,7 @@ void TtsPlayer::enqueueSentence(const QString &sentence) {
     // completed (successfully or not), even without audible output.
     ++m_pendingRequests;
     m_hasPending = true;
+    updateSpeaking();
     m_client->synthesize(sentence);
 }
 

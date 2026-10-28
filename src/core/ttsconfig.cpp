@@ -59,7 +59,7 @@ QString TtsServiceConfig::kindDescription(TtsServiceKind kind) {
     case TtsServiceKind::Groq:
         return QStringLiteral("Groq TTS models (OpenAI-compatible speech API)");
     case TtsServiceKind::Mistral:
-        return QStringLiteral("Mistral AI speech API (OpenAI-compatible)");
+        return QStringLiteral("Mistral AI speech API (Voxtral TTS, OpenAI-compatible)");
     case TtsServiceKind::ElevenLabs:
         return QStringLiteral("ElevenLabs speech synthesis (v2.5/flash/turbo, multilingual)");
     case TtsServiceKind::OpenAiTts:
@@ -95,7 +95,7 @@ QString TtsServiceConfig::defaultModel(TtsServiceKind kind) {
     case TtsServiceKind::Groq:
         return QStringLiteral("playai-tts");
     case TtsServiceKind::Mistral:
-        return QStringLiteral("mistral-tts-latest");
+        return QStringLiteral("voxtral-mini-tts-2603");
     case TtsServiceKind::ElevenLabs:
         return QStringLiteral("eleven_flash_v2_5");
     case TtsServiceKind::OpenAiTts:
@@ -110,9 +110,10 @@ QString TtsServiceConfig::defaultVoice(TtsServiceKind kind) {
     switch (kind) {
     case TtsServiceKind::OpenAiApi:
     case TtsServiceKind::Groq:
-    case TtsServiceKind::Mistral:
     case TtsServiceKind::OpenAiTts:
         return QStringLiteral("alloy");
+    case TtsServiceKind::Mistral:
+        return QStringLiteral("casual_female");
     case TtsServiceKind::ElevenLabs:
         return QStringLiteral("21m00Tcm4TlvDq8ikWAM"); // "Rachel"
     case TtsServiceKind::Piper:

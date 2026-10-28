@@ -306,6 +306,11 @@ void TtsPage::onTestSpeakingChanged(bool speaking) {
         return;
     m_testTimer->stop();
     m_testButton->setEnabled(true);
+    // An error was already reported and shown; do not overwrite it with a
+    // generic "Playback finished." (e.g. when synthesis failed and no audio
+    // ever played).
+    if (m_testResultLabel->text().startsWith(tr("Test failed")))
+        return;
     m_testResultLabel->setText(tr("Playback finished."));
 }
 

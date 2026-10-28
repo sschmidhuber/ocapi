@@ -40,6 +40,9 @@ public:
 
     void setStreamEvents(const QStringList &events) { m_events = events; }
 
+    // The JSON body of the most recently completed request.
+    [[nodiscard]] QJsonObject lastRequest() const { return m_lastRequest; }
+
 private:
     void respondIfComplete(QTcpSocket *socket) {
         const QByteArray &buffer = m_requests[socket];
@@ -55,6 +58,7 @@ private:
         }();
         if (contentLength < 0 || buffer.size() < headerEnd + 4 + contentLength)
             return;
+        m_lastRequest = QJsonDocument::fromJson(buffer.mid(headerEnd + 4, contentLength)).object();
 
         QByteArray body;
         for (const QString &event : m_events)
@@ -73,6 +77,7 @@ private:
     QTcpServer m_server;
     QHash<QTcpSocket *, QByteArray> m_requests;
     QStringList m_events;
+    QJsonObject m_lastRequest;
 };
 
 BackendConfig apiConfig(quint16 port) {
@@ -107,6 +112,7 @@ private slots:
     void thinkingPartsAreIgnored();
     void reasoningContentIsStreamed();
     void thinkingPartsAreStreamedAsReasoning();
+    void reasoningIsNotSentBackInConversationHistory();
 
 private:
     FakeOpenAiServer m_server;
@@ -254,6 +260,35 @@ void TestOpenAiApiBackend::thinkingPartsAreStreamedAsReasoning() {
     QTRY_VERIFY_WITH_TIMEOUT(tokenSpy.count() >= 1, 10000);
     QCOMPARE(tokenSpy.first().at(1).toString(), QStringLiteral("Answer."));
     QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+}
+
+void TestOpenAiApiBackend::reasoningIsNotSentBackInConversationHistory() {
+    // Regression: the reasoning ("thinking") text of a previous answer is
+    // display-only and must never be replayed into the model's context.
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents({chunkJson(
+        QJsonObject{{QStringLiteral("content"), QStringLiteral("ok")}}, QStringLiteral("stop"))});
+
+    OpenAiApiBackend backend(apiConfig(m_server.port()));
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("2+2?"));
+    const QUuid answerId = session.appendMessage(Role::Assistant, QStringLiteral("Four.")).id;
+    session.updateReasoning(answerId, QStringLiteral("secret chain of thought"), false);
+    session.appendMessage(Role::User, QStringLiteral("thanks"));
+
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("fake-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+
+    const auto messages = m_server.lastRequest().value(QStringLiteral("messages")).toArray();
+    QCOMPARE(messages.size(), 3);
+    const auto replayed = messages.at(1).toObject();
+    QCOMPARE(replayed.value(QStringLiteral("role")).toString(), QStringLiteral("assistant"));
+    QCOMPARE(replayed.value(QStringLiteral("content")).toString(), QStringLiteral("Four."));
+    QVERIFY(!replayed.contains(QStringLiteral("reasoning")));
+    QVERIFY(!replayed.value(QStringLiteral("content"))
+                 .toString()
+                 .contains(QStringLiteral("secret chain of thought")));
 }
 
 QTEST_GUILESS_MAIN(TestOpenAiApiBackend)

@@ -87,17 +87,27 @@ class OllamaMockHandler(BaseHTTPRequestHandler):
         if self._in_tool_round(request):
             reply = TOOL_REPLY_TEXT
         elif self._wants_tool(request):
-            send_event({"model": MODEL_NAME,
-                        "message": {"role": "assistant",
-                                     "content": "",
-                                     "tool_calls": [{"function": {
-                                         "name": TOOL_NAME,
-                                         "arguments": {"text": "Hello from the MCP tool!"},
-                                     }}]},
-                        "done": False})
-            send_event({"model": MODEL_NAME,
-                        "message": {"role": "assistant", "content": ""},
-                        "done": True})
+            send_event(
+                {
+                    "model": MODEL_NAME,
+                    "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "function": {
+                                    "name": TOOL_NAME,
+                                    "arguments": {"text": "Hello from the MCP tool!"},
+                                }
+                            }
+                        ],
+                    },
+                    "done": False,
+                }
+            )
+            send_event(
+                {"model": MODEL_NAME, "message": {"role": "assistant", "content": ""}, "done": True}
+            )
             self.wfile.write(b"0\r\n\r\n")
             return
         elif self._wants_reasoning(request):
@@ -106,46 +116,63 @@ class OllamaMockHandler(BaseHTTPRequestHandler):
         else:
             reply = REPLY_TEXT
         for token in reply.split(" "):
-            send_event({"model": MODEL_NAME,
-                        "message": {"role": "assistant", "content": token + " "}})
+            send_event(
+                {"model": MODEL_NAME, "message": {"role": "assistant", "content": token + " "}}
+            )
             time.sleep(0.05)
 
-        send_event({"model": MODEL_NAME,
-                    "message": {"role": "assistant", "content": ""},
-                    "done": True})
+        send_event(
+            {"model": MODEL_NAME, "message": {"role": "assistant", "content": ""}, "done": True}
+        )
         self.wfile.write(b"0\r\n\r\n")
 
     def _stream_reasoning_reply(self, send_event):
         # Wire shape of a reasoning model: thinking parts first, then the
         # first visible token as a content-parts array, then plain strings.
-        send_event({"model": MODEL_NAME,
-                    "message": {"role": "assistant", "content": ""},
-                    "done": False})
+        send_event(
+            {"model": MODEL_NAME, "message": {"role": "assistant", "content": ""}, "done": False}
+        )
         for segment in THINKING_TEXT.split(" "):
-            send_event({"model": MODEL_NAME,
-                        "message": {"role": "assistant",
-                                    "content": [{"type": "thinking",
-                                                 "thinking": [{"type": "text",
-                                                               "text": segment + " "}],
-                                                 "closed": True}]},
-                    "done": False})
+            send_event(
+                {
+                    "model": MODEL_NAME,
+                    "message": {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "thinking",
+                                "thinking": [{"type": "text", "text": segment + " "}],
+                                "closed": True,
+                            }
+                        ],
+                    },
+                    "done": False,
+                }
+            )
             time.sleep(0.05)
         tokens = REASONING_REPLY_TEXT.split(" ")
         # First visible token as a typed content-part array.
-        send_event({"model": MODEL_NAME,
-                    "message": {"role": "assistant",
-                                "content": [{"type": "text", "text": tokens[0]}]},
-                    "done": False})
+        send_event(
+            {
+                "model": MODEL_NAME,
+                "message": {"role": "assistant", "content": [{"type": "text", "text": tokens[0]}]},
+                "done": False,
+            }
+        )
         time.sleep(0.05)
         # Remaining tokens as plain string content.
         for token in tokens[1:]:
-            send_event({"model": MODEL_NAME,
-                        "message": {"role": "assistant", "content": " " + token},
-                        "done": False})
+            send_event(
+                {
+                    "model": MODEL_NAME,
+                    "message": {"role": "assistant", "content": " " + token},
+                    "done": False,
+                }
+            )
             time.sleep(0.05)
-        send_event({"model": MODEL_NAME,
-                    "message": {"role": "assistant", "content": ""},
-                    "done": True})
+        send_event(
+            {"model": MODEL_NAME, "message": {"role": "assistant", "content": ""}, "done": True}
+        )
         self.wfile.write(b"0\r\n\r\n")
 
     @staticmethod
@@ -171,11 +198,10 @@ class OllamaMockHandler(BaseHTTPRequestHandler):
     def _in_tool_round(request):
         # A tool result message in the conversation means the tool round is
         # done; answer with text summarizing it.
-        return any(message.get("role") == "tool"
-                   for message in request.get("messages") or [])
+        return any(message.get("role") == "tool" for message in request.get("messages") or [])
 
     def _write_chunk(self, data):
-        self.wfile.write(("%x\r\n" % len(data)).encode() + data + b"\r\n")
+        self.wfile.write(f"{len(data):x}\r\n".encode() + data + b"\r\n")
         self.wfile.flush()
 
 

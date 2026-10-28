@@ -43,6 +43,7 @@ private slots:
     void toolCallStatusUpdatePersists();
     void toolCallStatusUpdateFailsForUnknownCall();
     void toolCallsColumnDefaultsToEmpty();
+    void reopenDoesNotReportDuplicateColumnError();
 
 private:
     ChatDatabase &db() { return m_database; }
@@ -572,6 +573,21 @@ void TestChatDatabase::lastActivityColumnDefaultsToCreatedAt() {
     const auto sessions = db().loadSessions();
     QCOMPARE(sessions.size(), 1);
     QCOMPARE(sessions.at(0).lastActivityAt, sessions.at(0).createdAt);
+}
+
+void TestChatDatabase::reopenDoesNotReportDuplicateColumnError() {
+    // Regression: the schema-evolution ALTER TABLE statements fail with
+    // "duplicate column name" on every start against an up-to-date database.
+    // That expected error must not surface in lastError(); only genuine
+    // migration failures may.
+    db().close();
+    QVERIFY2(db().open(m_filePath), db().lastError().toUtf8().constData());
+    QVERIFY2(db().open(m_filePath), db().lastError().toUtf8().constData());
+    QVERIFY2(db().lastError().isEmpty(),
+             QStringLiteral("reopening an up-to-date database reported: %1")
+                 .arg(db().lastError())
+                 .toUtf8()
+                 .constData());
 }
 
 QTEST_GUILESS_MAIN(TestChatDatabase)

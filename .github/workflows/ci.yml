@@ -82,6 +82,18 @@ jobs:
             --suppress=shadowFunction --suppress=useStlAlgorithm \
             src/ tests/
 
+  python-lint:
+    name: Python lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ruff
+        run: pipx install ruff
+      - name: Lint e2e test suite
+        run: ruff check tests/e2e/
+      - name: Check formatting
+        run: ruff format --check tests/e2e/
+
   e2e:
     name: E2E (selenium-webdriver-at-spi, Ubuntu)
     runs-on: ubuntu-latest

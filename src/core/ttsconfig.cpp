@@ -166,6 +166,8 @@ std::optional<BackendKind> TtsServiceConfig::llmProviderKind(TtsServiceKind kind
 }
 
 QString TtsServiceConfig::responseFormat(TtsServiceKind kind) {
+    // Mistral serves raw MP3 only when response_format is set; without it
+    // the endpoint returns a JSON {"audio_data": "<base64>"} envelope.
     return kind == TtsServiceKind::Piper ? QStringLiteral("wav") : QStringLiteral("mp3");
 }
 

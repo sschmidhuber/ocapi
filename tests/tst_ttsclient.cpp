@@ -51,6 +51,10 @@ public:
         m_errorStatus = status;
         m_errorBody = body;
     }
+    // When set, the server wraps the audio in a JSON {"audio_data":
+    // "<base64>"} envelope, like Mistral's speech endpoint does without an
+    // explicit response_format.
+    void setJsonEnvelope(bool on) { m_jsonEnvelope = on; }
     // Responses whose body contains \p marker are delayed by \p ms, so
     // out-of-order replies can be simulated.
     void setSlowMarker(const QString &marker, int ms) {
@@ -70,6 +74,9 @@ public:
         m_echoInput = false;
         m_slowMarker.clear();
         m_slowMarkerMs = 0;
+        m_errorStatus = 0;
+        m_errorBody.clear();
+        m_jsonEnvelope = false;
         m_audio = AudioChunker::wavFromPcm(QByteArray(320, 0), 16000);
     }
 
@@ -119,12 +126,20 @@ private:
             response += "\r\n";
             response += m_errorBody;
         } else {
+            QByteArray body = audio;
+            QByteArray contentType = "audio/wav";
+            if (m_jsonEnvelope) {
+                const QJsonObject envelope{
+                    {QStringLiteral("audio_data"), QString::fromLatin1(audio.toBase64())}};
+                body = QJsonDocument(envelope).toJson(QJsonDocument::Compact);
+                contentType = "application/json";
+            }
             response = "HTTP/1.1 200 OK\r\n";
-            response += "Content-Type: audio/wav\r\n";
-            response += "Content-Length: " + QByteArray::number(audio.size()) + "\r\n";
+            response += "Content-Type: " + contentType + "\r\n";
+            response += "Content-Length: " + QByteArray::number(body.size()) + "\r\n";
             response += "Connection: keep-alive\r\n";
             response += "\r\n";
-            response += audio;
+            response += body;
         }
         auto *pending = new QTimer(socket);
         pending->setSingleShot(true);
@@ -145,6 +160,7 @@ private:
     int m_slowMarkerMs = 0;
     int m_errorStatus = 0;
     QByteArray m_errorBody;
+    bool m_jsonEnvelope = false;
     QStringList m_bodies;
     QStringList m_authHeaders;
     QStringList m_xiApiKeys;
@@ -173,6 +189,7 @@ private slots:
     void sendsOpenAiPayloadWithApiKey();
     void sendsElevenLabsPayloadWithXiApiKey();
     void sendsMistralPayloadWithVoiceId();
+    void unwrapsMistralAudioDataEnvelope();
     void emitsAudioInEnqueueOrder();
     void reportsErrorOnFailure();
     void reportsHttpStatusAndBodyOnServiceError();
@@ -264,6 +281,28 @@ void TestTtsClient::sendsMistralPayloadWithVoiceId() {
     QVERIFY(body.contains(QStringLiteral("\"voice_id\":\"gb_jane_neutral\"")));
     QVERIFY(!body.contains(QStringLiteral("\"voice\":")));
     QCOMPARE(m_server.authorizationHeaders().first(), QStringLiteral("Bearer mistral-key"));
+}
+
+void TestTtsClient::unwrapsMistralAudioDataEnvelope() {
+    // Mistral's speech endpoint answers 200 with a JSON envelope
+    // {"audio_data": "<base64>"}; the client must unwrap it to get the
+    // audio bytes, otherwise the response is not decodable audio.
+    QVERIFY(m_server.start());
+    m_server.setJsonEnvelope(true);
+    const QByteArray pcm(320, 0);
+    m_server.setAudio(AudioChunker::wavFromPcm(pcm, 16000));
+    auto config = serviceConfig(m_server.port());
+    config.kind = TtsServiceKind::Mistral;
+    config.baseUrl = QStringLiteral("http://127.0.0.1:%1/v1").arg(m_server.port());
+    TtsClient client(config);
+    QSignalSpy audio(&client, &TtsClient::audioReady);
+    QSignalSpy failed(&client, &TtsClient::error);
+
+    client.synthesize(QStringLiteral("Hello."));
+    QVERIFY(audio.wait(5000));
+    QCOMPARE(failed.count(), 0);
+    QCOMPARE(audio.first().at(1).toString(), QStringLiteral("audio/wav"));
+    QCOMPARE(audio.first().at(0).toByteArray(), AudioChunker::wavFromPcm(pcm, 16000));
 }
 
 void TestTtsClient::emitsAudioInEnqueueOrder() {

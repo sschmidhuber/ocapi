@@ -13,6 +13,24 @@
 
 #include <algorithm>
 
+namespace {
+
+// Mistral's speech endpoint answers 200 with a JSON envelope
+// {"audio_data": "<base64>"} instead of raw audio bytes, unless the
+// request asks for streaming. Unwraps the envelope; returns the input
+// unchanged when it is not such an envelope.
+QByteArray unwrapAudioDataEnvelope(const QByteArray &body) {
+    const QJsonDocument doc = QJsonDocument::fromJson(body);
+    if (!doc.isObject())
+        return body;
+    const QString audioData = doc.object().value(QStringLiteral("audio_data")).toString();
+    if (audioData.isEmpty())
+        return body;
+    return QByteArray::fromBase64(audioData.toLatin1());
+}
+
+} // namespace
+
 namespace ocapi {
 
 namespace {
@@ -155,7 +173,10 @@ void TtsClient::onReplyFinished(QNetworkReply *reply, int sequence) {
         // Keep sequence numbers gapless for ordering: treat failures as empty.
         m_completed.insert(sequence, {QByteArray(), QString()});
     } else {
-        const QByteArray audio = reply->readAll();
+        QByteArray audio = reply->readAll();
+        // Mistral answers with a JSON {"audio_data": "<base64>"} envelope.
+        if (m_config.kind == TtsServiceKind::Mistral)
+            audio = unwrapAudioDataEnvelope(audio);
         const auto kind = AudioFormat::detect(audio);
         if (sttDebug::ttsEnabled())
             sttDebug::log(QStringLiteral("[ocapi TTS] response #%1: %2 bytes, format %3")

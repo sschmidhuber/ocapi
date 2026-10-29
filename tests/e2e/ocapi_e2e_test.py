@@ -74,6 +74,16 @@ class OcapiE2E(unittest.TestCase):
     def find_by_xpath(self, xpath):
         return self.driver.find_element(by=AppiumBy.XPATH, value=xpath)
 
+    def _element_text_or_none(self, xpath):
+        # Text of the first element matching xpath, or None when the lookup
+        # misses (element absent, or its accessible vanished mid-walk while
+        # the chat re-rendered). For polling waits that must not abort on
+        # transient AT-SPI errors.
+        try:
+            return self.find_by_xpath(xpath).text
+        except (NoSuchElementException, WebDriverException):
+            return None
+
     def wait_for(self, xpath, timeout=20):
         # Return the element found by the wait itself. Looking it up a
         # second time after a successful wait races with the UI: accessible
@@ -126,11 +136,17 @@ class OcapiE2E(unittest.TestCase):
         self.find_by_name("Send").click()
 
         # The complete visible answer streams in...
-        reply = self.wait_for(f"//*[contains(@name, '{REASONING_REPLY_TEXT}')]", timeout=60)
+        self.wait_for(f"//*[contains(@name, '{REASONING_REPLY_TEXT}')]", timeout=60)
         # ...and the thinking text appears in the collapsed "Thinking"
-        # element of the same message (the accessible name carries it), but
-        # never inside the visible answer text itself.
-        self.assertIn(THINKING_TEXT, reply.text)
+        # element of the same message (the accessible name carries it). The
+        # lookup polls: the wait above returns as soon as the answer text is
+        # complete, while the thinking element can still be re-rendering,
+        # which briefly surfaces as an AT-SPI error instead of the text.
+        thinking = WebDriverWait(
+            self.driver, 30, ignored_exceptions=(NoSuchElementException, WebDriverException)
+        ).until(lambda d: self._element_text_or_none(f"//*[contains(@name, '{THINKING_TEXT}')]"))
+        self.assertIsNotNone(thinking)
+        self.assertIn(THINKING_TEXT, thinking)
 
     def test_05_mcp_tool_roundtrip(self):
         # The seeded mock MCP server connected on startup and offered its

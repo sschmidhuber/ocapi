@@ -3,6 +3,7 @@
 #include "core/sentencesplitter.h"
 #include "core/ttsconfig.h"
 
+#include <QAudioFormat>
 #include <QByteArray>
 #include <QObject>
 #include <QQueue>
@@ -58,8 +59,10 @@ signals:
 private:
     void enqueueSentence(const QString &sentence);
     void onAudioReady(const QByteArray &audio, const QString &mimeType);
+    void startNextDecode(); // starts decoding the oldest queued MP3, if idle
     void onDecodeBufferReady();
     void onDecodeFinished();
+    void onServiceError(const QString &message);
     void updateSpeaking();
     void writePendingPcm();
     bool ensureSink(int sampleRate, int channels);
@@ -70,14 +73,18 @@ private:
     SentenceSplitter m_splitter;
     QString m_lastFedText;
     QString m_outputDeviceId;
+    int m_pendingRequests = 0; // synthesis requests in flight
+    bool m_hasPending = false;
     QMediaDevices *m_devices = nullptr;
     QAudioSink *m_sink = nullptr;
     QIODevice *m_sinkIo = nullptr;
-    QAudioDecoder *m_decoder = nullptr;
-    QBuffer *m_sourceBuffer = nullptr;
+    QAudioDecoder *m_decoder = nullptr; // active decoder (nullptr when idle)
+    QBuffer *m_sourceBuffer = nullptr;  // source of the active decoder
+    QQueue<QByteArray> m_decodeQueue;   // compressed audio waiting to decode
     QTimer *m_feedTimer = nullptr;
     QQueue<QByteArray> m_pendingPcm; // decoded PCM waiting for sink space
     QByteArray m_decodedPcm;         // PCM accumulated during one decode run
+    QAudioFormat m_decodedFormat;    // format of the last decoded buffer
     bool m_speaking = false;
     bool m_endOfText = false;
     bool m_stopped = true;

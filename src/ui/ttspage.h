@@ -10,21 +10,24 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPushButton;
+class QTimer;
 
 namespace ocapi {
 
+class BackendRegistry;
 class TtsPlayer;
 class TtsRegistry;
 
 // Embedded settings page for text-to-speech: manage synthesis services
-// (type, base URL, API key, model, voice, language, enabled), toggle
+// (provider, base URL, API key, model, voice, language, enabled), toggle
 // speaking assistant responses aloud, select the audio output device and
 // test a service by synthesizing and playing a sample sentence.
 class TtsPage : public QWidget {
     Q_OBJECT
 
 public:
-    explicit TtsPage(TtsRegistry *registry, QWidget *parent = nullptr);
+    explicit TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry = nullptr,
+                     QWidget *parent = nullptr);
     ~TtsPage() override;
 
 private slots:
@@ -38,16 +41,19 @@ private slots:
     void onTestService();
     void onTestSpeakingChanged(bool speaking);
     void onTestError(const QString &message);
+    void onTestTimeout();
 
 private:
     void populateList();
     void populateOutputDevices();
     void loadConfigIntoForm(const TtsServiceConfig &config);
     void saveFormIntoConfig(TtsServiceConfig &config);
-    void updateUrlVisibility();
+    void updateUrlState();
+    [[nodiscard]] QString knownApiKey() const;
     [[nodiscard]] TtsServiceKind currentKind() const;
 
     TtsRegistry *m_registry;
+    BackendRegistry *m_backendRegistry;
     TtsPlayer *m_testPlayer = nullptr;
     QListWidget *m_list;
     QCheckBox *m_speakResponsesBox;
@@ -62,7 +68,9 @@ private:
     QComboBox *m_deviceCombo;
     QPushButton *m_testButton;
     QLabel *m_testResultLabel;
+    QTimer *m_testTimer = nullptr;
     bool m_updatingForm = false;
+    bool m_hasSelection = false;
 };
 
 } // namespace ocapi

@@ -25,10 +25,11 @@ class FakeTtsServer : public QObject {
 
 public:
     explicit FakeTtsServer(QObject *parent = nullptr) : QObject(parent) {
-        connect(&m_server, &QTcpServer::newConnection, this, [this]() {
+        connect(&m_server, &QTcpServer::newConnection, this, [this] {
             auto *socket = m_server.nextPendingConnection();
             connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
-            connect(socket, &QTcpSocket::readyRead, this, [this, socket]() {
+            connect(socket, &QTcpSocket::readyRead, this, [this, socket] {
+                // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
                 m_requests[socket].append(socket->readAll());
                 respondIfComplete(socket);
             });
@@ -45,6 +46,16 @@ public:
     // When set, the response body is WAV whose PCM data is the request's
     // "input" text, so each response can be attributed to its request.
     void setEchoInput(bool on) { m_echoInput = on; }
+    // When set, the server answers with this HTTP status and body instead
+    // of audio, to simulate a service error.
+    void setErrorResponse(int status, const QByteArray &body) {
+        m_errorStatus = status;
+        m_errorBody = body;
+    }
+    // When set, the server wraps the audio in a JSON {"audio_data":
+    // "<base64>"} envelope, like Mistral's speech endpoint does without an
+    // explicit response_format.
+    void setJsonEnvelope(bool on) { m_jsonEnvelope = on; }
     // Responses whose body contains \p marker are delayed by \p ms, so
     // out-of-order replies can be simulated.
     void setSlowMarker(const QString &marker, int ms) {
@@ -64,11 +75,15 @@ public:
         m_echoInput = false;
         m_slowMarker.clear();
         m_slowMarkerMs = 0;
+        m_errorStatus = 0;
+        m_errorBody.clear();
+        m_jsonEnvelope = false;
         m_audio = AudioChunker::wavFromPcm(QByteArray(320, 0), 16000);
     }
 
 private:
     void respondIfComplete(QTcpSocket *socket) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
         const QByteArray &buffer = m_requests[socket];
         const auto headerEnd = buffer.indexOf("\r\n\r\n");
         if (headerEnd < 0)
@@ -104,19 +119,39 @@ private:
         int delayMs = m_delayMs;
         if (!m_slowMarker.isEmpty() && requestBody.contains(m_slowMarker))
             delayMs = m_slowMarkerMs;
-        QByteArray response = "HTTP/1.1 200 OK\r\n";
-        response += "Content-Type: audio/wav\r\n";
-        response += "Content-Length: " + QByteArray::number(audio.size()) + "\r\n";
-        response += "Connection: keep-alive\r\n";
-        response += "\r\n";
-        response += audio;
+        QByteArray response;
+        if (m_errorStatus > 0) {
+            response = "HTTP/1.1 " + QByteArray::number(m_errorStatus) + " Error\r\n";
+            response += "Content-Type: application/json\r\n";
+            response += "Content-Length: " + QByteArray::number(m_errorBody.size()) + "\r\n";
+            response += "Connection: keep-alive\r\n";
+            response += "\r\n";
+            response += m_errorBody;
+        } else {
+            QByteArray body = audio;
+            QByteArray contentType = "audio/wav";
+            if (m_jsonEnvelope) {
+                const QJsonObject envelope{
+                    {QStringLiteral("audio_data"), QString::fromLatin1(audio.toBase64())},
+                };
+                body = QJsonDocument(envelope).toJson(QJsonDocument::Compact);
+                contentType = "application/json";
+            }
+            response = "HTTP/1.1 200 OK\r\n";
+            response += "Content-Type: " + contentType + "\r\n";
+            response += "Content-Length: " + QByteArray::number(body.size()) + "\r\n";
+            response += "Connection: keep-alive\r\n";
+            response += "\r\n";
+            response += body;
+        }
         auto *pending = new QTimer(socket);
         pending->setSingleShot(true);
-        connect(pending, &QTimer::timeout, socket, [socket, response, pending]() {
+        connect(pending, &QTimer::timeout, socket, [socket, response, pending] {
             socket->write(response);
             pending->deleteLater();
         });
         pending->start(delayMs);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
         m_requests[socket].clear();
     }
 
@@ -127,6 +162,9 @@ private:
     bool m_echoInput = false;
     QString m_slowMarker;
     int m_slowMarkerMs = 0;
+    int m_errorStatus = 0;
+    QByteArray m_errorBody;
+    bool m_jsonEnvelope = false;
     QStringList m_bodies;
     QStringList m_authHeaders;
     QStringList m_xiApiKeys;
@@ -154,8 +192,11 @@ private slots:
     void synthesizesAndEmitsAudio();
     void sendsOpenAiPayloadWithApiKey();
     void sendsElevenLabsPayloadWithXiApiKey();
+    void sendsMistralPayloadWithVoiceId();
+    void unwrapsMistralAudioDataEnvelope();
     void emitsAudioInEnqueueOrder();
     void reportsErrorOnFailure();
+    void reportsHttpStatusAndBodyOnServiceError();
     void ignoresEmptyText();
     void cancelDropsQueue();
 
@@ -220,6 +261,54 @@ void TestTtsClient::sendsElevenLabsPayloadWithXiApiKey() {
     QVERIFY(m_server.authorizationHeaders().first().isEmpty());
 }
 
+void TestTtsClient::sendsMistralPayloadWithVoiceId() {
+    // Mistral's speech API takes the voice as "voice_id" (preset slug or
+    // saved voice ID), not the OpenAI-style "voice" name; sending "voice"
+    // fails with 404 invalid_voice.
+    QVERIFY(m_server.start());
+    auto config = serviceConfig(m_server.port());
+    config.kind = TtsServiceKind::Mistral;
+    config.baseUrl = QStringLiteral("http://127.0.0.1:%1/v1").arg(m_server.port());
+    config.apiKey = QStringLiteral("mistral-key");
+    config.model = QStringLiteral("voxtral-mini-tts-2603");
+    config.voice = QStringLiteral("gb_jane_neutral");
+    TtsClient client(config);
+    QSignalSpy audio(&client, &TtsClient::audioReady);
+
+    client.synthesize(QStringLiteral("Hello."));
+    QVERIFY(audio.wait(5000));
+
+    QCOMPARE(m_server.requestCount(), 1);
+    const QString body = m_server.requestBodies().first();
+    QVERIFY(body.contains(QStringLiteral("\"model\":\"voxtral-mini-tts-2603\"")));
+    QVERIFY(body.contains(QStringLiteral("\"input\":\"Hello.\"")));
+    QVERIFY(body.contains(QStringLiteral("\"voice_id\":\"gb_jane_neutral\"")));
+    QVERIFY(!body.contains(QStringLiteral("\"voice\":")));
+    QCOMPARE(m_server.authorizationHeaders().first(), QStringLiteral("Bearer mistral-key"));
+}
+
+void TestTtsClient::unwrapsMistralAudioDataEnvelope() {
+    // Mistral's speech endpoint answers 200 with a JSON envelope
+    // {"audio_data": "<base64>"}; the client must unwrap it to get the
+    // audio bytes, otherwise the response is not decodable audio.
+    QVERIFY(m_server.start());
+    m_server.setJsonEnvelope(true);
+    const QByteArray pcm(320, 0);
+    m_server.setAudio(AudioChunker::wavFromPcm(pcm, 16000));
+    auto config = serviceConfig(m_server.port());
+    config.kind = TtsServiceKind::Mistral;
+    config.baseUrl = QStringLiteral("http://127.0.0.1:%1/v1").arg(m_server.port());
+    TtsClient client(config);
+    QSignalSpy audio(&client, &TtsClient::audioReady);
+    QSignalSpy failed(&client, &TtsClient::error);
+
+    client.synthesize(QStringLiteral("Hello."));
+    QVERIFY(audio.wait(5000));
+    QCOMPARE(failed.count(), 0);
+    QCOMPARE(audio.first().at(1).toString(), QStringLiteral("audio/wav"));
+    QCOMPARE(audio.first().at(0).toByteArray(), AudioChunker::wavFromPcm(pcm, 16000));
+}
+
 void TestTtsClient::emitsAudioInEnqueueOrder() {
     QVERIFY(m_server.start());
     // The response echoes the request's "input" text as WAV PCM data, and
@@ -253,6 +342,24 @@ void TestTtsClient::reportsErrorOnFailure() {
 
     client.synthesize(QStringLiteral("Hello."));
     QVERIFY(failed.wait(5000));
+}
+
+void TestTtsClient::reportsHttpStatusAndBodyOnServiceError() {
+    QVERIFY(m_server.start());
+    m_server.setErrorResponse(401, QByteArrayLiteral("{\"error\":\"invalid api key\"}"));
+    TtsClient client(serviceConfig(m_server.port()));
+    QSignalSpy failed(&client, &TtsClient::error);
+    QSignalSpy audio(&client, &TtsClient::audioReady);
+
+    client.synthesize(QStringLiteral("Hello."));
+    QVERIFY(failed.wait(5000));
+    // The bare QNetworkReply wording ("server replied: ...") is useless for
+    // diagnosing a rejected request; the error must carry the HTTP status
+    // and the service's error body.
+    const QString message = failed.first().at(0).toString();
+    QVERIFY2(message.contains(QStringLiteral("401")), qPrintable(message));
+    QVERIFY2(message.contains(QStringLiteral("invalid api key")), qPrintable(message));
+    QCOMPARE(audio.count(), 0);
 }
 
 void TestTtsClient::ignoresEmptyText() {

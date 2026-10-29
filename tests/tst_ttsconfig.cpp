@@ -17,6 +17,7 @@ private slots:
     void responseFormatPerKind();
     void speechPathPerKind();
     void jsonRoundTrip();
+    void llmProviderMapping();
 };
 
 void TestTtsConfig::defaults() {
@@ -46,6 +47,13 @@ void TestTtsConfig::defaultUrlsModelsVoices() {
     QVERIFY(!TtsServiceConfig::defaultModel(TtsServiceKind::Piper).isEmpty());
     QVERIFY(!TtsServiceConfig::defaultVoice(TtsServiceKind::OpenAiApi).isEmpty());
     QVERIFY(TtsServiceConfig::defaultVoice(TtsServiceKind::Piper).isEmpty());
+    // Mistral's speech API serves Voxtral TTS; the retired "mistral-tts-latest"
+    // model id is rejected with 400 invalid_model, and voices are passed as
+    // "voice_id" slugs (e.g. gb_jane_neutral), not OpenAI-style names.
+    QCOMPARE(TtsServiceConfig::defaultModel(TtsServiceKind::Mistral),
+             QStringLiteral("voxtral-mini-tts-2603"));
+    QCOMPARE(TtsServiceConfig::defaultVoice(TtsServiceKind::Mistral),
+             QStringLiteral("gb_jane_neutral"));
 }
 
 void TestTtsConfig::cloudAndApiKey() {
@@ -103,6 +111,15 @@ void TestTtsConfig::jsonRoundTrip() {
     QCOMPARE(restored.voice, config.voice);
     QCOMPARE(restored.language, config.language);
     QCOMPARE(restored.enabled, false);
+}
+
+void TestTtsConfig::llmProviderMapping() {
+    QCOMPARE(TtsServiceConfig::llmProviderKind(TtsServiceKind::OpenAiApi), BackendKind::OpenAi);
+    QCOMPARE(TtsServiceConfig::llmProviderKind(TtsServiceKind::Groq), BackendKind::Groq);
+    QCOMPARE(TtsServiceConfig::llmProviderKind(TtsServiceKind::Mistral), BackendKind::Mistral);
+    QCOMPARE(TtsServiceConfig::llmProviderKind(TtsServiceKind::ElevenLabs), std::nullopt);
+    QCOMPARE(TtsServiceConfig::llmProviderKind(TtsServiceKind::OpenAiTts), std::nullopt);
+    QCOMPARE(TtsServiceConfig::llmProviderKind(TtsServiceKind::Piper), std::nullopt);
 }
 
 QTEST_GUILESS_MAIN(TestTtsConfig)

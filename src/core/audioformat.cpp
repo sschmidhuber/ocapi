@@ -2,6 +2,9 @@
 
 #include <QtEndian>
 
+#include <algorithm>
+#include <cstring>
+
 namespace ocapi {
 
 namespace {
@@ -36,7 +39,7 @@ bool readChunkHeader(const QByteArray &data, qsizetype offset, RiffChunk &chunk)
 
 AudioFormat::Kind AudioFormat::detect(const QByteArray &data) {
     if (data.size() >= 3 && static_cast<unsigned char>(data.at(0)) == 0xFF &&
-        (static_cast<unsigned char>(data.at(1)) & 0xE0) == 0xE0)
+        (static_cast<unsigned char>(data.at(1)) & 0xE0U) == 0xE0U)
         return Kind::Mp3; // MPEG audio frame sync
     if (data.startsWith("ID3"))
         return Kind::Mp3; // MP3 with an ID3v2 tag
@@ -94,6 +97,46 @@ QByteArray AudioFormat::wavPcmData(const QByteArray &data) {
         offset += 8 + chunk.size + (chunk.size % 2);
     }
     return {};
+}
+
+QByteArray AudioFormat::toInt16Pcm(const void *samples, qsizetype frameCount, int channels,
+                                   SampleFormat format) {
+    if (frameCount <= 0 || channels <= 0 || samples == nullptr)
+        return {};
+    const qsizetype count = frameCount * channels;
+    QByteArray out;
+    out.resize(count * static_cast<qsizetype>(sizeof(qint16)));
+    // QByteArray::data() is the writable sample buffer filled below.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    auto *destination = reinterpret_cast<qint16 *>(out.data());
+    switch (format) {
+    case SampleFormat::Int16:
+        std::memcpy(destination, samples, static_cast<size_t>(count * sizeof(qint16)));
+        break;
+    case SampleFormat::Int32: {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast): typed
+        // view of the caller's sample buffer.
+        const auto *src = static_cast<const qint32 *>(samples);
+        for (qsizetype i = 0; i < count; ++i) {
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic,bugprone-signed-bitwise)
+            destination[i] = static_cast<qint16>(static_cast<quint32>(src[i]) >> 16U);
+        }
+        break;
+    }
+    case SampleFormat::Float: {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast): typed
+        // view of the caller's sample buffer.
+        const auto *src = static_cast<const float *>(samples);
+        for (qsizetype i = 0; i < count; ++i) {
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+            destination[i] = static_cast<qint16>(std::clamp(src[i], -1.0F, 1.0F) * 32767.0F);
+        }
+        break;
+    }
+    case SampleFormat::Unknown:
+        return {};
+    }
+    return out;
 }
 
 } // namespace ocapi

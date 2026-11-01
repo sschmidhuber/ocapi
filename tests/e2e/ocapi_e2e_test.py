@@ -183,13 +183,15 @@ class OcapiE2E(unittest.TestCase):
         # providers alphabetically ("Mock backend", "Mock backend 2"), each
         # with a submenu of models. Move to the second provider and open its
         # submenu, then pick the second model.
+        # Focus the picker and drive the menu with the keyboard: Down moves
+        # to the second provider ("Mock backend 2"), Right opens its submenu,
+        # Down moves to the second model ("mock-model-2"), Enter selects it.
         picker.click()
         from selenium.webdriver.common.keys import Keys
 
-        picker.send_keys(Keys.ARROW_DOWN)  # -> "Mock backend 2"
-        picker.send_keys(Keys.ARROW_RIGHT)  # open its submenu
-        picker.send_keys(Keys.ARROW_DOWN)  # -> "mock-model-2" (second model)
-        picker.send_keys(Keys.ENTER)
+        for key in [Keys.ARROW_DOWN, Keys.ARROW_RIGHT, Keys.ARROW_DOWN, Keys.ENTER]:
+            self.driver.switch_to.active_element.send_keys(key)
+            time.sleep(0.3)
 
         picker = self.wait_for("//*[contains(@name, 'Mock backend 2')]")
         self.assertIn("mock-model-2", picker.text)

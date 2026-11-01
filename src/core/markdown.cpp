@@ -167,6 +167,71 @@ bool isMonospace(const QTextCharFormat &format) {
     return !families.isEmpty() && families.first() == QLatin1String("monospace");
 }
 
+// --- LaTeX math -----------------------------------------------------------
+// Assistant messages frequently contain LaTeX math: inline \( ... \) and
+// block \[ ... \] delimiters, plus \$...\$ as a fallback. Qt's rich text
+// cannot render TeX, so math is shown as an indented, monospace block with a
+// distinct background instead of leaking raw LaTeX into the prose.
+
+struct MathSpan {
+    int start = -1; // index of the opening delimiter
+    int end = -1;   // index just past the closing delimiter
+    int innerStart = 0;
+    int innerEnd = 0;
+    bool block = false;
+};
+
+// Matches a \\( ... \\) or \\[ ... \\] span starting at i; returns the span
+// or an empty one when there is no closing delimiter.
+MathSpan matchBracketMath(const QString &text, int i) {
+    MathSpan span;
+    const QChar open = text.at(i + 1);
+    const QString close = open == QLatin1Char('(') ? QStringLiteral("\\)") : QStringLiteral("\\]");
+    const int closePos = static_cast<int>(text.indexOf(close, i + 2));
+    if (closePos <= i + 2)
+        return span;
+    span.start = i;
+    span.end = closePos + 2;
+    span.innerStart = i + 2;
+    span.innerEnd = closePos;
+    span.block = open == QLatin1Char('[');
+    return span;
+}
+
+// Matches a \$ ... \$ span starting at i, unless the $ looks like currency
+// (escaped, or followed by a digit).
+MathSpan matchDollarMath(const QString &text, int i) {
+    MathSpan span;
+    if (i > 0 && text.at(i - 1) == QLatin1Char('\\'))
+        return span; // escaped \$
+    if (i + 1 < text.size() && text.at(i + 1).isDigit())
+        return span; // $5 -> currency, not math
+    const int closePos = static_cast<int>(text.indexOf(QLatin1Char('$'), i + 1));
+    if (closePos <= i + 1)
+        return span;
+    span.start = i;
+    span.end = closePos + 1;
+    span.innerStart = i + 1;
+    span.innerEnd = closePos;
+    span.block = false;
+    return span;
+}
+
+// Finds the next math span in text at or after from.
+MathSpan findMathSpan(const QString &text, int from) {
+    for (int i = from; i < text.size(); ++i) {
+        if (text.at(i) == QLatin1Char('\\') && i + 1 < text.size() &&
+            (text.at(i + 1) == QLatin1Char('(') || text.at(i + 1) == QLatin1Char('[')))
+            return matchBracketMath(text, i);
+        if (text.at(i) == QLatin1Char('$')) {
+            const MathSpan span = matchDollarMath(text, i);
+            if (span.start >= 0)
+                return span;
+        }
+    }
+    return MathSpan{};
+}
+
 // A single styled run of inline text: either literal (code span) or markdown
 // source to be interpreted.
 struct InlineRun {
@@ -276,6 +341,87 @@ InlineMatch matchInlineAt(const QString &text, int i) {
     return InlineMatch{};
 }
 
+// Inserts the math span [math] of `remaining` as a formatted monospace run.
+void insertMathRun(QTextCursor &cursor, const QString &remaining, const MathSpan &math) {
+    if (math.start > 0)
+        cursor.insertText(remaining.left(math.start));
+    const QString tex = remaining.mid(math.innerStart, math.innerEnd - math.innerStart);
+    QTextCharFormat mathFormat;
+    mathFormat.setFontFamilies({QStringLiteral("monospace")});
+    mathFormat.setFontItalic(true);
+    mathFormat.setBackground(QColor(0x2a, 0x2a, 0x3a, 0x50));
+    cursor.insertText(tex, mathFormat);
+    // insertText(text, format) leaves that format as the cursor's current
+    // char format; reset so following plain text does not inherit it.
+    cursor.setCharFormat(QTextCharFormat());
+}
+
+// Inserts a literal code-span run with monospace + background.
+void insertCodeRun(QTextCursor &cursor, const QString &text) {
+    QTextCharFormat codeFormat;
+    codeFormat.setFontFamilies({QStringLiteral("monospace")});
+    codeFormat.setBackground(QColor(0x40, 0x40, 0x40, 0x60));
+    cursor.insertText(text, codeFormat);
+    // insertText(text, format) leaves that format as the cursor's current
+    // char format; reset so following plain text does not inherit it.
+    cursor.setCharFormat(QTextCharFormat());
+}
+
+// Inserts one emphasis/link construct (best) from `remaining`, applying its
+// format to the inner text, and returns the text after the construct.
+QString insertEmphasisRun(QTextCursor &cursor, const QString &remaining, const InlineMatch &best) {
+    if (best.start > 0)
+        cursor.insertText(remaining.left(best.start));
+    // Insert the inner text of the construct without its markers.
+    QString inner;
+    if (best.markerLength > 0) {
+        inner = remaining.mid(best.start + best.markerLength,
+                              best.end - best.start - (2 * best.markerLength));
+    } else {
+        // Link: [text](url) -> insert only the link text.
+        const int close = static_cast<int>(remaining.indexOf(QLatin1Char(']'), best.start + 1));
+        inner = remaining.mid(best.start + 1, close - best.start - 1);
+    }
+    const int innerStart = cursor.position();
+    cursor.insertText(inner);
+    QTextCursor formatCursor(cursor.document());
+    formatCursor.setPosition(innerStart);
+    formatCursor.setPosition(innerStart + static_cast<int>(inner.size()), QTextCursor::KeepAnchor);
+    formatCursor.mergeCharFormat(best.format);
+    return remaining.mid(best.end);
+}
+
+// Processes one interpretable run: math spans first, then emphasis/links.
+void insertMarkdownRun(QTextCursor &cursor, const QString &runText) {
+    QString remaining = runText;
+    while (!remaining.isEmpty()) {
+        // Math spans take precedence over emphasis markers so that e.g.
+        // \( \frac{36}{7} \) is not mangled by the '*'/'_' matcher.
+        const MathSpan math = findMathSpan(remaining, 0);
+        // Find the next formatting construct.
+        int matchPos = -1;
+        InlineMatch best;
+        for (int i = 0; i < remaining.size(); ++i) {
+            const InlineMatch m = matchInlineAt(remaining, i);
+            if (m.start >= 0) {
+                matchPos = i;
+                best = m;
+                break;
+            }
+        }
+        if (math.start >= 0 && (matchPos < 0 || math.start < matchPos)) {
+            insertMathRun(cursor, remaining, math);
+            remaining = remaining.mid(math.end);
+            continue;
+        }
+        if (matchPos < 0) {
+            cursor.insertText(remaining);
+            break;
+        }
+        remaining = insertEmphasisRun(cursor, remaining, best);
+    }
+}
+
 // Inserts inline markdown into the current block: code spans are inserted
 // literally with a monospace format, and emphasis/links are applied to the
 // remaining text. The whole run is processed in one pass, so marker removal
@@ -283,55 +429,10 @@ InlineMatch matchInlineAt(const QString &text, int i) {
 void insertInline(QTextCursor &cursor, const QString &text) {
     for (const InlineRun &run : splitInlineRuns(text)) {
         if (run.literal) {
-            QTextCharFormat codeFormat;
-            codeFormat.setFontFamilies({QStringLiteral("monospace")});
-            codeFormat.setBackground(QColor(0x40, 0x40, 0x40, 0x60));
-            cursor.insertText(run.text, codeFormat);
-            // insertText(text, format) leaves that format as the cursor's
-            // current char format; reset it so following plain text does not
-            // inherit the monospace family and code background.
-            cursor.setCharFormat(QTextCharFormat());
+            insertCodeRun(cursor, run.text);
             continue;
         }
-        QString remaining = run.text;
-        while (!remaining.isEmpty()) {
-            // Find the next formatting construct.
-            int matchPos = -1;
-            InlineMatch best;
-            for (int i = 0; i < remaining.size(); ++i) {
-                const InlineMatch m = matchInlineAt(remaining, i);
-                if (m.start >= 0) {
-                    matchPos = i;
-                    best = m;
-                    break;
-                }
-            }
-            if (matchPos < 0) {
-                cursor.insertText(remaining);
-                break;
-            }
-            if (matchPos > 0)
-                cursor.insertText(remaining.left(matchPos));
-            // Insert the inner text of the construct without its markers.
-            QString inner;
-            if (best.markerLength > 0) {
-                inner = remaining.mid(best.start + best.markerLength,
-                                      best.end - best.start - (2 * best.markerLength));
-            } else {
-                // Link: [text](url) -> insert only the link text.
-                const int close =
-                    static_cast<int>(remaining.indexOf(QLatin1Char(']'), best.start + 1));
-                inner = remaining.mid(best.start + 1, close - best.start - 1);
-            }
-            const int innerStart = cursor.position();
-            cursor.insertText(inner);
-            QTextCursor formatCursor(cursor.document());
-            formatCursor.setPosition(innerStart);
-            formatCursor.setPosition(innerStart + static_cast<int>(inner.size()),
-                                     QTextCursor::KeepAnchor);
-            formatCursor.mergeCharFormat(best.format);
-            remaining = remaining.mid(best.end);
-        }
+        insertMarkdownRun(cursor, run.text);
     }
 }
 
@@ -568,12 +669,70 @@ void insertOrderedListItem(QTextCursor &cursor, bool &firstBlock, const QString 
     insertInline(cursor, trimmed.mid(dot + 1).trimmed());
 }
 
+// A line that starts a block math environment: \[ ... on its own line.
+bool isMathBlockStart(const QString &line) {
+    const QString trimmed = line.trimmed();
+    return trimmed.startsWith(QStringLiteral("\\[")) || trimmed == QStringLiteral("\\[");
+}
+
+// Collects a block math environment starting at line i (which begins with
+// \[). Returns the TeX source with delimiters stripped, and sets i past the
+// closing \].
+QString mathBlockSource(const QStringList &lines, int &i) {
+    QStringList collected;
+    bool closed = false;
+    for (; i < lines.size(); ++i) {
+        const QString &line = lines.at(i);
+        collected.push_back(line);
+        if (line.contains(QStringLiteral("\\]"))) {
+            closed = true;
+            ++i;
+            break;
+        }
+    }
+    if (!closed)
+        i = static_cast<int>(lines.size());
+    QString joined = collected.join(QLatin1Char('\n'));
+    const int start = static_cast<int>(joined.indexOf(QStringLiteral("\\[")));
+    if (start >= 0)
+        joined = joined.mid(start + 2);
+    const int end = static_cast<int>(joined.lastIndexOf(QStringLiteral("\\]")));
+    if (end >= 0)
+        joined = joined.left(end);
+    return joined.trimmed();
+}
+
+void insertMathBlock(QTextCursor &cursor, bool &firstBlock, const QString &tex, bool block) {
+    if (!firstBlock)
+        cursor.insertBlock();
+    firstBlock = false;
+    QTextBlockFormat mathBlockFormat;
+    mathBlockFormat.setBackground(QColor(0x2a, 0x2a, 0x3a, 0x50));
+    if (block) {
+        mathBlockFormat.setLeftMargin(12);
+        mathBlockFormat.setRightMargin(12);
+        mathBlockFormat.setTopMargin(6);
+        mathBlockFormat.setBottomMargin(6);
+        mathBlockFormat.setAlignment(Qt::AlignHCenter);
+    } else {
+        mathBlockFormat.setLeftMargin(8);
+        mathBlockFormat.setTopMargin(2);
+        mathBlockFormat.setBottomMargin(2);
+    }
+    cursor.setBlockFormat(mathBlockFormat);
+    QTextCharFormat mathFormat;
+    mathFormat.setFontFamilies({QStringLiteral("monospace")});
+    mathFormat.setFontItalic(true);
+    cursor.insertText(tex, mathFormat);
+    cursor.setCharFormat(QTextCharFormat());
+}
+
 bool isSpecialLine(const QString &line) {
     int headingLevel = 0;
     int listNumber = 0;
     return isFenceLine(line) || isHeadingLine(line, &headingLevel) || isHorizontalRule(line) ||
            isBlockquoteLine(line) || isUnorderedListItem(line) ||
-           isOrderedListItem(line, &listNumber);
+           isOrderedListItem(line, &listNumber) || isMathBlockStart(line);
 }
 
 void insertParagraph(QTextCursor &cursor, bool &firstBlock, const QStringList &lines, int &i) {
@@ -611,6 +770,11 @@ void MarkdownRenderer::renderInto(QTextDocument &doc, const QString &markdown, c
         }
         if (isFenceLine(line)) {
             insertFencedCodeBlock(cursor, firstBlock, lines, i);
+            continue;
+        }
+        if (isMathBlockStart(line)) {
+            const QString tex = mathBlockSource(lines, i);
+            insertMathBlock(cursor, firstBlock, tex, true);
             continue;
         }
         int level = 0;

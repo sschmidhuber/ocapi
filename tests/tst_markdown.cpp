@@ -70,6 +70,12 @@ private slots:
     void headingDoesNotLeakBoldIntoFollowingParagraph();
     void headingDoesNotLeakSizeIntoFollowingListItem();
     void issueTextRendersWithoutFormatLeaks();
+    void inlineMathIsExtractedNotRaw();
+    void blockMathRendersAsSeparateBlock();
+    void dollarMathIsExtracted();
+    void currencyDollarStaysLiteral();
+    void mathInsideListItemIsExtracted();
+    void boxedMathRendersAsMath();
 };
 
 void TestMarkdown::initTestCase() {
@@ -375,6 +381,62 @@ void TestMarkdown::issueTextRendersWithoutFormatLeaks() {
             found,
             qPrintable(QStringLiteral("fragment not found: %1 / %2").arg(blockText, fragmentText)));
     }
+}
+
+void TestMarkdown::inlineMathIsExtractedNotRaw() {
+    const QString md = QStringLiteral("To solve \\( \\frac{36}{7} \\), divide.");
+    const auto doc = MarkdownRenderer::render(md, 400, testFont());
+    const QString text = doc->toPlainText();
+    // The delimiters must be gone and the TeX shown as its own formatted run.
+    QVERIFY(!text.contains(QStringLiteral("\\(")));
+    QVERIFY(!text.contains(QStringLiteral("\\)")));
+    QVERIFY(text.contains(QStringLiteral("\\frac{36}{7}")));
+    QVERIFY(hasFormat(*doc, [](const QTextCharFormat &f) {
+        const QStringList families = f.property(QTextFormat::FontFamilies).toStringList();
+        return !families.isEmpty() && families.first() == QLatin1String("monospace") &&
+               f.fontItalic();
+    }));
+}
+
+void TestMarkdown::blockMathRendersAsSeparateBlock() {
+    const QString md = QStringLiteral("**Final Answer**:\n\\[\n\\boxed{5 \\frac{1}{7}}\n\\]");
+    const auto doc = MarkdownRenderer::render(md, 400, testFont());
+    const QString text = doc->toPlainText();
+    QVERIFY(!text.contains(QStringLiteral("\\[")));
+    QVERIFY(!text.contains(QStringLiteral("\\]")));
+    QVERIFY(text.contains(QStringLiteral("\\boxed{5 \\frac{1}{7}}")));
+    // Block math is its own block, separate from the preceding paragraph.
+    QVERIFY(doc->blockCount() >= 2);
+}
+
+void TestMarkdown::dollarMathIsExtracted() {
+    const QString md = QStringLiteral("The value is $x^2 + 1$ here.");
+    const auto doc = MarkdownRenderer::render(md, 400, testFont());
+    const QString text = doc->toPlainText();
+    QVERIFY(!text.contains(QLatin1Char('$')));
+    QVERIFY(text.contains(QStringLiteral("x^2 + 1")));
+}
+
+void TestMarkdown::currencyDollarStaysLiteral() {
+    const QString md = QStringLiteral("It costs $5 today.");
+    const auto doc = MarkdownRenderer::render(md, 400, testFont());
+    QCOMPARE(doc->toPlainText(), QStringLiteral("It costs $5 today."));
+}
+
+void TestMarkdown::mathInsideListItemIsExtracted() {
+    const QString md = QStringLiteral("1. Divide \\( 7 \\times 5 = 35 \\) first.");
+    const auto doc = MarkdownRenderer::render(md, 400, testFont());
+    const QString text = doc->toPlainText();
+    QVERIFY(!text.contains(QStringLiteral("\\(")));
+    QVERIFY(text.contains(QStringLiteral("7 \\times 5 = 35")));
+}
+
+void TestMarkdown::boxedMathRendersAsMath() {
+    const QString md = QStringLiteral("Or:\n\\[\\boxed{5.\\overline{142857}}\\]");
+    const auto doc = MarkdownRenderer::render(md, 400, testFont());
+    const QString text = doc->toPlainText();
+    QVERIFY(text.contains(QStringLiteral("\\boxed{5.\\overline{142857}}")));
+    QVERIFY(!text.contains(QStringLiteral("\\]")));
 }
 
 QTEST_GUILESS_MAIN(TestMarkdown)

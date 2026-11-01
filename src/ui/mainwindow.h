@@ -18,6 +18,7 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QPushButton>
+#include <QSet>
 #include <QToolBar>
 #include <QToolButton>
 #include <QVector>
@@ -77,6 +78,12 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
 
+    // Test access to the current session, the new-chat path and the backend
+    // registry (to seed backends in tests).
+    [[nodiscard]] ChatSession *currentSession() const { return m_currentSession; }
+    void startNewChat() { onNewChat(); }
+    [[nodiscard]] BackendRegistry &registryForTest() { return m_registry; }
+
 protected:
     void showEvent(QShowEvent *event) override;
 
@@ -90,7 +97,7 @@ private slots:
     void onStop();
     void onBackendChanged();
     void onModelSelected(const QString &backendId, const QString &model);
-    void onModelsDetected(const QStringList &models);
+    void onModelsDetected(const QString &backendId, const QStringList &models);
     // Adds detected models to the picker's model list for the backend.
     void addModelsToPicker(const QString &backendId, const QStringList &models);
     void onToolCallsRequested(const QUuid &messageId, const QVector<ToolCall> &toolCalls);
@@ -112,12 +119,19 @@ private:
     void createSession(const QString &backendId = {}, const QString &model = {});
     void refreshSidebar();
     void refreshBackendSelector();
-    // Default model plus previously detected models for one backend.
+    // Previously detected models for one backend (plus the persisted
+    // last-selected model, which is kept even when the backend is offline).
     [[nodiscard]] QStringList knownModelsForBackend(const BackendConfig &config) const;
+    // Last model the user picked for a backend; persisted in ocapi.conf so
+    // the selection survives restarts. Empty when never selected.
+    [[nodiscard]] QString lastModelForBackend(const QString &backendId) const;
+    void saveLastModelForBackend(const QString &backendId, const QString &model);
+    void forgetLastModelForBackend(const QString &backendId);
     void updateEmptyState();
     [[nodiscard]] bool openDatabase();
     void loadBackendsFromDatabase();
     void loadSttSettingsFromDatabase();
+    void loadLastModels();
     void configureVoiceInput();
     void loadTtsSettingsFromDatabase();
     void configureTts();
@@ -153,16 +167,19 @@ private:
     QVector<ChatSession *> m_sessions;
     ChatSession *m_currentSession = nullptr;
     std::unique_ptr<IBackend> m_backend;
-    std::unique_ptr<IBackend> m_detectorBackend;
+    // One in-flight model detection per backend id.
+    QHash<QString, IBackend *> m_detectors;
+    QSet<QString> m_pendingDetection;
     bool m_streaming = false;
     bool m_loadingOlder = false;
     bool m_runningTools = false; // a tool-call round is in progress
     QUuid m_streamedMessageId;
     int m_streamedTokens = 0;
     QDateTime m_firstToken;
-    QString m_detectedBackendId;
     // Models detected per backend id (survives session switches).
     QHash<QString, QStringList> m_detectedModels;
+    // Last model selected per backend id, loaded from/saved to ocapi.conf.
+    QHash<QString, QString> m_lastModels;
     QString m_dictatedText;
     // Session waiting for tool results before the next model round.
     ChatSession *m_toolSession = nullptr;

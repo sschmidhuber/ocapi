@@ -53,13 +53,6 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
     m_apiKeyEdit = new QLineEdit(formWidget);
     m_apiKeyEdit->setEchoMode(QLineEdit::Password);
     m_apiKeyEdit->setPlaceholderText(tr("API key"));
-    m_modelCombo = new QComboBox(formWidget);
-    m_modelCombo->setEditable(true);
-    m_modelCombo->setInsertPolicy(QComboBox::NoInsert);
-    // Match the width of the line edits above instead of shrinking to the
-    // current entry; the layout policy makes it grow with the dialog.
-    m_modelCombo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-    m_modelCombo->setMinimumContentsLength(24);
     m_enabledBox = new QCheckBox(tr("Enabled"), formWidget);
     m_enabledBox->setChecked(true);
     m_testButton = new QPushButton(tr("Test connection"), formWidget);
@@ -73,7 +66,6 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
     formLayout->addRow(tr("Name:"), m_nameEdit);
     formLayout->addRow(tr("Base URL:"), m_urlEdit);
     formLayout->addRow(tr("API key:"), m_apiKeyEdit);
-    formLayout->addRow(tr("Default model:"), m_modelCombo);
     formLayout->addRow(m_enabledBox);
     formLayout->addRow(m_testButton);
     formLayout->addRow(m_testResultLabel);
@@ -109,11 +101,6 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
     for (auto *edit : {m_urlEdit, m_apiKeyEdit}) {
         connect(edit, &QLineEdit::textEdited, this, &BackendPage::onFieldEdited);
     }
-    connect(m_modelCombo, &QComboBox::currentIndexChanged, this, [this](int) {
-        if (!m_updatingForm)
-            onFieldEdited();
-    });
-    connect(m_modelCombo->lineEdit(), &QLineEdit::textEdited, this, &BackendPage::onFieldEdited);
     connect(m_enabledBox, &QCheckBox::toggled, this, &BackendPage::onFieldEdited);
 
     populateList();
@@ -171,7 +158,6 @@ void BackendPage::onSelectionChanged() {
     m_nameEdit->setEnabled(hasSelection);
     m_urlEdit->setEnabled(hasSelection);
     m_apiKeyEdit->setEnabled(hasSelection);
-    m_modelCombo->setEnabled(hasSelection);
     m_enabledBox->setEnabled(hasSelection);
     m_testButton->setEnabled(hasSelection);
     m_testResultLabel->clear();
@@ -186,7 +172,6 @@ void BackendPage::onSelectionChanged() {
         m_nameEdit->clear();
         m_urlEdit->clear();
         m_apiKeyEdit->clear();
-        m_modelCombo->clear();
         m_enabledBox->setChecked(true);
     }
     updateUrlState();
@@ -275,25 +260,6 @@ void BackendPage::onTestModelsReady(const QStringList &models) {
     }
     m_testResultLabel->setText(tr("Connection successful. %n model(s) detected.", nullptr,
                                   static_cast<int>(models.size())));
-    // Offer the fetched models in the default-model combo. The combo stays
-    // editable so a custom model name can be typed when the backend does
-    // not report its models.
-    auto *item = m_list->currentItem();
-    auto *config = item ? m_registry->find(QUuid(item->data(Qt::UserRole).toString())) : nullptr;
-    const QString current = config ? config->defaultModel : QString();
-    m_updatingForm = true;
-    m_modelCombo->clear();
-    m_modelCombo->addItems(models);
-    const int idx = m_modelCombo->findText(current);
-    if (idx >= 0)
-        m_modelCombo->setCurrentIndex(idx);
-    else
-        m_modelCombo->setCurrentText(current);
-    m_updatingForm = false;
-    if (current.isEmpty())
-        m_modelCombo->setCurrentIndex(0);
-    if (config && config->defaultModel != m_modelCombo->currentText())
-        onFieldEdited();
 }
 
 void BackendPage::onTestModelsFailed(const QString &error) {
@@ -308,8 +274,6 @@ void BackendPage::loadConfigIntoForm(const BackendConfig &config) {
     m_kindCombo->setCurrentIndex(kindIndex < 0 ? 0 : kindIndex);
     m_urlEdit->setText(config.baseUrl);
     m_apiKeyEdit->setText(config.apiKey);
-    m_modelCombo->clear();
-    m_modelCombo->setCurrentText(config.defaultModel);
     m_enabledBox->setChecked(config.enabled);
 }
 
@@ -322,7 +286,6 @@ void BackendPage::saveFormIntoConfig(BackendConfig &config) {
     if (config.baseUrl.isEmpty() && !BackendConfig::isCloud(config.kind))
         config.baseUrl = BackendConfig::defaultBaseUrl(config.kind);
     config.apiKey = m_apiKeyEdit->text().trimmed();
-    config.defaultModel = m_modelCombo->currentText().trimmed();
     config.enabled = m_enabledBox->isChecked();
 }
 

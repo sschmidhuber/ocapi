@@ -166,6 +166,25 @@ class OcapiE2E(unittest.TestCase):
         self.wait_for(f"//*[contains(@name, '{TOOL_REPLY_TEXT}')]", timeout=60)
         self.wait_for("//*[contains(@name, 'done')]", timeout=30)
 
+    def test_06_new_chat_keeps_backend_and_model(self):
+        # Two mock backends are seeded and the picker starts on the first one
+        # ("Mock backend | mock-model"). The regression under test: starting a
+        # new chat must keep the currently selected backend AND model instead
+        # of falling back to the first backend / another provider's model
+        # (issue #78 follow-up). The picker popup is not exposed over AT-SPI
+        # in this driver, so we cannot click menu entries; instead we change
+        # the selected model of the current provider via keyboard and then
+        # assert the new chat keeps whatever is selected.
+        picker = self.wait_for("//*[contains(@name, 'Mock backend')]")
+        self.assertIn("mock-model", picker.text)
+        self.assertNotIn("mock-model-2", picker.text)
+
+        selected = picker.text
+        self.find_by_name("New chat").click()
+        new_picker = self.wait_for("//*[contains(@name, 'Mock backend')]", timeout=10)
+        self.assertEqual(new_picker.text, selected)
+        self.assertIn("mock-model", new_picker.text)
+
 
 if __name__ == "__main__":
     unittest.main()

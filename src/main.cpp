@@ -8,6 +8,7 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QStyleFactory>
 #include <QUrl>
@@ -30,16 +31,40 @@ void seedE2eMockBackend() {
         return;
     ocapi::BackendRegistry registry;
     registry.load(database);
+    // Seed two backends on the same mock server, so the model picker has
+    // two providers and the "new chat keeps backend+model" E2E test can
+    // switch between them.
+    QString firstId;
     for (const auto &config : registry.backends()) {
         if (config.baseUrl == url)
-            return;
+            firstId = config.id.toString(QUuid::WithoutBraces);
     }
-    ocapi::BackendConfig &config =
-        registry.add(QStringLiteral("Mock backend"), ocapi::BackendKind::Ollama);
-    config.baseUrl = url;
-    config.defaultModel = QStringLiteral("mock-model");
-    config.enabled = true;
+    if (firstId.isEmpty()) {
+        auto &config = registry.add(QStringLiteral("Mock backend"), ocapi::BackendKind::Ollama);
+        config.baseUrl = url;
+        config.enabled = true;
+        firstId = config.id.toString(QUuid::WithoutBraces);
+    }
+    const QString secondUrl = url + QStringLiteral("/");
+    bool secondExists = false;
+    for (const auto &config : registry.backends()) {
+        if (config.baseUrl == secondUrl)
+            secondExists = true;
+    }
+    if (!secondExists) {
+        auto &second = registry.add(QStringLiteral("Mock backend 2"), ocapi::BackendKind::Ollama);
+        second.baseUrl = secondUrl;
+        second.enabled = true;
+    }
     registry.save();
+
+    // The settings page no longer offers a default model; the E2E tests
+    // expect the seeded backend to come up with "mock-model" selected, so
+    // persist it as the first backend's last model selection.
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir().mkpath(configDir);
+    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    settings.setValue(QStringLiteral("models/last/%1").arg(firstId), QStringLiteral("mock-model"));
 
     // With OCAPI_E2E_MOCK_MCP=1, also seed an MCP server pointing at the
     // mock server from tests/e2e/mock_mcp.py. Its tools are allowed without

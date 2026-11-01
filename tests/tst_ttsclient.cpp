@@ -300,8 +300,8 @@ void TestTtsClient::sendsElevenLabsSpeedInVoiceSettings() {
     // Speed must be nested in voice_settings, not a top-level field.
     QVERIFY2(body.contains(QStringLiteral("\"voice_settings\":{\"speed\":1.25}")),
              qPrintable(body));
-    const int speedPos = body.indexOf(QStringLiteral("\"speed\":"));
-    QVERIFY(speedPos > body.indexOf(QStringLiteral("\"voice_settings\":")));
+    QVERIFY(body.indexOf(QStringLiteral("\"speed\":")) >
+            body.indexOf(QStringLiteral("\"voice_settings\":")));
 }
 
 void TestTtsClient::sendsMistralPayloadWithVoiceId() {

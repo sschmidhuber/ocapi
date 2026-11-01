@@ -478,7 +478,12 @@ MainWindow::~MainWindow() {
 }
 
 void MainWindow::onNewChat() {
-    createSession();
+    // Continue with the backend and model of the current chat, so a new
+    // chat does not silently fall back to the first backend / another
+    // provider's persisted model.
+    const QString backendId = m_currentSession ? m_currentSession->backendId() : QString();
+    const QString model = m_currentSession ? m_currentSession->model() : QString();
+    createSession(backendId, model);
 }
 
 void MainWindow::createSession(const QString &backendId, const QString &model) {
@@ -490,8 +495,11 @@ void MainWindow::createSession(const QString &backendId, const QString &model) {
     }
 
     auto *session = new ChatSession(tr("New chat"), effectiveBackendId, this);
-    if (!model.isEmpty())
-        session->setModel(model);
+    QString effectiveModel = model;
+    if (effectiveModel.isEmpty())
+        effectiveModel = lastModelForBackend(effectiveBackendId);
+    if (!effectiveModel.isEmpty())
+        session->setModel(effectiveModel);
     // The session starts empty and every message is persisted live, so the
     // database already holds all of them; initialize the pagination counter
     // to the live message count (0 here) so loadOlderMessages() never

@@ -69,6 +69,23 @@ target_include_directories(tst_settingsdialog PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(tst_settingsdialog PRIVATE ocapi-core Qt6::Test Qt6::Widgets)
 add_test(NAME tst_settingsdialog COMMAND tst_settingsdialog)
 
+# MainWindow lives in the application target; the test compiles it directly
+# like tst_settingsdialog and needs the UI sources it pulls in.
+add_executable(tst_mainwindow tst_mainwindow.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/mainwindow.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/chatview.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/chatdelegate.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/composer.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/sidebar.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/backendpage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/mcppage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/sttpage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/ttspage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/settingsdialog.cpp)
+target_include_directories(tst_mainwindow PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(tst_mainwindow PRIVATE ocapi-core Qt6::Test Qt6::Widgets)
+add_test(NAME tst_mainwindow COMMAND tst_mainwindow)
+
 # The settings dialog shows themed icons with bundled SVGs from the app's
 # resource file; the test needs the same resources embedded to resolve them.
 set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icons/ai_chip.svg

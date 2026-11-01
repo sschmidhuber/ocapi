@@ -78,6 +78,12 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
 
+    // Test access to the current session, the new-chat path and the backend
+    // registry (to seed backends in tests).
+    [[nodiscard]] ChatSession *currentSession() const { return m_currentSession; }
+    void startNewChat() { onNewChat(); }
+    [[nodiscard]] BackendRegistry &registryForTest() { return m_registry; }
+
 protected:
     void showEvent(QShowEvent *event) override;
 

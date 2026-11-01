@@ -28,7 +28,6 @@
 # model picker's popup menu.
 
 import os
-import time
 import unittest
 
 from appium import webdriver
@@ -185,7 +184,6 @@ class OcapiE2E(unittest.TestCase):
         new_picker = self.wait_for("//*[contains(@name, 'Mock backend')]", timeout=10)
         self.assertEqual(new_picker.text, selected)
         self.assertIn("mock-model", new_picker.text)
-
 
 
 if __name__ == "__main__":

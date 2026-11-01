@@ -177,7 +177,7 @@ private:
     ModelPickerButton *m_modelPicker = nullptr;
     QPushButton *m_sendButton = nullptr;
     QPushButton *m_stopButton = nullptr;
-    QPushButton *m_speakButton = nullptr;
+    QToolButton *m_speakButton = nullptr;
     QLabel *m_statusLabel = nullptr;
     QLabel *m_emptyLabel = nullptr;
     QLabel *m_mcpStatusLabel = nullptr;

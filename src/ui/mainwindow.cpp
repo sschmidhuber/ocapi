@@ -288,9 +288,21 @@ void MainWindow::setupUi() {
     m_sendButton = new QPushButton(tr("Send"), footerRow);
     m_stopButton = new QPushButton(tr("Stop"), footerRow);
     m_stopButton->setVisible(false);
-    m_speakButton = new QPushButton(tr("\U0001F50A"), footerRow);
+    // Icon button styled like the Dictate (mic) button next to it.
+    m_speakButton = new QToolButton(footerRow);
+    const QIcon speakerIcon(
+        QString::fromUtf8(":/resources/icons/media-playback-start-symbolic.svg"));
+    if (!speakerIcon.isNull()) {
+        m_speakButton->setIcon(speakerIcon);
+        m_speakButton->setIconSize(QSize(18, 18));
+    } else {
+        m_speakButton->setText(QString::fromUtf8("\U0001F50A"));
+    }
     m_speakButton->setCheckable(true);
-    m_speakButton->setToolTip(tr("Speak assistant responses aloud"));
+    m_speakButton->setAutoRaise(true);
+    m_speakButton->setFixedSize(28, 28);
+    m_speakButton->setToolTip(tr("Audio output (text-to-speech)"));
+    m_speakButton->setAccessibleName(tr("Speak assistant responses aloud"));
     m_speakButton->setVisible(false);
     footerLayout->addWidget(m_modelPicker, 1);
     footerLayout->addStretch(1);

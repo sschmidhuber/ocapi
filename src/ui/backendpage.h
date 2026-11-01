@@ -18,8 +18,9 @@ class BackendRegistry;
 class IBackend;
 
 // Embedded settings page for model backends: add/remove backends, edit
-// connection settings (provider, base URL, API key, default model, enabled)
-// and test the connection by listing the backend's models.
+// connection settings (provider, base URL, API key, enabled) and test the
+// connection by listing the backend's models. The model is chosen in the
+// main chat window's model picker, not here.
 class BackendPage : public QWidget {
     Q_OBJECT
 
@@ -51,7 +52,6 @@ private:
     QLineEdit *m_nameEdit;
     QLineEdit *m_urlEdit;
     QLineEdit *m_apiKeyEdit;
-    QComboBox *m_modelCombo;
     QCheckBox *m_enabledBox;
     QPushButton *m_testButton;
     QLabel *m_testResultLabel;

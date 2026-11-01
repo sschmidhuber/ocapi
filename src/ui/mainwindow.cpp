@@ -18,6 +18,7 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSet>
 #include <QSettings>
 #include <QSize>
 #include <QSplitter>
@@ -68,7 +69,16 @@ void ModelPickerButton::setBackendAndModel(const QString &backendName, const QSt
 void ModelPickerButton::setBackends(const QVector<QPair<QString, QString>> &backends,
                                     const QHash<QString, QStringList> &models) {
     m_backends = backends;
+    // Sort providers alphabetically by display name, and each provider's
+    // models alphabetically, so the menu does not depend on the order in
+    // which backends were configured or models detected.
+    std::ranges::sort(m_backends, [](const auto &a, const auto &b) {
+        return a.first.localeAwareCompare(b.first) < 0;
+    });
     m_models = models;
+    for (auto &list : m_models)
+        std::ranges::sort(
+            list, [](const QString &a, const QString &b) { return a.localeAwareCompare(b) < 0; });
     rebuildMenu();
 }
 
@@ -78,6 +88,8 @@ void ModelPickerButton::addModels(const QString &backendId, const QStringList &m
         if (!list.contains(model))
             list.append(model);
     }
+    std::ranges::sort(
+        list, [](const QString &a, const QString &b) { return a.localeAwareCompare(b) < 0; });
     m_models.insert(backendId, list);
     rebuildMenu();
 }
@@ -89,7 +101,8 @@ void ModelPickerButton::rebuildMenu() {
         backendAction->setCheckable(true);
         backendAction->setChecked(id == m_backendId);
         connect(backendAction, &QAction::triggered, this, [this, id, name]() {
-            setBackendAndModel(name, id, m_models.value(id).value(0));
+            const QStringList sorted = m_models.value(id);
+            setBackendAndModel(name, id, sorted.value(0));
             emit backendSelected(id);
         });
         auto *section = new QMenu(name, menu);
@@ -165,6 +178,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     loadBackendsFromDatabase();
     loadMcpServersFromDatabase();
     loadSttSettingsFromDatabase();
+    loadLastModels();
 
     setupUi();
     setupConnections();
@@ -552,6 +566,22 @@ void MainWindow::loadTtsSettingsFromDatabase() {
     m_ttsRegistry.loadSettings(settings);
 }
 
+void MainWindow::loadLastModels() {
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir().mkpath(configDir);
+    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    const auto keys = settings.allKeys();
+    for (const QString &key : keys) {
+        constexpr auto prefix = "models/last/";
+        if (!key.startsWith(QString::fromLatin1(prefix)))
+            continue;
+        const QString backendId = key.mid(QString::fromLatin1(prefix).size());
+        const QString model = settings.value(key).toString().trimmed();
+        if (!backendId.isEmpty() && !model.isEmpty())
+            m_lastModels.insert(backendId, model);
+    }
+}
+
 void MainWindow::configureTts() {
     const auto services = m_ttsRegistry.enabled();
     QString activeId = m_ttsRegistry.activeServiceId();
@@ -707,6 +737,16 @@ void MainWindow::syncSessionToDatabase(ChatSession *session) {
 }
 
 void MainWindow::onBackendChanged() {
+    // Drop persisted model selections of backends that no longer exist.
+    QSet<QString> existing;
+    for (const auto &config : m_registry.backends())
+        existing.insert(config.id.toString());
+    for (auto it = m_lastModels.begin(); it != m_lastModels.end();) {
+        if (!existing.contains(it.key()))
+            it = m_lastModels.erase(it);
+        else
+            ++it;
+    }
     m_detectedBackendId.clear();
     refreshBackendSelector();
     updateEmptyState();
@@ -715,12 +755,38 @@ void MainWindow::onBackendChanged() {
 
 QStringList MainWindow::knownModelsForBackend(const BackendConfig &config) const {
     QStringList list;
-    if (!config.defaultModel.isEmpty())
-        list.push_back(config.defaultModel);
+    const QString last = m_lastModels.value(config.id.toString());
+    if (!last.isEmpty())
+        list.push_back(last);
     for (const QString &detected : m_detectedModels.value(config.id.toString()))
         if (!list.contains(detected))
             list.append(detected);
     return list;
+}
+
+QString MainWindow::lastModelForBackend(const QString &backendId) const {
+    return m_lastModels.value(backendId);
+}
+
+void MainWindow::saveLastModelForBackend(const QString &backendId, const QString &model) {
+    if (backendId.isEmpty() || model.trimmed().isEmpty())
+        return;
+    if (m_lastModels.value(backendId) == model.trimmed())
+        return;
+    m_lastModels.insert(backendId, model.trimmed());
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir().mkpath(configDir);
+    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    settings.setValue(QStringLiteral("models/last/%1").arg(backendId), model.trimmed());
+}
+
+void MainWindow::forgetLastModelForBackend(const QString &backendId) {
+    if (!m_lastModels.remove(backendId))
+        return;
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir().mkpath(configDir);
+    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    settings.remove(QStringLiteral("models/last/%1").arg(backendId));
 }
 
 void MainWindow::refreshSidebar() {
@@ -748,14 +814,16 @@ void MainWindow::refreshBackendSelector() {
         selectedId = backends.first().second;
 
     QString model = m_currentSession ? m_currentSession->model() : QString();
+    if (model.isEmpty())
+        model = lastModelForBackend(selectedId);
     if (model.isEmpty()) {
-        const auto *foundConfig = m_registry.find(selectedId);
-        if (foundConfig && !foundConfig->defaultModel.isEmpty()) {
-            model = foundConfig->defaultModel;
-            if (m_currentSession)
-                m_currentSession->setModel(model);
-        }
+        // Nothing persisted for this backend yet: take the first known model.
+        const QStringList known = models.value(selectedId);
+        if (!known.isEmpty())
+            model = known.first();
     }
+    if (m_currentSession && !model.isEmpty())
+        m_currentSession->setModel(model);
 
     QString backendName;
     for (const auto &entry : backends) {
@@ -780,6 +848,9 @@ void MainWindow::onModelSelected(const QString &backendId, const QString &model)
         m_currentSession->setBackendId(backendId);
     if (m_currentSession)
         m_currentSession->setModel(model.trimmed());
+    // Persist the selection per backend until the user picks another model
+    // or the backend is removed.
+    saveLastModelForBackend(backendId, model);
 }
 
 void MainWindow::detectModels() {

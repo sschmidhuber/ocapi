@@ -112,12 +112,19 @@ private:
     void createSession(const QString &backendId = {}, const QString &model = {});
     void refreshSidebar();
     void refreshBackendSelector();
-    // Default model plus previously detected models for one backend.
+    // Previously detected models for one backend (plus the persisted
+    // last-selected model, which is kept even when the backend is offline).
     [[nodiscard]] QStringList knownModelsForBackend(const BackendConfig &config) const;
+    // Last model the user picked for a backend; persisted in ocapi.conf so
+    // the selection survives restarts. Empty when never selected.
+    [[nodiscard]] QString lastModelForBackend(const QString &backendId) const;
+    void saveLastModelForBackend(const QString &backendId, const QString &model);
+    void forgetLastModelForBackend(const QString &backendId);
     void updateEmptyState();
     [[nodiscard]] bool openDatabase();
     void loadBackendsFromDatabase();
     void loadSttSettingsFromDatabase();
+    void loadLastModels();
     void configureVoiceInput();
     void loadTtsSettingsFromDatabase();
     void configureTts();
@@ -163,6 +170,8 @@ private:
     QString m_detectedBackendId;
     // Models detected per backend id (survives session switches).
     QHash<QString, QStringList> m_detectedModels;
+    // Last model selected per backend id, loaded from/saved to ocapi.conf.
+    QHash<QString, QString> m_lastModels;
     QString m_dictatedText;
     // Session waiting for tool results before the next model round.
     ChatSession *m_toolSession = nullptr;

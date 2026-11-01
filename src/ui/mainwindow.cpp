@@ -931,8 +931,8 @@ void MainWindow::detectModels() {
     }
     if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS")) {
         QStringList pending;
-        for (auto it = m_pendingDetection.begin(); it != m_pendingDetection.end(); ++it)
-            pending << *it;
+        for (const QString &id : m_pendingDetection)
+            pending << id;
         qWarning().noquote() << "[ocapi models] detectModels() done; pending="
                              << pending.join(QLatin1Char(' '));
     }

@@ -85,8 +85,8 @@ QJsonObject speechPayload(const TtsServiceConfig &config, const QString &text) {
         // the OpenAI-style "voice" name, and has no "speed" field. Pace
         // is set via an inline [pace=...] tag in the input text, but
         // only Voxtral 3 models interpret those tags — Voxtral 2 models
-        // (e.g. the voxtral-mini-tts-2603 default) would read the tag
-        // text aloud, so the tag is only sent for Voxtral 3 models.
+        // would read the tag text aloud, so the tag is only sent for
+        // Voxtral 3 models.
         payload.remove(QStringLiteral("voice"));
         payload.remove(QStringLiteral("speed"));
         QString input = text;

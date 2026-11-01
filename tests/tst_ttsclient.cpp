@@ -314,7 +314,7 @@ void TestTtsClient::sendsMistralPayloadWithVoiceId() {
     config.kind = TtsServiceKind::Mistral;
     config.baseUrl = QStringLiteral("http://127.0.0.1:%1/v1").arg(m_server.port());
     config.apiKey = QStringLiteral("mistral-key");
-    config.model = QStringLiteral("voxtral-mini-tts-2603");
+    config.model = QStringLiteral("voxtral-mini-tts-3-0");
     config.voice = QStringLiteral("gb_jane_neutral");
     TtsClient client(config);
     QSignalSpy audio(&client, &TtsClient::audioReady);
@@ -324,8 +324,9 @@ void TestTtsClient::sendsMistralPayloadWithVoiceId() {
 
     QCOMPARE(m_server.requestCount(), 1);
     const QString body = m_server.requestBodies().first();
-    QVERIFY(body.contains(QStringLiteral("\"model\":\"voxtral-mini-tts-2603\"")));
-    QVERIFY(body.contains(QStringLiteral("\"input\":\"Hello.\"")));
+    QVERIFY(body.contains(QStringLiteral("\"model\":\"voxtral-mini-tts-3-0\"")));
+    // Voxtral 3 model: the default pace tag [pace=moderate] is prepended.
+    QVERIFY(body.contains(QStringLiteral("\"input\":\"[pace=moderate] Hello.\"")));
     QVERIFY(body.contains(QStringLiteral("\"voice_id\":\"gb_jane_neutral\"")));
     QVERIFY(!body.contains(QStringLiteral("\"voice\":")));
     QCOMPARE(m_server.authorizationHeaders().first(), QStringLiteral("Bearer mistral-key"));
@@ -334,8 +335,8 @@ void TestTtsClient::sendsMistralPayloadWithVoiceId() {
 void TestTtsClient::omitsSpeedAndPaceTagForMistralVoxtral2() {
     // Mistral's /v1/audio/speech schema has no speed field, and Voxtral 2
     // models do not interpret inline tags (they would read the tag text
-    // aloud). With the voxtral-mini-tts-2603 default model the client must
-    // send neither "speed" nor a [pace=...] tag.
+    // aloud). With a Voxtral 2 model the client must send neither "speed"
+    // nor a [pace=...] tag.
     QVERIFY(m_server.start());
     auto config = serviceConfig(m_server.port());
     config.kind = TtsServiceKind::Mistral;

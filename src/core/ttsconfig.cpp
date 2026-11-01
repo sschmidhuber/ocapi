@@ -59,8 +59,8 @@ QString TtsServiceConfig::kindDescription(TtsServiceKind kind) {
     case TtsServiceKind::Groq:
         return QStringLiteral("Groq TTS models (OpenAI-compatible speech API)");
     case TtsServiceKind::Mistral:
-        return QStringLiteral("Mistral AI speech API (Voxtral TTS; voice = voice ID, "
-                              "e.g. gb_jane_neutral, voice_478)");
+        return QStringLiteral("Mistral AI speech API (Voxtral TTS 3; voice = voice ID, "
+                              "e.g. gb_jane_neutral, voice_478; pace via [pace=...] input tags)");
     case TtsServiceKind::ElevenLabs:
         return QStringLiteral("ElevenLabs speech synthesis (v2.5/flash/turbo, multilingual)");
     case TtsServiceKind::OpenAiTts:
@@ -96,7 +96,7 @@ QString TtsServiceConfig::defaultModel(TtsServiceKind kind) {
     case TtsServiceKind::Groq:
         return QStringLiteral("playai-tts");
     case TtsServiceKind::Mistral:
-        return QStringLiteral("voxtral-mini-tts-2603");
+        return QStringLiteral("voxtral-mini-tts-3-0");
     case TtsServiceKind::ElevenLabs:
         return QStringLiteral("eleven_flash_v2_5");
     case TtsServiceKind::OpenAiTts:

@@ -18,6 +18,7 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QPushButton>
+#include <QSet>
 #include <QToolBar>
 #include <QToolButton>
 #include <QVector>
@@ -90,7 +91,7 @@ private slots:
     void onStop();
     void onBackendChanged();
     void onModelSelected(const QString &backendId, const QString &model);
-    void onModelsDetected(const QStringList &models);
+    void onModelsDetected(const QString &backendId, const QStringList &models);
     // Adds detected models to the picker's model list for the backend.
     void addModelsToPicker(const QString &backendId, const QStringList &models);
     void onToolCallsRequested(const QUuid &messageId, const QVector<ToolCall> &toolCalls);
@@ -160,14 +161,15 @@ private:
     QVector<ChatSession *> m_sessions;
     ChatSession *m_currentSession = nullptr;
     std::unique_ptr<IBackend> m_backend;
-    std::unique_ptr<IBackend> m_detectorBackend;
+    // One in-flight model detection per backend id.
+    QHash<QString, IBackend *> m_detectors;
+    QSet<QString> m_pendingDetection;
     bool m_streaming = false;
     bool m_loadingOlder = false;
     bool m_runningTools = false; // a tool-call round is in progress
     QUuid m_streamedMessageId;
     int m_streamedTokens = 0;
     QDateTime m_firstToken;
-    QString m_detectedBackendId;
     // Models detected per backend id (survives session switches).
     QHash<QString, QStringList> m_detectedModels;
     // Last model selected per backend id, loaded from/saved to ocapi.conf.

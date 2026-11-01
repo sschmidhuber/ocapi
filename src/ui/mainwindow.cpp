@@ -775,7 +775,7 @@ void MainWindow::onBackendChanged() {
         else
             ++it;
     }
-    m_detectedBackendId.clear();
+    m_pendingDetection.clear();
     refreshBackendSelector();
     updateEmptyState();
     detectModels();
@@ -891,51 +891,64 @@ void MainWindow::onModelSelected(const QString &backendId, const QString &model)
 }
 
 void MainWindow::detectModels() {
-    const QString backendId = m_modelPicker->currentBackendId();
-    const auto *config = m_registry.find(backendId);
-    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS"))
-        qWarning().noquote() << "[ocapi models] detectModels() pickerBackend=" << backendId
-                             << "configFound=" << (config != nullptr)
-                             << "configName=" << (config ? config->name : QString())
-                             << "enabled=" << (config ? config->enabled : false)
-                             << "url=" << (config ? config->effectiveBaseUrl() : QString())
-                             << "detectedBackend=" << m_detectedBackendId
-                             << "cachedCount=" << m_detectedModels.value(backendId).size();
-    if (!config || !config->enabled)
-        return;
-    if (m_detectedBackendId == backendId && !m_detectedModels.value(backendId).isEmpty()) {
+    // Query every enabled backend, not just the selected one: the picker
+    // shows a submenu per provider, and a provider the user never selected
+    // would otherwise stay at "No models detected yet".
+    for (const auto &config : m_registry.backends()) {
+        if (!config.enabled)
+            continue;
+        const QString backendId = config.id.toString();
+        if (!m_detectedModels.value(backendId).isEmpty())
+            continue; // already detected successfully for this backend
+        if (m_pendingDetection.contains(backendId))
+            continue; // request already in flight
+        m_pendingDetection.insert(backendId);
+        auto *detector = createBackend(config).release();
+        detector->setParent(this);
+        const QString url = config.effectiveBaseUrl();
         if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS"))
-            qWarning().noquote() << "[ocapi models] detectModels() skip: already have"
-                                 << m_detectedModels.value(backendId).size() << "models for"
-                                 << backendId;
-        return; // already detected successfully for this backend
+            qWarning().noquote() << "[ocapi models] detectModels() sending listModels() for"
+                                 << config.name << backendId << "to" << url;
+        connect(detector, &IBackend::modelsReady, this,
+                [this, backendId, detector](const QStringList &models) {
+                    if (m_detectors.contains(backendId) && m_detectors.value(backendId) == detector)
+                        onModelsDetected(backendId, models);
+                });
+        connect(detector, &IBackend::modelsFailed, this,
+                [this, backendId, detector](const QString &error) {
+                    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS"))
+                        qWarning().noquote()
+                            << "[ocapi models] detection FAILED for" << backendId << ":" << error;
+                    if (m_detectors.find(backendId) != m_detectors.end() &&
+                        *m_detectors.find(backendId) == detector) {
+                        m_pendingDetection.remove(backendId); // allow retry on next trigger
+                        m_detectors.remove(backendId);
+                        detector->deleteLater();
+                    }
+                });
+        m_detectors.insert(backendId, detector);
+        detector->listModels();
     }
-    m_detectedBackendId = backendId;
-    m_detectorBackend = createBackend(*config);
-    connect(m_detectorBackend.get(), &IBackend::modelsReady, this, &MainWindow::onModelsDetected);
-    connect(m_detectorBackend.get(), &IBackend::modelsFailed, this, [this](const QString &error) {
-        if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS"))
-            qWarning().noquote() << "[ocapi models] detection FAILED:" << error;
-        m_detectorBackend.reset();
-    });
-    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS"))
-        qWarning().noquote() << "[ocapi models] sending listModels() to"
-                             << config->effectiveBaseUrl();
-    m_detectorBackend->listModels();
+    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS")) {
+        QStringList pending;
+        for (auto it = m_pendingDetection.begin(); it != m_pendingDetection.end(); ++it)
+            pending << *it;
+        qWarning().noquote() << "[ocapi models] detectModels() done; pending="
+                             << pending.join(QLatin1Char(' '));
+    }
 }
 
-void MainWindow::onModelsDetected(const QStringList &models) {
-    m_detectorBackend.reset();
+void MainWindow::onModelsDetected(const QString &backendId, const QStringList &models) {
+    m_pendingDetection.remove(backendId);
+    const auto detIt = m_detectors.find(backendId);
+    if (detIt != m_detectors.end()) {
+        (*detIt)->deleteLater();
+        m_detectors.erase(detIt);
+    }
     if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS"))
-        qWarning().noquote()
-            << "[ocapi models] onModelsDetected count=" << models.size() << "models=" << models
-            << "pickerBackend=" << m_modelPicker->currentBackendId()
-            << "detectedBackend=" << m_detectedBackendId << "pickerModelCount="
-            << m_modelPicker->backendModels().value(m_modelPicker->currentBackendId()).size();
+        qWarning().noquote() << "[ocapi models] onModelsDetected backend=" << backendId
+                             << "count=" << models.size() << "models=" << models;
     if (models.isEmpty())
-        return;
-    const QString backendId = m_modelPicker->currentBackendId();
-    if (backendId != m_detectedBackendId)
         return;
     if (!m_registry.find(backendId))
         return;
@@ -947,10 +960,11 @@ void MainWindow::onModelsDetected(const QStringList &models) {
     // Rebuild the whole selector so the model lists (and the persisted
     // last-model entry) reach the picker even if only addModels() ran before.
     refreshBackendSelector();
-    addModelsToPicker(backendId, models);
-    // If no model is selected yet (fresh backend, nothing persisted), take
-    // the first detected one so the picker shows "Backend | model".
-    if (m_modelPicker->currentModel().isEmpty() && !cached.isEmpty()) {
+    // If no model is selected for the current backend yet (fresh backend,
+    // nothing persisted), take the first detected one so the picker shows
+    // "Backend | model".
+    if (backendId == m_modelPicker->currentBackendId() && m_modelPicker->currentModel().isEmpty() &&
+        !cached.isEmpty()) {
         const QString first = cached.first();
         m_modelPicker->setBackendAndModel(m_modelPicker->backendName(), backendId, first);
         if (m_currentSession)

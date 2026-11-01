@@ -172,7 +172,9 @@ class OcapiE2E(unittest.TestCase):
         # backend and another model, then starting a new chat, must keep
         # that backend+model instead of falling back to the first backend
         # (issue #78 follow-up: persisted per-backend model selection).
-        picker = self.wait_for("//*[contains(@name, 'Mock backend')]")
+        # "Mock backend 2" also contains "Mock backend", so match the exact
+        # label to get the first backend's picker button.
+        picker = self.wait_for("//*[@name='Mock backend | mock-model']")
         self.assertIn("mock-model", picker.text)
         self.assertNotIn("mock-model-2", picker.text)
 
@@ -186,12 +188,12 @@ class OcapiE2E(unittest.TestCase):
         model2 = self.wait_for("//*[contains(@name, 'mock-model-2')]", timeout=10)
         model2.click()
 
-        picker = self.wait_for("//*[contains(@name, 'Mock backend 2')]")
+        picker = self.wait_for("//*[@name='Mock backend 2 | mock-model-2']")
         self.assertIn("mock-model-2", picker.text)
 
         # New chat must show the same backend | model.
         self.find_by_name("New chat").click()
-        new_picker = self.wait_for("//*[contains(@name, 'Mock backend 2')]", timeout=10)
+        new_picker = self.wait_for("//*[@name='Mock backend 2 | mock-model-2']", timeout=10)
         self.assertIn("mock-model-2", new_picker.text)
 
 

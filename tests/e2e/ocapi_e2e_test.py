@@ -28,6 +28,7 @@
 # model picker's popup menu.
 
 import os
+import time
 import unittest
 
 from appium import webdriver

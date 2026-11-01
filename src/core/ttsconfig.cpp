@@ -153,15 +153,72 @@ bool TtsServiceConfig::supportsSpeed(TtsServiceKind kind) {
     return false;
 }
 
-QString TtsServiceConfig::mistralPaceTag(double speed) {
-    // Voxtral pace tags, mapped from the linear speed factor.
-    if (speed < 0.75)
+QVector<TtsPace> TtsServiceConfig::availablePaces() {
+    return {TtsPace::VerySlow, TtsPace::Slow, TtsPace::Moderate, TtsPace::Fast, TtsPace::VeryFast};
+}
+
+QString TtsServiceConfig::mistralPaceTag(TtsPace pace) {
+    switch (pace) {
+    case TtsPace::VerySlow:
         return QStringLiteral("[pace=very-slow]");
-    if (speed < defaultSpeed)
+    case TtsPace::Slow:
         return QStringLiteral("[pace=slow]");
-    if (speed <= 1.5)
-        return speed > defaultSpeed ? QStringLiteral("[pace=fast]") : QString();
-    return QStringLiteral("[pace=very-fast]");
+    case TtsPace::Moderate:
+        return QStringLiteral("[pace=moderate]");
+    case TtsPace::Fast:
+        return QStringLiteral("[pace=fast]");
+    case TtsPace::VeryFast:
+        return QStringLiteral("[pace=very-fast]");
+    }
+    return {};
+}
+
+TtsPace TtsServiceConfig::paceFromSpeed(double speed) {
+    // Representative factors: very-slow 0.5, slow 0.75, moderate 1.0,
+    // fast 1.5, very-fast 2.0.
+    if (speed < 0.625)
+        return TtsPace::VerySlow;
+    if (speed < 0.875)
+        return TtsPace::Slow;
+    if (speed < 1.25)
+        return TtsPace::Moderate;
+    if (speed < 1.75)
+        return TtsPace::Fast;
+    return TtsPace::VeryFast;
+}
+
+double TtsServiceConfig::speedFromPace(TtsPace pace) {
+    switch (pace) {
+    case TtsPace::VerySlow:
+        return 0.5;
+    case TtsPace::Slow:
+        return 0.75;
+    case TtsPace::Moderate:
+        return defaultSpeed;
+    case TtsPace::Fast:
+        return 1.5;
+    case TtsPace::VeryFast:
+        return 2.0;
+    }
+    return defaultSpeed;
+}
+
+QString TtsServiceConfig::speedLabel(double speed, TtsServiceKind kind) {
+    if (kind == TtsServiceKind::Mistral) {
+        switch (paceFromSpeed(speed)) {
+        case TtsPace::VerySlow:
+            return QStringLiteral("very slow");
+        case TtsPace::Slow:
+            return QStringLiteral("slow");
+        case TtsPace::Moderate:
+            return QStringLiteral("moderate");
+        case TtsPace::Fast:
+            return QStringLiteral("fast");
+        case TtsPace::VeryFast:
+            return QStringLiteral("very fast");
+        }
+    }
+    return QStringLiteral("%1\u00d7").arg(QString::number(speed, 'f', 2));
 }
 
 bool TtsServiceConfig::isCloud(TtsServiceKind kind) {

@@ -59,9 +59,6 @@ TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidge
     m_voiceCombo->lineEdit()->setPlaceholderText(tr("Voice (optional)"));
     m_voiceCombo->setToolTip(tr("Voice name (OpenAI, Groq), voice ID (Mistral, ElevenLabs)"));
     m_speedSlider = new QSlider(Qt::Horizontal, formWidget);
-    m_speedSlider->setRange(static_cast<int>(TtsServiceConfig::minSpeed * 100),
-                            static_cast<int>(TtsServiceConfig::maxSpeed * 100));
-    m_speedSlider->setValue(static_cast<int>(TtsServiceConfig::defaultSpeed * 100));
     m_speedSlider->setToolTip(tr("Speech speed"));
     m_speedValueLabel = new QLabel(formWidget);
     m_languageEdit = new QLineEdit(formWidget);
@@ -128,6 +125,8 @@ TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidge
     connect(m_voiceCombo, &QComboBox::currentTextChanged, this, &TtsPage::onFieldEdited);
     connect(m_voiceCombo->lineEdit(), &QLineEdit::textEdited, this, &TtsPage::onFieldEdited);
     connect(m_speedSlider, &QSlider::valueChanged, this, &TtsPage::onSpeedChanged);
+    updateSpeedRange();
+    onSpeedChanged(m_speedSlider->value());
     connect(m_enabledBox, &QCheckBox::toggled, this, &TtsPage::onFieldEdited);
     connect(m_testPlayer, &TtsPlayer::speakingChanged, this, &TtsPage::onTestSpeakingChanged);
     connect(m_testPlayer, &TtsPlayer::error, this, &TtsPage::onTestError);
@@ -224,7 +223,8 @@ void TtsPage::onSelectionChanged() {
         m_modelEdit->clear();
         m_voiceCombo->clear();
         m_voiceCombo->lineEdit()->clear();
-        m_speedSlider->setValue(static_cast<int>(TtsServiceConfig::defaultSpeed * 100));
+        updateSpeedRange();
+        m_speedSlider->setValue(m_speedSlider->value()); // re-clamp + relabel
         m_languageEdit->clear();
         m_enabledBox->setChecked(true);
     }
@@ -260,6 +260,7 @@ void TtsPage::onKindChanged(int index) {
         }))
         m_voiceCombo->setCurrentText(TtsServiceConfig::defaultVoice(kind));
     populateVoiceCombo();
+    updateSpeedRange();
     // Reuse the API key already configured for the same provider's LLM
     // backend when the field is still empty.
     if (m_apiKeyEdit->text().trimmed().isEmpty()) {
@@ -271,9 +272,28 @@ void TtsPage::onKindChanged(int index) {
     onFieldEdited();
 }
 
+void TtsPage::updateSpeedRange() {
+    const bool mistral = currentKind() == TtsServiceKind::Mistral;
+    if (mistral) {
+        // Mistral only accepts the five discrete [pace=...] values, so the
+        // slider steps through them instead of a continuous factor.
+        m_speedSlider->setRange(0, static_cast<int>(TtsServiceConfig::availablePaces().size()) - 1);
+        const int step =
+            static_cast<int>(TtsServiceConfig::paceFromSpeed(TtsServiceConfig::defaultSpeed));
+        m_speedSlider->setValue(step);
+    } else {
+        m_speedSlider->setRange(static_cast<int>(TtsServiceConfig::minSpeed * 100),
+                                static_cast<int>(TtsServiceConfig::maxSpeed * 100));
+        m_speedSlider->setValue(static_cast<int>(TtsServiceConfig::defaultSpeed * 100));
+    }
+    onSpeedChanged(m_speedSlider->value());
+}
+
 void TtsPage::onSpeedChanged(int value) {
-    const double speed = value / 100.0;
-    m_speedValueLabel->setText(QStringLiteral("%1\u00d7").arg(QString::number(speed, 'f', 2)));
+    const bool mistral = currentKind() == TtsServiceKind::Mistral;
+    const double speed =
+        mistral ? TtsServiceConfig::speedFromPace(static_cast<TtsPace>(value)) : value / 100.0;
+    m_speedValueLabel->setText(TtsServiceConfig::speedLabel(speed, currentKind()));
     if (m_updatingForm)
         return;
     auto *item = m_list->currentItem();
@@ -375,7 +395,12 @@ void TtsPage::loadConfigIntoForm(const TtsServiceConfig &config) {
     m_modelEdit->setText(config.model);
     populateVoiceCombo();
     m_voiceCombo->setCurrentText(config.voice);
-    m_speedSlider->setValue(static_cast<int>(config.effectiveSpeed() * 100));
+    updateSpeedRange();
+    const int speedValue =
+        currentKind() == TtsServiceKind::Mistral
+            ? static_cast<int>(TtsServiceConfig::paceFromSpeed(config.effectiveSpeed()))
+            : static_cast<int>(config.effectiveSpeed() * 100);
+    m_speedSlider->setValue(speedValue);
     onSpeedChanged(m_speedSlider->value());
     m_languageEdit->setText(config.language);
     m_enabledBox->setChecked(config.enabled);
@@ -398,7 +423,10 @@ void TtsPage::saveFormIntoConfig(TtsServiceConfig &config) {
         }))
         config.model = TtsServiceConfig::defaultModel(config.kind);
     config.voice = m_voiceCombo->currentText().trimmed();
-    config.speed = m_speedSlider->value() / 100.0;
+    config.speed =
+        currentKind() == TtsServiceKind::Mistral
+            ? TtsServiceConfig::speedFromPace(static_cast<TtsPace>(m_speedSlider->value()))
+            : m_speedSlider->value() / 100.0;
     config.language = m_languageEdit->text().trimmed();
     config.enabled = m_enabledBox->isChecked();
 }

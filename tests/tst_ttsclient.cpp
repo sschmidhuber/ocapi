@@ -218,8 +218,8 @@ private slots:
     void sendsSpeedInPayload();
     void omitsDefaultSpeedInPayload();
     void sendsElevenLabsSpeedInVoiceSettings();
-    void omitsSpeedForMistral();
-    void sendsMistralPaceTagInInput();
+    void omitsSpeedAndPaceTagForMistralVoxtral2();
+    void sendsMistralPaceTagInInputForVoxtral3();
     void sendsPiperLengthScale();
     void ignoresEmptyText();
     void cancelDropsQueue();
@@ -331,14 +331,17 @@ void TestTtsClient::sendsMistralPayloadWithVoiceId() {
     QCOMPARE(m_server.authorizationHeaders().first(), QStringLiteral("Bearer mistral-key"));
 }
 
-void TestTtsClient::omitsSpeedForMistral() {
-    // Mistral's /v1/audio/speech schema has no speed field; sending the
-    // OpenAI-style "speed" is rejected. The client must not include it.
+void TestTtsClient::omitsSpeedAndPaceTagForMistralVoxtral2() {
+    // Mistral's /v1/audio/speech schema has no speed field, and Voxtral 2
+    // models do not interpret inline tags (they would read the tag text
+    // aloud). With the voxtral-mini-tts-2603 default model the client must
+    // send neither "speed" nor a [pace=...] tag.
     QVERIFY(m_server.start());
     auto config = serviceConfig(m_server.port());
     config.kind = TtsServiceKind::Mistral;
     config.baseUrl = QStringLiteral("http://127.0.0.1:%1/v1").arg(m_server.port());
-    config.speed = 1.0; // default: no pace tag either
+    config.model = QStringLiteral("voxtral-mini-tts-2603");
+    config.speed = 2.0;
     TtsClient client(config);
     QSignalSpy audio(&client, &TtsClient::audioReady);
 
@@ -351,13 +354,15 @@ void TestTtsClient::omitsSpeedForMistral() {
     QVERIFY(body.contains(QStringLiteral("\"input\":\"Hello.\"")));
 }
 
-void TestTtsClient::sendsMistralPaceTagInInput() {
-    // Mistral has no "speed" request field; pace is set via an inline
-    // [pace=...] tag prepended to the input text.
+void TestTtsClient::sendsMistralPaceTagInInputForVoxtral3() {
+    // Voxtral 3 models interpret inline [pace=...] tags, so for them the
+    // pace is prepended to the input text (the "speed" field is still not
+    // sent: the API schema has no such field).
     QVERIFY(m_server.start());
     auto config = serviceConfig(m_server.port());
     config.kind = TtsServiceKind::Mistral;
     config.baseUrl = QStringLiteral("http://127.0.0.1:%1/v1").arg(m_server.port());
+    config.model = QStringLiteral("voxtral-mini-tts-3-0");
     config.speed = 2.0; // -> [pace=very-fast]
     TtsClient client(config);
     QSignalSpy audio(&client, &TtsClient::audioReady);

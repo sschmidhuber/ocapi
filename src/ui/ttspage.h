@@ -38,6 +38,9 @@ private slots:
     void onKindChanged(int index);
     void onFieldEdited();
     void onSpeedChanged(int value);
+    // Reconfigures the speed slider for the current provider: five discrete
+    // pace steps for Mistral, a continuous 0.25x-4.00x factor otherwise.
+    void updateSpeedRange();
     void onSpeakResponsesToggled(bool enabled);
     void onOutputDeviceChanged(int index);
     void onTestService();

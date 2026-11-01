@@ -82,13 +82,20 @@ QJsonObject speechPayload(const TtsServiceConfig &config, const QString &text) {
     if (config.kind == TtsServiceKind::Mistral) {
         // Mistral's speech API takes the voice as "voice_id" (a
         // preset slug like gb_jane_neutral or a saved voice ID), not
-        // the OpenAI-style "voice" name, and has no "speed" field: pace
-        // is set via an inline [pace=...] tag in the input text.
+        // the OpenAI-style "voice" name, and has no "speed" field. Pace
+        // is set via an inline [pace=...] tag in the input text, but
+        // only Voxtral 3 models interpret those tags — Voxtral 2 models
+        // (e.g. the voxtral-mini-tts-2603 default) would read the tag
+        // text aloud, so the tag is only sent for Voxtral 3 models.
         payload.remove(QStringLiteral("voice"));
         payload.remove(QStringLiteral("speed"));
-        const QString paceTag = TtsServiceConfig::mistralPaceTag(config.effectiveSpeed());
-        payload.insert(QStringLiteral("input"),
-                       paceTag.isEmpty() ? text : paceTag + QLatin1Char(' ') + text);
+        QString input = text;
+        if (config.effectiveModel().contains(QStringLiteral("tts-3"))) {
+            const QString paceTag = TtsServiceConfig::mistralPaceTag(
+                TtsServiceConfig::paceFromSpeed(config.effectiveSpeed()));
+            input = paceTag + QLatin1Char(' ') + text;
+        }
+        payload.insert(QStringLiteral("input"), input);
         if (!config.effectiveVoice().isEmpty())
             payload.insert(QStringLiteral("voice_id"), config.effectiveVoice());
     }

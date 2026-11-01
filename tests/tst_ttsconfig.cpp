@@ -193,14 +193,34 @@ void TestTtsConfig::supportsSpeedPerKind() {
 }
 
 void TestTtsConfig::mistralPaceTagMapping() {
-    QCOMPARE(TtsServiceConfig::mistralPaceTag(0.25), QStringLiteral("[pace=very-slow]"));
-    QCOMPARE(TtsServiceConfig::mistralPaceTag(0.5), QStringLiteral("[pace=very-slow]"));
-    QCOMPARE(TtsServiceConfig::mistralPaceTag(0.9), QStringLiteral("[pace=slow]"));
-    QCOMPARE(TtsServiceConfig::mistralPaceTag(1.0), QString());
-    QCOMPARE(TtsServiceConfig::mistralPaceTag(1.25), QStringLiteral("[pace=fast]"));
-    QCOMPARE(TtsServiceConfig::mistralPaceTag(1.5), QStringLiteral("[pace=fast]"));
-    QCOMPARE(TtsServiceConfig::mistralPaceTag(2.0), QStringLiteral("[pace=very-fast]"));
-    QCOMPARE(TtsServiceConfig::mistralPaceTag(4.0), QStringLiteral("[pace=very-fast]"));
+    QCOMPARE(TtsServiceConfig::availablePaces().size(), 5);
+    QCOMPARE(TtsServiceConfig::mistralPaceTag(TtsPace::VerySlow),
+             QStringLiteral("[pace=very-slow]"));
+    QCOMPARE(TtsServiceConfig::mistralPaceTag(TtsPace::Slow), QStringLiteral("[pace=slow]"));
+    QCOMPARE(TtsServiceConfig::mistralPaceTag(TtsPace::Moderate),
+             QStringLiteral("[pace=moderate]"));
+    QCOMPARE(TtsServiceConfig::mistralPaceTag(TtsPace::Fast), QStringLiteral("[pace=fast]"));
+    QCOMPARE(TtsServiceConfig::mistralPaceTag(TtsPace::VeryFast),
+             QStringLiteral("[pace=very-fast]"));
+
+    QCOMPARE(TtsServiceConfig::paceFromSpeed(0.25), TtsPace::VerySlow);
+    QCOMPARE(TtsServiceConfig::paceFromSpeed(0.5), TtsPace::VerySlow);
+    QCOMPARE(TtsServiceConfig::paceFromSpeed(0.75), TtsPace::Slow);
+    QCOMPARE(TtsServiceConfig::paceFromSpeed(1.0), TtsPace::Moderate);
+    QCOMPARE(TtsServiceConfig::paceFromSpeed(1.5), TtsPace::Fast);
+    QCOMPARE(TtsServiceConfig::paceFromSpeed(2.0), TtsPace::VeryFast);
+    QCOMPARE(TtsServiceConfig::paceFromSpeed(4.0), TtsPace::VeryFast);
+
+    // Round trip: speed -> pace -> speed stays on the pace's factor.
+    for (auto pace : TtsServiceConfig::availablePaces())
+        QCOMPARE(TtsServiceConfig::paceFromSpeed(TtsServiceConfig::speedFromPace(pace)), pace);
+
+    QCOMPARE(TtsServiceConfig::speedLabel(1.0, TtsServiceKind::Mistral),
+             QStringLiteral("moderate"));
+    QCOMPARE(TtsServiceConfig::speedLabel(2.0, TtsServiceKind::Mistral),
+             QStringLiteral("very fast"));
+    QCOMPARE(TtsServiceConfig::speedLabel(1.5, TtsServiceKind::OpenAiApi),
+             QStringLiteral("1.50\u00d7"));
 }
 
 QTEST_GUILESS_MAIN(TestTtsConfig)

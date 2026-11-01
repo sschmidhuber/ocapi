@@ -20,6 +20,11 @@ enum class TtsServiceKind {
     Piper,      // Piper HTTP server (rhasspy/piper), local or remote
 };
 
+// Discrete speech paces. Mistral/Voxtral only accepts these five inline
+// [pace=...] values, so the settings slider steps through them for that
+// backend instead of offering a continuous speed factor.
+enum class TtsPace { VerySlow, Slow, Moderate, Fast, VeryFast };
+
 // Configuration of one text-to-speech service, analogous to
 // SttServiceConfig. TTS services are always request/response (no streaming
 // audio), so the latency-critical path is the sentence splitter plus the
@@ -56,9 +61,18 @@ struct TtsServiceConfig {
     // page. Mistral has no "speed" request field, but pace can be set via
     // inline [pace=...] tags in the input text, so it counts as supported.
     [[nodiscard]] static bool supportsSpeed(TtsServiceKind kind);
-    // Mistral pace tag for a speed factor ("[pace=very-slow]" ..
-    // "[pace=very-fast]"); empty at the default speed 1.0.
-    [[nodiscard]] static QString mistralPaceTag(double speed);
+    // The discrete paces Mistral accepts as inline [pace=...] tags.
+    [[nodiscard]] static QVector<TtsPace> availablePaces();
+    // Inline Voxtral pace tag ("[pace=very-slow]" .. "[pace=very-fast]").
+    [[nodiscard]] static QString mistralPaceTag(TtsPace pace);
+    // The pace closest to a linear speed factor (1.0 = Moderate).
+    [[nodiscard]] static TtsPace paceFromSpeed(double speed);
+    // Representative linear speed factor of a pace, used to persist the
+    // setting as "speed" in JSON for every backend.
+    [[nodiscard]] static double speedFromPace(TtsPace pace);
+    // Slider label for a speed value: the pace name for Mistral, a factor
+    // ("1.50×") for the other backends.
+    [[nodiscard]] static QString speedLabel(double speed, TtsServiceKind kind);
     [[nodiscard]] static bool isCloud(TtsServiceKind kind);
     [[nodiscard]] static bool requiresApiKey(TtsServiceKind kind);
     [[nodiscard]] static const QVector<TtsServiceKind> &allKinds();

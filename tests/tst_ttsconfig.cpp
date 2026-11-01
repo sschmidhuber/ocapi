@@ -18,6 +18,9 @@ private slots:
     void speechPathPerKind();
     void jsonRoundTrip();
     void llmProviderMapping();
+    void speedDefaultsAndClamping();
+    void availableVoicesPerKind();
+    void speedJsonRoundTrip();
 };
 
 void TestTtsConfig::defaults() {
@@ -98,6 +101,7 @@ void TestTtsConfig::jsonRoundTrip() {
     config.apiKey = QStringLiteral("secret");
     config.model = QStringLiteral("de_DE-thorsten-medium");
     config.voice = QStringLiteral("alloy");
+    config.speed = 1.5;
     config.language = QStringLiteral("de");
     config.enabled = false;
 
@@ -109,6 +113,7 @@ void TestTtsConfig::jsonRoundTrip() {
     QCOMPARE(restored.apiKey, config.apiKey);
     QCOMPARE(restored.model, config.model);
     QCOMPARE(restored.voice, config.voice);
+    QCOMPARE(restored.speed, 1.5);
     QCOMPARE(restored.language, config.language);
     QCOMPARE(restored.enabled, false);
 }
@@ -120,6 +125,58 @@ void TestTtsConfig::llmProviderMapping() {
     QCOMPARE(TtsServiceConfig::llmProviderKind(TtsServiceKind::ElevenLabs), std::nullopt);
     QCOMPARE(TtsServiceConfig::llmProviderKind(TtsServiceKind::OpenAiTts), std::nullopt);
     QCOMPARE(TtsServiceConfig::llmProviderKind(TtsServiceKind::Piper), std::nullopt);
+}
+
+void TestTtsConfig::speedDefaultsAndClamping() {
+    TtsServiceConfig config;
+    QCOMPARE(config.speed, 1.0);
+    QCOMPARE(config.effectiveSpeed(), 1.0);
+
+    config.speed = 0.5;
+    QCOMPARE(config.effectiveSpeed(), 0.5);
+    config.speed = 2.5;
+    QCOMPARE(config.effectiveSpeed(), 2.5);
+    // Out-of-range values fall back to the default instead of being sent.
+    config.speed = 0.1;
+    QCOMPARE(config.effectiveSpeed(), 1.0);
+    config.speed = 10.0;
+    QCOMPARE(config.effectiveSpeed(), 1.0);
+    config.speed = -1.0;
+    QCOMPARE(config.effectiveSpeed(), 1.0);
+
+    QVERIFY(TtsServiceConfig::minSpeed < TtsServiceConfig::defaultSpeed);
+    QVERIFY(TtsServiceConfig::defaultSpeed < TtsServiceConfig::maxSpeed);
+}
+
+void TestTtsConfig::availableVoicesPerKind() {
+    const QStringList openAiVoices = TtsServiceConfig::availableVoices(TtsServiceKind::OpenAiApi);
+    QVERIFY(!openAiVoices.isEmpty());
+    QVERIFY(openAiVoices.contains(TtsServiceConfig::defaultVoice(TtsServiceKind::OpenAiApi)));
+    QVERIFY(
+        TtsServiceConfig::availableVoices(TtsServiceKind::Groq).contains(QStringLiteral("alloy")));
+    QVERIFY(TtsServiceConfig::availableVoices(TtsServiceKind::OpenAiTts)
+                .contains(QStringLiteral("nova")));
+    // Voice is a free-form ID for these services, not a preset list.
+    QVERIFY(TtsServiceConfig::availableVoices(TtsServiceKind::Mistral).isEmpty());
+    QVERIFY(TtsServiceConfig::availableVoices(TtsServiceKind::ElevenLabs).isEmpty());
+    QVERIFY(TtsServiceConfig::availableVoices(TtsServiceKind::Piper).isEmpty());
+}
+
+void TestTtsConfig::speedJsonRoundTrip() {
+    TtsServiceConfig config;
+    config.speed = 0.75;
+    const TtsServiceConfig restored = TtsServiceConfig::fromJson(config.toJson());
+    QCOMPARE(restored.speed, 0.75);
+
+    // Legacy settings without a "speed" key load at the default speed.
+    QJsonObject legacy;
+    legacy.insert(QStringLiteral("name"), QStringLiteral("legacy"));
+    QCOMPARE(TtsServiceConfig::fromJson(legacy).speed, 1.0);
+
+    // Out-of-range persisted values are normalized to the default.
+    QJsonObject invalid;
+    invalid.insert(QStringLiteral("speed"), 99.0);
+    QCOMPARE(TtsServiceConfig::fromJson(invalid).speed, 1.0);
 }
 
 QTEST_GUILESS_MAIN(TestTtsConfig)

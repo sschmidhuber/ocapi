@@ -56,6 +56,38 @@ void applyCommonHeaders(QNetworkRequest &request, const TtsServiceConfig &config
     }
 }
 
+// JSON body of a POST /audio/speech request, adjusted per provider:
+// ElevenLabs wants "text"/"model_id", Mistral wants "voice_id" instead of
+// "voice", and all providers accept the OpenAI-style "speed" factor.
+QJsonObject speechPayload(const TtsServiceConfig &config, const QString &text) {
+    QJsonObject payload;
+    payload.insert(QStringLiteral("model"), config.effectiveModel());
+    payload.insert(QStringLiteral("input"), text);
+    payload.insert(QStringLiteral("voice"), config.effectiveVoice());
+    payload.insert(QStringLiteral("speed"), config.effectiveSpeed());
+    payload.insert(QStringLiteral("response_format"),
+                   TtsServiceConfig::responseFormat(config.kind));
+    if (config.kind == TtsServiceKind::ElevenLabs) {
+        // ElevenLabs expects "text" and "model_id" instead of
+        // "input" and "model".
+        payload.remove(QStringLiteral("input"));
+        payload.remove(QStringLiteral("model"));
+        payload.insert(QStringLiteral("text"), text);
+        payload.insert(QStringLiteral("model_id"), config.effectiveModel());
+    }
+    if (config.kind == TtsServiceKind::Mistral) {
+        // Mistral's speech API takes the voice as "voice_id" (a
+        // preset slug like gb_jane_neutral or a saved voice ID), not
+        // the OpenAI-style "voice" name.
+        payload.remove(QStringLiteral("voice"));
+        if (!config.effectiveVoice().isEmpty())
+            payload.insert(QStringLiteral("voice_id"), config.effectiveVoice());
+    }
+    if (!config.language.trimmed().isEmpty())
+        payload.insert(QStringLiteral("language"), config.language.trimmed());
+    return payload;
+}
+
 } // namespace
 
 TtsClient::TtsClient(TtsServiceConfig config, QObject *parent)
@@ -103,6 +135,12 @@ void TtsClient::sendNext() {
             query.addQueryItem(QStringLiteral("text"), request.text);
             if (!m_config.effectiveModel().isEmpty())
                 query.addQueryItem(QStringLiteral("speaker"), m_config.effectiveModel());
+            // Piper's HTTP API uses length_scale for speech speed
+            // (1.0 = normal, lower = slower).
+            const double speed = m_config.effectiveSpeed();
+            if (speed != TtsServiceConfig::defaultSpeed)
+                query.addQueryItem(QStringLiteral("length_scale"),
+                                   QString::number(1.0 / speed, 'f', 3));
             url.setQuery(query);
             QNetworkRequest httpRequest(url);
             applyCommonHeaders(httpRequest, m_config);
@@ -112,31 +150,8 @@ void TtsClient::sendNext() {
             httpRequest.setHeader(QNetworkRequest::ContentTypeHeader,
                                   QStringLiteral("application/json"));
             applyCommonHeaders(httpRequest, m_config);
-            QJsonObject payload;
-            payload.insert(QStringLiteral("model"), m_config.effectiveModel());
-            payload.insert(QStringLiteral("input"), request.text);
-            payload.insert(QStringLiteral("voice"), m_config.effectiveVoice());
-            payload.insert(QStringLiteral("response_format"),
-                           TtsServiceConfig::responseFormat(m_config.kind));
-            if (m_config.kind == TtsServiceKind::ElevenLabs) {
-                // ElevenLabs expects "text" and "model_id" instead of
-                // "input" and "model".
-                payload.remove(QStringLiteral("input"));
-                payload.remove(QStringLiteral("model"));
-                payload.insert(QStringLiteral("text"), request.text);
-                payload.insert(QStringLiteral("model_id"), m_config.effectiveModel());
-            }
-            if (m_config.kind == TtsServiceKind::Mistral) {
-                // Mistral's speech API takes the voice as "voice_id" (a
-                // preset slug like gb_jane_neutral or a saved voice ID), not
-                // the OpenAI-style "voice" name.
-                payload.remove(QStringLiteral("voice"));
-                if (!m_config.effectiveVoice().isEmpty())
-                    payload.insert(QStringLiteral("voice_id"), m_config.effectiveVoice());
-            }
-            if (!m_config.language.trimmed().isEmpty())
-                payload.insert(QStringLiteral("language"), m_config.language.trimmed());
-            reply = m_nam->post(httpRequest, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+            reply = m_nam->post(httpRequest, QJsonDocument(speechPayload(m_config, request.text))
+                                                 .toJson(QJsonDocument::Compact));
         }
 
         const int sequence = request.sequence;

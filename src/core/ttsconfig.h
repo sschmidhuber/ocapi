@@ -4,6 +4,7 @@
 
 #include <QJsonObject>
 #include <QString>
+#include <QStringList>
 #include <QUuid>
 #include <QVector>
 #include <optional>
@@ -31,7 +32,8 @@ struct TtsServiceConfig {
     QString apiKey;
     QString model;
     QString voice;
-    QString language; // ISO 639-1 code, optional
+    double speed = 1.0; // playback speed factor, 0.25 .. 4.0
+    QString language;   // ISO 639-1 code, optional
     bool enabled = true;
 
     [[nodiscard]] static QString kindName(TtsServiceKind kind);
@@ -41,6 +43,15 @@ struct TtsServiceConfig {
     [[nodiscard]] static QString defaultBaseUrl(TtsServiceKind kind);
     [[nodiscard]] static QString defaultModel(TtsServiceKind kind);
     [[nodiscard]] static QString defaultVoice(TtsServiceKind kind);
+    // Preset voices offered in the settings page dropdown. Empty for
+    // services where the voice is a free-form model or ID (Piper, Mistral,
+    // ElevenLabs); the combo stays editable so custom values remain possible.
+    [[nodiscard]] static QStringList availableVoices(TtsServiceKind kind);
+    // Speech speed bounds accepted by the OpenAI-compatible APIs and the
+    // speed slider in the settings page.
+    static constexpr double minSpeed = 0.25;
+    static constexpr double maxSpeed = 4.0;
+    static constexpr double defaultSpeed = 1.0;
     [[nodiscard]] static bool isCloud(TtsServiceKind kind);
     [[nodiscard]] static bool requiresApiKey(TtsServiceKind kind);
     [[nodiscard]] static const QVector<TtsServiceKind> &allKinds();
@@ -68,6 +79,12 @@ struct TtsServiceConfig {
     [[nodiscard]] QString effectiveVoice() const {
         const QString trimmed = voice.trimmed();
         return trimmed.isEmpty() ? defaultVoice(kind) : trimmed;
+    }
+    // Speed clamped to [minSpeed, maxSpeed]; 1.0 when unset or invalid.
+    [[nodiscard]] double effectiveSpeed() const {
+        if (speed < minSpeed || speed > maxSpeed)
+            return defaultSpeed;
+        return speed;
     }
 
     [[nodiscard]] QJsonObject toJson() const;

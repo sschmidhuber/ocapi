@@ -13,6 +13,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSlider>
 #include <QSplitter>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -52,9 +53,17 @@ TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidge
     m_apiKeyEdit->setPlaceholderText(tr("API key"));
     m_modelEdit = new QLineEdit(formWidget);
     m_modelEdit->setPlaceholderText(tr("Model (optional)"));
-    m_voiceEdit = new QLineEdit(formWidget);
-    m_voiceEdit->setPlaceholderText(tr("Voice (optional)"));
-    m_voiceEdit->setToolTip(tr("Voice name (OpenAI, Groq), voice ID (Mistral, ElevenLabs)"));
+    m_voiceCombo = new QComboBox(formWidget);
+    m_voiceCombo->setEditable(true);
+    m_voiceCombo->setInsertPolicy(QComboBox::NoInsert);
+    m_voiceCombo->lineEdit()->setPlaceholderText(tr("Voice (optional)"));
+    m_voiceCombo->setToolTip(tr("Voice name (OpenAI, Groq), voice ID (Mistral, ElevenLabs)"));
+    m_speedSlider = new QSlider(Qt::Horizontal, formWidget);
+    m_speedSlider->setRange(static_cast<int>(TtsServiceConfig::minSpeed * 100),
+                            static_cast<int>(TtsServiceConfig::maxSpeed * 100));
+    m_speedSlider->setValue(static_cast<int>(TtsServiceConfig::defaultSpeed * 100));
+    m_speedSlider->setToolTip(tr("Speech speed"));
+    m_speedValueLabel = new QLabel(formWidget);
     m_languageEdit = new QLineEdit(formWidget);
     m_languageEdit->setPlaceholderText(tr("ISO 639-1 code, e.g. en, de (optional)"));
     m_enabledBox = new QCheckBox(tr("Enabled"), formWidget);
@@ -71,7 +80,11 @@ TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidge
     formLayout->addRow(tr("Base URL:"), m_urlEdit);
     formLayout->addRow(tr("API key:"), m_apiKeyEdit);
     formLayout->addRow(tr("Default model:"), m_modelEdit);
-    formLayout->addRow(tr("Voice:"), m_voiceEdit);
+    formLayout->addRow(tr("Voice:"), m_voiceCombo);
+    auto *speedRow = new QHBoxLayout;
+    speedRow->addWidget(m_speedSlider, 1);
+    speedRow->addWidget(m_speedValueLabel);
+    formLayout->addRow(tr("Speed:"), speedRow);
     formLayout->addRow(tr("Language:"), m_languageEdit);
     formLayout->addRow(m_enabledBox);
     formLayout->addRow(m_testButton);
@@ -109,10 +122,12 @@ TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidge
     connect(m_testButton, &QPushButton::clicked, this, &TtsPage::onTestService);
     connect(m_speakResponsesBox, &QCheckBox::toggled, this, &TtsPage::onSpeakResponsesToggled);
     connect(m_deviceCombo, &QComboBox::currentIndexChanged, this, &TtsPage::onOutputDeviceChanged);
-    for (auto *edit :
-         {m_nameEdit, m_urlEdit, m_apiKeyEdit, m_modelEdit, m_voiceEdit, m_languageEdit}) {
+    for (auto *edit : {m_nameEdit, m_urlEdit, m_apiKeyEdit, m_modelEdit, m_languageEdit}) {
         connect(edit, &QLineEdit::textEdited, this, &TtsPage::onFieldEdited);
     }
+    connect(m_voiceCombo, &QComboBox::currentTextChanged, this, &TtsPage::onFieldEdited);
+    connect(m_voiceCombo->lineEdit(), &QLineEdit::textEdited, this, &TtsPage::onFieldEdited);
+    connect(m_speedSlider, &QSlider::valueChanged, this, &TtsPage::onSpeedChanged);
     connect(m_enabledBox, &QCheckBox::toggled, this, &TtsPage::onFieldEdited);
     connect(m_testPlayer, &TtsPlayer::speakingChanged, this, &TtsPage::onTestSpeakingChanged);
     connect(m_testPlayer, &TtsPlayer::error, this, &TtsPage::onTestError);
@@ -190,7 +205,8 @@ void TtsPage::onSelectionChanged() {
     m_urlEdit->setEnabled(hasSelection);
     m_apiKeyEdit->setEnabled(hasSelection);
     m_modelEdit->setEnabled(hasSelection);
-    m_voiceEdit->setEnabled(hasSelection);
+    m_voiceCombo->setEnabled(hasSelection);
+    m_speedSlider->setEnabled(hasSelection);
     m_languageEdit->setEnabled(hasSelection);
     m_enabledBox->setEnabled(hasSelection);
     m_testButton->setEnabled(hasSelection);
@@ -206,7 +222,9 @@ void TtsPage::onSelectionChanged() {
         m_urlEdit->clear();
         m_apiKeyEdit->clear();
         m_modelEdit->clear();
-        m_voiceEdit->clear();
+        m_voiceCombo->clear();
+        m_voiceCombo->lineEdit()->clear();
+        m_speedSlider->setValue(static_cast<int>(TtsServiceConfig::defaultSpeed * 100));
         m_languageEdit->clear();
         m_enabledBox->setChecked(true);
     }
@@ -236,11 +254,12 @@ void TtsPage::onKindChanged(int index) {
             return m_modelEdit->text().trimmed() == TtsServiceConfig::defaultModel(anyKind);
         }))
         m_modelEdit->setText(TtsServiceConfig::defaultModel(kind));
-    if (m_voiceEdit->text().trimmed().isEmpty() ||
+    if (m_voiceCombo->currentText().trimmed().isEmpty() ||
         std::ranges::any_of(TtsServiceConfig::allKinds(), [&](TtsServiceKind anyKind) {
-            return m_voiceEdit->text().trimmed() == TtsServiceConfig::defaultVoice(anyKind);
+            return m_voiceCombo->currentText().trimmed() == TtsServiceConfig::defaultVoice(anyKind);
         }))
-        m_voiceEdit->setText(TtsServiceConfig::defaultVoice(kind));
+        m_voiceCombo->setCurrentText(TtsServiceConfig::defaultVoice(kind));
+    populateVoiceCombo();
     // Reuse the API key already configured for the same provider's LLM
     // backend when the field is still empty.
     if (m_apiKeyEdit->text().trimmed().isEmpty()) {
@@ -250,6 +269,22 @@ void TtsPage::onKindChanged(int index) {
     }
     updateUrlState();
     onFieldEdited();
+}
+
+void TtsPage::onSpeedChanged(int value) {
+    const double speed = value / 100.0;
+    m_speedValueLabel->setText(QStringLiteral("%1\u00d7").arg(QString::number(speed, 'f', 2)));
+    if (m_updatingForm)
+        return;
+    auto *item = m_list->currentItem();
+    if (!item)
+        return;
+    auto *config = m_registry->find(QUuid(item->data(Qt::UserRole).toString()));
+    if (!config)
+        return;
+    config->speed = speed;
+    m_registry->save();
+    emit m_registry->changed();
 }
 
 void TtsPage::onFieldEdited() {
@@ -338,7 +373,10 @@ void TtsPage::loadConfigIntoForm(const TtsServiceConfig &config) {
     m_urlEdit->setText(config.baseUrl);
     m_apiKeyEdit->setText(config.apiKey);
     m_modelEdit->setText(config.model);
-    m_voiceEdit->setText(config.voice);
+    populateVoiceCombo();
+    m_voiceCombo->setCurrentText(config.voice);
+    m_speedSlider->setValue(static_cast<int>(config.effectiveSpeed() * 100));
+    onSpeedChanged(m_speedSlider->value());
     m_languageEdit->setText(config.language);
     m_enabledBox->setChecked(config.enabled);
 }
@@ -359,9 +397,21 @@ void TtsPage::saveFormIntoConfig(TtsServiceConfig &config) {
             return config.model == TtsServiceConfig::defaultModel(anyKind);
         }))
         config.model = TtsServiceConfig::defaultModel(config.kind);
-    config.voice = m_voiceEdit->text().trimmed();
+    config.voice = m_voiceCombo->currentText().trimmed();
+    config.speed = m_speedSlider->value() / 100.0;
     config.language = m_languageEdit->text().trimmed();
     config.enabled = m_enabledBox->isChecked();
+}
+
+void TtsPage::populateVoiceCombo() {
+    const QString previous = m_voiceCombo->currentText();
+    m_voiceCombo->clear();
+    for (const QString &voice : TtsServiceConfig::availableVoices(currentKind()))
+        m_voiceCombo->addItem(voice);
+    // Keep a custom voice ID editable for services without preset voices.
+    if (!previous.isEmpty() && m_voiceCombo->findText(previous) < 0)
+        m_voiceCombo->addItem(previous);
+    m_voiceCombo->setCurrentText(previous);
 }
 
 void TtsPage::updateUrlState() {
@@ -375,9 +425,9 @@ void TtsPage::updateUrlState() {
 
     // Piper has no voice concept (the model file selects the voice).
     const bool hasVoice = currentKind() != TtsServiceKind::Piper;
-    m_voiceEdit->setVisible(hasVoice);
-    if (auto *form = qobject_cast<QFormLayout *>(m_voiceEdit->parentWidget()->layout()))
-        if (auto *label = form->labelForField(m_voiceEdit))
+    m_voiceCombo->setVisible(hasVoice);
+    if (auto *form = qobject_cast<QFormLayout *>(m_voiceCombo->parentWidget()->layout()))
+        if (auto *label = form->labelForField(m_voiceCombo))
             label->setVisible(hasVoice);
 }
 

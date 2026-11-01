@@ -123,6 +123,23 @@ QString TtsServiceConfig::defaultVoice(TtsServiceKind kind) {
     return {};
 }
 
+QStringList TtsServiceConfig::availableVoices(TtsServiceKind kind) {
+    switch (kind) {
+    case TtsServiceKind::OpenAiApi:
+    case TtsServiceKind::Groq:
+    case TtsServiceKind::OpenAiTts:
+        return {
+            QStringLiteral("alloy"), QStringLiteral("echo"), QStringLiteral("fable"),
+            QStringLiteral("onyx"),  QStringLiteral("nova"), QStringLiteral("shimmer"),
+        };
+    case TtsServiceKind::Mistral:
+    case TtsServiceKind::ElevenLabs:
+    case TtsServiceKind::Piper:
+        return {};
+    }
+    return {};
+}
+
 bool TtsServiceConfig::isCloud(TtsServiceKind kind) {
     switch (kind) {
     case TtsServiceKind::OpenAiApi:
@@ -200,6 +217,7 @@ QJsonObject TtsServiceConfig::toJson() const {
         {QStringLiteral("apiKey"), apiKey},
         {QStringLiteral("model"), model},
         {QStringLiteral("voice"), voice},
+        {QStringLiteral("speed"), speed},
         {QStringLiteral("language"), language},
         {QStringLiteral("enabled"), enabled},
     };
@@ -214,6 +232,9 @@ TtsServiceConfig TtsServiceConfig::fromJson(const QJsonObject &object) {
     config.apiKey = object.value(QStringLiteral("apiKey")).toString();
     config.model = object.value(QStringLiteral("model")).toString();
     config.voice = object.value(QStringLiteral("voice")).toString();
+    const double storedSpeed = object.value(QStringLiteral("speed")).toDouble(defaultSpeed);
+    config.speed =
+        (storedSpeed >= minSpeed && storedSpeed <= maxSpeed) ? storedSpeed : defaultSpeed;
     config.language = object.value(QStringLiteral("language")).toString();
     config.enabled = object.value(QStringLiteral("enabled")).toBool(true);
     return config;

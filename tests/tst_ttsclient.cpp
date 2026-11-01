@@ -217,6 +217,8 @@ private slots:
     void reportsHttpStatusAndBodyOnServiceError();
     void sendsSpeedInPayload();
     void omitsDefaultSpeedInPayload();
+    void sendsElevenLabsSpeedInVoiceSettings();
+    void omitsSpeedForMistral();
     void sendsPiperLengthScale();
     void ignoresEmptyText();
     void cancelDropsQueue();
@@ -282,6 +284,26 @@ void TestTtsClient::sendsElevenLabsPayloadWithXiApiKey() {
     QVERIFY(m_server.authorizationHeaders().first().isEmpty());
 }
 
+void TestTtsClient::sendsElevenLabsSpeedInVoiceSettings() {
+    QVERIFY(m_server.start());
+    auto config = serviceConfig(m_server.port());
+    config.kind = TtsServiceKind::ElevenLabs;
+    config.baseUrl = QStringLiteral("http://127.0.0.1:%1/v1").arg(m_server.port());
+    config.speed = 1.25;
+    TtsClient client(config);
+    QSignalSpy audio(&client, &TtsClient::audioReady);
+
+    client.synthesize(QStringLiteral("Hello."));
+    QVERIFY(audio.wait(5000));
+
+    const QString body = m_server.requestBodies().first();
+    // Speed must be nested in voice_settings, not a top-level field.
+    QVERIFY2(body.contains(QStringLiteral("\"voice_settings\":{\"speed\":1.25}")),
+             qPrintable(body));
+    const int speedPos = body.indexOf(QStringLiteral("\"speed\":"));
+    QVERIFY(speedPos > body.indexOf(QStringLiteral("\"voice_settings\":")));
+}
+
 void TestTtsClient::sendsMistralPayloadWithVoiceId() {
     // Mistral's speech API takes the voice as "voice_id" (preset slug or
     // saved voice ID), not the OpenAI-style "voice" name; sending "voice"
@@ -306,6 +328,24 @@ void TestTtsClient::sendsMistralPayloadWithVoiceId() {
     QVERIFY(body.contains(QStringLiteral("\"voice_id\":\"gb_jane_neutral\"")));
     QVERIFY(!body.contains(QStringLiteral("\"voice\":")));
     QCOMPARE(m_server.authorizationHeaders().first(), QStringLiteral("Bearer mistral-key"));
+}
+
+void TestTtsClient::omitsSpeedForMistral() {
+    // Mistral's /v1/audio/speech schema has no speed field; sending the
+    // OpenAI-style "speed" is rejected. The client must not include it.
+    QVERIFY(m_server.start());
+    auto config = serviceConfig(m_server.port());
+    config.kind = TtsServiceKind::Mistral;
+    config.baseUrl = QStringLiteral("http://127.0.0.1:%1/v1").arg(m_server.port());
+    config.speed = 2.0;
+    TtsClient client(config);
+    QSignalSpy audio(&client, &TtsClient::audioReady);
+
+    client.synthesize(QStringLiteral("Hello."));
+    QVERIFY(audio.wait(5000));
+
+    const QString body = m_server.requestBodies().first();
+    QVERIFY2(!body.contains(QStringLiteral("speed")), qPrintable(body));
 }
 
 void TestTtsClient::unwrapsMistralAudioDataEnvelope() {

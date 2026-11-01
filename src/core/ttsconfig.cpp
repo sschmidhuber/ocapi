@@ -140,6 +140,20 @@ QStringList TtsServiceConfig::availableVoices(TtsServiceKind kind) {
     return {};
 }
 
+bool TtsServiceConfig::supportsSpeed(TtsServiceKind kind) {
+    switch (kind) {
+    case TtsServiceKind::OpenAiApi:
+    case TtsServiceKind::Groq:
+    case TtsServiceKind::ElevenLabs:
+    case TtsServiceKind::OpenAiTts:
+    case TtsServiceKind::Piper:
+        return true;
+    case TtsServiceKind::Mistral:
+        return false;
+    }
+    return false;
+}
+
 bool TtsServiceConfig::isCloud(TtsServiceKind kind) {
     switch (kind) {
     case TtsServiceKind::OpenAiApi:

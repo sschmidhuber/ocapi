@@ -64,16 +64,20 @@ QJsonObject speechPayload(const TtsServiceConfig &config, const QString &text) {
     payload.insert(QStringLiteral("model"), config.effectiveModel());
     payload.insert(QStringLiteral("input"), text);
     payload.insert(QStringLiteral("voice"), config.effectiveVoice());
-    payload.insert(QStringLiteral("speed"), config.effectiveSpeed());
+    if (TtsServiceConfig::supportsSpeed(config.kind))
+        payload.insert(QStringLiteral("speed"), config.effectiveSpeed());
     payload.insert(QStringLiteral("response_format"),
                    TtsServiceConfig::responseFormat(config.kind));
     if (config.kind == TtsServiceKind::ElevenLabs) {
         // ElevenLabs expects "text" and "model_id" instead of
-        // "input" and "model".
+        // "input" and "model"; its speed lives inside voice_settings.
         payload.remove(QStringLiteral("input"));
         payload.remove(QStringLiteral("model"));
+        payload.remove(QStringLiteral("speed"));
         payload.insert(QStringLiteral("text"), text);
         payload.insert(QStringLiteral("model_id"), config.effectiveModel());
+        payload.insert(QStringLiteral("voice_settings"),
+                       QJsonObject{{QStringLiteral("speed"), config.effectiveSpeed()}});
     }
     if (config.kind == TtsServiceKind::Mistral) {
         // Mistral's speech API takes the voice as "voice_id" (a

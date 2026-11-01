@@ -84,7 +84,7 @@ TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidge
     auto *speedRow = new QHBoxLayout;
     speedRow->addWidget(m_speedSlider, 1);
     speedRow->addWidget(m_speedValueLabel);
-    formLayout->addRow(tr("Speed:"), speedRow);
+    formLayout->addRow(m_speedLabel = new QLabel(tr("Speed:"), formWidget), speedRow);
     formLayout->addRow(tr("Language:"), m_languageEdit);
     formLayout->addRow(m_enabledBox);
     formLayout->addRow(m_testButton);
@@ -426,6 +426,12 @@ void TtsPage::updateUrlState() {
     // Piper has no voice concept (the model file selects the voice).
     const bool hasVoice = currentKind() != TtsServiceKind::Piper;
     m_voiceCombo->setVisible(hasVoice);
+    // Mistral's speech API has no speed parameter (pace is set via input
+    // tags); hide the slider instead of sending an unsupported field.
+    const bool hasSpeed = TtsServiceConfig::supportsSpeed(currentKind());
+    m_speedSlider->setVisible(hasSpeed);
+    m_speedValueLabel->setVisible(hasSpeed);
+    m_speedLabel->setVisible(hasSpeed);
     if (auto *form = qobject_cast<QFormLayout *>(m_voiceCombo->parentWidget()->layout()))
         if (auto *label = form->labelForField(m_voiceCombo))
             label->setVisible(hasVoice);

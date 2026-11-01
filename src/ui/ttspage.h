@@ -67,6 +67,7 @@ private:
     QLineEdit *m_modelEdit;
     QComboBox *m_voiceCombo;
     QSlider *m_speedSlider;
+    QLabel *m_speedLabel;
     QLabel *m_speedValueLabel;
     QLineEdit *m_languageEdit;
     QCheckBox *m_enabledBox;

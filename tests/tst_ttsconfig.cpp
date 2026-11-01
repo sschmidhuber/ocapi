@@ -21,6 +21,7 @@ private slots:
     void speedDefaultsAndClamping();
     void availableVoicesPerKind();
     void speedJsonRoundTrip();
+    void supportsSpeedPerKind();
 };
 
 void TestTtsConfig::defaults() {
@@ -177,6 +178,16 @@ void TestTtsConfig::speedJsonRoundTrip() {
     QJsonObject invalid;
     invalid.insert(QStringLiteral("speed"), 99.0);
     QCOMPARE(TtsServiceConfig::fromJson(invalid).speed, 1.0);
+}
+
+void TestTtsConfig::supportsSpeedPerKind() {
+    // Mistral's /v1/audio/speech schema has no speed field.
+    QVERIFY(!TtsServiceConfig::supportsSpeed(TtsServiceKind::Mistral));
+    QVERIFY(TtsServiceConfig::supportsSpeed(TtsServiceKind::OpenAiApi));
+    QVERIFY(TtsServiceConfig::supportsSpeed(TtsServiceKind::Groq));
+    QVERIFY(TtsServiceConfig::supportsSpeed(TtsServiceKind::ElevenLabs));
+    QVERIFY(TtsServiceConfig::supportsSpeed(TtsServiceKind::OpenAiTts));
+    QVERIFY(TtsServiceConfig::supportsSpeed(TtsServiceKind::Piper));
 }
 
 QTEST_GUILESS_MAIN(TestTtsConfig)

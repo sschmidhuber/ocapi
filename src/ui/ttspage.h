@@ -10,6 +10,7 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPushButton;
+class QSlider;
 class QTimer;
 
 namespace ocapi {
@@ -36,6 +37,10 @@ private slots:
     void onSelectionChanged();
     void onKindChanged(int index);
     void onFieldEdited();
+    void onSpeedChanged(int value);
+    // Reconfigures the speed slider for the current provider: five discrete
+    // pace steps for Mistral, a continuous 0.25x-4.00x factor otherwise.
+    void updateSpeedRange();
     void onSpeakResponsesToggled(bool enabled);
     void onOutputDeviceChanged(int index);
     void onTestService();
@@ -46,6 +51,7 @@ private slots:
 private:
     void populateList();
     void populateOutputDevices();
+    void populateVoiceCombo();
     void loadConfigIntoForm(const TtsServiceConfig &config);
     void saveFormIntoConfig(TtsServiceConfig &config);
     void updateUrlState();
@@ -62,7 +68,10 @@ private:
     QLineEdit *m_urlEdit;
     QLineEdit *m_apiKeyEdit;
     QLineEdit *m_modelEdit;
-    QLineEdit *m_voiceEdit;
+    QComboBox *m_voiceCombo;
+    QSlider *m_speedSlider;
+    QLabel *m_speedLabel;
+    QLabel *m_speedValueLabel;
     QLineEdit *m_languageEdit;
     QCheckBox *m_enabledBox;
     QComboBox *m_deviceCombo;

@@ -126,6 +126,10 @@ private slots:
     void skipsSynthesisWhenNoServiceConfigured();
     void leavesSpeakingStateOnServiceError();
     void restartAfterStopRefetchesFromScratch();
+    void repeatedTestsWithSpeedChangeWork();
+    void secondMessageInSameSessionSpeaks();
+    void updateServiceAppliesNewSpeedWithoutStop();
+    void updateServiceAppliesMistralPaceInChat();
 
 private:
     FakeTtsServer m_server;
@@ -227,6 +231,113 @@ void TestTtsPlayer::restartAfterStopRefetchesFromScratch() {
     // first (stopped) sentence is not re-sent.
     QVERIFY(m_server.requestBodies().first().contains(QStringLiteral("Second sentence.")));
     QVERIFY(!m_server.requestBodies().first().contains(QStringLiteral("First sentence")));
+}
+
+void TestTtsPlayer::repeatedTestsWithSpeedChangeWork() {
+    // Regression test for the settings-page voice test: after one test
+    // finishes, further tests (e.g. after changing the speed) must still
+    // synthesize and finish instead of hanging until the timeout.
+    QVERIFY(m_server.start());
+    TtsPlayer player;
+    QSignalSpy speakingSpy(&player, &TtsPlayer::speakingChanged);
+
+    auto runTest = [&](double speed) {
+        auto config = serviceConfig(m_server.port());
+        config.speed = speed;
+        player.setService(config); // like TtsPage::onTestService
+        player.feedText(QStringLiteral("This is a test of the text to speech service."));
+        player.endOfText();
+    };
+
+    runTest(1.0);
+    QTRY_VERIFY_WITH_TIMEOUT(!player.isSpeaking(), 5000);
+    QCOMPARE(m_server.requestCount(), 1);
+
+    runTest(2.0);
+    QTRY_COMPARE_WITH_TIMEOUT(m_server.requestCount(), 2, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(!player.isSpeaking(), 5000);
+
+    runTest(1.0); // back to moderate
+    QTRY_COMPARE_WITH_TIMEOUT(m_server.requestCount(), 3, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(!player.isSpeaking(), 5000);
+
+    QVERIFY(speakingSpy.count() >= 6); // true/false per test
+}
+
+void TestTtsPlayer::secondMessageInSameSessionSpeaks() {
+    // Regression test: in the main chat only the first assistant response
+    // was spoken. stop() between messages left the decode state dirty, so
+    // the second response's audio was dropped and the player never left
+    // the speaking state.
+    QVERIFY(m_server.start());
+    m_server.setEchoInput(true);
+    TtsPlayer player;
+    player.setService(serviceConfig(m_server.port()));
+
+    player.feedText(QStringLiteral("First answer."));
+    player.endOfText();
+    QTRY_COMPARE_WITH_TIMEOUT(m_server.requestCount(), 1, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(!player.isSpeaking(), 5000);
+
+    // Next message: the chat only stops the player between messages.
+    player.stop();
+    player.feedText(QStringLiteral("Second answer."));
+    player.endOfText();
+    QTRY_COMPARE_WITH_TIMEOUT(m_server.requestCount(), 2, 5000);
+    QVERIFY(m_server.requestBodies().at(1).contains(QStringLiteral("Second answer.")));
+    QTRY_VERIFY_WITH_TIMEOUT(!player.isSpeaking(), 5000);
+}
+
+void TestTtsPlayer::updateServiceAppliesNewSpeedWithoutStop() {
+    // The settings page changes the speed of the active service while the
+    // chat player is running: updateService() must hand the new config to
+    // the client so the next synthesis uses it, without aborting playback.
+    QVERIFY(m_server.start());
+    TtsPlayer player;
+    auto config = serviceConfig(m_server.port());
+    config.speed = 1.0;
+    player.setService(config);
+    QVERIFY(player.hasService());
+    QCOMPARE(player.serviceId(), config.id);
+
+    config.speed = 2.0;
+    player.updateService(config);
+    player.feedText(QStringLiteral("Hello world."));
+    player.endOfText();
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_server.requestCount(), 1, 5000);
+    QVERIFY(m_server.requestBodies().first().contains(QStringLiteral("\"speed\":2")));
+}
+
+void TestTtsPlayer::updateServiceAppliesMistralPaceInChat() {
+    // Same as above, but for the Mistral backend: the pace must arrive as
+    // an inline [pace=...] tag on the next chat synthesis (the settings
+    // page "Test voice" recreated the client, the chat player only gets
+    // updateService()).
+    QVERIFY(m_server.start());
+    TtsPlayer player;
+    auto config = serviceConfig(m_server.port());
+    config.kind = TtsServiceKind::Mistral;
+    config.model = QStringLiteral("voxtral-mini-tts-3-0");
+    config.speed = 1.0; // moderate
+    player.setService(config);
+
+    player.feedText(QStringLiteral("First answer."));
+    player.endOfText();
+    QTRY_COMPARE_WITH_TIMEOUT(m_server.requestCount(), 1, 5000);
+    QVERIFY(m_server.requestBodies().first().contains(QStringLiteral("[pace=moderate]")));
+
+    // User moves the slider to "very fast" in the settings page; the chat
+    // player is not recreated, it gets updateService().
+    config.speed = 2.0;
+    player.updateService(config);
+    player.stop();
+    player.feedText(QStringLiteral("Second answer."));
+    player.endOfText();
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_server.requestCount(), 2, 5000);
+    QVERIFY2(m_server.requestBodies().at(1).contains(QStringLiteral("[pace=very-fast]")),
+             qPrintable(m_server.requestBodies().at(1)));
 }
 
 QTEST_GUILESS_MAIN(TestTtsPlayer)

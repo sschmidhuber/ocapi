@@ -59,8 +59,8 @@ QString TtsServiceConfig::kindDescription(TtsServiceKind kind) {
     case TtsServiceKind::Groq:
         return QStringLiteral("Groq TTS models (OpenAI-compatible speech API)");
     case TtsServiceKind::Mistral:
-        return QStringLiteral("Mistral AI speech API (Voxtral TTS; voice = voice ID, "
-                              "e.g. gb_jane_neutral, voice_478)");
+        return QStringLiteral("Mistral AI speech API (Voxtral TTS 3; voice = voice ID, "
+                              "e.g. gb_jane_neutral, voice_478; pace via [pace=...] input tags)");
     case TtsServiceKind::ElevenLabs:
         return QStringLiteral("ElevenLabs speech synthesis (v2.5/flash/turbo, multilingual)");
     case TtsServiceKind::OpenAiTts:
@@ -96,7 +96,7 @@ QString TtsServiceConfig::defaultModel(TtsServiceKind kind) {
     case TtsServiceKind::Groq:
         return QStringLiteral("playai-tts");
     case TtsServiceKind::Mistral:
-        return QStringLiteral("voxtral-mini-tts-2603");
+        return QStringLiteral("voxtral-mini-tts-3-0");
     case TtsServiceKind::ElevenLabs:
         return QStringLiteral("eleven_flash_v2_5");
     case TtsServiceKind::OpenAiTts:
@@ -121,6 +121,104 @@ QString TtsServiceConfig::defaultVoice(TtsServiceKind kind) {
         return {};
     }
     return {};
+}
+
+QStringList TtsServiceConfig::availableVoices(TtsServiceKind kind) {
+    switch (kind) {
+    case TtsServiceKind::OpenAiApi:
+    case TtsServiceKind::Groq:
+    case TtsServiceKind::OpenAiTts:
+        return {
+            QStringLiteral("alloy"), QStringLiteral("echo"), QStringLiteral("fable"),
+            QStringLiteral("onyx"),  QStringLiteral("nova"), QStringLiteral("shimmer"),
+        };
+    case TtsServiceKind::Mistral:
+    case TtsServiceKind::ElevenLabs:
+    case TtsServiceKind::Piper:
+        return {};
+    }
+    return {};
+}
+
+bool TtsServiceConfig::supportsSpeed(TtsServiceKind kind) {
+    switch (kind) {
+    case TtsServiceKind::OpenAiApi:
+    case TtsServiceKind::Groq:
+    case TtsServiceKind::Mistral:
+    case TtsServiceKind::ElevenLabs:
+    case TtsServiceKind::OpenAiTts:
+    case TtsServiceKind::Piper:
+        return true;
+    }
+    return false;
+}
+
+QVector<TtsPace> TtsServiceConfig::availablePaces() {
+    return {TtsPace::VerySlow, TtsPace::Slow, TtsPace::Moderate, TtsPace::Fast, TtsPace::VeryFast};
+}
+
+QString TtsServiceConfig::mistralPaceTag(TtsPace pace) {
+    switch (pace) {
+    case TtsPace::VerySlow:
+        return QStringLiteral("[pace=very-slow]");
+    case TtsPace::Slow:
+        return QStringLiteral("[pace=slow]");
+    case TtsPace::Moderate:
+        return QStringLiteral("[pace=moderate]");
+    case TtsPace::Fast:
+        return QStringLiteral("[pace=fast]");
+    case TtsPace::VeryFast:
+        return QStringLiteral("[pace=very-fast]");
+    }
+    return {};
+}
+
+TtsPace TtsServiceConfig::paceFromSpeed(double speed) {
+    // Representative factors: very-slow 0.5, slow 0.75, moderate 1.0,
+    // fast 1.5, very-fast 2.0.
+    if (speed < 0.625)
+        return TtsPace::VerySlow;
+    if (speed < 0.875)
+        return TtsPace::Slow;
+    if (speed < 1.25)
+        return TtsPace::Moderate;
+    if (speed < 1.75)
+        return TtsPace::Fast;
+    return TtsPace::VeryFast;
+}
+
+double TtsServiceConfig::speedFromPace(TtsPace pace) {
+    switch (pace) {
+    case TtsPace::VerySlow:
+        return 0.5;
+    case TtsPace::Slow:
+        return 0.75;
+    case TtsPace::Moderate:
+        return defaultSpeed;
+    case TtsPace::Fast:
+        return 1.5;
+    case TtsPace::VeryFast:
+        return 2.0;
+    }
+    return defaultSpeed;
+}
+
+QString TtsServiceConfig::speedLabel(double speed, TtsServiceKind kind) {
+    if (kind == TtsServiceKind::Mistral) {
+        switch (paceFromSpeed(speed)) {
+        case TtsPace::VerySlow:
+            return QStringLiteral("very slow");
+        case TtsPace::Slow:
+            return QStringLiteral("slow");
+        case TtsPace::Moderate:
+            return QStringLiteral("moderate");
+        case TtsPace::Fast:
+            return QStringLiteral("fast");
+        case TtsPace::VeryFast:
+            return QStringLiteral("very fast");
+        }
+    }
+    return QStringLiteral("%1\u00d7").arg(QString::number(speed, 'f', 2));
 }
 
 bool TtsServiceConfig::isCloud(TtsServiceKind kind) {
@@ -200,6 +298,7 @@ QJsonObject TtsServiceConfig::toJson() const {
         {QStringLiteral("apiKey"), apiKey},
         {QStringLiteral("model"), model},
         {QStringLiteral("voice"), voice},
+        {QStringLiteral("speed"), speed},
         {QStringLiteral("language"), language},
         {QStringLiteral("enabled"), enabled},
     };
@@ -214,6 +313,9 @@ TtsServiceConfig TtsServiceConfig::fromJson(const QJsonObject &object) {
     config.apiKey = object.value(QStringLiteral("apiKey")).toString();
     config.model = object.value(QStringLiteral("model")).toString();
     config.voice = object.value(QStringLiteral("voice")).toString();
+    const double storedSpeed = object.value(QStringLiteral("speed")).toDouble(defaultSpeed);
+    config.speed =
+        (storedSpeed >= minSpeed && storedSpeed <= maxSpeed) ? storedSpeed : defaultSpeed;
     config.language = object.value(QStringLiteral("language")).toString();
     config.enabled = object.value(QStringLiteral("enabled")).toBool(true);
     return config;

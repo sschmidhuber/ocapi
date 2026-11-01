@@ -51,6 +51,16 @@ void TtsPlayer::setService(const TtsServiceConfig &config) {
     connect(m_client, &TtsClient::error, this, &TtsPlayer::onServiceError);
 }
 
+void TtsPlayer::updateService(const TtsServiceConfig &config) {
+    // Only swap the config the client reads when it differs; the client is
+    // recreated by setService(), but a settings change (speed, voice, ...)
+    // must not abort the playback that is currently running.
+    if (!m_client || m_config.id != config.id || m_config.kind != config.kind)
+        return;
+    m_config = config;
+    m_client->setConfig(config);
+}
+
 void TtsPlayer::setOutputDevice(const QString &deviceId) {
     if (m_outputDeviceId == deviceId)
         return;
@@ -111,16 +121,16 @@ void TtsPlayer::stop() {
     m_splitter.reset();
     m_lastFedText.clear();
     m_pendingPcm.clear();
-    if (m_client)
-        m_client->cancel();
+    m_decodeQueue.clear();
+    m_decodedPcm.clear();
     if (m_decoder) {
         m_decoder->stop();
         m_decoder->deleteLater();
         m_decoder = nullptr;
         m_sourceBuffer = nullptr;
     }
-    m_decodeQueue.clear();
-    m_decodedPcm.clear();
+    if (m_client)
+        m_client->cancel();
     if (m_sink) {
         m_sink->stop();
         m_sink->reset();
@@ -286,9 +296,20 @@ void TtsPlayer::onDecodeFinished() {
 }
 
 bool TtsPlayer::ensureSink(int sampleRate, int channels) {
+    // A reused sink must be restarted: stop() leaves it in StoppedState,
+    // and writing to a stopped sink never makes it Active again, which
+    // would leave the player stuck in the speaking state forever (the
+    // settings page then reports "no response within 30 seconds" on every
+    // test after the first).
     if (m_sink && m_sink->format().sampleRate() == sampleRate &&
-        m_sink->format().channelCount() == channels)
+        m_sink->format().channelCount() == channels) {
+        if (m_sink->state() == QAudio::StoppedState || m_sink->state() == QAudio::IdleState) {
+            m_sinkIo = m_sink->start();
+            if (!m_sinkIo)
+                return false;
+        }
         return true;
+    }
     teardownSink();
 
     QAudioDevice device;

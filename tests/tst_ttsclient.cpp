@@ -63,12 +63,16 @@ public:
         m_slowMarkerMs = ms;
     }
     [[nodiscard]] QStringList requestBodies() const { return m_bodies; }
+    // First line of each request (e.g. "GET /api/tts?... HTTP/1.1"), so
+    // tests can assert on GET query strings (Piper) too.
+    [[nodiscard]] QStringList requestLines() const { return m_requestLines; }
     [[nodiscard]] QStringList authorizationHeaders() const { return m_authHeaders; }
     [[nodiscard]] QStringList xiApiKeyHeaders() const { return m_xiApiKeys; }
     [[nodiscard]] int requestCount() const { return static_cast<int>(m_bodies.size()); }
 
     void resetCounters() {
         m_bodies.clear();
+        m_requestLines.clear();
         m_authHeaders.clear();
         m_xiApiKeys.clear();
         m_delayMs = 0;
@@ -90,15 +94,29 @@ private:
             return;
         const QString headers = QString::fromLatin1(buffer.left(headerEnd));
         const QString lowerHeaders = headers.toLower();
+        m_requestLines.push_back(headers.section(QStringLiteral("\r\n"), 0, 0));
+        // GET requests (Piper) carry their parameters in the query string
+        // and have no body; POST requests wait for content-length bytes.
+        const bool isGet = headers.startsWith(QStringLiteral("GET "), Qt::CaseInsensitive);
         const auto lengthIndex = lowerHeaders.indexOf("content-length:");
-        if (lengthIndex < 0)
+        if (lengthIndex < 0) {
+            if (!isGet)
+                return;
+            m_bodies.push_back(QString());
+            respond(socket, headers, QString());
             return;
+        }
         const int contentLength =
             lowerHeaders.mid(lengthIndex + 15).split("\r\n").first().trimmed().toInt();
         if (buffer.size() < headerEnd + 4 + contentLength)
             return;
 
-        m_bodies.push_back(QString::fromUtf8(buffer.mid(headerEnd + 4, contentLength)));
+        const QString requestBody = QString::fromUtf8(buffer.mid(headerEnd + 4, contentLength));
+        m_bodies.push_back(requestBody);
+        respond(socket, headers, requestBody);
+    }
+
+    void respond(QTcpSocket *socket, const QString &headers, const QString &requestBody) {
         // QNetworkAccessManager sends header names in lowercase.
         const QRegularExpression authHeader(QStringLiteral("\\r\\nauthorization: ([^\\r\\n]*)"),
                                             QRegularExpression::CaseInsensitiveOption);
@@ -109,7 +127,6 @@ private:
         const auto xiKeyMatch = xiKeyHeader.match(headers);
         m_xiApiKeys.push_back(xiKeyMatch.hasMatch() ? xiKeyMatch.captured(1) : QString());
 
-        const QString requestBody = QString::fromUtf8(buffer.mid(headerEnd + 4, contentLength));
         QByteArray audio = m_audio;
         if (m_echoInput) {
             const QJsonDocument doc = QJsonDocument::fromJson(requestBody.toUtf8());
@@ -166,6 +183,7 @@ private:
     QByteArray m_errorBody;
     bool m_jsonEnvelope = false;
     QStringList m_bodies;
+    QStringList m_requestLines;
     QStringList m_authHeaders;
     QStringList m_xiApiKeys;
 };
@@ -197,6 +215,12 @@ private slots:
     void emitsAudioInEnqueueOrder();
     void reportsErrorOnFailure();
     void reportsHttpStatusAndBodyOnServiceError();
+    void sendsSpeedInPayload();
+    void omitsDefaultSpeedInPayload();
+    void sendsElevenLabsSpeedInVoiceSettings();
+    void omitsSpeedAndPaceTagForMistralVoxtral2();
+    void sendsMistralPaceTagInInputForVoxtral3();
+    void sendsPiperLengthScale();
     void ignoresEmptyText();
     void cancelDropsQueue();
 
@@ -261,6 +285,26 @@ void TestTtsClient::sendsElevenLabsPayloadWithXiApiKey() {
     QVERIFY(m_server.authorizationHeaders().first().isEmpty());
 }
 
+void TestTtsClient::sendsElevenLabsSpeedInVoiceSettings() {
+    QVERIFY(m_server.start());
+    auto config = serviceConfig(m_server.port());
+    config.kind = TtsServiceKind::ElevenLabs;
+    config.baseUrl = QStringLiteral("http://127.0.0.1:%1/v1").arg(m_server.port());
+    config.speed = 1.25;
+    TtsClient client(config);
+    QSignalSpy audio(&client, &TtsClient::audioReady);
+
+    client.synthesize(QStringLiteral("Hello."));
+    QVERIFY(audio.wait(5000));
+
+    const QString body = m_server.requestBodies().first();
+    // Speed must be nested in voice_settings, not a top-level field.
+    QVERIFY2(body.contains(QStringLiteral("\"voice_settings\":{\"speed\":1.25}")),
+             qPrintable(body));
+    QVERIFY(body.indexOf(QStringLiteral("\"speed\":")) >
+            body.indexOf(QStringLiteral("\"voice_settings\":")));
+}
+
 void TestTtsClient::sendsMistralPayloadWithVoiceId() {
     // Mistral's speech API takes the voice as "voice_id" (preset slug or
     // saved voice ID), not the OpenAI-style "voice" name; sending "voice"
@@ -270,7 +314,7 @@ void TestTtsClient::sendsMistralPayloadWithVoiceId() {
     config.kind = TtsServiceKind::Mistral;
     config.baseUrl = QStringLiteral("http://127.0.0.1:%1/v1").arg(m_server.port());
     config.apiKey = QStringLiteral("mistral-key");
-    config.model = QStringLiteral("voxtral-mini-tts-2603");
+    config.model = QStringLiteral("voxtral-mini-tts-3-0");
     config.voice = QStringLiteral("gb_jane_neutral");
     TtsClient client(config);
     QSignalSpy audio(&client, &TtsClient::audioReady);
@@ -280,11 +324,57 @@ void TestTtsClient::sendsMistralPayloadWithVoiceId() {
 
     QCOMPARE(m_server.requestCount(), 1);
     const QString body = m_server.requestBodies().first();
-    QVERIFY(body.contains(QStringLiteral("\"model\":\"voxtral-mini-tts-2603\"")));
-    QVERIFY(body.contains(QStringLiteral("\"input\":\"Hello.\"")));
+    QVERIFY(body.contains(QStringLiteral("\"model\":\"voxtral-mini-tts-3-0\"")));
+    // Voxtral 3 model: the default pace tag [pace=moderate] is prepended.
+    QVERIFY(body.contains(QStringLiteral("\"input\":\"[pace=moderate] Hello.\"")));
     QVERIFY(body.contains(QStringLiteral("\"voice_id\":\"gb_jane_neutral\"")));
     QVERIFY(!body.contains(QStringLiteral("\"voice\":")));
     QCOMPARE(m_server.authorizationHeaders().first(), QStringLiteral("Bearer mistral-key"));
+}
+
+void TestTtsClient::omitsSpeedAndPaceTagForMistralVoxtral2() {
+    // Mistral's /v1/audio/speech schema has no speed field, and Voxtral 2
+    // models do not interpret inline tags (they would read the tag text
+    // aloud). With a Voxtral 2 model the client must send neither "speed"
+    // nor a [pace=...] tag.
+    QVERIFY(m_server.start());
+    auto config = serviceConfig(m_server.port());
+    config.kind = TtsServiceKind::Mistral;
+    config.baseUrl = QStringLiteral("http://127.0.0.1:%1/v1").arg(m_server.port());
+    config.model = QStringLiteral("voxtral-mini-tts-2603");
+    config.speed = 2.0;
+    TtsClient client(config);
+    QSignalSpy audio(&client, &TtsClient::audioReady);
+
+    client.synthesize(QStringLiteral("Hello."));
+    QVERIFY(audio.wait(5000));
+
+    const QString body = m_server.requestBodies().first();
+    QVERIFY2(!body.contains(QStringLiteral("speed")), qPrintable(body));
+    QVERIFY2(!body.contains(QStringLiteral("[pace=")), qPrintable(body));
+    QVERIFY(body.contains(QStringLiteral("\"input\":\"Hello.\"")));
+}
+
+void TestTtsClient::sendsMistralPaceTagInInputForVoxtral3() {
+    // Voxtral 3 models interpret inline [pace=...] tags, so for them the
+    // pace is prepended to the input text (the "speed" field is still not
+    // sent: the API schema has no such field).
+    QVERIFY(m_server.start());
+    auto config = serviceConfig(m_server.port());
+    config.kind = TtsServiceKind::Mistral;
+    config.baseUrl = QStringLiteral("http://127.0.0.1:%1/v1").arg(m_server.port());
+    config.model = QStringLiteral("voxtral-mini-tts-3-0");
+    config.speed = 2.0; // -> [pace=very-fast]
+    TtsClient client(config);
+    QSignalSpy audio(&client, &TtsClient::audioReady);
+
+    client.synthesize(QStringLiteral("Hello."));
+    QVERIFY(audio.wait(5000));
+
+    const QString body = m_server.requestBodies().first();
+    QVERIFY2(!body.contains(QStringLiteral("speed")), qPrintable(body));
+    QVERIFY2(body.contains(QStringLiteral("\"input\":\"[pace=very-fast] Hello.\"")),
+             qPrintable(body));
 }
 
 void TestTtsClient::unwrapsMistralAudioDataEnvelope() {
@@ -360,6 +450,58 @@ void TestTtsClient::reportsHttpStatusAndBodyOnServiceError() {
     QVERIFY2(message.contains(QStringLiteral("401")), qPrintable(message));
     QVERIFY2(message.contains(QStringLiteral("invalid api key")), qPrintable(message));
     QCOMPARE(audio.count(), 0);
+}
+
+void TestTtsClient::sendsSpeedInPayload() {
+    QVERIFY(m_server.start());
+    auto config = serviceConfig(m_server.port());
+    config.speed = 1.5;
+    TtsClient client(config);
+    QSignalSpy audio(&client, &TtsClient::audioReady);
+
+    client.synthesize(QStringLiteral("Hello."));
+    QVERIFY(audio.wait(5000));
+
+    QCOMPARE(m_server.requestCount(), 1);
+    const QString body = m_server.requestBodies().first();
+    QVERIFY2(body.contains(QStringLiteral("\"speed\":1.5")), qPrintable(body));
+}
+
+void TestTtsClient::omitsDefaultSpeedInPayload() {
+    // Speed 1.0 is the protocol default; sending it explicitly is harmless
+    // but the client normalizes out-of-range values back to 1.0.
+    QVERIFY(m_server.start());
+    auto config = serviceConfig(m_server.port());
+    config.speed = 42.0; // out of range, clamped to 1.0 by effectiveSpeed()
+    TtsClient client(config);
+    QSignalSpy audio(&client, &TtsClient::audioReady);
+
+    client.synthesize(QStringLiteral("Hello."));
+    QVERIFY(audio.wait(5000));
+
+    const QString body = m_server.requestBodies().first();
+    QVERIFY2(body.contains(QStringLiteral("\"speed\":1")), qPrintable(body));
+}
+
+void TestTtsClient::sendsPiperLengthScale() {
+    QVERIFY(m_server.start());
+    auto config = serviceConfig(m_server.port());
+    config.kind = TtsServiceKind::Piper;
+    config.baseUrl = QStringLiteral("http://127.0.0.1:%1").arg(m_server.port());
+    config.model = QStringLiteral("de_DE-thorsten-medium");
+    config.speed = 2.0; // twice as fast -> length_scale 0.5
+    TtsClient client(config);
+    QSignalSpy audio(&client, &TtsClient::audioReady);
+
+    client.synthesize(QStringLiteral("Hallo."));
+    QVERIFY(audio.wait(5000));
+
+    QCOMPARE(m_server.requestCount(), 1);
+    // Piper uses a GET request with the parameters in the query string.
+    const QString requestLine = m_server.requestLines().first();
+    QVERIFY2(requestLine.startsWith(QStringLiteral("GET /api/tts?")), qPrintable(requestLine));
+    QVERIFY2(requestLine.contains(QStringLiteral("text=Hallo.")), qPrintable(requestLine));
+    QVERIFY2(requestLine.contains(QStringLiteral("length_scale=0.500")), qPrintable(requestLine));
 }
 
 void TestTtsClient::ignoresEmptyText() {

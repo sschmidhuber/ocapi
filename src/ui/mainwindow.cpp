@@ -331,8 +331,7 @@ void MainWindow::setupUi() {
     m_stopButton->setVisible(false);
     // Icon button styled like the Dictate (mic) button next to it.
     m_speakButton = new QToolButton(footerRow);
-    const QIcon speakerIcon(
-        QString::fromUtf8(":/resources/icons/media-playback-start-symbolic.svg"));
+    const QIcon speakerIcon(QString::fromUtf8(":/resources/icons/audio-symbolic.svg"));
     if (!speakerIcon.isNull()) {
         m_speakButton->setIcon(speakerIcon);
         m_speakButton->setIconSize(QSize(18, 18));

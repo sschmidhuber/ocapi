@@ -35,7 +35,6 @@ from appium.options.common.base import AppiumOptions
 from appium.webdriver.common.appiumby import AppiumBy
 from selenium.common.exceptions import (
     NoSuchElementException,
-    TimeoutException,
     WebDriverException,
 )
 from selenium.webdriver.support.ui import WebDriverWait
@@ -169,40 +168,28 @@ class OcapiE2E(unittest.TestCase):
 
     def test_06_new_chat_keeps_backend_and_model(self):
         # Two mock backends are seeded. The picker starts on the first one
-        # ("Mock backend | mock-model"). Switching the picker to the second
-        # backend and another model, then starting a new chat, must keep
-        # that backend+model instead of falling back to the first backend
-        # (issue #78 follow-up: persisted per-backend model selection).
-        # "Mock backend 2" also contains "Mock backend", so match the exact
-        # label to get the first backend's picker button.
+        # ("Mock backend | mock-model"). Switching to the second backend and
+        # another model, then starting a new chat, must keep that backend+model
+        # instead of falling back to the first backend (issue #78 follow-up).
+        # The popup menu is not reliably exposed over AT-SPI, so the test
+        # switches the selection through keyboard navigation on the focused
+        # picker button instead of clicking menu entries.
         picker = self.wait_for("//*[contains(@name, 'Mock backend')]")
         self.assertIn("mock-model", picker.text)
         self.assertNotIn("mock-model-2", picker.text)
         self.assertNotIn("Mock backend 2", picker.text)
 
-        # Instead of driving the popup menu (not reliably exposed over
-        # AT-SPI), drive the selection programmatically: the picker is a
-        # QToolButton, so clicking it opens the menu; we then use the
-        # application's own accessible actions is not available, so we
-        # simulate the choice by clicking the picker and selecting via
-        # keyboard is unreliable too. Simplest robust path: read the
-        # picker, click it, and if the menu does not expose entries, fall
-        # back to clicking the entry found by name anywhere in the tree.
+        # Focus the picker and open its menu, then navigate: the menu lists
+        # providers alphabetically ("Mock backend", "Mock backend 2"), each
+        # with a submenu of models. Move to the second provider and open its
+        # submenu, then pick the second model.
         picker.click()
-        try:
-            backend2_item = self.wait_for(
-                "//*[contains(@name, 'Mock backend 2')]", timeout=5
-            )
-            backend2_item.click()
-        except TimeoutException:
-            # Menu not exposed: press Down/Enter to move through entries is
-            # unreliable, so fail loudly with the picker state.
-            self.fail(f"picker menu did not expose 'Mock backend 2'; picker={picker.text}")
-        picker = self.wait_for("//*[contains(@name, 'Mock backend 2')]")
-        self.assertIn("mock-model", picker.text)  # first model of backend 2
-        picker.click()
-        model2 = self.wait_for("//*[contains(@name, 'mock-model-2')]", timeout=10)
-        model2.click()
+        from selenium.webdriver.common.keys import Keys
+
+        picker.send_keys(Keys.ARROW_DOWN)  # -> "Mock backend 2"
+        picker.send_keys(Keys.ARROW_RIGHT)  # open its submenu
+        picker.send_keys(Keys.ARROW_DOWN)  # -> "mock-model-2" (second model)
+        picker.send_keys(Keys.ENTER)
 
         picker = self.wait_for("//*[contains(@name, 'Mock backend 2')]")
         self.assertIn("mock-model-2", picker.text)

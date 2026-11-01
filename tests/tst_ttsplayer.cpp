@@ -129,6 +129,7 @@ private slots:
     void repeatedTestsWithSpeedChangeWork();
     void secondMessageInSameSessionSpeaks();
     void updateServiceAppliesNewSpeedWithoutStop();
+    void updateServiceAppliesMistralPaceInChat();
 
 private:
     FakeTtsServer m_server;
@@ -306,6 +307,37 @@ void TestTtsPlayer::updateServiceAppliesNewSpeedWithoutStop() {
 
     QTRY_COMPARE_WITH_TIMEOUT(m_server.requestCount(), 1, 5000);
     QVERIFY(m_server.requestBodies().first().contains(QStringLiteral("\"speed\":2")));
+}
+
+void TestTtsPlayer::updateServiceAppliesMistralPaceInChat() {
+    // Same as above, but for the Mistral backend: the pace must arrive as
+    // an inline [pace=...] tag on the next chat synthesis (the settings
+    // page "Test voice" recreated the client, the chat player only gets
+    // updateService()).
+    QVERIFY(m_server.start());
+    TtsPlayer player;
+    auto config = serviceConfig(m_server.port());
+    config.kind = TtsServiceKind::Mistral;
+    config.model = QStringLiteral("voxtral-mini-tts-3-0");
+    config.speed = 1.0; // moderate
+    player.setService(config);
+
+    player.feedText(QStringLiteral("First answer."));
+    player.endOfText();
+    QTRY_COMPARE_WITH_TIMEOUT(m_server.requestCount(), 1, 5000);
+    QVERIFY(m_server.requestBodies().first().contains(QStringLiteral("[pace=moderate]")));
+
+    // User moves the slider to "very fast" in the settings page; the chat
+    // player is not recreated, it gets updateService().
+    config.speed = 2.0;
+    player.updateService(config);
+    player.stop();
+    player.feedText(QStringLiteral("Second answer."));
+    player.endOfText();
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_server.requestCount(), 2, 5000);
+    QVERIFY2(m_server.requestBodies().at(1).contains(QStringLiteral("[pace=very-fast]")),
+             qPrintable(m_server.requestBodies().at(1)));
 }
 
 QTEST_GUILESS_MAIN(TestTtsPlayer)

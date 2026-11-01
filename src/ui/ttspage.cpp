@@ -13,6 +13,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSizePolicy>
 #include <QSlider>
 #include <QSplitter>
 #include <QTimer>
@@ -56,6 +57,9 @@ TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidge
     m_voiceCombo = new QComboBox(formWidget);
     m_voiceCombo->setEditable(true);
     m_voiceCombo->setInsertPolicy(QComboBox::NoInsert);
+    // Full form width like the other fields: QComboBox sizes to its
+    // contents by default, which made it narrower than the provider combo.
+    m_voiceCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_voiceCombo->lineEdit()->setPlaceholderText(tr("Voice (optional)"));
     m_voiceCombo->setToolTip(tr("Voice name (OpenAI, Groq), voice ID (Mistral, ElevenLabs)"));
     m_speedSlider = new QSlider(Qt::Horizontal, formWidget);
@@ -80,6 +84,10 @@ TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidge
     formLayout->addRow(tr("Voice:"), m_voiceCombo);
     auto *speedRow = new QHBoxLayout;
     speedRow->addWidget(m_speedSlider, 1);
+    // Fixed width so the slider keeps its size when the label text changes
+    // (e.g. "moderate" vs "very fast" for the Mistral paces).
+    m_speedValueLabel->setFixedWidth(
+        m_speedValueLabel->fontMetrics().horizontalAdvance(QStringLiteral("very fast")));
     speedRow->addWidget(m_speedValueLabel);
     formLayout->addRow(m_speedLabel = new QLabel(tr("Speed:"), formWidget), speedRow);
     formLayout->addRow(tr("Language:"), m_languageEdit);

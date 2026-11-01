@@ -507,6 +507,7 @@ void MainWindow::onSessionSelected(const QUuid &id) {
     m_sidebar->selectSession(id);
 
     refreshBackendSelector();
+    detectModels();
 
     const bool hasSession = m_currentSession != nullptr;
     m_composer->setEnabled(hasSession);
@@ -865,8 +866,8 @@ void MainWindow::detectModels() {
     const auto *config = m_registry.find(backendId);
     if (!config || !config->enabled)
         return;
-    if (m_detectedBackendId == backendId)
-        return;
+    if (m_detectedBackendId == backendId && !m_detectedModels.value(backendId).isEmpty())
+        return; // already detected successfully for this backend
     m_detectedBackendId = backendId;
     m_detectorBackend = createBackend(*config);
     connect(m_detectorBackend.get(), &IBackend::modelsReady, this, &MainWindow::onModelsDetected);
@@ -889,6 +890,9 @@ void MainWindow::onModelsDetected(const QStringList &models) {
         if (!cached.contains(model))
             cached.append(model);
     m_detectedModels.insert(backendId, cached);
+    // Rebuild the whole selector so the model lists (and the persisted
+    // last-model entry) reach the picker even if only addModels() ran before.
+    refreshBackendSelector();
     addModelsToPicker(backendId, models);
     // If no model is selected yet (fresh backend, nothing persisted), take
     // the first detected one so the picker shows "Backend | model".

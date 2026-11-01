@@ -174,9 +174,10 @@ class OcapiE2E(unittest.TestCase):
         # (issue #78 follow-up: persisted per-backend model selection).
         # "Mock backend 2" also contains "Mock backend", so match the exact
         # label to get the first backend's picker button.
-        picker = self.wait_for("//*[@name='Mock backend | mock-model']")
+        picker = self.wait_for("//*[contains(@name, 'Mock backend')]")
         self.assertIn("mock-model", picker.text)
         self.assertNotIn("mock-model-2", picker.text)
+        self.assertNotIn("Mock backend 2", picker.text)
 
         # Click the picker button to open its menu, then choose the second
         # backend's submenu and its model. Menu items are exposed as menu
@@ -187,17 +188,17 @@ class OcapiE2E(unittest.TestCase):
         backend2_item.click()
         # After picking the backend the picker shows its first model; open
         # the submenu again to pick mock-model-2.
-        picker = self.wait_for("//*[@name='Mock backend 2 | mock-model']")
+        picker = self.wait_for("//*[contains(@name, 'Mock backend 2')]")
         picker.click()
         model2 = self.wait_for("//menuitem[@name='mock-model-2']", timeout=10)
         model2.click()
 
-        picker = self.wait_for("//*[@name='Mock backend 2 | mock-model-2']")
+        picker = self.wait_for("//*[contains(@name, 'Mock backend 2')]")
         self.assertIn("mock-model-2", picker.text)
 
         # New chat must show the same backend | model.
         self.find_by_name("New chat").click()
-        new_picker = self.wait_for("//*[@name='Mock backend 2 | mock-model-2']", timeout=10)
+        new_picker = self.wait_for("//*[contains(@name, 'Mock backend 2')]", timeout=10)
         self.assertIn("mock-model-2", new_picker.text)
 
 

@@ -3,6 +3,7 @@
 #include "core/chatsession.h"
 #include "ui/mainwindow.h"
 
+#include <QApplication>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -59,5 +60,13 @@ void TestMainWindow::newChatKeepsCurrentBackendAndModel() {
     Q_UNUSED(mistral);
 }
 
-QTEST_MAIN(TestMainWindow)
+int main(int argc, char *argv[]) {
+    // MainWindow is a QWidget, so the test needs a QApplication; force the
+    // offscreen platform like tst_chatview does so CI needs no display.
+    qputenv("QT_QPA_PLATFORM", "offscreen");
+    QApplication app(argc, argv);
+    TestMainWindow test;
+    return QTest::qExec(&test, argc, argv);
+}
+
 #include "tst_mainwindow.moc"

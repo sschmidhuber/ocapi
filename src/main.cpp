@@ -8,6 +8,7 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QStyleFactory>
 #include <QUrl>
@@ -37,9 +38,18 @@ void seedE2eMockBackend() {
     ocapi::BackendConfig &config =
         registry.add(QStringLiteral("Mock backend"), ocapi::BackendKind::Ollama);
     config.baseUrl = url;
-    config.defaultModel = QStringLiteral("mock-model");
     config.enabled = true;
     registry.save();
+
+    // The settings page no longer offers a default model; the E2E tests
+    // expect the seeded backend to come up with "mock-model" selected, so
+    // persist it as the backend's last model selection.
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir().mkpath(configDir);
+    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    settings.setValue(
+        QStringLiteral("models/last/%1").arg(config.id.toString(QUuid::WithoutBraces)),
+        QStringLiteral("mock-model"));
 
     // With OCAPI_E2E_MOCK_MCP=1, also seed an MCP server pointing at the
     // mock server from tests/e2e/mock_mcp.py. Its tools are allowed without

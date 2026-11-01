@@ -179,9 +179,11 @@ class OcapiE2E(unittest.TestCase):
         self.assertNotIn("mock-model-2", picker.text)
         self.assertNotIn("Mock backend 2", picker.text)
 
-        # Click the picker button to open its menu, then choose the second
-        # backend's submenu and its model. Menu entries are exposed with the
-        # provider/model as accessible name.
+        # Click the picker button to open its menu. AT-SPI may not expose the
+        # popup as menu items in this driver, so instead of driving the menu
+        # we switch backend+model through the picker's own selection: click
+        # the button, then pick the entry by name in whatever container it
+        # is exposed in (menu, menuitem or plain item).
         picker.click()
         backend2_item = self.wait_for("//*[contains(@name, 'Mock backend 2')]", timeout=10)
         backend2_item.click()

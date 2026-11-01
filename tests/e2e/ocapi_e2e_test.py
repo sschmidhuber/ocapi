@@ -191,7 +191,7 @@ class OcapiE2E(unittest.TestCase):
         from selenium.webdriver.common.keys import Keys
 
         for key in [Keys.ARROW_DOWN, Keys.ARROW_RIGHT, Keys.ARROW_DOWN, Keys.ENTER]:
-            self.driver.switch_to.active_element.send_keys(key)
+            picker.send_keys(key)
             time.sleep(0.3)
 
         picker = self.wait_for("//*[contains(@name, 'Mock backend 2')]")

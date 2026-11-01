@@ -179,13 +179,17 @@ class OcapiE2E(unittest.TestCase):
         self.assertNotIn("mock-model-2", picker.text)
 
         # Click the picker button to open its menu, then choose the second
-        # backend and its model.
+        # backend's submenu and its model. Menu items are exposed as menu
+        # items with the provider/model as accessible name.
         picker.click()
-        second_backend = self.wait_for("//*[contains(@name, 'Mock backend 2')]", timeout=10)
-        second_backend.click()
-        picker = self.wait_for("//*[contains(@name, 'Mock backend 2')]")
+        self.wait_for("//menuitem[contains(@name, 'Mock backend 2')]", timeout=10)
+        backend2_item = self.find_by_xpath("//menuitem[contains(@name, 'Mock backend 2')]")
+        backend2_item.click()
+        # After picking the backend the picker shows its first model; open
+        # the submenu again to pick mock-model-2.
+        picker = self.wait_for("//*[@name='Mock backend 2 | mock-model']")
         picker.click()
-        model2 = self.wait_for("//*[contains(@name, 'mock-model-2')]", timeout=10)
+        model2 = self.wait_for("//menuitem[@name='mock-model-2']", timeout=10)
         model2.click()
 
         picker = self.wait_for("//*[@name='Mock backend 2 | mock-model-2']")

@@ -552,8 +552,15 @@ void MainWindow::configureTts() {
     }
     if (!active && !services.isEmpty())
         active = &services.first();
-    if (active)
-        m_ttsPlayer.setService(*active);
+    if (active) {
+        // A changed speed/voice on the same service must reach the player
+        // without recreating it (setService would stop the running speech);
+        // a different active service still needs a full swap.
+        if (m_ttsPlayer.hasService() && m_ttsPlayer.serviceId() == active->id)
+            m_ttsPlayer.updateService(*active);
+        else
+            m_ttsPlayer.setService(*active);
+    }
     m_ttsPlayer.setOutputDevice(m_ttsRegistry.outputDevice());
     const bool available = active != nullptr;
     const bool enabled = available && m_ttsRegistry.speakResponses();

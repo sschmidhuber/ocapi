@@ -30,6 +30,9 @@ public:
     ~TtsClient() override;
 
     [[nodiscard]] const TtsServiceConfig &config() const { return m_config; }
+    // Replaces the config used for subsequently sent requests (e.g. a new
+    // speed from the settings page). In-flight requests keep their payload.
+    void setConfig(const TtsServiceConfig &config) { m_config = config; }
 
     // Enqueues one synthesis request. Emits audioReady with the audio bytes
     // (and detected format) in enqueue order, or error on failure. Empty or

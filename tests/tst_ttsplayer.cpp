@@ -127,6 +127,8 @@ private slots:
     void leavesSpeakingStateOnServiceError();
     void restartAfterStopRefetchesFromScratch();
     void repeatedTestsWithSpeedChangeWork();
+    void secondMessageInSameSessionSpeaks();
+    void updateServiceAppliesNewSpeedWithoutStop();
 
 private:
     FakeTtsServer m_server;
@@ -259,6 +261,51 @@ void TestTtsPlayer::repeatedTestsWithSpeedChangeWork() {
     QTRY_VERIFY_WITH_TIMEOUT(!player.isSpeaking(), 5000);
 
     QVERIFY(speakingSpy.count() >= 6); // true/false per test
+}
+
+void TestTtsPlayer::secondMessageInSameSessionSpeaks() {
+    // Regression test: in the main chat only the first assistant response
+    // was spoken. stop() between messages left the decode state dirty, so
+    // the second response's audio was dropped and the player never left
+    // the speaking state.
+    QVERIFY(m_server.start());
+    m_server.setEchoInput(true);
+    TtsPlayer player;
+    player.setService(serviceConfig(m_server.port()));
+
+    player.feedText(QStringLiteral("First answer."));
+    player.endOfText();
+    QTRY_COMPARE_WITH_TIMEOUT(m_server.requestCount(), 1, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(!player.isSpeaking(), 5000);
+
+    // Next message: the chat only stops the player between messages.
+    player.stop();
+    player.feedText(QStringLiteral("Second answer."));
+    player.endOfText();
+    QTRY_COMPARE_WITH_TIMEOUT(m_server.requestCount(), 2, 5000);
+    QVERIFY(m_server.requestBodies().at(1).contains(QStringLiteral("Second answer.")));
+    QTRY_VERIFY_WITH_TIMEOUT(!player.isSpeaking(), 5000);
+}
+
+void TestTtsPlayer::updateServiceAppliesNewSpeedWithoutStop() {
+    // The settings page changes the speed of the active service while the
+    // chat player is running: updateService() must hand the new config to
+    // the client so the next synthesis uses it, without aborting playback.
+    QVERIFY(m_server.start());
+    TtsPlayer player;
+    auto config = serviceConfig(m_server.port());
+    config.speed = 1.0;
+    player.setService(config);
+    QVERIFY(player.hasService());
+    QCOMPARE(player.serviceId(), config.id);
+
+    config.speed = 2.0;
+    player.updateService(config);
+    player.feedText(QStringLiteral("Hello world."));
+    player.endOfText();
+
+    QTRY_COMPARE_WITH_TIMEOUT(m_server.requestCount(), 1, 5000);
+    QVERIFY(m_server.requestBodies().first().contains(QStringLiteral("\"speed\":2")));
 }
 
 QTEST_GUILESS_MAIN(TestTtsPlayer)

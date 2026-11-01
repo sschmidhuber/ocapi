@@ -39,9 +39,19 @@ public:
     [[nodiscard]] static QStringList availableOutputDeviceNames();
 
     void setService(const TtsServiceConfig &config);
+    // Re-applies a changed service config (e.g. the speed slider moved in
+    // the settings page) without recreating the client: the running playback
+    // is not interrupted, new requests pick the config up. When the service
+    // identity changes, prefer setService().
+    void updateService(const TtsServiceConfig &config);
     void setOutputDevice(const QString &deviceId);
 
     [[nodiscard]] bool isSpeaking() const;
+    // Identity of the configured service, for callers deciding between
+    // updateService() (same service, changed settings) and setService()
+    // (different service). Null when no service is configured.
+    [[nodiscard]] bool hasService() const { return m_client != nullptr; }
+    [[nodiscard]] QUuid serviceId() const { return m_config.id; }
 
     // Feeds the accumulated text of the currently streaming message. New
     // text since the last call is split into sentences and synthesized.

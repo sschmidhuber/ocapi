@@ -163,5 +163,5 @@ qt_add_resources(ocapi "ocapi_resources"
         ../resources/icons/settings-configure-symbolic.svg
         ../resources/icons/ai_chip.svg
         ../resources/icons/tools.svg
-        ../resources/icons/media-playback-start-symbolic.svg
+        ../resources/icons/audio-symbolic.svg
 )

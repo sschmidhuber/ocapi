@@ -35,6 +35,7 @@ from appium.options.common.base import AppiumOptions
 from appium.webdriver.common.appiumby import AppiumBy
 from selenium.common.exceptions import (
     NoSuchElementException,
+    TimeoutException,
     WebDriverException,
 )
 from selenium.webdriver.support.ui import WebDriverWait
@@ -179,17 +180,26 @@ class OcapiE2E(unittest.TestCase):
         self.assertNotIn("mock-model-2", picker.text)
         self.assertNotIn("Mock backend 2", picker.text)
 
-        # Click the picker button to open its menu. AT-SPI may not expose the
-        # popup as menu items in this driver, so instead of driving the menu
-        # we switch backend+model through the picker's own selection: click
-        # the button, then pick the entry by name in whatever container it
-        # is exposed in (menu, menuitem or plain item).
+        # Instead of driving the popup menu (not reliably exposed over
+        # AT-SPI), drive the selection programmatically: the picker is a
+        # QToolButton, so clicking it opens the menu; we then use the
+        # application's own accessible actions is not available, so we
+        # simulate the choice by clicking the picker and selecting via
+        # keyboard is unreliable too. Simplest robust path: read the
+        # picker, click it, and if the menu does not expose entries, fall
+        # back to clicking the entry found by name anywhere in the tree.
         picker.click()
-        backend2_item = self.wait_for("//*[contains(@name, 'Mock backend 2')]", timeout=10)
-        backend2_item.click()
-        # After picking the backend the picker shows its first model; open
-        # the submenu again to pick mock-model-2.
+        try:
+            backend2_item = self.wait_for(
+                "//*[contains(@name, 'Mock backend 2')]", timeout=5
+            )
+            backend2_item.click()
+        except TimeoutException:
+            # Menu not exposed: press Down/Enter to move through entries is
+            # unreliable, so fail loudly with the picker state.
+            self.fail(f"picker menu did not expose 'Mock backend 2'; picker={picker.text}")
         picker = self.wait_for("//*[contains(@name, 'Mock backend 2')]")
+        self.assertIn("mock-model", picker.text)  # first model of backend 2
         picker.click()
         model2 = self.wait_for("//*[contains(@name, 'mock-model-2')]", timeout=10)
         model2.click()

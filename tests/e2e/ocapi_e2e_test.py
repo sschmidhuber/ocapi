@@ -166,6 +166,34 @@ class OcapiE2E(unittest.TestCase):
         self.wait_for(f"//*[contains(@name, '{TOOL_REPLY_TEXT}')]", timeout=60)
         self.wait_for("//*[contains(@name, 'done')]", timeout=30)
 
+    def test_06_new_chat_keeps_backend_and_model(self):
+        # Two mock backends are seeded. The picker starts on the first one
+        # ("Mock backend | mock-model"). Switching the picker to the second
+        # backend and another model, then starting a new chat, must keep
+        # that backend+model instead of falling back to the first backend
+        # (issue #78 follow-up: persisted per-backend model selection).
+        picker = self.wait_for("//*[contains(@name, 'Mock backend')]")
+        self.assertIn("mock-model", picker.text)
+        self.assertNotIn("mock-model-2", picker.text)
+
+        # Click the picker button to open its menu, then choose the second
+        # backend and its model.
+        picker.click()
+        second_backend = self.wait_for("//*[contains(@name, 'Mock backend 2')]", timeout=10)
+        second_backend.click()
+        picker = self.wait_for("//*[contains(@name, 'Mock backend 2')]")
+        picker.click()
+        model2 = self.wait_for("//*[contains(@name, 'mock-model-2')]", timeout=10)
+        model2.click()
+
+        picker = self.wait_for("//*[contains(@name, 'Mock backend 2')]")
+        self.assertIn("mock-model-2", picker.text)
+
+        # New chat must show the same backend | model.
+        self.find_by_name("New chat").click()
+        new_picker = self.wait_for("//*[contains(@name, 'Mock backend 2')]", timeout=10)
+        self.assertIn("mock-model-2", new_picker.text)
+
 
 if __name__ == "__main__":
     unittest.main()

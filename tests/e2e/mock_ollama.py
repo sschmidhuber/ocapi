@@ -34,6 +34,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MODEL_NAME = "mock-model"
+SECOND_MODEL_NAME = "mock-model-2"
 REPLY_TEXT = "Hello from the mock backend!"
 REASONING_REPLY_TEXT = "Hello from the reasoning mock! I thought about it first."
 THINKING_TEXT = "The user greets me, so I should greet back."
@@ -59,7 +60,7 @@ class OllamaMockHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/api/tags":
-            self._send_json({"models": [{"name": MODEL_NAME}]})
+            self._send_json({"models": [{"name": MODEL_NAME}, {"name": SECOND_MODEL_NAME}]})
         else:
             self._send_json({"error": "not found"}, 404)
 

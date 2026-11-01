@@ -816,11 +816,11 @@ void MainWindow::refreshBackendSelector() {
     QString model = m_currentSession ? m_currentSession->model() : QString();
     if (model.isEmpty())
         model = lastModelForBackend(selectedId);
-    if (model.isEmpty()) {
-        // Nothing persisted for this backend yet: take the first known model.
-        const QStringList known = models.value(selectedId);
-        if (!known.isEmpty())
-            model = known.first();
+    if (model.isEmpty() && !m_detectedModels.value(selectedId).isEmpty()) {
+        // Nothing persisted for this backend yet, but models were already
+        // detected (the first refreshBackendSelector runs before
+        // detectModels()): take the first detected model.
+        model = m_detectedModels.value(selectedId).first();
     }
     if (m_currentSession && !model.isEmpty())
         m_currentSession->setModel(model);

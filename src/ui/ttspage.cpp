@@ -426,8 +426,6 @@ void TtsPage::updateUrlState() {
     // Piper has no voice concept (the model file selects the voice).
     const bool hasVoice = currentKind() != TtsServiceKind::Piper;
     m_voiceCombo->setVisible(hasVoice);
-    // Mistral's speech API has no speed parameter (pace is set via input
-    // tags); hide the slider instead of sending an unsupported field.
     const bool hasSpeed = TtsServiceConfig::supportsSpeed(currentKind());
     m_speedSlider->setVisible(hasSpeed);
     m_speedValueLabel->setVisible(hasSpeed);

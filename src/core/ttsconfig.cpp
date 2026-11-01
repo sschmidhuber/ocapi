@@ -144,14 +144,24 @@ bool TtsServiceConfig::supportsSpeed(TtsServiceKind kind) {
     switch (kind) {
     case TtsServiceKind::OpenAiApi:
     case TtsServiceKind::Groq:
+    case TtsServiceKind::Mistral:
     case TtsServiceKind::ElevenLabs:
     case TtsServiceKind::OpenAiTts:
     case TtsServiceKind::Piper:
         return true;
-    case TtsServiceKind::Mistral:
-        return false;
     }
     return false;
+}
+
+QString TtsServiceConfig::mistralPaceTag(double speed) {
+    // Voxtral pace tags, mapped from the linear speed factor.
+    if (speed < 0.75)
+        return QStringLiteral("[pace=very-slow]");
+    if (speed < defaultSpeed)
+        return QStringLiteral("[pace=slow]");
+    if (speed <= 1.5)
+        return speed > defaultSpeed ? QStringLiteral("[pace=fast]") : QString();
+    return QStringLiteral("[pace=very-fast]");
 }
 
 bool TtsServiceConfig::isCloud(TtsServiceKind kind) {

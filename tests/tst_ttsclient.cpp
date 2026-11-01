@@ -219,6 +219,7 @@ private slots:
     void omitsDefaultSpeedInPayload();
     void sendsElevenLabsSpeedInVoiceSettings();
     void omitsSpeedForMistral();
+    void sendsMistralPaceTagInInput();
     void sendsPiperLengthScale();
     void ignoresEmptyText();
     void cancelDropsQueue();
@@ -337,7 +338,7 @@ void TestTtsClient::omitsSpeedForMistral() {
     auto config = serviceConfig(m_server.port());
     config.kind = TtsServiceKind::Mistral;
     config.baseUrl = QStringLiteral("http://127.0.0.1:%1/v1").arg(m_server.port());
-    config.speed = 2.0;
+    config.speed = 1.0; // default: no pace tag either
     TtsClient client(config);
     QSignalSpy audio(&client, &TtsClient::audioReady);
 
@@ -346,6 +347,28 @@ void TestTtsClient::omitsSpeedForMistral() {
 
     const QString body = m_server.requestBodies().first();
     QVERIFY2(!body.contains(QStringLiteral("speed")), qPrintable(body));
+    QVERIFY2(!body.contains(QStringLiteral("[pace=")), qPrintable(body));
+    QVERIFY(body.contains(QStringLiteral("\"input\":\"Hello.\"")));
+}
+
+void TestTtsClient::sendsMistralPaceTagInInput() {
+    // Mistral has no "speed" request field; pace is set via an inline
+    // [pace=...] tag prepended to the input text.
+    QVERIFY(m_server.start());
+    auto config = serviceConfig(m_server.port());
+    config.kind = TtsServiceKind::Mistral;
+    config.baseUrl = QStringLiteral("http://127.0.0.1:%1/v1").arg(m_server.port());
+    config.speed = 2.0; // -> [pace=very-fast]
+    TtsClient client(config);
+    QSignalSpy audio(&client, &TtsClient::audioReady);
+
+    client.synthesize(QStringLiteral("Hello."));
+    QVERIFY(audio.wait(5000));
+
+    const QString body = m_server.requestBodies().first();
+    QVERIFY2(!body.contains(QStringLiteral("speed")), qPrintable(body));
+    QVERIFY2(body.contains(QStringLiteral("\"input\":\"[pace=very-fast] Hello.\"")),
+             qPrintable(body));
 }
 
 void TestTtsClient::unwrapsMistralAudioDataEnvelope() {

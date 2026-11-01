@@ -22,6 +22,7 @@ private slots:
     void availableVoicesPerKind();
     void speedJsonRoundTrip();
     void supportsSpeedPerKind();
+    void mistralPaceTagMapping();
 };
 
 void TestTtsConfig::defaults() {
@@ -181,13 +182,25 @@ void TestTtsConfig::speedJsonRoundTrip() {
 }
 
 void TestTtsConfig::supportsSpeedPerKind() {
-    // Mistral's /v1/audio/speech schema has no speed field.
-    QVERIFY(!TtsServiceConfig::supportsSpeed(TtsServiceKind::Mistral));
+    // Mistral has no "speed" request field, but pace is configurable via
+    // inline [pace=...] tags, so the slider is shown for all kinds.
+    QVERIFY(TtsServiceConfig::supportsSpeed(TtsServiceKind::Mistral));
     QVERIFY(TtsServiceConfig::supportsSpeed(TtsServiceKind::OpenAiApi));
     QVERIFY(TtsServiceConfig::supportsSpeed(TtsServiceKind::Groq));
     QVERIFY(TtsServiceConfig::supportsSpeed(TtsServiceKind::ElevenLabs));
     QVERIFY(TtsServiceConfig::supportsSpeed(TtsServiceKind::OpenAiTts));
     QVERIFY(TtsServiceConfig::supportsSpeed(TtsServiceKind::Piper));
+}
+
+void TestTtsConfig::mistralPaceTagMapping() {
+    QCOMPARE(TtsServiceConfig::mistralPaceTag(0.25), QStringLiteral("[pace=very-slow]"));
+    QCOMPARE(TtsServiceConfig::mistralPaceTag(0.5), QStringLiteral("[pace=very-slow]"));
+    QCOMPARE(TtsServiceConfig::mistralPaceTag(0.9), QStringLiteral("[pace=slow]"));
+    QCOMPARE(TtsServiceConfig::mistralPaceTag(1.0), QString());
+    QCOMPARE(TtsServiceConfig::mistralPaceTag(1.25), QStringLiteral("[pace=fast]"));
+    QCOMPARE(TtsServiceConfig::mistralPaceTag(1.5), QStringLiteral("[pace=fast]"));
+    QCOMPARE(TtsServiceConfig::mistralPaceTag(2.0), QStringLiteral("[pace=very-fast]"));
+    QCOMPARE(TtsServiceConfig::mistralPaceTag(4.0), QStringLiteral("[pace=very-fast]"));
 }
 
 QTEST_GUILESS_MAIN(TestTtsConfig)

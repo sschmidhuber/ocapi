@@ -52,10 +52,13 @@ struct TtsServiceConfig {
     static constexpr double minSpeed = 0.25;
     static constexpr double maxSpeed = 4.0;
     static constexpr double defaultSpeed = 1.0;
-    // Whether the provider's speech API accepts a speed factor. Mistral's
-    // /v1/audio/speech schema has no speed field (pace is controlled via
-    // input tags instead), so the slider is hidden for it.
+    // Whether the service's output speed is configurable from the settings
+    // page. Mistral has no "speed" request field, but pace can be set via
+    // inline [pace=...] tags in the input text, so it counts as supported.
     [[nodiscard]] static bool supportsSpeed(TtsServiceKind kind);
+    // Mistral pace tag for a speed factor ("[pace=very-slow]" ..
+    // "[pace=very-fast]"); empty at the default speed 1.0.
+    [[nodiscard]] static QString mistralPaceTag(double speed);
     [[nodiscard]] static bool isCloud(TtsServiceKind kind);
     [[nodiscard]] static bool requiresApiKey(TtsServiceKind kind);
     [[nodiscard]] static const QVector<TtsServiceKind> &allKinds();

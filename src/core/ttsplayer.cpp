@@ -286,9 +286,20 @@ void TtsPlayer::onDecodeFinished() {
 }
 
 bool TtsPlayer::ensureSink(int sampleRate, int channels) {
+    // A reused sink must be restarted: stop() leaves it in StoppedState,
+    // and writing to a stopped sink never makes it Active again, which
+    // would leave the player stuck in the speaking state forever (the
+    // settings page then reports "no response within 30 seconds" on every
+    // test after the first).
     if (m_sink && m_sink->format().sampleRate() == sampleRate &&
-        m_sink->format().channelCount() == channels)
+        m_sink->format().channelCount() == channels) {
+        if (m_sink->state() == QAudio::StoppedState || m_sink->state() == QAudio::IdleState) {
+            m_sinkIo = m_sink->start();
+            if (!m_sinkIo)
+                return false;
+        }
         return true;
+    }
     teardownSink();
 
     QAudioDevice device;

@@ -126,6 +126,7 @@ private slots:
     void skipsSynthesisWhenNoServiceConfigured();
     void leavesSpeakingStateOnServiceError();
     void restartAfterStopRefetchesFromScratch();
+    void repeatedTestsWithSpeedChangeWork();
 
 private:
     FakeTtsServer m_server;
@@ -227,6 +228,37 @@ void TestTtsPlayer::restartAfterStopRefetchesFromScratch() {
     // first (stopped) sentence is not re-sent.
     QVERIFY(m_server.requestBodies().first().contains(QStringLiteral("Second sentence.")));
     QVERIFY(!m_server.requestBodies().first().contains(QStringLiteral("First sentence")));
+}
+
+void TestTtsPlayer::repeatedTestsWithSpeedChangeWork() {
+    // Regression test for the settings-page voice test: after one test
+    // finishes, further tests (e.g. after changing the speed) must still
+    // synthesize and finish instead of hanging until the timeout.
+    QVERIFY(m_server.start());
+    TtsPlayer player;
+    QSignalSpy speakingSpy(&player, &TtsPlayer::speakingChanged);
+
+    auto runTest = [&](double speed) {
+        auto config = serviceConfig(m_server.port());
+        config.speed = speed;
+        player.setService(config); // like TtsPage::onTestService
+        player.feedText(QStringLiteral("This is a test of the text to speech service."));
+        player.endOfText();
+    };
+
+    runTest(1.0);
+    QTRY_VERIFY_WITH_TIMEOUT(!player.isSpeaking(), 5000);
+    QCOMPARE(m_server.requestCount(), 1);
+
+    runTest(2.0);
+    QTRY_COMPARE_WITH_TIMEOUT(m_server.requestCount(), 2, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(!player.isSpeaking(), 5000);
+
+    runTest(1.0); // back to moderate
+    QTRY_COMPARE_WITH_TIMEOUT(m_server.requestCount(), 3, 5000);
+    QTRY_VERIFY_WITH_TIMEOUT(!player.isSpeaking(), 5000);
+
+    QVERIFY(speakingSpy.count() >= 6); // true/false per test
 }
 
 QTEST_GUILESS_MAIN(TestTtsPlayer)

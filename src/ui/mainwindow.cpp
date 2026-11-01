@@ -818,9 +818,16 @@ void MainWindow::refreshBackendSelector() {
         model = lastModelForBackend(selectedId);
     if (model.isEmpty() && !m_detectedModels.value(selectedId).isEmpty()) {
         // Nothing persisted for this backend yet, but models were already
-        // detected (the first refreshBackendSelector runs before
-        // detectModels()): take the first detected model.
+        // detected: take the first detected model.
         model = m_detectedModels.value(selectedId).first();
+    }
+    if (model.isEmpty()) {
+        // Nothing persisted and nothing detected yet (detectModels() runs
+        // after the first refresh): pick the first known model so the label
+        // shows one as soon as detection completes.
+        const QStringList known = models.value(selectedId);
+        if (!known.isEmpty())
+            model = known.first();
     }
     if (m_currentSession && !model.isEmpty())
         m_currentSession->setModel(model);
@@ -883,6 +890,15 @@ void MainWindow::onModelsDetected(const QStringList &models) {
             cached.append(model);
     m_detectedModels.insert(backendId, cached);
     addModelsToPicker(backendId, models);
+    // If no model is selected yet (fresh backend, nothing persisted), take
+    // the first detected one so the picker shows "Backend | model".
+    if (m_modelPicker->currentModel().isEmpty() && !cached.isEmpty()) {
+        const QString first = cached.first();
+        m_modelPicker->setBackendAndModel(m_modelPicker->backendName(), backendId, first);
+        if (m_currentSession)
+            m_currentSession->setModel(first);
+        saveLastModelForBackend(backendId, first);
+    }
 }
 
 double MainWindow::throughputFor(const QUuid &messageId) {

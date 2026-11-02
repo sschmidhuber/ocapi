@@ -38,7 +38,8 @@
   .msg .thinking { color: var(--muted); }
   .msg .thinking summary { cursor: pointer; font-style: italic; user-select: none;
     display: flex; align-items: center; gap: 6px; padding: 2px 0; }
-  .msg .thinking summary .chev { display: inline-block; transition: transform 0.15s; }
+  .msg .thinking summary .chev { width: 12px; height: 12px; display: inline-block;
+    transition: transform 0.15s; }
   .msg .thinking[open] summary .chev { transform: rotate(90deg); }
   .msg .thinking .spinner { display: inline-block; width: 12px; height: 12px;
     border: 2px solid var(--border); border-top-color: var(--muted); border-radius: 50%;
@@ -50,7 +51,8 @@
   .msg .toolcall { color: var(--muted); }
   .msg .toolcall summary { cursor: pointer; user-select: none;
     display: flex; align-items: center; gap: 6px; padding: 2px 0; }
-  .msg .toolcall summary .chev { display: inline-block; transition: transform 0.15s; }
+  .msg .toolcall summary .chev { width: 12px; height: 12px; display: inline-block;
+    transition: transform 0.15s; }
   .msg .toolcall[open] summary .chev { transform: rotate(90deg); }
   .msg .toolcall summary .tc-name { font-family: monospace; }
   .msg .toolcall summary .spinner { display: inline-block; width: 12px; height: 12px;
@@ -191,7 +193,7 @@
         d = document.createElement('details');
         d.className = 'toolcall';
         d.dataset.callId = call.id;
-        d.innerHTML = '<summary><span class="chev">\\u25B8</span>' +
+        d.innerHTML = '<summary><svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m10 3-5 5 5 5 1-1-4-4 4-4z"/></svg>' +
                       '<span class="tc-name"></span>' +
                       '<span class="spinner" style="display:none"></span></summary>' +
                       '<div class="tc-body">' +
@@ -236,12 +238,14 @@
         el.style.display = 'none';
       el.innerHTML = (role === 'assistant'
                        ? '<details class="thinking" style="display:none"><summary>' +
-                         '<span class="chev">\u25B8</span><span class="tlabel">Thinking</span>' +
+                         '<svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m10 3-5 5 5 5 1-1-4-4 4-4z"/></svg><span class="tlabel">Thinking</span>' +
                          '<span class="spinner" style="display:none"></span></summary>' +
                          '<div class="reasoning-body"></div></details>'
                        : '') +
                      '<div class="body"></div>';
-      if (role === 'user' || role === 'assistant') {
+      // The copy button exists only under the assistant's answer and copies
+      // only that answer's content (el.dataset.raw of this message).
+      if (role === 'assistant') {
         const actions = document.createElement('div');
         actions.className = 'actions';
         const btn = document.createElement('button');
@@ -253,10 +257,8 @@
         });
         el.appendChild(actions);
         actions.appendChild(btn);
-        // Hide copy button for assistant messages during streaming
-        if (role === 'assistant') {
-          btn.style.display = 'none';
-        }
+        // Hide the copy button while the answer is still streaming.
+        btn.style.display = 'none';
       }
       document.getElementById('log').appendChild(el);
     }

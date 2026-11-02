@@ -7,12 +7,12 @@
 <style id="theme">
   :root {
     --bg: #ffffff; --fg: #1b1b1b; --muted: #6a6a6a; --bubble-user: #d6e9ff;
-    --bubble-assistant: #f2f2f2; --border: #d0d0d0; --code-bg: #f0f0f0;
+    --border: #d0d0d0; --code-bg: #f0f0f0;
     --link: #2a82da; --accent: #3a7bd5;
   }
   html.dark {
     --bg: #1e1e1e; --fg: #e0e0e0; --muted: #9a9a9a; --bubble-user: #2d4a6b;
-    --bubble-assistant: #2a2a2a; --border: #444; --code-bg: #2d2d2d;
+    --border: #444; --code-bg: #2d2d2d;
     --link: #6aa9ff; --accent: #5b9bd5;
   }
   html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
@@ -21,7 +21,8 @@
   .msg { margin: 10px 0; padding: 8px 12px; border-radius: 8px; max-width: 92%;
     overflow-wrap: break-word; }
   .msg.user { background: var(--bubble-user); margin-left: auto; }
-  .msg.assistant { background: var(--bubble-assistant); margin-right: auto; }
+  .msg.assistant { background: transparent; padding: 4px 0; max-width: 100%;
+    margin-right: auto; }
   .msg.tool { background: transparent; border: 1px solid var(--border);
     color: var(--muted); font-size: 12px; }
   .msg .role { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
@@ -49,7 +50,26 @@
   .cursor::after { content: "\2588"; animation: blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   .katex-display { margin: 8px 0; }
+  .msg .actions { margin-top: 4px; display: flex; align-items: center; gap: 8px; }
+  .msg .actions .copy-btn { color: var(--muted);
+    background: transparent; border: 1px solid var(--border); border-radius: 4px;
+    padding: 2px; cursor: pointer; width: 24px; height: 24px;
+    display: inline-flex; align-items: center; justify-content: center; }
+  .msg .actions .copy-btn:hover { color: var(--fg); border-color: var(--muted); }
+  .msg .actions .copy-btn svg.icon { width: 16px; height: 16px; }
 </style>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>
+  // Initialized asynchronously; the C++ side pushes messages only after the
+  // page finished loading, but clicks can also arrive before the channel is
+  // up, so every bridge use must handle a null bridge.
+  window.qtBridge = null;
+  if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+    new QWebChannel(qt.webChannelTransport, function(channel) {
+      window.qtBridge = channel.objects.qtBridge;
+    });
+  }
+</script>
 <script src="marked.min.js"></script>
 <script src="katex.min.js"></script>
 <script src="auto-render.min.js"></script>
@@ -80,6 +100,42 @@
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  function showCopied(el) {
+    const copyBtn = el.querySelector('.copy-btn');
+    if (!copyBtn) return;
+    copyBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>';
+    copyBtn.style.color = 'var(--accent)';
+    clearTimeout(copyBtn._timer);
+    copyBtn._timer = setTimeout(function() {
+      copyBtn.style.color = '';
+      copyBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15 h-1.5 a1 1 0 0 1 -1 -1 v-10.5 a1 1 0 0 1 1 -1 h10.5 a1 1 0 0 1 1 1 v1.5"/></g></svg>';
+    }, 1500);
+  }
+
+  // Copies a message's raw (markdown) content through the Qt clipboard via
+  // the web channel bridge, with JS clipboard fallbacks.
+  function copyMessageContent(id) {
+    const el = document.getElementById('msg-' + id);
+    if (!el) return;
+    const text = el.dataset.raw || '';
+    if (!text) return;
+    if (window.qtBridge && window.qtBridge.copyToClipboard) {
+      window.qtBridge.copyToClipboard(text);
+      showCopied(el);
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() { showCopied(el); },
+                                                function() {});
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showCopied(el);
+    }
+  }
+
   // Append or update one message. id = message id; role: user|assistant|tool
   function setMessage(id, role, content, streaming, thinking, reasoningStreaming) {
     let el = document.getElementById('msg-' + id);
@@ -95,14 +151,37 @@
                          '<div class="reasoning-body"></div></details>'
                        : '') +
                      '<div class="body"></div>';
+      if (role === 'user' || role === 'assistant') {
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const btn = document.createElement('button');
+        btn.className = 'copy-btn';
+        btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15 h-1.5 a1 1 0 0 1 -1 -1 v-10.5 a1 1 0 0 1 1 -1 h10.5 a1 1 0 0 1 1 1 v1.5"/></g></svg>';
+        btn.addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          copyMessageContent(id);
+        });
+        el.appendChild(actions);
+        actions.appendChild(btn);
+        // Hide copy button for assistant messages during streaming
+        if (role === 'assistant') {
+          btn.style.display = 'none';
+        }
+      }
       document.getElementById('log').appendChild(el);
     }
+    el.dataset.raw = content;
     const body = el.querySelector('.body');
     if (role === 'user') {
       body.textContent = content;
     } else {
       body.innerHTML = renderMarkdown(content);
       if (streaming) body.classList.add('cursor'); else body.classList.remove('cursor');
+    }
+    // Show copy button for assistant messages only when streaming is done
+    if (role === 'assistant' && !streaming) {
+      const copyBtn = el.querySelector('.copy-btn');
+      if (copyBtn) copyBtn.style.display = '';
     }
     if (role === 'assistant') {
       const th = el.querySelector('.thinking');

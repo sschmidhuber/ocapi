@@ -2,6 +2,8 @@
 
 #include "core/message.h"
 
+#include <QClipboard>
+#include <QGuiApplication>
 #include <QVector>
 #include <QWebEngineView>
 
@@ -10,7 +12,9 @@ class QWebChannel;
 namespace ocapi {
 class ChatSession;
 
-// Bridge object exposed to the chat page's JavaScript (scroll-to-top signal).
+// Bridge object exposed to the chat page's JavaScript: the page reports
+// scroll-to-top ("load older" detection) and asks for clipboard copies of
+// message content (QWebEngine cannot write the clipboard from qrc pages).
 class WebChatBridge : public QObject {
     Q_OBJECT
 public:
@@ -19,6 +23,9 @@ signals:
     void scrolledToTop();
 public slots:
     void notifyScrolledToTop() { emit scrolledToTop(); }
+    static void copyToClipboard(const QString &text) {
+        QGuiApplication::clipboard()->setText(text);
+    }
 };
 
 // Conversation area rendered by a QWebEngineView: full markdown via marked.js,

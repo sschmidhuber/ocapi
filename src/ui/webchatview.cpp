@@ -2,6 +2,8 @@
 
 #include "ui/webchatview.h"
 
+#include <QClipboard>
+#include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>

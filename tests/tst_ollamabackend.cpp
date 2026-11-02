@@ -103,6 +103,7 @@ private slots:
     void toolCallsIncludedInConversationHistory();
     void toolsSentOnlyWhenEnabled();
     void reasoningIsNotSentBackInConversationHistory();
+    void sendMessageContinuesExistingAssistantMessage();
 
 private:
     FakeOllamaServer m_server;
@@ -320,6 +321,33 @@ void TestOllamaBackend::reasoningIsNotSentBackInConversationHistory() {
     QVERIFY(!replayed.value(QLatin1String("content"))
                  .toString()
                  .contains(QLatin1String("secret chain of thought")));
+}
+
+// A tool-call round must continue the same assistant message instead of
+// appending a new one: one assistant turn = one message in the chat.
+void TestOllamaBackend::sendMessageContinuesExistingAssistantMessage() {
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"Round two"},"done":true})")});
+
+    OllamaBackend backend(ollamaConfig(m_server.port()));
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hello"));
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+    const QUuid firstId = session.messages().constLast().id;
+    const qsizetype countAfterFirst = session.messages().size();
+
+    backend.sendMessage(&session, QStringLiteral("mock-model"), firstId);
+    QCOMPARE(session.messages().size(), countAfterFirst); // no new message appended
+    QCOMPARE(session.messages().constLast().id, firstId);
+    QVERIFY(session.messages().constLast().streaming); // resumed as streaming
+
+    QSignalSpy tokenSpy(&backend, &IBackend::tokenReceived);
+    QTRY_VERIFY_WITH_TIMEOUT(tokenSpy.count() >= 1, 10000);
+    QCOMPARE(tokenSpy.last().at(1).toString(), QStringLiteral("Round two"));
+    QCOMPARE(session.messages().constLast().id, firstId);
 }
 
 QTEST_GUILESS_MAIN(TestOllamaBackend)

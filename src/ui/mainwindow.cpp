@@ -1039,8 +1039,10 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
     // The backend appends the assistant message inside sendMessage().
     if (m_currentSession->messages().size() > count) {
         const Message &assistant = m_currentSession->messages().constLast();
-        if (assistant.role == Role::Assistant)
+        if (assistant.role == Role::Assistant) {
             m_streamedMessageId = assistant.id;
+            m_turnAssistantMessageId = assistant.id;
+        }
     }
 }
 
@@ -1171,8 +1173,18 @@ void MainWindow::onToolCallsRequested(const QUuid &messageId, const QVector<Tool
         return;
     // Record the requested tool calls on the assistant message so the chat UI
     // can render them (collapsed, with a progress indicator) and the
-    // conversation history stays complete.
-    m_currentSession->setToolCalls(messageId, toolCalls);
+    // conversation history stays complete. Tool-call rounds continue the same
+    // assistant message, so append to the calls earlier rounds requested to
+    // keep them in call order.
+    QVector<ToolCall> allCalls;
+    for (const auto &message : m_currentSession->messages()) {
+        if (message.id == messageId) {
+            allCalls = message.toolCalls;
+            break;
+        }
+    }
+    allCalls += toolCalls;
+    m_currentSession->setToolCalls(messageId, allCalls);
     persistToolCalls(m_currentSession, messageId);
     runToolCalls(m_currentSession, messageId, toolCalls);
 }
@@ -1290,13 +1302,10 @@ void MainWindow::sendConversationAfterToolResults(ChatSession *session) {
     m_sendButton->setVisible(false);
     m_stopButton->setVisible(true);
     statusBar()->showMessage(tr("Generating…"));
-    const qsizetype count = session->messages().size();
-    m_backend->sendMessage(session, model);
-    if (session->messages().size() > count) {
-        const Message &assistant = session->messages().constLast();
-        if (assistant.role == Role::Assistant)
-            m_streamedMessageId = assistant.id;
-    }
+    // Continue the same assistant message: the new round's thinking, tool
+    // calls and answer text all belong to the one message of this turn.
+    m_backend->sendMessage(session, model, m_turnAssistantMessageId);
+    m_streamedMessageId = m_turnAssistantMessageId;
 }
 
 void MainWindow::onMcpPermissionRequested(const QString &callKey, const QString &serverName,

@@ -19,7 +19,8 @@ public:
     ~AnthropicBackend() override;
 
     void listModels() override;
-    void sendMessage(ChatSession *session, const QString &model) override;
+    void sendMessage(ChatSession *session, const QString &model,
+                     const QUuid &continueMessageId = {}) override;
     void cancel() override;
 
 private:

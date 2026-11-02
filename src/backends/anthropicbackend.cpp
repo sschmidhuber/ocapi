@@ -77,15 +77,15 @@ void AnthropicBackend::listModels() {
     });
 }
 
-void AnthropicBackend::sendMessage(ChatSession *session, const QString &model) {
+void AnthropicBackend::sendMessage(ChatSession *session, const QString &model,
+                                   const QUuid &continueMessageId) {
     cancel();
     // The assistant message is streaming from the moment it exists: the
     // reply is being generated even before the first token arrives (reasoning
     // models can think for a long time), and the chat must not yet show the
     // copy button that belongs to a finished message.
-    m_currentMessageId = session->appendMessage(Role::Assistant, {}, true).id;
-    m_accumulated.clear();
-    m_accumulatedReasoning.clear();
+    m_currentMessageId =
+        beginAssistantMessage(session, continueMessageId, m_accumulated, m_accumulatedReasoning);
 
     QString systemPrompt;
     QJsonArray messages;

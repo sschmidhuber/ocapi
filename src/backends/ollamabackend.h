@@ -19,7 +19,8 @@ public:
     ~OllamaBackend() override;
 
     void listModels() override;
-    void sendMessage(ChatSession *session, const QString &model) override;
+    void sendMessage(ChatSession *session, const QString &model,
+                     const QUuid &continueMessageId = {}) override;
     void cancel() override;
     [[nodiscard]] bool supportsTools() const override;
     void setAvailableTools(const QJsonArray &tools) override;

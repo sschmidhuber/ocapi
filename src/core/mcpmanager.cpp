@@ -2,6 +2,7 @@
 
 #include "backends/mcpclient.h"
 #include "core/chatsession.h"
+#include "core/tooldebug.h"
 
 #include <algorithm>
 
@@ -196,13 +197,24 @@ bool McpManager::splitToolName(const QString &namespacedName, QUuid &serverId,
 }
 
 bool McpManager::executeToolCall(ChatSession *session, const ToolCall &call) {
+    using toolDebug::log;
+    if (toolDebug::enabled()) {
+        log(QStringLiteral("executeToolCall: id=%1 name=%2 args=%3")
+                .arg(call.id, call.name,
+                     QString::fromUtf8(
+                         QJsonDocument(call.arguments).toJson(QJsonDocument::Compact))));
+    }
     QUuid serverId;
     QString toolName;
     if (!splitToolName(call.name, serverId, toolName)) {
+        log(QStringLiteral("  -> unknown tool, failing synchronously"));
         appendToolResultMessage(session, call, tr("Unknown MCP tool \"%1\".").arg(call.name), true);
         return true;
     }
     const auto permission = m_registry->permissionForTool(serverId, toolName);
+    log(QStringLiteral("  -> split ok: serverId=%1 tool=%2 permission=%3")
+            .arg(serverId.toString(QUuid::WithoutBraces), toolName)
+            .arg(static_cast<int>(permission)));
     if (permission == McpPermission::Off) {
         appendToolResultMessage(session, call,
                                 tr("Tool \"%1\" is disabled by the user.").arg(toolName), true);
@@ -216,6 +228,7 @@ bool McpManager::executeToolCall(ChatSession *session, const ToolCall &call) {
     }
     auto it = m_servers.find(serverIdString(serverId));
     if (it == m_servers.end() || !it->client || !it->client->isConnected()) {
+        log(QStringLiteral("  -> server not connected, failing synchronously"));
         appendToolResultMessage(session, call,
                                 tr("MCP server \"%1\" is not connected.").arg(config->name), true);
         return true;
@@ -223,11 +236,15 @@ bool McpManager::executeToolCall(ChatSession *session, const ToolCall &call) {
     if (permission == McpPermission::Ask) {
         const QString callKey = QUuid::createUuid().toString(QUuid::WithoutBraces);
         m_pendingPermissions.insert(callKey, PendingPermission{session, call, config->name});
+        log(QStringLiteral("  -> permission=Ask, emitting permissionRequested (callKey=%1)")
+                .arg(callKey));
         emit permissionRequested(callKey, config->name, toolName, call.arguments);
         return false;
     }
     const QString callKey = QUuid::createUuid().toString(QUuid::WithoutBraces);
     m_pendingCalls.insert(callKey, PendingCall{session, call, call.name});
+    log(QStringLiteral("  -> sending tools/call to server %1 (callKey=%2)")
+            .arg(config->name, callKey));
     it->client->callTool(toolName, call.arguments);
     return true;
 }
@@ -259,6 +276,11 @@ void McpManager::decidePermission(const QString &callKey, bool allowOnce) {
 
 void McpManager::onToolResult(ServerEntry &entry, const QString &toolName,
                               const McpToolResult &result) {
+    if (toolDebug::enabled())
+        toolDebug::log(QStringLiteral("toolResult from %1: isError=%2 textLen=%3 text=%4")
+                           .arg(toolName)
+                           .arg(result.isError)
+                           .arg(result.text.size(), result.text.left(300)));
     const QString serverId = entry.client ? serverIdString(entry.client->config().id) : QString();
     const QString namespacedName = [this, &serverId, &toolName]() {
         const auto *config = m_registry->find(QUuid(serverId));
@@ -279,6 +301,12 @@ void McpManager::onToolResult(ServerEntry &entry, const QString &toolName,
 
 void McpManager::appendToolResultMessage(ChatSession *session, const ToolCall &call,
                                          const QString &text, bool isError) {
+    if (toolDebug::enabled())
+        toolDebug::log(
+            QStringLiteral("appendToolResultMessage: callId=%1 name=%2 isError=%3 text=%4")
+                .arg(call.id, call.name)
+                .arg(isError)
+                .arg(text.left(300)));
     if (!session)
         return;
     Message message;

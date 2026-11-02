@@ -128,6 +128,7 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model,
     }
     systemPrompt = systemPrompt.trimmed();
 
+    debugLogRequest(QStringLiteral("GeminiBackend"), contents);
     QJsonObject payload{
         {QStringLiteral("contents"), contents},
     };

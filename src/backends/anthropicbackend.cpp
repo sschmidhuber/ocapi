@@ -129,6 +129,7 @@ void AnthropicBackend::sendMessage(ChatSession *session, const QString &model,
     }
     systemPrompt = systemPrompt.trimmed();
 
+    debugLogRequest(QStringLiteral("AnthropicBackend"), messages);
     QJsonObject payload{
         {QStringLiteral("model"), model},
         {QStringLiteral("messages"), messages},

@@ -116,6 +116,7 @@ void OllamaBackend::sendMessage(ChatSession *session, const QString &model,
         messages.append(toOllamaMessage(message));
     }
 
+    debugLogRequest(QStringLiteral("OllamaBackend"), messages);
     QJsonObject payload{
         {QStringLiteral("model"), model},
         {QStringLiteral("messages"), messages},

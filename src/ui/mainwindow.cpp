@@ -3,6 +3,7 @@
 #include "backends/backendfactory.h"
 #include "backends/ibackend.h"
 #include "core/chatsession.h"
+#include "core/tooldebug.h"
 #include "storage/chatdatabase.h"
 #include "ui/composer.h"
 #include "ui/settingsdialog.h"
@@ -1169,6 +1170,20 @@ void MainWindow::disconnectBackend() {
 }
 
 void MainWindow::onToolCallsRequested(const QUuid &messageId, const QVector<ToolCall> &toolCalls) {
+    if (toolDebug::enabled()) {
+        QJsonArray calls;
+        for (const auto &call : toolCalls) {
+            calls.append(QJsonObject{
+                {QStringLiteral("id"), call.id},
+                {QStringLiteral("name"), call.name},
+                {QStringLiteral("arguments"), call.arguments},
+            });
+        }
+        toolDebug::log(
+            QStringLiteral("toolCallsRequested: messageId=%1 calls=%2")
+                .arg(messageId.toString(QUuid::WithoutBraces),
+                     QString::fromUtf8(QJsonDocument(calls).toJson(QJsonDocument::Compact))));
+    }
     if (!m_currentSession || toolCalls.isEmpty())
         return;
     // Record the requested tool calls on the assistant message so the chat UI
@@ -1279,6 +1294,11 @@ void MainWindow::sendConversationAfterToolResults(ChatSession *session) {
         return; // already continued
     if (!session || session != m_currentSession)
         return;
+    if (toolDebug::enabled()) {
+        toolDebug::log(QStringLiteral("sendConversationAfterToolResults: continuing message %1")
+                           .arg(m_turnAssistantMessageId.toString(QUuid::WithoutBraces)));
+        toolDebug::logSession(session, QStringLiteral("session before next round"));
+    }
     m_runningTools = false;
     m_toolSession = nullptr;
     // Send the conversation (now including tool results) back to the model.

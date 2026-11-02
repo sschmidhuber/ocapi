@@ -166,9 +166,11 @@ void OpenAiApiBackend::sendMessage(ChatSession *session, const QString &model,
     m_argumentsBuffer.clear();
     m_hasToolCalls = false;
 
+    const QJsonArray requestMessages = conversationToJson(session, m_currentMessageId);
+    debugLogRequest(QStringLiteral("OpenAiApiBackend"), requestMessages);
     QJsonObject payload{
         {QStringLiteral("model"), model},
-        {QStringLiteral("messages"), conversationToJson(session, m_currentMessageId)},
+        {QStringLiteral("messages"), requestMessages},
         {QStringLiteral("stream"), true},
     };
     if (m_toolsEnabled) {

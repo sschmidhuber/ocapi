@@ -3,6 +3,7 @@
 #include "core/backendconfig.h"
 #include "core/chatsession.h"
 #include "core/message.h"
+#include "core/tooldebug.h"
 
 #include <QJsonArray>
 #include <QObject>
@@ -77,6 +78,17 @@ protected:
         accumulated.clear();
         accumulatedReasoning.clear();
         return session->appendMessage(Role::Assistant, {}, true).id;
+    }
+
+    // With OCAPI_DEBUG_TOOLS set, dumps the exact messages array sent to the
+    // model, so it is visible whether tool results are in the context.
+    static void debugLogRequest(const QString &backendName, const QJsonArray &messages) {
+        if (toolDebug::enabled()) {
+            toolDebug::log(backendName + QStringLiteral(" request messages (%1): %2")
+                                             .arg(messages.size(),
+                                                  QString::fromUtf8(QJsonDocument(messages).toJson(
+                                                      QJsonDocument::Compact))));
+        }
     }
 
     BackendConfig m_config;

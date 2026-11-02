@@ -85,9 +85,9 @@ protected:
     static void debugLogRequest(const QString &backendName, const QJsonArray &messages) {
         if (toolDebug::enabled()) {
             toolDebug::log(backendName + QStringLiteral(" request messages (%1): %2")
-                                             .arg(messages.size(),
-                                                  QString::fromUtf8(QJsonDocument(messages).toJson(
-                                                      QJsonDocument::Compact))));
+                                             .arg(static_cast<int>(messages.size()))
+                                             .arg(QString::fromUtf8(QJsonDocument(messages).toJson(
+                                                 QJsonDocument::Compact))));
         }
     }
 

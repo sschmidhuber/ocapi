@@ -7,14 +7,16 @@ namespace ocapi::toolDebug {
 void logSession(const ChatSession *session, const QString &label) {
     if (!enabled() || !session)
         return;
-    log(label + QStringLiteral(": %1 message(s)").arg(session->messages().size()));
+    log(label +
+        QStringLiteral(": %1 message(s)").arg(static_cast<int>(session->messages().size())));
     for (const auto &message : session->messages()) {
         QString line = QStringLiteral("  [%1] id=%2 streaming=%3 contentLen=%4")
                            .arg(message.roleName(), message.id.toString(QUuid::WithoutBraces))
                            .arg(message.streaming)
-                           .arg(message.content.size());
+                           .arg(static_cast<int>(message.content.size()));
         if (!message.reasoning.isEmpty())
-            line += QStringLiteral(" reasoningLen=%1").arg(message.reasoning.size());
+            line +=
+                QStringLiteral(" reasoningLen=%1").arg(static_cast<int>(message.reasoning.size()));
         if (message.hasToolCalls()) {
             QJsonArray calls;
             for (const auto &call : message.toolCalls) {
@@ -23,7 +25,7 @@ void logSession(const ChatSession *session, const QString &label) {
                     {QStringLiteral("name"), call.name},
                     {QStringLiteral("arguments"), call.arguments},
                     {QStringLiteral("status"), static_cast<int>(call.status)},
-                    {QStringLiteral("resultLen"), call.result.size()},
+                    {QStringLiteral("resultLen"), static_cast<int>(call.result.size())},
                 });
             }
             line +=

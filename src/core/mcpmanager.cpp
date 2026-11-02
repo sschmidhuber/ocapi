@@ -280,7 +280,8 @@ void McpManager::onToolResult(ServerEntry &entry, const QString &toolName,
         toolDebug::log(QStringLiteral("toolResult from %1: isError=%2 textLen=%3 text=%4")
                            .arg(toolName)
                            .arg(result.isError)
-                           .arg(result.text.size(), result.text.left(300)));
+                           .arg(static_cast<int>(result.text.size()))
+                           .arg(result.text.left(300)));
     const QString serverId = entry.client ? serverIdString(entry.client->config().id) : QString();
     const QString namespacedName = [this, &serverId, &toolName]() {
         const auto *config = m_registry->find(QUuid(serverId));

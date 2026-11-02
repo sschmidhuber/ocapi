@@ -83,6 +83,11 @@ public:
     [[nodiscard]] ChatSession *currentSession() const { return m_currentSession; }
     void startNewChat() { onNewChat(); }
     [[nodiscard]] BackendRegistry &registryForTest() { return m_registry; }
+    // Simulates the backend requesting MCP tool calls on the current session.
+    void simulateToolCallsForTest(const QVector<ToolCall> &calls) {
+        if (m_currentSession)
+            onToolCallsRequested(QUuid::createUuid(), calls);
+    }
 
 protected:
     void showEvent(QShowEvent *event) override;
@@ -155,6 +160,7 @@ private:
     void runToolCalls(ChatSession *session, const QUuid &assistantMessageId,
                       const QVector<ToolCall> &toolCalls);
     void continueAfterToolResults(ChatSession *session);
+    void sendConversationAfterToolResults(ChatSession *session);
 
     BackendRegistry m_registry;
     SttRegistry m_sttRegistry;

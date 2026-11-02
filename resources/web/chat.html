@@ -36,7 +36,7 @@
   .msg blockquote { border-left: 3px solid var(--border); margin-left: 0;
     padding-left: 10px; color: var(--muted); }
   .msg .thinking { color: var(--muted); }
-  .msg .thinking summary { cursor: pointer; font-style: italic; user-select: none;
+  .msg .thinking summary { cursor: pointer; user-select: none;
     display: flex; align-items: center; gap: 6px; padding: 2px 0; }
   .msg .thinking summary .chev { width: 12px; height: 12px; display: inline-block;
     transition: transform 0.15s; }
@@ -193,7 +193,7 @@
         d = document.createElement('details');
         d.className = 'toolcall';
         d.dataset.callId = call.id;
-        d.innerHTML = '<summary><svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m10 3-5 5 5 5 1-1-4-4 4-4z"/></svg>' +
+        d.innerHTML = '<summary><svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m6 3 5 5-5 5-1-1 4-4-4-4z"/></svg>' +
                       '<span class="tc-name"></span>' +
                       '<span class="spinner" style="display:none"></span></summary>' +
                       '<div class="tc-body">' +
@@ -238,7 +238,7 @@
         el.style.display = 'none';
       el.innerHTML = (role === 'assistant'
                        ? '<details class="thinking" style="display:none"><summary>' +
-                         '<svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m10 3-5 5 5 5 1-1-4-4 4-4z"/></svg><span class="tlabel">Thinking</span>' +
+                         '<svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m6 3 5 5-5 5-1-1 4-4-4-4z"/></svg><span class="tlabel">Thinking</span>' +
                          '<span class="spinner" style="display:none"></span></summary>' +
                          '<div class="reasoning-body"></div></details>'
                        : '') +
@@ -270,8 +270,11 @@
       body.innerHTML = renderMarkdown(content);
       if (streaming) body.classList.add('cursor'); else body.classList.remove('cursor');
     }
-    // Show copy button for assistant messages only when streaming is done
-    if (role === 'assistant' && !streaming) {
+    // Show the copy button for assistant messages only when streaming is done
+    // and the message actually has answer content; a message that only
+    // requested tool calls (empty body) must not get a button below the
+    // tool-call row.
+    if (role === 'assistant' && !streaming && content) {
       const copyBtn = el.querySelector('.copy-btn');
       if (copyBtn) copyBtn.style.display = '';
     }

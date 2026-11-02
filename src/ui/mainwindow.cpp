@@ -24,6 +24,7 @@
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QStatusBar>
+#include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -1252,6 +1253,18 @@ void MainWindow::runToolCalls(ChatSession *session, const QUuid &assistantMessag
 }
 
 void MainWindow::continueAfterToolResults(ChatSession *session) {
+    // Defer to the next event-loop iteration: this can be reached synchronously
+    // from within the backend's toolCallsRequested emission (a synchronously
+    // failing tool call or a denied permission appends its tool result
+    // immediately, and the watcher in runToolCalls then lands here). Replacing
+    // m_backend below would destroy the emitting backend while its signal is
+    // still being delivered, corrupting the heap.
+    QTimer::singleShot(0, this, [this, session]() { sendConversationAfterToolResults(session); });
+}
+
+void MainWindow::sendConversationAfterToolResults(ChatSession *session) {
+    if (!m_runningTools)
+        return; // already continued
     if (!session || session != m_currentSession)
         return;
     m_runningTools = false;

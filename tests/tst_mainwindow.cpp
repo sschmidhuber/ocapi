@@ -18,6 +18,7 @@ class TestMainWindow : public QObject {
 private slots:
     void initTestCase();
     void newChatKeepsCurrentBackendAndModel();
+    void toolCallFailureAppendsToolMessageWithoutCrashing();
 
 private:
     QTemporaryDir m_home;
@@ -58,6 +59,36 @@ void TestMainWindow::newChatKeepsCurrentBackendAndModel() {
     QCOMPARE(next->backendId(), ollama.id.toString());
     QCOMPARE(next->model(), QStringLiteral("llama3.2"));
     Q_UNUSED(mistral);
+}
+
+// Regression test: a synchronously failing MCP tool call (unknown tool, no
+// server connected) appends a Role::Tool message from within the tool-call
+// handling. The continuation must be deferred to the event loop so the
+// backend object is never destroyed while its toolCallsRequested signal is
+// still being delivered (that use-after-free crashed the app with
+// "free(): invalid next size" / "invalid type id").
+void TestMainWindow::toolCallFailureAppendsToolMessageWithoutCrashing() {
+    MainWindow window;
+    window.show();
+    ChatSession *session = window.currentSession();
+    QVERIFY(session);
+
+    ToolCall call;
+    call.id = QStringLiteral("call_1");
+    call.name = QStringLiteral("no_such_server__no_such_tool");
+    window.simulateToolCallsForTest({call});
+
+    // The failure is reported synchronously as a tool message.
+    bool sawToolMessage = false;
+    for (const auto &message : session->messages()) {
+        if (message.role == Role::Tool && message.toolCallId == call.id)
+            sawToolMessage = true;
+    }
+    QVERIFY(sawToolMessage);
+
+    // Let the deferred continuation run; must not crash or hang.
+    QTest::qWait(100);
+    QVERIFY(window.currentSession() == session);
 }
 
 int main(int argc, char *argv[]) {

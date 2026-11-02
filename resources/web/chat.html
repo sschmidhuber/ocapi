@@ -56,9 +56,7 @@
     padding: 2px; cursor: pointer; width: 24px; height: 24px;
     display: inline-flex; align-items: center; justify-content: center; }
   .msg .actions .copy-btn:hover { color: var(--fg); border-color: var(--muted); }
-  .msg .actions .copy-btn svg { width: 16px; height: 16px; fill: currentColor; }
-  .msg .actions .copied { color: var(--accent); display: none; }
-  .msg .actions .copied svg { width: 16px; height: 16px; fill: currentColor; }
+  .msg .actions .copy-btn svg.icon { width: 16px; height: 16px; }
 </style>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script>
@@ -103,15 +101,14 @@
   }
 
   function showCopied(el) {
-    const hint = el.querySelector('.copied');
     const copyBtn = el.querySelector('.copy-btn');
-    if (!hint || !copyBtn) return;
-    copyBtn.style.display = 'none';
-    hint.style.display = 'inline-flex';
-    clearTimeout(hint._timer);
-    hint._timer = setTimeout(function() {
-      hint.style.display = 'none';
-      copyBtn.style.display = '';
+    if (!copyBtn) return;
+    copyBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>';
+    copyBtn.style.color = 'var(--accent)';
+    clearTimeout(copyBtn._timer);
+    copyBtn._timer = setTimeout(function() {
+      copyBtn.style.color = '';
+      copyBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15 h-1.5 a1 1 0 0 1 -1 -1 v-10.5 a1 1 0 0 1 1 -1 h10.5 a1 1 0 0 1 1 1 v1.5"/></g></svg>';
     }, 1500);
   }
 
@@ -159,17 +156,13 @@
         actions.className = 'actions';
         const btn = document.createElement('button');
         btn.className = 'copy-btn';
-        btn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15 h-1.5 a1 1 0 0 1 -1 -1 v-10.5 a1 1 0 0 1 1 -1 h10.5 a1 1 0 0 1 1 1 v1.5"/></g></svg>';
+        btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15 h-1.5 a1 1 0 0 1 -1 -1 v-10.5 a1 1 0 0 1 1 -1 h10.5 a1 1 0 0 1 1 1 v1.5"/></g></svg>';
         btn.addEventListener('click', function(ev) {
           ev.stopPropagation();
           copyMessageContent(id);
         });
-        const copied = document.createElement('span');
-        copied.className = 'copied';
-        copied.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>';
-        actions.appendChild(btn);
-        actions.appendChild(copied);
         el.appendChild(actions);
+        actions.appendChild(btn);
         // Hide copy button for assistant messages during streaming
         if (role === 'assistant') {
           btn.style.display = 'none';

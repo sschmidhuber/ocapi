@@ -340,11 +340,13 @@ void TestOllamaBackend::sendMessageContinuesExistingAssistantMessage() {
     const qsizetype countAfterFirst = session.messages().size();
 
     // Simulate a completed tool round: the assistant message carries the
-    // requested tool call and a tool-result message was appended after it.
+    // requested tool call (with some text, as a real turn has) and a
+    // tool-result message was appended after it.
     ToolCall call;
     call.id = QStringLiteral("call_1");
     call.name = QStringLiteral("echo");
     call.arguments = QJsonObject{{QStringLiteral("text"), QStringLiteral("hi")}};
+    session.updateMessage(firstId, QStringLiteral("Let me check."), false);
     session.setToolCalls(firstId, {call});
     Message toolResult;
     toolResult.role = Role::Tool;

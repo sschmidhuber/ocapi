@@ -339,15 +339,47 @@ void TestOllamaBackend::sendMessageContinuesExistingAssistantMessage() {
     const QUuid firstId = session.messages().constLast().id;
     const qsizetype countAfterFirst = session.messages().size();
 
+    // Simulate a completed tool round: the assistant message carries the
+    // requested tool call and a tool-result message was appended after it.
+    ToolCall call;
+    call.id = QStringLiteral("call_1");
+    call.name = QStringLiteral("echo");
+    call.arguments = QJsonObject{{QStringLiteral("text"), QStringLiteral("hi")}};
+    session.setToolCalls(firstId, {call});
+    Message toolResult;
+    toolResult.role = Role::Tool;
+    toolResult.toolCallId = call.id;
+    toolResult.toolName = call.name;
+    toolResult.content = QStringLiteral("echo: hi");
+    session.appendMessage(toolResult);
+
     backend.sendMessage(&session, QStringLiteral("mock-model"), firstId);
-    QCOMPARE(session.messages().size(), countAfterFirst); // no new message appended
-    QCOMPARE(session.messages().constLast().id, firstId);
-    QVERIFY(session.messages().constLast().streaming); // resumed as streaming
+    QCOMPARE(session.messages().size(), countAfterFirst + 1); // only the tool result is new
+    QCOMPARE(session.messages().constLast().role, Role::Tool);
+    QCOMPARE(session.messages().at(session.messages().size() - 2).id, firstId);
+    QVERIFY(session.messages().at(session.messages().size() - 2).streaming); // resumed
 
     QSignalSpy tokenSpy(&backend, &IBackend::tokenReceived);
     QTRY_VERIFY_WITH_TIMEOUT(tokenSpy.count() >= 1, 10000);
     QCOMPARE(tokenSpy.last().at(1).toString(), QStringLiteral("Round two"));
-    QCOMPARE(session.messages().constLast().id, firstId);
+
+    // The request must contain the assistant's tool_calls AND the tool
+    // result that was appended after the continued message; dropping either
+    // makes the model repeat the tool call forever.
+    const auto messages = m_server.lastRequest().value(QLatin1String("messages")).toArray();
+    bool sawAssistantToolCalls = false;
+    bool sawToolResult = false;
+    for (const auto &value : messages) {
+        const auto obj = value.toObject();
+        if (obj.value(QLatin1String("role")).toString() == QLatin1String("assistant") &&
+            obj.contains(QLatin1String("tool_calls")))
+            sawAssistantToolCalls = true;
+        if (obj.value(QLatin1String("role")).toString() == QLatin1String("tool") &&
+            obj.value(QLatin1String("content")).toString().contains(QLatin1String("echo: hi")))
+            sawToolResult = true;
+    }
+    QVERIFY(sawAssistantToolCalls);
+    QVERIFY(sawToolResult);
 }
 
 QTEST_GUILESS_MAIN(TestOllamaBackend)

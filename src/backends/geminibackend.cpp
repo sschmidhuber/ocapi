@@ -93,8 +93,13 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model,
     QString systemPrompt;
     QJsonArray contents;
     for (const auto &message : session->messages()) {
-        if (message.id == m_currentMessageId)
-            break;
+        // Skip the assistant message currently being generated only while it is
+        // still empty (initial send); once it carries tool calls it must be
+        // part of the conversation, and tool-result messages appended after
+        // it must stay in the conversation as well.
+        if (message.id == m_currentMessageId && message.content.isEmpty() &&
+            !message.hasToolCalls())
+            continue;
         if (!message.error.isEmpty())
             continue;
         if (message.role == Role::System) {

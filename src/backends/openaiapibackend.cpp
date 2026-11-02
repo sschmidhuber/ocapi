@@ -127,8 +127,12 @@ namespace {
 QJsonArray conversationToJson(const ChatSession *session, const QUuid &currentMessageId) {
     QJsonArray messages;
     for (const auto &message : session->messages()) {
-        if (message.id == currentMessageId)
-            break;
+        // Skip the assistant message currently being generated only while it is
+        // still empty (initial send); once it carries tool calls it must be
+        // part of the conversation, and tool-result messages appended after
+        // it must stay in the conversation as well.
+        if (message.id == currentMessageId && message.content.isEmpty() && !message.hasToolCalls())
+            continue;
         if (!message.error.isEmpty())
             continue;
         if (message.role == Role::Assistant && message.hasToolCalls()) {

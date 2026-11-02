@@ -6,9 +6,9 @@
 #include <QWebEngineView>
 
 class QWebChannel;
-class ChatSession;
 
 namespace ocapi {
+class ChatSession;
 
 // Bridge object exposed to the chat page's JavaScript (scroll-to-top signal).
 class WebChatBridge : public QObject {

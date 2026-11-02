@@ -73,6 +73,7 @@ add_test(NAME tst_settingsdialog COMMAND tst_settingsdialog)
 # like tst_settingsdialog and needs the UI sources it pulls in.
 add_executable(tst_mainwindow tst_mainwindow.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/mainwindow.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/webchatview.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/chatview.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/chatdelegate.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/composer.cpp
@@ -83,7 +84,7 @@ add_executable(tst_mainwindow tst_mainwindow.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/ttspage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/settingsdialog.cpp)
 target_include_directories(tst_mainwindow PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(tst_mainwindow PRIVATE ocapi-core Qt6::Test Qt6::Widgets)
+target_link_libraries(tst_mainwindow PRIVATE ocapi-core Qt6::Test Qt6::Widgets Qt6::WebEngineWidgets Qt6::WebChannel)
 add_test(NAME tst_mainwindow COMMAND tst_mainwindow)
 
 # The settings dialog shows themed icons with bundled SVGs from the app's

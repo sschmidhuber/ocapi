@@ -21,7 +21,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: 6.8.2
-          modules: qtmultimedia qtwebsockets
+          modules: qtmultimedia qtwebsockets qtwebengine qtwebchannel qtpositioning
 
       # Caches compiled object files so unchanged sources are not recompiled.
       # The key is derived from the CMake configuration so it stays stable
@@ -116,7 +116,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: 6.8.2
-          modules: qtmultimedia qtwebsockets
+          modules: qtmultimedia qtwebsockets qtwebengine qtwebchannel qtpositioning
 
       # Caches compiled object files so the E2E build reuses the build-test
       # job's cache (same sources, same compiler flags). Falls back to its own
@@ -257,13 +257,13 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev cmake ninja-build clang-tidy
+          sudo apt-get install -y libgl1-mesa-dev cmake ninja-build clang-tidy libnss3 libnspr4 libgbm1 libxcomposite1 libxdamage1 libxrandr2 libxkbcommon-x11-0 libxfixes3 libxrender1 libxkbfile1 libxtst6 libxi6 libxinerama1 libxcursor1 libxss1 libxkbcommon-dev
 
       - name: Install Qt6
         uses: jurplel/install-qt-action@v4
         with:
           version: 6.8.2
-          modules: qtmultimedia qtwebsockets
+          modules: qtmultimedia qtwebsockets qtwebengine qtwebchannel qtpositioning
 
       # Checks only the C++ translation units changed by this PR/push and
       # runs clang-tidy on them in parallel (one process per core), using

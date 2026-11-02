@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="katex.min.css">
+<link rel="stylesheet" href="highlight-github.css">
+<style id="theme">
+  :root {
+    --bg: #ffffff; --fg: #1b1b1b; --muted: #6a6a6a; --bubble-user: #d6e9ff;
+    --bubble-assistant: #f2f2f2; --border: #d0d0d0; --code-bg: #f0f0f0;
+    --link: #2a82da; --accent: #3a7bd5;
+  }
+  html.dark {
+    --bg: #1e1e1e; --fg: #e0e0e0; --muted: #9a9a9a; --bubble-user: #2d4a6b;
+    --bubble-assistant: #2a2a2a; --border: #444; --code-bg: #2d2d2d;
+    --link: #6aa9ff; --accent: #5b9bd5;
+  }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+    font-family: sans-serif; font-size: 14px; line-height: 1.5; }
+  #log { padding: 8px 12px 16px; }
+  .msg { margin: 10px 0; padding: 8px 12px; border-radius: 8px; max-width: 92%;
+    overflow-wrap: break-word; }
+  .msg.user { background: var(--bubble-user); margin-left: auto; }
+  .msg.assistant { background: var(--bubble-assistant); margin-right: auto; }
+  .msg.tool { background: transparent; border: 1px solid var(--border);
+    color: var(--muted); font-size: 12px; }
+  .msg .role { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+  .msg pre { background: var(--code-bg); padding: 8px; border-radius: 6px;
+    overflow-x: auto; }
+  .msg code { font-family: monospace; background: var(--code-bg); padding: 1px 4px;
+    border-radius: 4px; }
+  .msg pre code { background: transparent; padding: 0; }
+  .msg a { color: var(--link); }
+  .msg table { border-collapse: collapse; }
+  .msg th, .msg td { border: 1px solid var(--border); padding: 4px 8px; }
+  .msg blockquote { border-left: 3px solid var(--border); margin-left: 0;
+    padding-left: 10px; color: var(--muted); }
+  .msg .thinking { color: var(--muted); font-style: italic; border-left: 3px solid var(--border);
+    padding-left: 10px; }
+  .cursor::after { content: "\2588"; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .katex-display { margin: 8px 0; }
+</style>
+<script src="marked.min.js"></script>
+<script src="katex.min.js"></script>
+<script src="auto-render.min.js"></script>
+<script src="highlight.min.js"></script>
+<script>
+  marked.setOptions({ breaks: true, gfm: true, highlight: function(code, lang) {
+    if (lang && hljs.getLanguage(lang)) return hljs.highlight(code, {language: lang}).value;
+    return hljs.highlightAuto(code).value;
+  }});
+
+  function renderMarkdown(text) {
+    const html = marked.parse(text);
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    renderMathInElement(tmp, {
+      delimiters: [
+        {left: '$$', right: '$$', display: true},
+        {left: '\\[', right: '\\]', display: true},
+        {left: '\\(', right: '\\)', display: false},
+        {left: '$', right: '$', display: false}
+      ],
+      throwOnError: false
+    });
+    return tmp.innerHTML;
+  }
+
+  function esc(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // Append or update one message. id = message id; role: user|assistant|tool
+  function setMessage(id, role, content, streaming, thinking) {
+    let el = document.getElementById('msg-' + id);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'msg-' + id;
+      el.className = 'msg ' + role;
+      el.innerHTML = '<div class="role">' + esc(role) + '</div><div class="body"></div>' +
+                     (role === 'assistant' ? '<div class="thinking" style="display:none"></div>' : '');
+      document.getElementById('log').appendChild(el);
+    }
+    const body = el.querySelector('.body');
+    if (role === 'user') {
+      body.textContent = content;
+    } else {
+      body.innerHTML = renderMarkdown(content);
+      if (streaming) body.classList.add('cursor'); else body.classList.remove('cursor');
+    }
+    if (role === 'assistant') {
+      const th = el.querySelector('.thinking');
+      if (thinking) { th.style.display = ''; th.textContent = thinking; }
+      else th.style.display = 'none';
+    }
+    scrollToBottom();
+  }
+
+  function clearLog() { document.getElementById('log').innerHTML = ''; }
+
+  function scrollToBottom() {
+    window.scrollTo(0, document.body.scrollHeight);
+    // signal scroll position for "load older" detection
+    if (window.scrollY < 40 && window.qtBridge) window.qtBridge.notifyScrolledToTop();
+  }
+  window.addEventListener('scroll', function() {
+    if (window.scrollY < 40 && window.qtBridge) window.qtBridge.notifyScrolledToTop();
+  });
+
+  function setTheme(dark) {
+    document.documentElement.classList.toggle('dark', dark);
+  }
+</script>
+</head>
+<body>
+<div id="log"></div>
+</body>
+</html>

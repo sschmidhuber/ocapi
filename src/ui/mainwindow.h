@@ -27,7 +27,7 @@
 namespace ocapi {
 
 class ChatSession;
-class ChatView;
+class WebChatView;
 class Composer;
 class IBackend;
 class Sidebar;
@@ -186,7 +186,7 @@ private:
     int m_pendingToolRounds = 0;
 
     Sidebar *m_sidebar = nullptr;
-    ChatView *m_chatView = nullptr;
+    WebChatView *m_chatView = nullptr;
     Composer *m_composer = nullptr;
     QToolBar *m_toolBar = nullptr;
     QToolButton *m_newChatButton = nullptr;

@@ -61,8 +61,8 @@ protected:
     // Starts a new streaming assistant message, or resumes \p continueMessageId
     // when it is valid. Seeds the accumulation buffers from the existing
     // message so streamed tokens append to what earlier rounds produced.
-    QUuid beginAssistantMessage(ChatSession *session, const QUuid &continueMessageId,
-                                QString &accumulated, QString &accumulatedReasoning) {
+    static QUuid beginAssistantMessage(ChatSession *session, const QUuid &continueMessageId,
+                                       QString &accumulated, QString &accumulatedReasoning) {
         if (!continueMessageId.isNull()) {
             for (const auto &message : session->messages()) {
                 if (message.id == continueMessageId) {

@@ -363,7 +363,8 @@ void TestOllamaBackend::sendMessageContinuesExistingAssistantMessage() {
 
     QSignalSpy tokenSpy(&backend, &IBackend::tokenReceived);
     QTRY_VERIFY_WITH_TIMEOUT(tokenSpy.count() >= 1, 10000);
-    QCOMPARE(tokenSpy.last().at(1).toString(), QStringLiteral("Round two"));
+    // The continued round appends to the existing content.
+    QCOMPARE(tokenSpy.last().at(1).toString(), QStringLiteral("Let me check.Round two"));
 
     // The request must contain the assistant's tool_calls AND the tool
     // result that was appended after the continued message; dropping either

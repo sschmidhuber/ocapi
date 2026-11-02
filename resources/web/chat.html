@@ -162,6 +162,10 @@
         actions.appendChild(btn);
         actions.appendChild(copied);
         el.appendChild(actions);
+        // Hide copy button for assistant messages during streaming
+        if (role === 'assistant') {
+          btn.style.display = 'none';
+        }
       }
       document.getElementById('log').appendChild(el);
     }
@@ -172,6 +176,11 @@
     } else {
       body.innerHTML = renderMarkdown(content);
       if (streaming) body.classList.add('cursor'); else body.classList.remove('cursor');
+    }
+    // Show copy button for assistant messages only when streaming is done
+    if (role === 'assistant' && !streaming) {
+      const copyBtn = el.querySelector('.copy-btn');
+      if (copyBtn) copyBtn.style.display = '';
     }
     if (role === 'assistant') {
       const th = el.querySelector('.thinking');

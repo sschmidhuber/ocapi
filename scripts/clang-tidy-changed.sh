@@ -58,34 +58,27 @@ for file in $CHANGED; do
     cmake --build "$BUILD_DIR" --target "${target}_autogen" >/dev/null 2>&1 || true
 done
 cmake --build "$BUILD_DIR" --target ocapi-core_autogen ocapi_autogen >/dev/null 2>&1 || true
-# Sources whose .cpp contains a Q_OBJECT class include "<name>.moc"; the
-# autogen step above writes those into the target's autogen include dir.
-# Some CMake/Qt version combinations only emit them when the object itself is
-# built, so as a fallback also build the object file for changed sources that
-# reference their own .moc.
-for file in $CHANGED; do
-    name="$(basename "$file" .cpp)"
-    if grep -q "#include \"${name}\.moc\"" "$file" 2>/dev/null; then
-        # AUTOMOC writes <name>.moc into the target's autogen include dir.
-        # Generate it explicitly: find the moc binary shipped with the Qt
-        # installation and the autogen include dir, then run moc on the
-        # header that declares the cpp-local Q_OBJECT class.
-        header="$(dirname "$file")/${name}.h"
-        [ -f "$header" ] || continue
-        moc_bin="$(find "$BUILD_DIR" -name moc -type f | head -1)"
-        [ -n "$moc_bin" ] || moc_bin="$(command -v moc || true)"
-        [ -n "$moc_bin" ] || continue
-        autogen_inc="$(find "$BUILD_DIR" -type d -name include -path "*autogen*" | head -1)"
-        [ -n "$autogen_inc" ] || autogen_inc="$(dirname "$(find "$BUILD_DIR" -name mocs_compilation.cpp | head -1)")"
-        [ -n "$autogen_inc" ] || continue
-        "$moc_bin" "$header" -o "$autogen_inc/${name}.moc" >/dev/null 2>&1 || true
-    fi
-done
-
 run_tidy() {
     file="$1"
     build_dir="$2"
     log="$(mktemp)"
+    # Ensure cpp-local "<name>.moc" includes resolve: AUTOMOC writes them into
+    # the target's autogen include dir; generate any that are still missing
+    # (moc on the matching header) into that dir, which is on the -I path of
+    # the compile command.
+    name="$(basename "$file" .cpp)"
+    if grep -q "#include \"${name}\.moc\"" "$file" 2>/dev/null && \
+       ! find "$build_dir" -name "${name}.moc" -print -quit | grep -q .; then
+        header="$(dirname "$file")/${name}.h"
+        if [ -f "$header" ]; then
+            moc_bin="$(find "$build_dir" -name moc -type f | head -1)"
+            [ -n "$moc_bin" ] || moc_bin="$(command -v moc || true)"
+            autogen_inc="$(find "$build_dir" -type d -name include -path "*autogen*" | head -1)"
+            if [ -n "$moc_bin" ] && [ -n "$autogen_inc" ]; then
+                "$moc_bin" "$header" -o "$autogen_inc/${name}.moc" >/dev/null 2>&1 || true
+            fi
+        fi
+    fi
     # -warnings-as-errors='*' turns every check warning into a failure, so
     # the exit code reflects the tidy result (a bare clang-tidy run exits 0
     # even when it prints warnings).

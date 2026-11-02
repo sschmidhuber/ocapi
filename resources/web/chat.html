@@ -35,8 +35,17 @@
   .msg th, .msg td { border: 1px solid var(--border); padding: 4px 8px; }
   .msg blockquote { border-left: 3px solid var(--border); margin-left: 0;
     padding-left: 10px; color: var(--muted); }
-  .msg .thinking { color: var(--muted); font-style: italic; border-left: 3px solid var(--border);
-    padding-left: 10px; }
+  .msg .thinking { color: var(--muted); }
+  .msg .thinking summary { cursor: pointer; font-style: italic; user-select: none;
+    display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+  .msg .thinking summary .chev { display: inline-block; transition: transform 0.15s; }
+  .msg .thinking[open] summary .chev { transform: rotate(90deg); }
+  .msg .thinking .spinner { display: inline-block; width: 12px; height: 12px;
+    border: 2px solid var(--border); border-top-color: var(--muted); border-radius: 50%;
+    animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .msg .thinking .reasoning-body { font-style: italic; border-left: 3px solid var(--border);
+    padding: 4px 0 4px 10px; margin-top: 4px; white-space: pre-wrap; }
   .cursor::after { content: "\2588"; animation: blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   .katex-display { margin: 8px 0; }
@@ -72,14 +81,20 @@
   }
 
   // Append or update one message. id = message id; role: user|assistant|tool
-  function setMessage(id, role, content, streaming, thinking) {
+  function setMessage(id, role, content, streaming, thinking, reasoningStreaming) {
     let el = document.getElementById('msg-' + id);
     if (!el) {
       el = document.createElement('div');
       el.id = 'msg-' + id;
       el.className = 'msg ' + role;
-      el.innerHTML = '<div class="role">' + esc(role) + '</div><div class="body"></div>' +
-                     (role === 'assistant' ? '<div class="thinking" style="display:none"></div>' : '');
+      el.innerHTML = '<div class="role">' + esc(role) + '</div>' +
+                     (role === 'assistant'
+                       ? '<details class="thinking" style="display:none"><summary>' +
+                         '<span class="chev">\u25B8</span><span class="tlabel">Thinking</span>' +
+                         '<span class="spinner" style="display:none"></span></summary>' +
+                         '<div class="reasoning-body"></div></details>'
+                       : '') +
+                     '<div class="body"></div>';
       document.getElementById('log').appendChild(el);
     }
     const body = el.querySelector('.body');
@@ -91,8 +106,18 @@
     }
     if (role === 'assistant') {
       const th = el.querySelector('.thinking');
-      if (thinking) { th.style.display = ''; th.textContent = thinking; }
-      else th.style.display = 'none';
+      if (thinking) {
+        const wasHidden = th.style.display === 'none';
+        th.style.display = '';
+        th.querySelector('.reasoning-body').textContent = thinking;
+        // Collapse only on first appearance; afterwards keep the user's
+        // expand/collapse choice even while tokens stream in.
+        if (wasHidden) th.removeAttribute('open');
+      } else {
+        th.style.display = 'none';
+      }
+      const sp = th.querySelector('.spinner');
+      sp.style.display = (streaming && reasoningStreaming) ? '' : 'none';
     }
     scrollToBottom();
   }

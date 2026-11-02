@@ -27,6 +27,7 @@ QString messageToJs(const Message &m) {
     obj[QStringLiteral("content")] = m.content;
     obj[QStringLiteral("streaming")] = m.streaming;
     obj[QStringLiteral("reasoning")] = m.reasoning;
+    obj[QStringLiteral("reasoningStreaming")] = m.reasoningStreaming;
     obj[QStringLiteral("error")] = m.error;
     return QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact));
 }
@@ -86,11 +87,12 @@ void WebChatView::prependMessages(const QVector<Message> &messages) {
 }
 
 void WebChatView::onMessageAdded(const Message &message) {
-    callJs(QStringLiteral("setMessage(%1, %2, %3, %4, %5)")
+    callJs(QStringLiteral("setMessage(%1, %2, %3, %4, %5, %6)")
                .arg(jsString(message.id.toString(QUuid::WithoutBraces)),
                     jsString(message.roleName()), jsString(message.content),
                     message.streaming ? QStringLiteral("true") : QStringLiteral("false"),
-                    jsString(message.reasoning)));
+                    jsString(message.reasoning),
+                    message.reasoningStreaming ? QStringLiteral("true") : QStringLiteral("false")));
 }
 
 void WebChatView::onMessageUpdated(const Message &message) {

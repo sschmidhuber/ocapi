@@ -46,6 +46,22 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .msg .thinking .reasoning-body { font-style: italic; border-left: 3px solid var(--border);
     padding: 4px 0 4px 10px; margin-top: 4px; white-space: pre-wrap; }
+  .msg .toolcalls { margin: 2px 0; }
+  .msg .toolcall { color: var(--muted); }
+  .msg .toolcall summary { cursor: pointer; user-select: none;
+    display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+  .msg .toolcall summary .chev { display: inline-block; transition: transform 0.15s; }
+  .msg .toolcall[open] summary .chev { transform: rotate(90deg); }
+  .msg .toolcall summary .tc-name { font-family: monospace; }
+  .msg .toolcall summary .spinner { display: inline-block; width: 12px; height: 12px;
+    border: 2px solid var(--border); border-top-color: var(--muted); border-radius: 50%;
+    animation: spin 0.8s linear infinite; }
+  .msg .toolcall .tc-body { border-left: 3px solid var(--border);
+    padding: 4px 0 4px 10px; margin-top: 4px; }
+  .msg .toolcall .tc-label { font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.04em; margin: 4px 0 2px; }
+  .msg .toolcall .tc-body pre { margin: 2px 0; }
+  .msg .toolcall .tc-result { white-space: pre-wrap; }
   .cursor::after { content: "\2588"; animation: blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   .katex-display { margin: 8px 0; }
@@ -154,13 +170,70 @@
     }
   }
 
-  // Append or update one message. id = message id; role: user|assistant|tool
-  function setMessage(id, role, content, streaming, thinking, reasoningStreaming) {
+  // Renders the tool calls of an assistant message as collapsible elements
+  // (same style as "Thinking"), in call order. Collapsed shows only the tool
+  // name; expanded shows the parameters (pretty JSON) and, once finished,
+  // the return value. The user's expand/collapse choice is preserved across
+  // streaming updates.
+  function renderToolCalls(el, toolCalls) {
+    let container = el.querySelector('.toolcalls');
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'toolcalls';
+      const thinking = el.querySelector('.thinking');
+      el.insertBefore(container, thinking ? thinking.nextSibling : el.querySelector('.body'));
+    }
+    const seen = {};
+    for (const call of toolCalls) {
+      seen[call.id] = true;
+      let d = container.querySelector('details[data-call-id="' + CSS.escape(call.id) + '"]');
+      if (!d) {
+        d = document.createElement('details');
+        d.className = 'toolcall';
+        d.dataset.callId = call.id;
+        d.innerHTML = '<summary><span class="chev">\\u25B8</span>' +
+                      '<span class="tc-name"></span>' +
+                      '<span class="spinner" style="display:none"></span></summary>' +
+                      '<div class="tc-body">' +
+                      '<div class="tc-label">Parameters</div>' +
+                      '<pre><code class="tc-params"></code></pre>' +
+                      '<div class="tc-result-wrap" style="display:none">' +
+                      '<div class="tc-label">Result</div>' +
+                      '<div class="tc-result"></div></div></div>';
+        container.appendChild(d);
+      }
+      d.querySelector('.tc-name').textContent = call.name;
+      const params = JSON.stringify(call.arguments || {}, null, 2);
+      const codeEl = d.querySelector('.tc-params');
+      codeEl.textContent = params;
+      d.querySelector('.spinner').style.display = (call.status === 'running') ? '' : 'none';
+      const resultWrap = d.querySelector('.tc-result-wrap');
+      if (call.status !== 'running' && call.result) {
+        resultWrap.style.display = '';
+        d.querySelector('.tc-result').innerHTML = renderMarkdown(call.result);
+      } else {
+        resultWrap.style.display = 'none';
+      }
+    }
+    // Drop entries that no longer exist (e.g. after a reload).
+    for (const d of container.querySelectorAll('details.toolcall')) {
+      if (!seen[d.dataset.callId]) d.remove();
+    }
+    container.style.display = toolCalls.length ? '' : 'none';
+  }
+
+  // Append or update one message. id = message id; role: user|assistant|tool;
+  // toolCalls = array of {id, name, arguments, status, result} in call order.
+  function setMessage(id, role, content, streaming, thinking, reasoningStreaming, toolCalls) {
     let el = document.getElementById('msg-' + id);
     if (!el) {
       el = document.createElement('div');
       el.id = 'msg-' + id;
       el.className = 'msg ' + role;
+      // Tool results are shown inside the requesting assistant message's
+      // collapsible tool-call entries, not as separate bubbles.
+      if (role === 'tool')
+        el.style.display = 'none';
       el.innerHTML = (role === 'assistant'
                        ? '<details class="thinking" style="display:none"><summary>' +
                          '<span class="chev">\u25B8</span><span class="tlabel">Thinking</span>' +
@@ -214,6 +287,7 @@
       }
       const sp = th.querySelector('.spinner');
       sp.style.display = (streaming && reasoningStreaming) ? '' : 'none';
+      renderToolCalls(el, toolCalls || []);
     }
     scrollToBottom();
   }

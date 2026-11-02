@@ -87,13 +87,14 @@
       el = document.createElement('div');
       el.id = 'msg-' + id;
       el.className = 'msg ' + role;
-      el.innerHTML = '<div class="role">' + esc(role) + '</div><div class="body"></div>' +
+      el.innerHTML = '<div class="role">' + esc(role) + '</div>' +
                      (role === 'assistant'
                        ? '<details class="thinking" style="display:none"><summary>' +
                          '<span class="chev">\u25B8</span><span class="tlabel">Thinking</span>' +
                          '<span class="spinner" style="display:none"></span></summary>' +
                          '<div class="reasoning-body"></div></details>'
-                       : '');
+                       : '') +
+                     '<div class="body"></div>';
       document.getElementById('log').appendChild(el);
     }
     const body = el.querySelector('.body');
@@ -106,10 +107,12 @@
     if (role === 'assistant') {
       const th = el.querySelector('.thinking');
       if (thinking) {
+        const wasHidden = th.style.display === 'none';
         th.style.display = '';
         th.querySelector('.reasoning-body').textContent = thinking;
-        // keep it collapsed while reasoning is still streaming
-        if (streaming) th.removeAttribute('open');
+        // Collapse only on first appearance; afterwards keep the user's
+        // expand/collapse choice even while tokens stream in.
+        if (wasHidden) th.removeAttribute('open');
       } else {
         th.style.display = 'none';
       }

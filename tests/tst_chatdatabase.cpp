@@ -129,13 +129,17 @@ void TestChatDatabase::reasoningRoundTrip() {
     const auto messageId = assistantMsg.id.toString(QUuid::WithoutBraces);
     QVERIFY(db().insertMessage(sessionId, messageId, assistantMsg.roleName(), assistantMsg.content,
                                assistantMsg.timestamp, {}, {}, {},
-                               QStringLiteral("chain of thought")));
+                               QStringList{QStringLiteral("chain of thought")}));
 
-    // Streaming reasoning updates arrive incrementally.
-    QVERIFY(db().setReasoning(messageId, QStringLiteral("chain of thought, refined")));
+    // Streaming reasoning updates arrive incrementally; a second thinking
+    // phase is stored as its own segment.
+    QVERIFY(db().setReasoning(messageId, QStringList({QStringLiteral("chain of thought, refined"),
+                                                      QStringLiteral("second phase")})));
     const auto stored = db().messagesForSession(sessionId);
     QCOMPARE(stored.size(), 1);
-    QCOMPARE(stored.at(0).reasoning, QStringLiteral("chain of thought, refined"));
+    QCOMPARE(
+        stored.at(0).reasoningSegments,
+        QStringList({QStringLiteral("chain of thought, refined"), QStringLiteral("second phase")}));
 }
 
 void TestChatDatabase::messageUpdateClearsError() {

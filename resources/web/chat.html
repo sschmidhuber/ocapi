@@ -38,6 +38,7 @@
   .msg th, .msg td { border: 1px solid var(--border); padding: 4px 8px; }
   .msg blockquote { border-left: 3px solid var(--border); margin-left: 0;
     padding-left: 10px; color: var(--muted); }
+  .msg .thinkings { margin: 0; }
   .msg .thinking { color: var(--muted); margin: 0; }
   .msg .thinking summary { cursor: pointer; user-select: none;
     display: flex; align-items: center; gap: 6px; padding: 2px 0; }
@@ -187,8 +188,8 @@
     if (!container) {
       container = document.createElement('div');
       container.className = 'toolcalls';
-      const thinking = el.querySelector('.thinking');
-      el.insertBefore(container, thinking ? thinking.nextSibling : el.querySelector('.body'));
+      const thinkings = el.querySelector('.thinkings');
+      el.insertBefore(container, thinkings ? thinkings.nextSibling : el.querySelector('.body'));
     }
     const seen = {};
     for (const call of toolCalls) {
@@ -229,6 +230,47 @@
     container.style.display = toolCalls.length ? '' : 'none';
   }
 
+  // Renders the thinking phases of an assistant message as one collapsible
+  // element per phase, in order. Collapsed shows the "Thinking" label; the
+  // spinner sits on the currently streaming (last) phase. The user's
+  // expand/collapse choice per phase is preserved across streaming updates.
+  function renderThinking(el, segments, reasoningStreaming) {
+    let container = el.querySelector('.thinkings');
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'thinkings';
+      el.insertBefore(container, el.querySelector('.body'));
+    }
+    const seen = segments.length;
+    const existing = {};
+    for (const d of container.querySelectorAll('details.thinking'))
+      existing[d.dataset.idx] = d;
+    for (let i = 0; i < segments.length; i++) {
+      let d = existing[String(i)];
+      if (!d) {
+        d = document.createElement('details');
+        d.className = 'thinking';
+        d.dataset.idx = String(i);
+        d.innerHTML = '<summary>' +
+                      '<svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m6 3 5 5-5 5-1-1 4-4-4-4z"/></svg>' +
+                      '<span class="tlabel">Thinking</span>' +
+                      '<span class="spinner" style="display:none"></span></summary>' +
+                      '<div class="reasoning-body"></div>';
+        container.appendChild(d);
+        // Collapse each phase on first appearance.
+        d.removeAttribute('open');
+      }
+      d.querySelector('.reasoning-body').textContent = segments[i];
+      d.querySelector('.spinner').style.display =
+        (reasoningStreaming && i === segments.length - 1) ? '' : 'none';
+    }
+    // Drop phases that no longer exist (e.g. after a reload).
+    for (const d of container.querySelectorAll('details.thinking')) {
+      if (Number(d.dataset.idx) >= seen) d.remove();
+    }
+    container.style.display = segments.length ? '' : 'none';
+  }
+
   // Append or update one message. id = message id; role: user|assistant|tool;
   // toolCalls = array of {id, name, arguments, status, result} in call order.
   function setMessage(id, role, content, streaming, thinking, reasoningStreaming, toolCalls) {
@@ -242,10 +284,7 @@
       if (role === 'tool')
         el.style.display = 'none';
       el.innerHTML = (role === 'assistant'
-                       ? '<details class="thinking" style="display:none"><summary>' +
-                         '<svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m6 3 5 5-5 5-1-1 4-4-4-4z"/></svg><span class="tlabel">Thinking</span>' +
-                         '<span class="spinner" style="display:none"></span></summary>' +
-                         '<div class="reasoning-body"></div></details>'
+                       ? '<div class="thinkings"></div>'
                        : '') +
                      '<div class="body"></div>';
       // The copy button exists only under the assistant's answer and copies
@@ -287,19 +326,7 @@
       if (copyBtn) copyBtn.style.display = '';
     }
     if (role === 'assistant') {
-      const th = el.querySelector('.thinking');
-      if (thinking) {
-        const wasHidden = th.style.display === 'none';
-        th.style.display = '';
-        th.querySelector('.reasoning-body').textContent = thinking;
-        // Collapse only on first appearance; afterwards keep the user's
-        // expand/collapse choice even while tokens stream in.
-        if (wasHidden) th.removeAttribute('open');
-      } else {
-        th.style.display = 'none';
-      }
-      const sp = th.querySelector('.spinner');
-      sp.style.display = (streaming && reasoningStreaming) ? '' : 'none';
+      renderThinking(el, thinking || [], streaming && reasoningStreaming);
       renderToolCalls(el, toolCalls || []);
     }
     scrollToBottom();

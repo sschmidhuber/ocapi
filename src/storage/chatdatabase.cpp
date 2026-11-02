@@ -270,7 +270,14 @@ StoredMessage storedMessageFrom(const QSqlQuery &query) {
     message.timestamp = QDateTime::fromSecsSinceEpoch(query.value(5).toLongLong());
     message.tokensPerSecond = query.value(6).toDouble();
     message.toolCalls = toolCallsFromJson(query.value(7).toString());
-    message.reasoning = query.value(8).toString();
+    const QString rawReasoning = query.value(8).toString();
+    if (rawReasoning.startsWith(QLatin1Char('['))) {
+        const QJsonArray arr = QJsonDocument::fromJson(rawReasoning.toUtf8()).array();
+        for (const auto &value : arr)
+            message.reasoningSegments.append(value.toString());
+    } else if (!rawReasoning.isEmpty()) {
+        message.reasoningSegments.append(rawReasoning); // legacy single string
+    }
     return message;
 }
 
@@ -587,7 +594,8 @@ bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messag
                                  const QString &role, const QString &content,
                                  const QDateTime &timestamp, const QVector<ImageAttachment> &images,
                                  const QVector<FileAttachment> &files,
-                                 const QVector<ToolCall> &toolCalls, const QString &reasoning) {
+                                 const QVector<ToolCall> &toolCalls,
+                                 const QStringList &reasoningSegments) {
     QSqlQuery position(m_database);
     position.prepare(QStringLiteral("SELECT COALESCE(MAX(position) + 1, 0) FROM messages "
                                     "WHERE session_id = ?"));
@@ -598,6 +606,11 @@ bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messag
     }
     const QByteArray toolCallsJson =
         QJsonDocument(toolCallsToJson(toolCalls)).toJson(QJsonDocument::Compact);
+    QJsonArray reasoningJson;
+    for (const auto &segment : reasoningSegments)
+        reasoningJson.append(segment);
+    const QByteArray reasoningJsonBytes =
+        QJsonDocument(reasoningJson).toJson(QJsonDocument::Compact);
     const bool stored =
         execute(QStringLiteral("INSERT INTO messages (id, session_id, role, "
                                "content, streaming, error, timestamp, position, tool_calls, "
@@ -613,7 +626,7 @@ bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messag
                     timestamp.isValid() ? timestamp.toSecsSinceEpoch() : 0,
                     position.value(0),
                     toolCallsJson,
-                    nullToEmpty(reasoning),
+                    reasoningJsonBytes.isEmpty() ? QByteArray("[]") : reasoningJsonBytes,
                 });
     if (!stored)
         return false;
@@ -702,9 +715,13 @@ bool ChatDatabase::updateMessage(const QString &messageId, const QString &conten
                    {content, streaming ? 1 : 0, messageId});
 }
 
-bool ChatDatabase::setReasoning(const QString &messageId, const QString &reasoning) {
-    return execute(QStringLiteral("UPDATE messages SET reasoning = ? WHERE id = ?"),
-                   {reasoning, messageId});
+bool ChatDatabase::setReasoning(const QString &messageId, const QStringList &reasoningSegments) {
+    QJsonArray arr;
+    for (const auto &segment : reasoningSegments)
+        arr.append(segment);
+    return execute(
+        QStringLiteral("UPDATE messages SET reasoning = ? WHERE id = ?"),
+        {QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact)), messageId});
 }
 
 bool ChatDatabase::updateToolCallStatus(const QString &messageId, const QString &toolCallId,

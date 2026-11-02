@@ -136,11 +136,11 @@ void TestMessage::textForModelExcludesReasoning() {
     Message m;
     m.role = Role::Assistant;
     m.content = QStringLiteral("Four.");
-    m.reasoning = QStringLiteral("The user asks 2+2, so the answer is 4.");
+    m.reasoningSegments = QStringList{QStringLiteral("The user asks 2+2, so the answer is 4.")};
     m.reasoningStreaming = false;
     QCOMPARE(m.textForModel(), QStringLiteral("Four."));
     QVERIFY(!m.textForModel().contains(QLatin1String("thinking")));
-    QVERIFY(!m.textForModel().contains(m.reasoning));
+    QVERIFY(!m.textForModel().contains(m.reasoningText()));
 }
 
 QTEST_GUILESS_MAIN(TestMessage)

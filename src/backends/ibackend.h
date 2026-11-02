@@ -68,9 +68,10 @@ protected:
             for (const auto &message : session->messages()) {
                 if (message.id == continueMessageId) {
                     accumulated = message.content;
-                    accumulatedReasoning = message.reasoning;
+                    // Each round starts a fresh thinking phase: the new
+                    // reasoning becomes its own segment in the message.
+                    accumulatedReasoning.clear();
                     session->updateMessage(continueMessageId, message.content, true);
-                    session->setReasoningStreaming(continueMessageId, true);
                     return continueMessageId;
                 }
             }

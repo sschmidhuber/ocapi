@@ -92,12 +92,13 @@ void TestChatSession::updateReasoningAccumulatesAndSignals() {
 
     session.updateReasoning(id, QStringLiteral("Step 1."), true);
     const auto &message = session.messages().constLast();
-    QCOMPARE(message.reasoning, QStringLiteral("Step 1."));
+    QCOMPARE(message.reasoningSegments, QStringList{QStringLiteral("Step 1.")});
     QVERIFY(message.reasoningStreaming);
     QCOMPARE(updatedSpy.count(), 1);
 
     session.updateReasoning(id, QStringLiteral("Step 1. Step 2."), true);
-    QCOMPARE(session.messages().constLast().reasoning, QStringLiteral("Step 1. Step 2."));
+    QCOMPARE(session.messages().constLast().reasoningSegments,
+             QStringList{QStringLiteral("Step 1. Step 2.")});
     QCOMPARE(updatedSpy.count(), 2);
 
     // Ending the reasoning phase clears the flag and emits once more.
@@ -108,6 +109,14 @@ void TestChatSession::updateReasoningAccumulatesAndSignals() {
     // A repeated no-op write does not emit.
     session.setReasoningStreaming(id, false);
     QCOMPARE(updatedSpy.count(), 3);
+
+    // Reasoning that starts again after the phase ended (e.g. the model
+    // thinks again after a tool round) becomes its own segment.
+    session.updateReasoning(id, QStringLiteral("New thought."), true);
+    QCOMPARE(session.messages().constLast().reasoningSegments,
+             QStringList({QStringLiteral("Step 1. Step 2."), QStringLiteral("New thought.")}));
+    QCOMPARE(session.messages().constLast().reasoningText(),
+             QStringLiteral("Step 1. Step 2.\n\nNew thought."));
 }
 
 void TestChatSession::updateMessageClearsError() {

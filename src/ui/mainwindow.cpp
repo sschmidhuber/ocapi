@@ -178,7 +178,7 @@ Message storedToMessage(const StoredMessage &stored) {
     message.id = QUuid(stored.id);
     message.role = roleFromName(stored.role);
     message.content = stored.content;
-    message.reasoning = stored.reasoning;
+    message.reasoningSegments = stored.reasoningSegments;
     message.timestamp = stored.timestamp;
     message.streaming = false;
     message.error = stored.error;
@@ -749,7 +749,7 @@ void MainWindow::persistMessageForSession(ChatSession *session, const Message &m
     m_database.insertMessage(session->id().toString(QUuid::WithoutBraces),
                              message.id.toString(QUuid::WithoutBraces), message.roleName(),
                              message.content, message.timestamp, message.images, message.files,
-                             message.toolCalls, message.reasoning);
+                             message.toolCalls, message.reasoningSegments);
     // Keep the session's last-activity timestamp fresh so the sidebar's
     // time groups stay current, then rebuild the tree to re-sort/re-group.
     session->setLastActivityAt(message.timestamp.isValid() ? message.timestamp
@@ -1100,8 +1100,19 @@ void MainWindow::onReasoningReceived(const QUuid &messageId, const QString &text
                 m_firstToken = QDateTime::currentDateTime();
         }
     }
-    if (m_database.isOpen())
-        m_database.setReasoning(messageId.toString(QUuid::WithoutBraces), text);
+    if (m_database.isOpen()) {
+        // Persist all thinking phases of the message, not just the current one.
+        QStringList segments;
+        if (m_currentSession) {
+            for (const auto &message : m_currentSession->messages()) {
+                if (message.id == messageId) {
+                    segments = message.reasoningSegments;
+                    break;
+                }
+            }
+        }
+        m_database.setReasoning(messageId.toString(QUuid::WithoutBraces), segments);
+    }
 }
 
 void MainWindow::onStreamFinished(const QUuid &messageId) {

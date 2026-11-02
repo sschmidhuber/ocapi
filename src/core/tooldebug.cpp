@@ -14,9 +14,10 @@ void logSession(const ChatSession *session, const QString &label) {
                            .arg(message.roleName(), message.id.toString(QUuid::WithoutBraces))
                            .arg(message.streaming)
                            .arg(static_cast<int>(message.content.size()));
-        if (!message.reasoning.isEmpty())
-            line +=
-                QStringLiteral(" reasoningLen=%1").arg(static_cast<int>(message.reasoning.size()));
+        if (message.hasReasoning())
+            line += QStringLiteral(" reasoningPhases=%1 reasoningLen=%2")
+                        .arg(static_cast<int>(message.reasoningSegments.size()))
+                        .arg(static_cast<int>(message.reasoningText().size()));
         if (message.hasToolCalls()) {
             QJsonArray calls;
             for (const auto &call : message.toolCalls) {

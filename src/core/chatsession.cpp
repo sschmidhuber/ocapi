@@ -77,9 +77,21 @@ void ChatSession::updateMessage(const QUuid &id, const QString &content, bool st
 void ChatSession::updateReasoning(const QUuid &id, const QString &reasoning, bool streaming) {
     for (auto &message : m_messages) {
         if (message.id == id) {
-            if (message.reasoning == reasoning && message.reasoningStreaming == streaming)
+            // A new thinking phase starts when reasoning streams again after
+            // a previous phase ended (reasoningStreaming went false, e.g. the
+            // model produced an answer or tool calls in between). Each phase
+            // gets its own segment so the chat shows one Thinking element per
+            // phase, in order.
+            if (streaming && !message.reasoningStreaming && !message.reasoningSegments.isEmpty())
+                message.reasoningSegments.append(QString());
+            if (!message.reasoningSegments.isEmpty() &&
+                message.reasoningSegments.constLast() == reasoning &&
+                message.reasoningStreaming == streaming)
                 return;
-            message.reasoning = reasoning;
+            if (message.reasoningSegments.isEmpty())
+                message.reasoningSegments.append(reasoning);
+            else
+                message.reasoningSegments.last() = reasoning;
             message.reasoningStreaming = streaming;
             message.error.clear();
             emit messageUpdated(message);

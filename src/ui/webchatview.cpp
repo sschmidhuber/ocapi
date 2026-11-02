@@ -50,16 +50,13 @@ QString toolCallsToJs(const QVector<ToolCall> &toolCalls) {
     return QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact));
 }
 
-QString messageToJs(const Message &m) {
-    QJsonObject obj;
-    obj[QStringLiteral("id")] = m.id.toString(QUuid::WithoutBraces);
-    obj[QStringLiteral("role")] = m.roleName();
-    obj[QStringLiteral("content")] = m.content;
-    obj[QStringLiteral("streaming")] = m.streaming;
-    obj[QStringLiteral("reasoning")] = m.reasoning;
-    obj[QStringLiteral("reasoningStreaming")] = m.reasoningStreaming;
-    obj[QStringLiteral("error")] = m.error;
-    return QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact));
+// Each thinking phase as a JSON array element, passed to the page as a JS
+// literal: ["phase one", "phase two", ...].
+QString reasoningToJs(const Message &m) {
+    QJsonArray arr;
+    for (const auto &segment : m.reasoningSegments)
+        arr.append(segment);
+    return QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact));
 }
 
 } // namespace
@@ -121,7 +118,7 @@ void WebChatView::onMessageAdded(const Message &message) {
                .arg(jsString(message.id.toString(QUuid::WithoutBraces)),
                     jsString(message.roleName()), jsString(message.content),
                     message.streaming ? QStringLiteral("true") : QStringLiteral("false"),
-                    jsString(message.reasoning),
+                    reasoningToJs(message),
                     message.reasoningStreaming ? QStringLiteral("true") : QStringLiteral("false"),
                     toolCallsToJs(message.toolCalls)));
 }

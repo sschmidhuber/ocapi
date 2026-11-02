@@ -22,6 +22,34 @@ QString jsString(const QString &s) {
     return json.mid(1, json.size() - 2); // strip the array brackets -> bare JSON string
 }
 
+QString toolCallStatusToJs(ToolCallStatus status) {
+    switch (status) {
+    case ToolCallStatus::Done:
+        return QStringLiteral("done");
+    case ToolCallStatus::Failed:
+        return QStringLiteral("failed");
+    case ToolCallStatus::Running:
+        break;
+    }
+    return QStringLiteral("running");
+}
+
+// Tool calls of one message as a JSON array, passed to the page as a JS
+// literal: [{id, name, arguments, status, result}, ...] in call order.
+QString toolCallsToJs(const QVector<ToolCall> &toolCalls) {
+    QJsonArray arr;
+    for (const auto &call : toolCalls) {
+        arr.append(QJsonObject{
+            {QStringLiteral("id"), call.id},
+            {QStringLiteral("name"), call.name},
+            {QStringLiteral("arguments"), call.arguments},
+            {QStringLiteral("status"), toolCallStatusToJs(call.status)},
+            {QStringLiteral("result"), call.result},
+        });
+    }
+    return QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact));
+}
+
 QString messageToJs(const Message &m) {
     QJsonObject obj;
     obj[QStringLiteral("id")] = m.id.toString(QUuid::WithoutBraces);
@@ -89,12 +117,13 @@ void WebChatView::prependMessages(const QVector<Message> &messages) {
 }
 
 void WebChatView::onMessageAdded(const Message &message) {
-    callJs(QStringLiteral("setMessage(%1, %2, %3, %4, %5, %6)")
+    callJs(QStringLiteral("setMessage(%1, %2, %3, %4, %5, %6, %7)")
                .arg(jsString(message.id.toString(QUuid::WithoutBraces)),
                     jsString(message.roleName()), jsString(message.content),
                     message.streaming ? QStringLiteral("true") : QStringLiteral("false"),
                     jsString(message.reasoning),
-                    message.reasoningStreaming ? QStringLiteral("true") : QStringLiteral("false")));
+                    message.reasoningStreaming ? QStringLiteral("true") : QStringLiteral("false"),
+                    toolCallsToJs(message.toolCalls)));
 }
 
 void WebChatView::onMessageUpdated(const Message &message) {

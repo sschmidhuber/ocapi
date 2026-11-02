@@ -25,7 +25,6 @@
     margin-right: auto; }
   .msg.tool { background: transparent; border: 1px solid var(--border);
     color: var(--muted); font-size: 12px; }
-  .msg .role { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
   .msg pre { background: var(--code-bg); padding: 8px; border-radius: 6px;
     overflow-x: auto; }
   .msg code { font-family: monospace; background: var(--code-bg); padding: 1px 4px;
@@ -76,8 +75,12 @@
 <script src="highlight.min.js"></script>
 <script>
   marked.setOptions({ breaks: true, gfm: true, highlight: function(code, lang) {
-    if (lang && hljs.getLanguage(lang)) return hljs.highlight(code, {language: lang}).value;
-    return hljs.highlightAuto(code).value;
+    try {
+      if (lang && hljs.getLanguage(lang)) return hljs.highlight(lang, code, true).value;
+      return hljs.highlightAuto(code).value;
+    } catch (e) {
+      return null; // let marked escape and render the code block unhighlighted
+    }
   }});
 
   function renderMarkdown(text) {
@@ -94,10 +97,6 @@
       throwOnError: false
     });
     return tmp.innerHTML;
-  }
-
-  function esc(s) {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   function showCopied(el) {
@@ -143,8 +142,7 @@
       el = document.createElement('div');
       el.id = 'msg-' + id;
       el.className = 'msg ' + role;
-      el.innerHTML = '<div class="role">' + esc(role) + '</div>' +
-                     (role === 'assistant'
+      el.innerHTML = (role === 'assistant'
                        ? '<details class="thinking" style="display:none"><summary>' +
                          '<span class="chev">\u25B8</span><span class="tlabel">Thinking</span>' +
                          '<span class="spinner" style="display:none"></span></summary>' +

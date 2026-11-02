@@ -48,6 +48,7 @@
   .msg .thinking .reasoning-body { font-style: italic; border-left: 3px solid var(--border);
     padding: 4px 0 4px 10px; margin-top: 4px; white-space: pre-wrap; }
   .msg .toolcalls { margin: 0; }
+  .msg .body:empty { display: none; }
   .msg .toolcall { color: var(--muted); }
   .msg .toolcall + .toolcall { margin-top: 2px; }
   .msg .toolcall summary { cursor: pointer; user-select: none;
@@ -268,7 +269,10 @@
     if (role === 'user') {
       body.textContent = content;
     } else {
-      body.innerHTML = renderMarkdown(content);
+      // Empty content (e.g. a message that only requested tool calls) must
+      // not render an empty <p>, which would add a blank line between the
+      // Thinking/tool-call rows and the answer.
+      body.innerHTML = content ? renderMarkdown(content) : '';
       if (streaming) body.classList.add('cursor'); else body.classList.remove('cursor');
     }
     // Show the copy button for assistant messages only when streaming is done

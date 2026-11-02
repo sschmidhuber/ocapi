@@ -4,10 +4,10 @@
 #include "backends/ibackend.h"
 #include "core/chatsession.h"
 #include "storage/chatdatabase.h"
-#include "ui/chatview.h"
 #include "ui/composer.h"
 #include "ui/settingsdialog.h"
 #include "ui/sidebar.h"
+#include "ui/webchatview.h"
 
 #include <QDateTime>
 #include <QDebug>
@@ -283,15 +283,7 @@ void MainWindow::setupUi() {
     // sidebar's 8px gap. A slim scrollbar keeps the chat box the same
     // width whether the scrollbar is shown or not.
     constexpr int kPanelMargin = 8;
-    m_chatView = new ChatView(rightPanel);
-    m_chatView->setStyleSheet(
-        QStringLiteral("QListView { border: 1px solid palette(mid); }"
-                       "QListView QScrollBar:vertical { background: palette(window); width: 4px; "
-                       "margin: 0; }"
-                       "QListView QScrollBar::handle:vertical { background: palette(mid); "
-                       "min-height: 20px; border-radius: 2px; }"
-                       "QListView QScrollBar::add-line:vertical, "
-                       "QListView QScrollBar::sub-line:vertical { height: 0; }"));
+    m_chatView = new WebChatView(rightPanel);
     auto *chatMargin = new QVBoxLayout();
     chatMargin->setContentsMargins(kPanelMargin, kPanelMargin, kPanelMargin, 0);
     chatMargin->setSpacing(kPanelMargin);
@@ -423,7 +415,7 @@ void MainWindow::setupConnections() {
         statusBar()->showMessage(tr("Text-to-speech failed: %1").arg(message), 10000);
     });
     connect(m_speakButton, &QPushButton::clicked, this, &MainWindow::onSpeakResponsesToggled);
-    connect(m_chatView, &ChatView::olderMessagesRequested, this,
+    connect(m_chatView, &WebChatView::olderMessagesRequested, this,
             [this]() { loadOlderMessages(m_currentSession); });
     connect(m_sendButton, &QPushButton::clicked, this, [this]() {
         if (m_composer->isEmpty())

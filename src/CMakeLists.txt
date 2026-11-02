@@ -123,6 +123,8 @@ set(OCAPI_UI_SOURCES
     ui/mainwindow.cpp
     ui/chatview.h
     ui/chatview.cpp
+    ui/webchatview.h
+    ui/webchatview.cpp
     ui/chatdelegate.h
     ui/chatdelegate.cpp
     ui/composer.h
@@ -146,7 +148,7 @@ qt_add_executable(ocapi
     ${OCAPI_UI_SOURCES}
 )
 
-target_link_libraries(ocapi PRIVATE ocapi-core Qt6::Widgets)
+target_link_libraries(ocapi PRIVATE ocapi-core Qt6::Widgets Qt6::WebEngineWidgets Qt6::WebChannel)
 
 qt_add_resources(ocapi "ocapi_resources"
     PREFIX "/"
@@ -164,4 +166,36 @@ qt_add_resources(ocapi "ocapi_resources"
         ../resources/icons/ai_chip.svg
         ../resources/icons/tools.svg
         ../resources/icons/audio-symbolic.svg
+        ../resources/web/chat.html
+        ../resources/web/marked.min.js
+        ../resources/web/katex.min.js
+        ../resources/web/katex.min.css
+        ../resources/web/auto-render.min.js
+        ../resources/web/highlight.min.js
+        ../resources/web/highlight-github.css
+)
+
+qt_add_resources(ocapi "ocapi_katex_fonts"
+    PREFIX "/resources/web"
+    FILES
+        ../resources/web/katex-fonts/KaTeX_AMS-Regular.woff2
+        ../resources/web/katex-fonts/KaTeX_Caligraphic-Bold.woff2
+        ../resources/web/katex-fonts/KaTeX_Caligraphic-Regular.woff2
+        ../resources/web/katex-fonts/KaTeX_Fraktur-Bold.woff2
+        ../resources/web/katex-fonts/KaTeX_Fraktur-Regular.woff2
+        ../resources/web/katex-fonts/KaTeX_Main-Bold.woff2
+        ../resources/web/katex-fonts/KaTeX_Main-BoldItalic.woff2
+        ../resources/web/katex-fonts/KaTeX_Main-Italic.woff2
+        ../resources/web/katex-fonts/KaTeX_Main-Regular.woff2
+        ../resources/web/katex-fonts/KaTeX_Math-BoldItalic.woff2
+        ../resources/web/katex-fonts/KaTeX_Math-Italic.woff2
+        ../resources/web/katex-fonts/KaTeX_SansSerif-Bold.woff2
+        ../resources/web/katex-fonts/KaTeX_SansSerif-Italic.woff2
+        ../resources/web/katex-fonts/KaTeX_SansSerif-Regular.woff2
+        ../resources/web/katex-fonts/KaTeX_Script-Regular.woff2
+        ../resources/web/katex-fonts/KaTeX_Size1-Regular.woff2
+        ../resources/web/katex-fonts/KaTeX_Size2-Regular.woff2
+        ../resources/web/katex-fonts/KaTeX_Size3-Regular.woff2
+        ../resources/web/katex-fonts/KaTeX_Size4-Regular.woff2
+        ../resources/web/katex-fonts/KaTeX_Typewriter-Regular.woff2
 )

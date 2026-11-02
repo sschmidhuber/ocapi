@@ -71,7 +71,6 @@
 </script>
 <script src="marked.min.js"></script>
 <script src="katex.min.js"></script>
-<script src="auto-render.min.js"></script>
 <script src="highlight.min.js"></script>
 <script>
   marked.setOptions({ breaks: true, gfm: true, highlight: function(code, lang) {
@@ -83,20 +82,40 @@
     }
   }});
 
+  // Renders markdown to HTML. LaTeX math is extracted from the raw text and
+  // rendered with KaTeX before marked runs, because marked consumes the
+  // backslashes of the \\( \\) and \\[ \\] delimiters and would otherwise
+  // leave them as literal text. Fenced code blocks and inline code are
+  // stashed first so no math is extracted from them.
   function renderMarkdown(text) {
-    const html = marked.parse(text);
-    const tmp = document.createElement('div');
-    tmp.innerHTML = html;
-    renderMathInElement(tmp, {
-      delimiters: [
-        {left: '$$', right: '$$', display: true},
-        {left: '\\[', right: '\\]', display: true},
-        {left: '\\(', right: '\\)', display: false},
-        {left: '$', right: '$', display: false}
-      ],
-      throwOnError: false
-    });
-    return tmp.innerHTML;
+    const stash = [];
+    function stashToken(s) {
+      stash.push(s);
+      return '@@ocapi' + (stash.length - 1) + '@@';
+    }
+
+    let masked = text.replace(/(```|~~~)[\s\S]*?(?:\1|$)/g,
+                              function(m) { return stashToken(m); });
+    masked = masked.replace(/`[^`\n]*`/g, function(m) { return stashToken(m); });
+    masked = masked.replace(
+      /\$\$([\s\S]+?)\$\$|\\+\[([\s\S]+?)\\+\]|\\+\(([^\n]+?)\\+\)|\$([^$\n]+?)\$/g,
+      function(m, d1, d2, d3, d4) {
+        const tex = d1 !== undefined ? d1 : d2 !== undefined ? d2 : d3 !== undefined ? d3 : d4;
+        const display = d1 !== undefined || d2 !== undefined;
+        return stashToken(katex.renderToString(tex, {displayMode: display, throwOnError: false}));
+      });
+
+    let html = marked.parse(masked);
+    for (let i = 0; i < stash.length; i++) {
+      const token = '@@ocapi' + i + '@@';
+      let replacement = stash[i];
+      if (replacement.charAt(0) === '`' && replacement.charAt(1) === '`')
+        replacement = marked.parse(replacement);      // fenced code block
+      else if (replacement.charAt(0) === '`')
+        replacement = marked.parseInline(replacement); // inline code span
+      html = html.split(token).join(replacement);
+    }
+    return html;
   }
 
   function showCopied(el) {

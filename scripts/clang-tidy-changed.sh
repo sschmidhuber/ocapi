@@ -73,13 +73,18 @@ run_tidy() {
         if [ -f "$header" ]; then
             moc_bin="$(find "$build_dir" -name moc -type f | head -1)"
             [ -n "$moc_bin" ] || moc_bin="$(command -v moc || true)"
-            # AUTOMOC puts the .moc next to mocs_compilation.cpp; also drop a
-            # copy into the source dir, which clang resolves via the quote
-            # include relative to the including file.
+            # Quote-includes resolve relative to the including file first, so
+            # write the generated moc next to the source (gitignored via
+            # tests/*.moc pattern is not enough for src/, use a tmp copy in the
+            # build dir AND beside the source). Prefer the build-tree autogen
+            # include dir, which is on the compile command's -I path.
             autogen_dir="$(dirname "$(find "$build_dir" -name mocs_compilation.cpp | head -1)")"
             if [ -n "$moc_bin" ] && [ -n "$autogen_dir" ]; then
                 "$moc_bin" "$header" -o "$autogen_dir/${name}.moc" >/dev/null 2>&1 || true
-                cp "$autogen_dir/${name}.moc" "$(dirname "$file")/${name}.moc" 2>/dev/null || true
+            fi
+            # Fallback: next to the source file (resolved by quote-include).
+            if [ -n "$moc_bin" ] && ! find "$build_dir" -name "${name}.moc" -print -quit | grep -q .; then
+                "$moc_bin" "$header" -o "$(dirname "$file")/${name}.moc" >/dev/null 2>&1 || true
             fi
         fi
     fi

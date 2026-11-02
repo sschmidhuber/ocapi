@@ -67,16 +67,18 @@ for file in $CHANGED; do
     name="$(basename "$file" .cpp)"
     if grep -q "#include \"${name}\.moc\"" "$file" 2>/dev/null; then
         # AUTOMOC writes <name>.moc into the target's autogen include dir.
-        # Run moc directly on the header that declares the cpp-local Q_OBJECT
-        # class and place the result where the compile command's -I flags
-        # find it (the autogen include dir).
+        # Generate it explicitly: find the moc binary shipped with the Qt
+        # installation and the autogen include dir, then run moc on the
+        # header that declares the cpp-local Q_OBJECT class.
         header="$(dirname "$file")/${name}.h"
         [ -f "$header" ] || continue
-        autogen_inc="$(find "$BUILD_DIR" -type d -name "${name}_autogen" -o -type d -path "*autogen/include*" | head -1)"
+        moc_bin="$(find "$BUILD_DIR" -name moc -type f | head -1)"
+        [ -n "$moc_bin" ] || moc_bin="$(command -v moc || true)"
+        [ -n "$moc_bin" ] || continue
+        autogen_inc="$(find "$BUILD_DIR" -type d -name include -path "*autogen*" | head -1)"
+        [ -n "$autogen_inc" ] || autogen_inc="$(dirname "$(find "$BUILD_DIR" -name mocs_compilation.cpp | head -1)")"
         [ -n "$autogen_inc" ] || continue
-        find "$BUILD_DIR" -name "${name}.moc" -print -quit | grep -q . || \
-            "$(find "$BUILD_DIR" -name moc -type f | head -1)" "$header" -o "$autogen_inc/${name}.moc" \
-                -I"$REPO_ROOT/src" >/dev/null 2>&1 || true
+        "$moc_bin" "$header" -o "$autogen_inc/${name}.moc" >/dev/null 2>&1 || true
     fi
 done
 

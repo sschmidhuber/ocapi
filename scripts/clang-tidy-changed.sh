@@ -58,6 +58,27 @@ for file in $CHANGED; do
     cmake --build "$BUILD_DIR" --target "${target}_autogen" >/dev/null 2>&1 || true
 done
 cmake --build "$BUILD_DIR" --target ocapi-core_autogen ocapi_autogen >/dev/null 2>&1 || true
+# Sources whose .cpp contains a Q_OBJECT class include "<name>.moc"; the
+# autogen step above writes those into the target's autogen include dir.
+# Some CMake/Qt version combinations only emit them when the object itself is
+# built, so as a fallback also build the object file for changed sources that
+# reference their own .moc.
+for file in $CHANGED; do
+    name="$(basename "$file" .cpp)"
+    if grep -q "#include \"${name}\.moc\"" "$file" 2>/dev/null; then
+        # AUTOMOC writes <name>.moc into the target's autogen include dir.
+        # Run moc directly on the header that declares the cpp-local Q_OBJECT
+        # class and place the result where the compile command's -I flags
+        # find it (the autogen include dir).
+        header="$(dirname "$file")/${name}.h"
+        [ -f "$header" ] || continue
+        autogen_inc="$(find "$BUILD_DIR" -type d -name "${name}_autogen" -o -type d -path "*autogen/include*" | head -1)"
+        [ -n "$autogen_inc" ] || continue
+        find "$BUILD_DIR" -name "${name}.moc" -print -quit | grep -q . || \
+            "$(find "$BUILD_DIR" -name moc -type f | head -1)" "$header" -o "$autogen_inc/${name}.moc" \
+                -I"$REPO_ROOT/src" >/dev/null 2>&1 || true
+    fi
+done
 
 run_tidy() {
     file="$1"

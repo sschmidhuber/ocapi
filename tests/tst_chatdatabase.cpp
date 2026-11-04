@@ -42,6 +42,7 @@ private slots:
     void deleteSessionRemovesFiles();
     void fileThumbnailSurvivesRoundTrip();
     void toolCallsRoundTrip();
+    void toolCallsSurviveReinsertUpsert();
     void toolCallStatusUpdatePersists();
     void toolCallStatusUpdateFailsForUnknownCall();
     void toolCallsColumnDefaultsToEmpty();
@@ -512,6 +513,44 @@ void TestChatDatabase::toolCallsRoundTrip() {
     // Calls are stored as running until a result arrives.
     QCOMPARE(stored.at(0).toolCalls.at(0).status, ToolCallStatus::Running);
     QVERIFY(stored.at(0).toolCalls.at(0).result.isEmpty());
+}
+
+void TestChatDatabase::toolCallsSurviveReinsertUpsert() {
+    // Real flow: the message row is inserted when the message is appended
+    // (no tool calls yet), and persistToolCalls re-inserts the same id once
+    // the model requested calls. The upsert must keep the tool calls (and
+    // element order), otherwise they are gone after a reload.
+    ChatSession session(QStringLiteral("Tools"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+
+    Message message;
+    message.role = Role::Assistant;
+    session.appendMessage(message);
+    const auto messageId = message.id.toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertMessage(sessionId, messageId, message.roleName(), message.content,
+                               message.timestamp));
+
+    ToolCall call;
+    call.id = QStringLiteral("call-1");
+    call.name = QStringLiteral("srv__echo");
+    call.arguments = QJsonObject{{QStringLiteral("text"), QStringLiteral("hi")}};
+    message.toolCalls.push_back(call);
+    message.elementOrder = QStringList{QStringLiteral("tool:0")};
+    QVERIFY(db().insertMessage(sessionId, messageId, message.roleName(), message.content,
+                               message.timestamp, {}, {}, message.toolCalls, {},
+                               message.elementOrder));
+
+    // The tool result then arrives and updates the persisted call.
+    QVERIFY(db().updateToolCallStatus(messageId, QStringLiteral("call-1"), ToolCallStatus::Done,
+                                      QStringLiteral("echo: hi")));
+    const auto stored = db().messagesForSession(sessionId);
+    QCOMPARE(stored.size(), 1);
+    QCOMPARE(stored.at(0).toolCalls.size(), 1);
+    QCOMPARE(stored.at(0).toolCalls.at(0).id, QStringLiteral("call-1"));
+    QCOMPARE(stored.at(0).toolCalls.at(0).status, ToolCallStatus::Done);
+    QCOMPARE(stored.at(0).toolCalls.at(0).result, QStringLiteral("echo: hi"));
+    QCOMPARE(stored.at(0).elementOrder, QStringList{QStringLiteral("tool:0")});
 }
 
 void TestChatDatabase::toolCallStatusUpdatePersists() {

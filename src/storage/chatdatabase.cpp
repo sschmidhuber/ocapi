@@ -633,8 +633,15 @@ bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messag
                                "content, streaming, error, timestamp, position, tool_calls, "
                                "reasoning, element_order) "
                                "VALUES (?, ?, ?, ?, 0, '', ?, ?, ?, ?, ?) "
+                               // The row usually exists already (it is inserted when
+                               // the message is appended, before tool calls arrive), so
+                               // the upsert must also refresh the element columns;
+                               // otherwise tool calls, reasoning and element order are
+                               // lost on reload.
                                "ON CONFLICT (id) DO UPDATE SET role = "
-                               "excluded.role, content = excluded.content"),
+                               "excluded.role, content = excluded.content, tool_calls = "
+                               "excluded.tool_calls, reasoning = excluded.reasoning, "
+                               "element_order = excluded.element_order"),
                 {
                     messageId,
                     sessionId,

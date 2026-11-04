@@ -77,12 +77,15 @@ void ChatSession::updateMessage(const QUuid &id, const QString &content, bool st
 void ChatSession::updateReasoning(const QUuid &id, const QString &reasoning, bool streaming) {
     for (auto &message : m_messages) {
         if (message.id == id) {
-            // A new thinking phase starts when reasoning streams again after
-            // a previous phase ended (reasoningStreaming went false, e.g. the
-            // model produced an answer or tool calls in between). Each phase
-            // gets its own segment so the chat shows one Thinking element per
-            // phase, in order.
-            if (streaming && !message.reasoningStreaming && !message.reasoningSegments.isEmpty()) {
+            // The backend always sends the full accumulated reasoning of the
+            // current round, and a tool-call round clears that accumulation,
+            // so a new thinking phase starts exactly when the incoming text
+            // does not extend the last segment. Keying on reasoningStreaming
+            // instead misfires when the model interleaves thinking and answer
+            // chunks in one round (the first answer token ends the flag) and
+            // would append the whole accumulated phase again as a duplicate.
+            if (streaming && !message.reasoningSegments.isEmpty() &&
+                !reasoning.startsWith(message.reasoningSegments.constLast())) {
                 message.reasoningSegments.append(QString());
                 message.elementOrder.append(
                     QStringLiteral("thinking:%1")

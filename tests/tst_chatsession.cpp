@@ -17,6 +17,7 @@ private slots:
     void updateMessageModifiesContentAndStreamingFlag();
     void updateReasoningAccumulatesAndSignals();
     void updateReasoningRecordsElementOrderPerPhase();
+    void updateReasoningContinuesPhaseAfterContentToken();
     void updateMessageClearsError();
     void updateMessageIgnoresUnknownId();
     void failMessageSetsErrorAndStopsStreaming();
@@ -131,6 +132,31 @@ void TestChatSession::updateReasoningRecordsElementOrderPerPhase() {
     // A second phase (e.g. after a tool round) is appended after the first.
     session.setReasoningStreaming(id, false);
     session.updateReasoning(id, QStringLiteral("New thought."), true);
+    QCOMPARE(session.messages().constLast().elementOrder,
+             QStringList({QStringLiteral("thinking:0"), QStringLiteral("thinking:1")}));
+}
+
+void TestChatSession::updateReasoningContinuesPhaseAfterContentToken() {
+    // The first answer token ends the reasoning-streaming flag, but a model
+    // may keep interleaving thinking chunks in the same round; the backend
+    // then sends the full accumulated reasoning, which extends the last
+    // segment. That must NOT start a new (duplicated) phase.
+    ChatSession session;
+    const QUuid id = session.appendMessage(Role::Assistant).id;
+    session.updateReasoning(id, QStringLiteral("Step 1."), true);
+    session.setReasoningStreaming(id, false); // first answer token arrived
+    session.updateReasoning(id, QStringLiteral("Step 1. Step 2."), true);
+    QCOMPARE(session.messages().constLast().reasoningSegments,
+             QStringList{QStringLiteral("Step 1. Step 2.")});
+    QCOMPARE(session.messages().constLast().elementOrder,
+             QStringList{QStringLiteral("thinking:0")});
+
+    // A genuinely new phase (next tool-call round cleared the accumulation)
+    // does not extend the last segment and becomes its own element.
+    session.setReasoningStreaming(id, false);
+    session.updateReasoning(id, QStringLiteral("New thought."), true);
+    QCOMPARE(session.messages().constLast().reasoningSegments,
+             QStringList({QStringLiteral("Step 1. Step 2."), QStringLiteral("New thought.")}));
     QCOMPARE(session.messages().constLast().elementOrder,
              QStringList({QStringLiteral("thinking:0"), QStringLiteral("thinking:1")}));
 }

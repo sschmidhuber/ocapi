@@ -252,7 +252,8 @@
       for (let i = 0; i < toolCalls.length; i++) tokens.push('tool:' + i);
     }
     const wanted = {};
-    for (const token of tokens) {
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
       wanted[token] = true;
       let d = container.querySelector('details[data-token="' + CSS.escape(token) + '"]');
       if (!d) {
@@ -260,9 +261,12 @@
         d = (parts[0] === 'thinking') ? createThinkingElement(parts[1])
                                       : createToolCallElement(parts[1]);
       }
-      // appendChild moves an existing element into place, so after the loop
-      // the container's children match the token order exactly.
-      container.appendChild(d);
+      // Only (re)insert when the element is not already at its position:
+      // appendChild/insertBefore remove and re-insert the node even within
+      // the same parent, which would restart the spinner's CSS animation on
+      // every streaming update.
+      if (container.children[i] !== d)
+        container.insertBefore(d, container.children[i] || null);
       const idx = Number(token.split(':')[1]);
       if (token.startsWith('thinking:'))
         updateThinkingElement(d, idx, thinking[idx], reasoningStreaming, thinking.length);

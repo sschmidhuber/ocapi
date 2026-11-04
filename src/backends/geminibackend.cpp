@@ -80,21 +80,26 @@ void GeminiBackend::listModels() {
     });
 }
 
-void GeminiBackend::sendMessage(ChatSession *session, const QString &model) {
+void GeminiBackend::sendMessage(ChatSession *session, const QString &model,
+                                const QUuid &continueMessageId) {
     cancel();
     // The assistant message is streaming from the moment it exists: the
     // reply is being generated even before the first token arrives (reasoning
     // models can think for a long time), and the chat must not yet show the
     // copy button that belongs to a finished message.
-    m_currentMessageId = session->appendMessage(Role::Assistant, {}, true).id;
-    m_accumulated.clear();
-    m_accumulatedReasoning.clear();
+    m_currentMessageId =
+        beginAssistantMessage(session, continueMessageId, m_accumulated, m_accumulatedReasoning);
 
     QString systemPrompt;
     QJsonArray contents;
     for (const auto &message : session->messages()) {
-        if (message.id == m_currentMessageId)
-            break;
+        // Skip the assistant message currently being generated only while it is
+        // still empty (initial send); once it carries tool calls it must be
+        // part of the conversation, and tool-result messages appended after
+        // it must stay in the conversation as well.
+        if (message.id == m_currentMessageId && message.content.isEmpty() &&
+            !message.hasToolCalls())
+            continue;
         if (!message.error.isEmpty())
             continue;
         if (message.role == Role::System) {
@@ -123,6 +128,7 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model) {
     }
     systemPrompt = systemPrompt.trimmed();
 
+    debugLogRequest(QStringLiteral("GeminiBackend"), contents);
     QJsonObject payload{
         {QStringLiteral("contents"), contents},
     };

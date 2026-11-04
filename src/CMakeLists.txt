@@ -48,6 +48,8 @@ set(OCAPI_CORE_SOURCES
     core/ttsregistry.cpp
     core/sentencesplitter.h
     core/sentencesplitter.cpp
+    core/tooldebug.h
+    core/tooldebug.cpp
     core/audioformat.h
     core/audioformat.cpp
     core/ttsplayer.h

@@ -193,7 +193,39 @@ event and the accumulated message text are then written to a log file
 `sse-debug-<timestamp>.log` in the app data directory, and streamed messages
 are traced on stderr (`[ocapi debug] tokenReceived …`). The log makes the
 exact wire bytes of a problematic conversation available for bug reports.
+
+### Debugging the MCP tool-call loop
+
+When tool calls are not executed, loop endlessly, or their results seem to be
+missing from the model's context, run with tool debugging turned on:
+
+```bash
+OCAPI_DEBUG_TOOLS=1 ocapi
+```
+
+Every step of the tool-call loop is then traced on stderr
+(`[ocapi tools] …`): which tool calls the model requested (id, name,
+arguments), how each call is resolved (server, tool name, permission
+decision, whether `tools/call` is sent), every tool result appended to the
+session, the full session state before each new round, and the exact
+`messages` array sent to the model on every `sendMessage` call — so it is
+visible whether tool results reached the model's context.
 The setting adds no overhead when unset.
+
+### Debugging the chat element rendering
+
+When thinking phases, tool calls and the answer of one assistant message do
+not appear in the order they happened, run with chat rendering debugging
+turned on:
+
+```bash
+OCAPI_DEBUG_CHAT=1 ocapi
+```
+
+Every message pushed to the chat view is then traced on stderr
+(`[ocapi chat] …`): its thinking phases, its tool calls (id, name, status)
+and the exact `elementOrder` (`thinking:<i>` / `tool:<i>` tokens) the view
+renders in sequence. The setting adds no overhead when unset.
 
 ## Project layout
 

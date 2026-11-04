@@ -103,6 +103,7 @@ private slots:
     void toolCallsIncludedInConversationHistory();
     void toolsSentOnlyWhenEnabled();
     void reasoningIsNotSentBackInConversationHistory();
+    void sendMessageContinuesExistingAssistantMessage();
 
 private:
     FakeOllamaServer m_server;
@@ -320,6 +321,68 @@ void TestOllamaBackend::reasoningIsNotSentBackInConversationHistory() {
     QVERIFY(!replayed.value(QLatin1String("content"))
                  .toString()
                  .contains(QLatin1String("secret chain of thought")));
+}
+
+// A tool-call round must continue the same assistant message instead of
+// appending a new one: one assistant turn = one message in the chat.
+void TestOllamaBackend::sendMessageContinuesExistingAssistantMessage() {
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"Round two"},"done":true})")});
+
+    OllamaBackend backend(ollamaConfig(m_server.port()));
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hello"));
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+    const QUuid firstId = session.messages().constLast().id;
+    const qsizetype countAfterFirst = session.messages().size();
+
+    // Simulate a completed tool round: the assistant message carries the
+    // requested tool call (with some text, as a real turn has) and a
+    // tool-result message was appended after it.
+    ToolCall call;
+    call.id = QStringLiteral("call_1");
+    call.name = QStringLiteral("echo");
+    call.arguments = QJsonObject{{QStringLiteral("text"), QStringLiteral("hi")}};
+    session.updateMessage(firstId, QStringLiteral("Let me check."), false);
+    session.setToolCalls(firstId, {call});
+    Message toolResult;
+    toolResult.role = Role::Tool;
+    toolResult.toolCallId = call.id;
+    toolResult.toolName = call.name;
+    toolResult.content = QStringLiteral("echo: hi");
+    session.appendMessage(toolResult);
+
+    backend.sendMessage(&session, QStringLiteral("mock-model"), firstId);
+    QCOMPARE(session.messages().size(), countAfterFirst + 1); // only the tool result is new
+    QCOMPARE(session.messages().constLast().role, Role::Tool);
+    QCOMPARE(session.messages().at(session.messages().size() - 2).id, firstId);
+    QVERIFY(session.messages().at(session.messages().size() - 2).streaming); // resumed
+
+    QSignalSpy tokenSpy(&backend, &IBackend::tokenReceived);
+    QTRY_VERIFY_WITH_TIMEOUT(tokenSpy.count() >= 1, 10000);
+    // The continued round appends to the existing content.
+    QCOMPARE(tokenSpy.last().at(1).toString(), QStringLiteral("Let me check.Round two"));
+
+    // The request must contain the assistant's tool_calls AND the tool
+    // result that was appended after the continued message; dropping either
+    // makes the model repeat the tool call forever.
+    const auto messages = m_server.lastRequest().value(QLatin1String("messages")).toArray();
+    bool sawAssistantToolCalls = false;
+    bool sawToolResult = false;
+    for (const auto &value : messages) {
+        const auto obj = value.toObject();
+        if (obj.value(QLatin1String("role")).toString() == QLatin1String("assistant") &&
+            obj.contains(QLatin1String("tool_calls")))
+            sawAssistantToolCalls = true;
+        if (obj.value(QLatin1String("role")).toString() == QLatin1String("tool") &&
+            obj.value(QLatin1String("content")).toString().contains(QLatin1String("echo: hi")))
+            sawToolResult = true;
+    }
+    QVERIFY(sawAssistantToolCalls);
+    QVERIFY(sawToolResult);
 }
 
 QTEST_GUILESS_MAIN(TestOllamaBackend)

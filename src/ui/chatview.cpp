@@ -78,8 +78,10 @@ public:
                 line += QStringLiteral(": %1").arg(call.result);
             lines.append(line);
         }
-        if (!message.reasoning.isEmpty())
-            lines.append(tr("Thinking: %1").arg(message.reasoning));
+        if (message.hasReasoning()) {
+            for (const auto &segment : message.reasoningSegments)
+                lines.append(tr("Thinking: %1").arg(segment));
+        }
         if (!message.content.isEmpty())
             lines.append(message.content);
         return lines.join(QStringLiteral("\n"));
@@ -123,7 +125,7 @@ public:
         case ExpandedToolCallsRole:
             return m_expandedToolCalls.value(message.id);
         case ReasoningRole:
-            return message.reasoning;
+            return message.reasoningText();
         case ReasoningStreamingRole:
             return message.reasoningStreaming;
         case ReasoningExpandedRole:

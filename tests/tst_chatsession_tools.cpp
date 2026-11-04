@@ -17,6 +17,10 @@ private slots:
     void setToolCallStatusUpdatesCallAndEmits();
     void setToolCallStatusIgnoresUnknownIds();
     void setToolCallStatusIgnoresUnchangedCall();
+    void appendToolCallsAppendsAndRecordsElementOrder();
+    void appendToolCallsInterleavesWithThinkingPhases();
+    void appendToolCallsIgnoresUnknownId();
+    void appendToolCallsIgnoresEmptyList();
     void messageIsEmptyAccountsForToolCalls();
 };
 
@@ -143,6 +147,79 @@ void TestChatSessionTools::setToolCallStatusIgnoresUnchangedCall() {
     session.setToolCallStatus(message.id, QStringLiteral("call-1"), ToolCallStatus::Failed,
                               QStringLiteral("boom"));
     QCOMPARE(updatedSpy.count(), 0);
+}
+
+void TestChatSessionTools::appendToolCallsAppendsAndRecordsElementOrder() {
+    ChatSession session;
+    auto &message = session.appendMessage(Role::Assistant);
+    message.streaming = true;
+    QVector<ToolCall> calls;
+    ToolCall call;
+    call.id = QStringLiteral("call-1");
+    call.name = QStringLiteral("srv__tool");
+    calls.push_back(call);
+
+    QSignalSpy updatedSpy(&session, &ChatSession::messageUpdated);
+    session.appendToolCalls(message.id, calls);
+    QCOMPARE(updatedSpy.count(), 1);
+    QCOMPARE(session.messages().first().toolCalls.size(), 1);
+    QCOMPARE(session.messages().first().elementOrder, QStringList{QStringLiteral("tool:0")});
+    QVERIFY(!session.messages().first().streaming);
+
+    // A second round appends behind the first one.
+    ToolCall second;
+    second.id = QStringLiteral("call-2");
+    second.name = QStringLiteral("srv__other");
+    session.appendToolCalls(message.id, {second});
+    QCOMPARE(session.messages().first().toolCalls.size(), 2);
+    QCOMPARE(session.messages().first().elementOrder,
+             QStringList({QStringLiteral("tool:0"), QStringLiteral("tool:1")}));
+}
+
+void TestChatSessionTools::appendToolCallsInterleavesWithThinkingPhases() {
+    // The reported bug: a turn that thinks, calls a tool, thinks again and
+    // calls another tool must render Thinking, tool, Thinking, tool — the
+    // element order has to record that interleaving.
+    ChatSession session;
+    const QUuid id = session.appendMessage(Role::Assistant).id;
+    session.updateReasoning(id, QStringLiteral("phase one"), true);
+    session.setReasoningStreaming(id, false);
+    ToolCall first;
+    first.id = QStringLiteral("call-1");
+    first.name = QStringLiteral("srv__search");
+    session.appendToolCalls(id, {first});
+    session.updateReasoning(id, QStringLiteral("phase two"), true);
+    ToolCall second;
+    second.id = QStringLiteral("call-2");
+    second.name = QStringLiteral("srv__fetch");
+    session.appendToolCalls(id, {second});
+
+    QCOMPARE(session.messages().first().elementOrder,
+             QStringList({QStringLiteral("thinking:0"), QStringLiteral("tool:0"),
+                          QStringLiteral("thinking:1"), QStringLiteral("tool:1")}));
+    QCOMPARE(session.messages().first().toolCalls.size(), 2);
+}
+
+void TestChatSessionTools::appendToolCallsIgnoresUnknownId() {
+    ChatSession session;
+    session.appendMessage(Role::Assistant);
+    QSignalSpy updatedSpy(&session, &ChatSession::messageUpdated);
+    ToolCall call;
+    call.id = QStringLiteral("call-1");
+    call.name = QStringLiteral("srv__tool");
+    session.appendToolCalls(QUuid::createUuid(), {call});
+    QCOMPARE(updatedSpy.count(), 0);
+    QVERIFY(session.messages().first().toolCalls.isEmpty());
+    QVERIFY(session.messages().first().elementOrder.isEmpty());
+}
+
+void TestChatSessionTools::appendToolCallsIgnoresEmptyList() {
+    ChatSession session;
+    auto &message = session.appendMessage(Role::Assistant);
+    QSignalSpy updatedSpy(&session, &ChatSession::messageUpdated);
+    session.appendToolCalls(message.id, {});
+    QCOMPARE(updatedSpy.count(), 0);
+    QVERIFY(session.messages().first().toolCalls.isEmpty());
 }
 
 void TestChatSessionTools::messageIsEmptyAccountsForToolCalls() {

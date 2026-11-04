@@ -3,6 +3,7 @@
 #include "backends/backendfactory.h"
 #include "backends/ibackend.h"
 #include "core/chatsession.h"
+#include "core/tooldebug.h"
 #include "storage/chatdatabase.h"
 #include "ui/composer.h"
 #include "ui/settingsdialog.h"
@@ -177,7 +178,8 @@ Message storedToMessage(const StoredMessage &stored) {
     message.id = QUuid(stored.id);
     message.role = roleFromName(stored.role);
     message.content = stored.content;
-    message.reasoning = stored.reasoning;
+    message.reasoningSegments = stored.reasoningSegments;
+    message.elementOrder = stored.elementOrder;
     message.timestamp = stored.timestamp;
     message.streaming = false;
     message.error = stored.error;
@@ -748,7 +750,7 @@ void MainWindow::persistMessageForSession(ChatSession *session, const Message &m
     m_database.insertMessage(session->id().toString(QUuid::WithoutBraces),
                              message.id.toString(QUuid::WithoutBraces), message.roleName(),
                              message.content, message.timestamp, message.images, message.files,
-                             message.toolCalls, message.reasoning);
+                             message.toolCalls, message.reasoningSegments, message.elementOrder);
     // Keep the session's last-activity timestamp fresh so the sidebar's
     // time groups stay current, then rebuild the tree to re-sort/re-group.
     session->setLastActivityAt(message.timestamp.isValid() ? message.timestamp
@@ -1039,8 +1041,10 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
     // The backend appends the assistant message inside sendMessage().
     if (m_currentSession->messages().size() > count) {
         const Message &assistant = m_currentSession->messages().constLast();
-        if (assistant.role == Role::Assistant)
+        if (assistant.role == Role::Assistant) {
             m_streamedMessageId = assistant.id;
+            m_turnAssistantMessageId = assistant.id;
+        }
     }
 }
 
@@ -1097,8 +1101,24 @@ void MainWindow::onReasoningReceived(const QUuid &messageId, const QString &text
                 m_firstToken = QDateTime::currentDateTime();
         }
     }
-    if (m_database.isOpen())
-        m_database.setReasoning(messageId.toString(QUuid::WithoutBraces), text);
+    if (m_database.isOpen()) {
+        // Persist all thinking phases of the message, not just the current one,
+        // plus the element order so the chat renders thinking/tool calls in
+        // the sequence they happened after a reload.
+        QStringList segments;
+        QStringList elementOrder;
+        if (m_currentSession) {
+            for (const auto &message : m_currentSession->messages()) {
+                if (message.id == messageId) {
+                    segments = message.reasoningSegments;
+                    elementOrder = message.elementOrder;
+                    break;
+                }
+            }
+        }
+        m_database.setReasoning(messageId.toString(QUuid::WithoutBraces), segments);
+        m_database.setElementOrder(messageId.toString(QUuid::WithoutBraces), elementOrder);
+    }
 }
 
 void MainWindow::onStreamFinished(const QUuid &messageId) {
@@ -1167,14 +1187,37 @@ void MainWindow::disconnectBackend() {
 }
 
 void MainWindow::onToolCallsRequested(const QUuid &messageId, const QVector<ToolCall> &toolCalls) {
+    if (toolDebug::enabled()) {
+        QJsonArray calls;
+        for (const auto &call : toolCalls) {
+            calls.append(QJsonObject{
+                {QStringLiteral("id"), call.id},
+                {QStringLiteral("name"), call.name},
+                {QStringLiteral("arguments"), call.arguments},
+            });
+        }
+        toolDebug::log(
+            QStringLiteral("toolCallsRequested: messageId=%1 calls=%2")
+                .arg(messageId.toString(QUuid::WithoutBraces),
+                     QString::fromUtf8(QJsonDocument(calls).toJson(QJsonDocument::Compact))));
+    }
     if (!m_currentSession || toolCalls.isEmpty())
         return;
     // Record the requested tool calls on the assistant message so the chat UI
     // can render them (collapsed, with a progress indicator) and the
-    // conversation history stays complete.
-    m_currentSession->setToolCalls(messageId, toolCalls);
+    // conversation history stays complete. Tool-call rounds continue the same
+    // assistant message, so append to the calls earlier rounds requested to
+    // keep them in call order. Backends that do not provide a tool-call id
+    // (e.g. Ollama) get a generated one: the id keys the chat element and
+    // matches the finished status update to the right call.
+    QVector<ToolCall> calls = toolCalls;
+    for (auto &call : calls) {
+        if (call.id.isEmpty())
+            call.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    }
+    m_currentSession->appendToolCalls(messageId, calls);
     persistToolCalls(m_currentSession, messageId);
-    runToolCalls(m_currentSession, messageId, toolCalls);
+    runToolCalls(m_currentSession, messageId, calls);
 }
 
 void MainWindow::persistToolCalls(ChatSession *session, const QUuid &messageId) {
@@ -1192,7 +1235,7 @@ void MainWindow::persistToolCalls(ChatSession *session, const QUuid &messageId) 
     m_database.insertMessage(session->id().toString(QUuid::WithoutBraces),
                              messageId.toString(QUuid::WithoutBraces), message->roleName(),
                              message->content, message->timestamp, message->images, message->files,
-                             message->toolCalls);
+                             message->toolCalls, message->reasoningSegments, message->elementOrder);
 }
 
 void MainWindow::onToolResultReady(const QString &toolName, const QString &resultText,
@@ -1267,6 +1310,11 @@ void MainWindow::sendConversationAfterToolResults(ChatSession *session) {
         return; // already continued
     if (!session || session != m_currentSession)
         return;
+    if (toolDebug::enabled()) {
+        toolDebug::log(QStringLiteral("sendConversationAfterToolResults: continuing message %1")
+                           .arg(m_turnAssistantMessageId.toString(QUuid::WithoutBraces)));
+        toolDebug::logSession(session, QStringLiteral("session before next round"));
+    }
     m_runningTools = false;
     m_toolSession = nullptr;
     // Send the conversation (now including tool results) back to the model.
@@ -1290,13 +1338,10 @@ void MainWindow::sendConversationAfterToolResults(ChatSession *session) {
     m_sendButton->setVisible(false);
     m_stopButton->setVisible(true);
     statusBar()->showMessage(tr("Generating…"));
-    const qsizetype count = session->messages().size();
-    m_backend->sendMessage(session, model);
-    if (session->messages().size() > count) {
-        const Message &assistant = session->messages().constLast();
-        if (assistant.role == Role::Assistant)
-            m_streamedMessageId = assistant.id;
-    }
+    // Continue the same assistant message: the new round's thinking, tool
+    // calls and answer text all belong to the one message of this turn.
+    m_backend->sendMessage(session, model, m_turnAssistantMessageId);
+    m_streamedMessageId = m_turnAssistantMessageId;
 }
 
 void MainWindow::onMcpPermissionRequested(const QString &callKey, const QString &serverName,

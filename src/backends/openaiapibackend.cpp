@@ -127,8 +127,12 @@ namespace {
 QJsonArray conversationToJson(const ChatSession *session, const QUuid &currentMessageId) {
     QJsonArray messages;
     for (const auto &message : session->messages()) {
-        if (message.id == currentMessageId)
-            break;
+        // Skip the assistant message currently being generated only while it is
+        // still empty (initial send); once it carries tool calls it must be
+        // part of the conversation, and tool-result messages appended after
+        // it must stay in the conversation as well.
+        if (message.id == currentMessageId && message.content.isEmpty() && !message.hasToolCalls())
+            continue;
         if (!message.error.isEmpty())
             continue;
         if (message.role == Role::Assistant && message.hasToolCalls()) {
@@ -149,22 +153,24 @@ QJsonArray conversationToJson(const ChatSession *session, const QUuid &currentMe
 
 } // namespace
 
-void OpenAiApiBackend::sendMessage(ChatSession *session, const QString &model) {
+void OpenAiApiBackend::sendMessage(ChatSession *session, const QString &model,
+                                   const QUuid &continueMessageId) {
     cancel();
     // The assistant message is streaming from the moment it exists: the
     // reply is being generated even before the first token arrives (reasoning
     // models can think for a long time), and the chat must not yet show the
     // copy button that belongs to a finished message.
-    m_currentMessageId = session->appendMessage(Role::Assistant, {}, true).id;
-    m_accumulated.clear();
-    m_accumulatedReasoning.clear();
+    m_currentMessageId =
+        beginAssistantMessage(session, continueMessageId, m_accumulated, m_accumulatedReasoning);
     m_pendingToolCalls.clear();
     m_argumentsBuffer.clear();
     m_hasToolCalls = false;
 
+    const QJsonArray requestMessages = conversationToJson(session, m_currentMessageId);
+    debugLogRequest(QStringLiteral("OpenAiApiBackend"), requestMessages);
     QJsonObject payload{
         {QStringLiteral("model"), model},
-        {QStringLiteral("messages"), conversationToJson(session, m_currentMessageId)},
+        {QStringLiteral("messages"), requestMessages},
         {QStringLiteral("stream"), true},
     };
     if (m_toolsEnabled) {

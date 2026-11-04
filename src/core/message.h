@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QMetaType>
 #include <QString>
+#include <QStringList>
 #include <QUuid>
 #include <QVector>
 
@@ -77,8 +78,17 @@ struct Message {
     QDateTime timestamp = QDateTime::currentDateTime();
     bool streaming = false;
     // Reasoning ("thinking") tokens streamed by reasoning-capable models
-    // before the visible answer. Shown in a collapsed "Thinking" element.
-    QString reasoning;
+    // before/around the visible answer. Each entry is one thinking phase
+    // (one collapsed "Thinking" element in the chat); a model that thinks
+    // again after a tool round adds a new segment.
+    QStringList reasoningSegments;
+    // Interleaved order of the thinking phases and tool calls inside this
+    // message, as tokens "thinking:<segment index>" and "tool:<call index>"
+    // (e.g. ["thinking:0", "tool:0", "thinking:1", "tool:1"]). The chat
+    // renders the elements strictly in this sequence; empty for messages
+    // persisted before the order was recorded (rendered grouped, thinking
+    // first).
+    QStringList elementOrder;
     // True while reasoning tokens are still arriving; the collapsed element
     // shows a progress indicator until the answer starts.
     bool reasoningStreaming = false;
@@ -92,6 +102,11 @@ struct Message {
     QString toolName;
 
     [[nodiscard]] bool hasImages() const { return !images.isEmpty(); }
+    // All thinking phases joined; display-only, never sent to the model.
+    [[nodiscard]] QString reasoningText() const {
+        return reasoningSegments.join(QStringLiteral("\n\n"));
+    }
+    [[nodiscard]] bool hasReasoning() const { return !reasoningSegments.isEmpty(); }
     [[nodiscard]] bool hasFiles() const { return !files.isEmpty(); }
     // Text sent to the model: the typed message plus the extracted content
     // of every attached file. The chat UI shows only the typed content; the

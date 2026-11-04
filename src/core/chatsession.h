@@ -49,6 +49,11 @@ public:
     // finished) so the progress indicator disappears.
     void setReasoningStreaming(const QUuid &id, bool streaming);
     void setToolCalls(const QUuid &id, const QVector<ToolCall> &toolCalls);
+    // Appends newly requested tool calls to a message (one tool-call round
+    // continues the same assistant message) and records their position in
+    // the message's elementOrder so the chat renders thinking phases and
+    // tool calls strictly in the order they happened.
+    void appendToolCalls(const QUuid &id, const QVector<ToolCall> &toolCalls);
     // Updates one tool call of a message (status/result); emits
     // messageUpdated so the chat view repaints the collapsed element.
     void setToolCallStatus(const QUuid &messageId, const QString &toolCallId, ToolCallStatus status,

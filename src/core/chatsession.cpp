@@ -136,7 +136,7 @@ void ChatSession::appendToolCalls(const QUuid &id, const QVector<ToolCall> &tool
         if (message.id == id) {
             if (toolCalls.isEmpty())
                 return;
-            const int firstNew = message.toolCalls.size();
+            const int firstNew = static_cast<int>(message.toolCalls.size());
             message.toolCalls += toolCalls;
             for (int i = 0; i < toolCalls.size(); ++i)
                 message.elementOrder.append(QStringLiteral("tool:%1").arg(firstNew + i));

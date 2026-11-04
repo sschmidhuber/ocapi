@@ -16,6 +16,7 @@ private slots:
     void appendMessageReturnsReferenceToStoredMessage();
     void updateMessageModifiesContentAndStreamingFlag();
     void updateReasoningAccumulatesAndSignals();
+    void updateReasoningRecordsElementOrderPerPhase();
     void updateMessageClearsError();
     void updateMessageIgnoresUnknownId();
     void failMessageSetsErrorAndStopsStreaming();
@@ -117,6 +118,21 @@ void TestChatSession::updateReasoningAccumulatesAndSignals() {
              QStringList({QStringLiteral("Step 1. Step 2."), QStringLiteral("New thought.")}));
     QCOMPARE(session.messages().constLast().reasoningText(),
              QStringLiteral("Step 1. Step 2.\n\nNew thought."));
+}
+
+void TestChatSession::updateReasoningRecordsElementOrderPerPhase() {
+    ChatSession session;
+    const QUuid id = session.appendMessage(Role::Assistant).id;
+
+    session.updateReasoning(id, QStringLiteral("Step 1."), true);
+    QCOMPARE(session.messages().constLast().elementOrder,
+             QStringList{QStringLiteral("thinking:0")});
+
+    // A second phase (e.g. after a tool round) is appended after the first.
+    session.setReasoningStreaming(id, false);
+    session.updateReasoning(id, QStringLiteral("New thought."), true);
+    QCOMPARE(session.messages().constLast().elementOrder,
+             QStringList({QStringLiteral("thinking:0"), QStringLiteral("thinking:1")}));
 }
 
 void TestChatSession::updateMessageClearsError() {

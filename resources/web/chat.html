@@ -38,7 +38,7 @@
   .msg th, .msg td { border: 1px solid var(--border); padding: 4px 8px; }
   .msg blockquote { border-left: 3px solid var(--border); margin-left: 0;
     padding-left: 10px; color: var(--muted); }
-  .msg .thinkings { margin: 0; }
+  .msg .elements { margin: 0; }
   .msg .thinking { color: var(--muted); margin: 0; }
   .msg .thinking summary { cursor: pointer; user-select: none;
     display: flex; align-items: center; gap: 6px; padding: 2px 0; }
@@ -51,7 +51,6 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .msg .thinking .reasoning-body { font-style: italic; border-left: 3px solid var(--border);
     padding: 4px 0 4px 10px; margin-top: 4px; white-space: pre-wrap; }
-  .msg .toolcalls { margin: 0; }
   .msg .body:empty { display: none; }
   .msg .toolcall { color: var(--muted); }
   .msg .toolcall + .toolcall { margin-top: 2px; }
@@ -178,102 +177,109 @@
     }
   }
 
-  // Renders the tool calls of an assistant message as collapsible elements
-  // (same style as "Thinking"), in call order. Collapsed shows only the tool
-  // name; expanded shows the parameters (pretty JSON) and, once finished,
-  // the return value. The user's expand/collapse choice is preserved across
-  // streaming updates.
-  function renderToolCalls(el, toolCalls) {
-    let container = el.querySelector('.toolcalls');
-    if (!container) {
-      container = document.createElement('div');
-      container.className = 'toolcalls';
-      const thinkings = el.querySelector('.thinkings');
-      el.insertBefore(container, thinkings ? thinkings.nextSibling : el.querySelector('.body'));
-    }
-    const seen = {};
-    for (const call of toolCalls) {
-      seen[call.id] = true;
-      let d = container.querySelector('details[data-call-id="' + CSS.escape(call.id) + '"]');
-      if (!d) {
-        d = document.createElement('details');
-        d.className = 'toolcall';
-        d.dataset.callId = call.id;
-        d.innerHTML = '<summary><svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m6 3 5 5-5 5-1-1 4-4-4-4z"/></svg>' +
-                      '<span class="tc-name"></span>' +
-                      '<span class="spinner" style="display:none"></span></summary>' +
-                      '<div class="tc-body">' +
-                      '<div class="tc-label">Parameters</div>' +
-                      '<pre><code class="tc-params"></code></pre>' +
-                      '<div class="tc-result-wrap" style="display:none">' +
-                      '<div class="tc-label">Result</div>' +
-                      '<div class="tc-result"></div></div></div>';
-        container.appendChild(d);
-      }
-      d.querySelector('.tc-name').textContent = call.name;
-      const params = JSON.stringify(call.arguments || {}, null, 2);
-      const codeEl = d.querySelector('.tc-params');
-      codeEl.textContent = params;
-      d.querySelector('.spinner').style.display = (call.status === 'running') ? '' : 'none';
-      const resultWrap = d.querySelector('.tc-result-wrap');
-      if (call.status !== 'running' && call.result) {
-        resultWrap.style.display = '';
-        d.querySelector('.tc-result').innerHTML = renderMarkdown(call.result);
-      } else {
-        resultWrap.style.display = 'none';
-      }
-    }
-    // Drop entries that no longer exist (e.g. after a reload).
-    for (const d of container.querySelectorAll('details.toolcall')) {
-      if (!seen[d.dataset.callId]) d.remove();
-    }
-    container.style.display = toolCalls.length ? '' : 'none';
+  function createThinkingElement(idx) {
+    const d = document.createElement('details');
+    d.className = 'thinking';
+    d.dataset.token = 'thinking:' + idx;
+    d.innerHTML = '<summary>' +
+                  '<svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m6 3 5 5-5 5-1-1 4-4-4-4z"/></svg>' +
+                  '<span class="tlabel">Thinking</span>' +
+                  '<span class="spinner" style="display:none"></span></summary>' +
+                  '<div class="reasoning-body"></div>';
+    // Collapse each phase on first appearance.
+    d.removeAttribute('open');
+    return d;
   }
 
-  // Renders the thinking phases of an assistant message as one collapsible
-  // element per phase, in order. Collapsed shows the "Thinking" label; the
-  // spinner sits on the currently streaming (last) phase. The user's
-  // expand/collapse choice per phase is preserved across streaming updates.
-  function renderThinking(el, segments, reasoningStreaming) {
-    let container = el.querySelector('.thinkings');
+  function createToolCallElement(idx) {
+    const d = document.createElement('details');
+    d.className = 'toolcall';
+    d.dataset.token = 'tool:' + idx;
+    d.innerHTML = '<summary><svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m6 3 5 5-5 5-1-1 4-4-4-4z"/></svg>' +
+                  '<span class="tc-name"></span>' +
+                  '<span class="spinner" style="display:none"></span></summary>' +
+                  '<div class="tc-body">' +
+                  '<div class="tc-label">Parameters</div>' +
+                  '<pre><code class="tc-params"></code></pre>' +
+                  '<div class="tc-result-wrap" style="display:none">' +
+                  '<div class="tc-label">Result</div>' +
+                  '<div class="tc-result"></div></div></div>';
+    return d;
+  }
+
+  function updateThinkingElement(d, idx, segment, reasoningStreaming, segmentCount) {
+    d.querySelector('.reasoning-body').textContent = segment;
+    d.querySelector('.spinner').style.display =
+      (reasoningStreaming && idx === segmentCount - 1) ? '' : 'none';
+  }
+
+  function updateToolCallElement(d, call) {
+    d.querySelector('.tc-name').textContent = call.name;
+    d.querySelector('.tc-params').textContent = JSON.stringify(call.arguments || {}, null, 2);
+    d.querySelector('.spinner').style.display = (call.status === 'running') ? '' : 'none';
+    const resultWrap = d.querySelector('.tc-result-wrap');
+    if (call.status !== 'running' && call.result) {
+      resultWrap.style.display = '';
+      d.querySelector('.tc-result').innerHTML = renderMarkdown(call.result);
+    } else {
+      resultWrap.style.display = 'none';
+    }
+  }
+
+  // Renders the thinking phases and tool calls of an assistant message as
+  // collapsible elements (same style), strictly in the order they happened:
+  // elementOrder holds "thinking:<i>" / "tool:<i>" tokens, e.g. a turn that
+  // thought, called a tool, thought again and called another tool renders
+  // Thinking, tool call, Thinking, tool call — not all thinkings first.
+  // Messages without a recorded order (persisted before ordering existed)
+  // fall back to all thinking phases, then all tool calls. The user's
+  // expand/collapse choice per element is preserved across streaming updates.
+  function renderElements(el, thinking, toolCalls, elementOrder, reasoningStreaming) {
+    let container = el.querySelector('.elements');
     if (!container) {
       container = document.createElement('div');
-      container.className = 'thinkings';
+      container.className = 'elements';
       el.insertBefore(container, el.querySelector('.body'));
     }
-    const seen = segments.length;
-    const existing = {};
-    for (const d of container.querySelectorAll('details.thinking'))
-      existing[d.dataset.idx] = d;
-    for (let i = 0; i < segments.length; i++) {
-      let d = existing[String(i)];
+    let tokens = (elementOrder || []).filter(function(t) {
+      const parts = String(t).split(':');
+      if (parts[0] === 'thinking') return Number(parts[1]) < thinking.length;
+      if (parts[0] === 'tool') return Number(parts[1]) < toolCalls.length;
+      return false;
+    });
+    if (!tokens.length) {
+      for (let i = 0; i < thinking.length; i++) tokens.push('thinking:' + i);
+      for (let i = 0; i < toolCalls.length; i++) tokens.push('tool:' + i);
+    }
+    const wanted = {};
+    for (const token of tokens) {
+      wanted[token] = true;
+      let d = container.querySelector('details[data-token="' + CSS.escape(token) + '"]');
       if (!d) {
-        d = document.createElement('details');
-        d.className = 'thinking';
-        d.dataset.idx = String(i);
-        d.innerHTML = '<summary>' +
-                      '<svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m6 3 5 5-5 5-1-1 4-4-4-4z"/></svg>' +
-                      '<span class="tlabel">Thinking</span>' +
-                      '<span class="spinner" style="display:none"></span></summary>' +
-                      '<div class="reasoning-body"></div>';
-        container.appendChild(d);
-        // Collapse each phase on first appearance.
-        d.removeAttribute('open');
+        const parts = token.split(':');
+        d = (parts[0] === 'thinking') ? createThinkingElement(parts[1])
+                                      : createToolCallElement(parts[1]);
       }
-      d.querySelector('.reasoning-body').textContent = segments[i];
-      d.querySelector('.spinner').style.display =
-        (reasoningStreaming && i === segments.length - 1) ? '' : 'none';
+      // appendChild moves an existing element into place, so after the loop
+      // the container's children match the token order exactly.
+      container.appendChild(d);
+      const idx = Number(token.split(':')[1]);
+      if (token.startsWith('thinking:'))
+        updateThinkingElement(d, idx, thinking[idx], reasoningStreaming, thinking.length);
+      else
+        updateToolCallElement(d, toolCalls[idx]);
     }
-    // Drop phases that no longer exist (e.g. after a reload).
-    for (const d of container.querySelectorAll('details.thinking')) {
-      if (Number(d.dataset.idx) >= seen) d.remove();
+    // Drop elements whose token is no longer present (e.g. after a reload).
+    for (const d of container.querySelectorAll('details[data-token]')) {
+      if (!wanted[d.dataset.token]) d.remove();
     }
-    container.style.display = segments.length ? '' : 'none';
+    container.style.display = tokens.length ? '' : 'none';
   }
 
   // Append or update one message. id = message id; role: user|assistant|tool;
-  // toolCalls = array of {id, name, arguments, status, result} in call order.
-  function setMessage(id, role, content, streaming, thinking, reasoningStreaming, toolCalls) {
+  // toolCalls = array of {id, name, arguments, status, result} in call order;
+  // elementOrder = ["thinking:<i>", "tool:<i>", ...] tokens in display order.
+  function setMessage(id, role, content, streaming, thinking, reasoningStreaming, toolCalls, elementOrder) {
     let el = document.getElementById('msg-' + id);
     if (!el) {
       el = document.createElement('div');
@@ -284,7 +290,7 @@
       if (role === 'tool')
         el.style.display = 'none';
       el.innerHTML = (role === 'assistant'
-                       ? '<div class="thinkings"></div>'
+                       ? '<div class="elements"></div>'
                        : '') +
                      '<div class="body"></div>';
       // The copy button exists only under the assistant's answer and copies
@@ -326,8 +332,8 @@
       if (copyBtn) copyBtn.style.display = '';
     }
     if (role === 'assistant') {
-      renderThinking(el, thinking || [], streaming && reasoningStreaming);
-      renderToolCalls(el, toolCalls || []);
+      renderElements(el, thinking || [], toolCalls || [], elementOrder,
+                     streaming && reasoningStreaming);
     }
     scrollToBottom();
   }

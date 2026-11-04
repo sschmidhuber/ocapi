@@ -22,6 +22,8 @@ private slots:
     void lastActivityColumnDefaultsToCreatedAt();
     void insertAndLoadMessages();
     void reasoningRoundTrip();
+    void elementOrderRoundTrip();
+    void elementOrderDefaultsToEmpty();
     void messageUpdateClearsError();
     void failMessagePersistsError();
     void deleteSessionRemovesMessages();
@@ -140,6 +142,38 @@ void TestChatDatabase::reasoningRoundTrip() {
     QCOMPARE(
         stored.at(0).reasoningSegments,
         QStringList({QStringLiteral("chain of thought, refined"), QStringLiteral("second phase")}));
+}
+
+void TestChatDatabase::elementOrderRoundTrip() {
+    ChatSession session(QStringLiteral("Chat"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+    const auto assistantMsg = session.appendMessage(Role::Assistant, QStringLiteral("answer"));
+    const auto messageId = assistantMsg.id.toString(QUuid::WithoutBraces);
+    const QStringList order{QStringLiteral("thinking:0"), QStringLiteral("tool:0"),
+                            QStringLiteral("thinking:1"), QStringLiteral("tool:1")};
+    QVERIFY(db().insertMessage(
+        sessionId, messageId, assistantMsg.roleName(), assistantMsg.content, assistantMsg.timestamp,
+        {}, {}, {}, QStringList{QStringLiteral("phase one"), QStringLiteral("phase two")}, order));
+
+    // Streaming updates rewrite the order (a new thinking phase is appended).
+    QVERIFY(db().setElementOrder(messageId, order));
+    const auto stored = db().messagesForSession(sessionId);
+    QCOMPARE(stored.size(), 1);
+    QCOMPARE(stored.at(0).elementOrder, order);
+    QCOMPARE(stored.at(0).reasoningSegments.size(), 2);
+}
+
+void TestChatDatabase::elementOrderDefaultsToEmpty() {
+    ChatSession session(QStringLiteral("Chat"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+    const auto msg = session.appendMessage(Role::Assistant, QStringLiteral("answer"));
+    QVERIFY(db().insertMessage(sessionId, msg.id.toString(QUuid::WithoutBraces), msg.roleName(),
+                               msg.content, msg.timestamp));
+    const auto stored = db().messagesForSession(sessionId);
+    QCOMPARE(stored.size(), 1);
+    QVERIFY(stored.at(0).elementOrder.isEmpty());
 }
 
 void TestChatDatabase::messageUpdateClearsError() {

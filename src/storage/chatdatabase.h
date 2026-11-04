@@ -31,6 +31,7 @@ struct StoredMessage {
     QString role;
     QString content;
     QStringList reasoningSegments; // one entry per thinking phase
+    QStringList elementOrder;      // "thinking:<i>" / "tool:<i>" tokens in display order
     QString error;
     QDateTime timestamp;
     bool streaming = false;
@@ -78,12 +79,16 @@ public:
                        const QVector<ImageAttachment> &images = {},
                        const QVector<FileAttachment> &files = {},
                        const QVector<ToolCall> &toolCalls = {},
-                       const QStringList &reasoningSegments = {});
+                       const QStringList &reasoningSegments = {},
+                       const QStringList &elementOrder = {});
     bool updateMessage(const QString &messageId, const QString &content, bool streaming);
     // Stores the message's thinking phases without touching the visible
     // content (the reasoning stream runs before the answer). Segments are
     // persisted as a JSON array in the reasoning column.
     bool setReasoning(const QString &messageId, const QStringList &reasoningSegments);
+    // Stores the message's element order (thinking/tool tokens) without
+    // touching the reasoning text or visible content.
+    bool setElementOrder(const QString &messageId, const QStringList &elementOrder);
     // Marks one tool call of an assistant message finished and stores its
     // result text (empty for still-running calls).
     bool updateToolCallStatus(const QString &messageId, const QString &toolCallId,

@@ -212,6 +212,21 @@ session, the full session state before each new round, and the exact
 visible whether tool results reached the model's context.
 The setting adds no overhead when unset.
 
+### Debugging the chat element rendering
+
+When thinking phases, tool calls and the answer of one assistant message do
+not appear in the order they happened, run with chat rendering debugging
+turned on:
+
+```bash
+OCAPI_DEBUG_CHAT=1 ocapi
+```
+
+Every message pushed to the chat view is then traced on stderr
+(`[ocapi chat] …`): its thinking phases, its tool calls (id, name, status)
+and the exact `elementOrder` (`thinking:<i>` / `tool:<i>` tokens) the view
+renders in sequence. The setting adds no overhead when unset.
+
 ## Project layout
 
 ```

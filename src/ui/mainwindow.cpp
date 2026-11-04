@@ -179,6 +179,7 @@ Message storedToMessage(const StoredMessage &stored) {
     message.role = roleFromName(stored.role);
     message.content = stored.content;
     message.reasoningSegments = stored.reasoningSegments;
+    message.elementOrder = stored.elementOrder;
     message.timestamp = stored.timestamp;
     message.streaming = false;
     message.error = stored.error;
@@ -749,7 +750,7 @@ void MainWindow::persistMessageForSession(ChatSession *session, const Message &m
     m_database.insertMessage(session->id().toString(QUuid::WithoutBraces),
                              message.id.toString(QUuid::WithoutBraces), message.roleName(),
                              message.content, message.timestamp, message.images, message.files,
-                             message.toolCalls, message.reasoningSegments);
+                             message.toolCalls, message.reasoningSegments, message.elementOrder);
     // Keep the session's last-activity timestamp fresh so the sidebar's
     // time groups stay current, then rebuild the tree to re-sort/re-group.
     session->setLastActivityAt(message.timestamp.isValid() ? message.timestamp
@@ -1101,17 +1102,22 @@ void MainWindow::onReasoningReceived(const QUuid &messageId, const QString &text
         }
     }
     if (m_database.isOpen()) {
-        // Persist all thinking phases of the message, not just the current one.
+        // Persist all thinking phases of the message, not just the current one,
+        // plus the element order so the chat renders thinking/tool calls in
+        // the sequence they happened after a reload.
         QStringList segments;
+        QStringList elementOrder;
         if (m_currentSession) {
             for (const auto &message : m_currentSession->messages()) {
                 if (message.id == messageId) {
                     segments = message.reasoningSegments;
+                    elementOrder = message.elementOrder;
                     break;
                 }
             }
         }
         m_database.setReasoning(messageId.toString(QUuid::WithoutBraces), segments);
+        m_database.setElementOrder(messageId.toString(QUuid::WithoutBraces), elementOrder);
     }
 }
 
@@ -1201,18 +1207,17 @@ void MainWindow::onToolCallsRequested(const QUuid &messageId, const QVector<Tool
     // can render them (collapsed, with a progress indicator) and the
     // conversation history stays complete. Tool-call rounds continue the same
     // assistant message, so append to the calls earlier rounds requested to
-    // keep them in call order.
-    QVector<ToolCall> allCalls;
-    for (const auto &message : m_currentSession->messages()) {
-        if (message.id == messageId) {
-            allCalls = message.toolCalls;
-            break;
-        }
+    // keep them in call order. Backends that do not provide a tool-call id
+    // (e.g. Ollama) get a generated one: the id keys the chat element and
+    // matches the finished status update to the right call.
+    QVector<ToolCall> calls = toolCalls;
+    for (auto &call : calls) {
+        if (call.id.isEmpty())
+            call.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     }
-    allCalls += toolCalls;
-    m_currentSession->setToolCalls(messageId, allCalls);
+    m_currentSession->appendToolCalls(messageId, calls);
     persistToolCalls(m_currentSession, messageId);
-    runToolCalls(m_currentSession, messageId, toolCalls);
+    runToolCalls(m_currentSession, messageId, calls);
 }
 
 void MainWindow::persistToolCalls(ChatSession *session, const QUuid &messageId) {
@@ -1230,7 +1235,7 @@ void MainWindow::persistToolCalls(ChatSession *session, const QUuid &messageId) 
     m_database.insertMessage(session->id().toString(QUuid::WithoutBraces),
                              messageId.toString(QUuid::WithoutBraces), message->roleName(),
                              message->content, message->timestamp, message->images, message->files,
-                             message->toolCalls);
+                             message->toolCalls, message->reasoningSegments, message->elementOrder);
 }
 
 void MainWindow::onToolResultReady(const QString &toolName, const QString &resultText,

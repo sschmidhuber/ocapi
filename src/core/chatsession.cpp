@@ -82,16 +82,22 @@ void ChatSession::updateReasoning(const QUuid &id, const QString &reasoning, boo
             // model produced an answer or tool calls in between). Each phase
             // gets its own segment so the chat shows one Thinking element per
             // phase, in order.
-            if (streaming && !message.reasoningStreaming && !message.reasoningSegments.isEmpty())
+            if (streaming && !message.reasoningStreaming && !message.reasoningSegments.isEmpty()) {
                 message.reasoningSegments.append(QString());
+                message.elementOrder.append(
+                    QStringLiteral("thinking:%1")
+                        .arg(static_cast<int>(message.reasoningSegments.size() - 1)));
+            }
             if (!message.reasoningSegments.isEmpty() &&
                 message.reasoningSegments.constLast() == reasoning &&
                 message.reasoningStreaming == streaming)
                 return;
-            if (message.reasoningSegments.isEmpty())
+            if (message.reasoningSegments.isEmpty()) {
                 message.reasoningSegments.append(reasoning);
-            else
+                message.elementOrder.append(QStringLiteral("thinking:0"));
+            } else {
                 message.reasoningSegments.last() = reasoning;
+            }
             message.reasoningStreaming = streaming;
             message.error.clear();
             emit messageUpdated(message);
@@ -118,6 +124,22 @@ void ChatSession::setToolCalls(const QUuid &id, const QVector<ToolCall> &toolCal
             if (message.toolCalls == toolCalls)
                 return;
             message.toolCalls = toolCalls;
+            message.streaming = false;
+            emit messageUpdated(message);
+            return;
+        }
+    }
+}
+
+void ChatSession::appendToolCalls(const QUuid &id, const QVector<ToolCall> &toolCalls) {
+    for (auto &message : m_messages) {
+        if (message.id == id) {
+            if (toolCalls.isEmpty())
+                return;
+            const int firstNew = message.toolCalls.size();
+            message.toolCalls += toolCalls;
+            for (int i = 0; i < toolCalls.size(); ++i)
+                message.elementOrder.append(QStringLiteral("tool:%1").arg(firstNew + i));
             message.streaming = false;
             emit messageUpdated(message);
             return;

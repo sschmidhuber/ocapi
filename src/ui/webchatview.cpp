@@ -59,6 +59,41 @@ QString reasoningToJs(const Message &m) {
     return QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact));
 }
 
+// The message's element order as a JSON array, passed to the page as a JS
+// literal: ["thinking:0", "tool:0", "thinking:1", ...].
+QString elementOrderToJs(const Message &m) {
+    QJsonArray arr;
+    for (const auto &token : m.elementOrder)
+        arr.append(token);
+    return QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact));
+}
+
+// Env-gated tracing of the chat element rendering: set OCAPI_DEBUG_CHAT to
+// see on stderr, for every message pushed to the web view, the element
+// sequence (thinking phases vs. tool calls) the page is told to render.
+void logChatElements(const Message &m) {
+    static const bool on = qEnvironmentVariableIsSet("OCAPI_DEBUG_CHAT");
+    if (!on)
+        return;
+    QJsonArray calls;
+    for (const auto &call : m.toolCalls) {
+        calls.append(QJsonObject{
+            {QStringLiteral("id"), call.id},
+            {QStringLiteral("name"), call.name},
+            {QStringLiteral("status"), static_cast<int>(call.status)},
+        });
+    }
+    QJsonArray order;
+    for (const auto &token : m.elementOrder)
+        order.append(token);
+    qWarning().noquote() << "[ocapi chat]" << m.id.toString(QUuid::WithoutBraces) << m.roleName()
+                         << "streaming=" << m.streaming
+                         << "thinkingPhases=" << m.reasoningSegments.size() << "toolCalls="
+                         << QString::fromUtf8(QJsonDocument(calls).toJson(QJsonDocument::Compact))
+                         << "elementOrder="
+                         << QString::fromUtf8(QJsonDocument(order).toJson(QJsonDocument::Compact));
+}
+
 } // namespace
 
 WebChatView::WebChatView(QWidget *parent) : QWebEngineView(parent) {
@@ -114,13 +149,14 @@ void WebChatView::prependMessages(const QVector<Message> &messages) {
 }
 
 void WebChatView::onMessageAdded(const Message &message) {
-    callJs(QStringLiteral("setMessage(%1, %2, %3, %4, %5, %6, %7)")
+    logChatElements(message);
+    callJs(QStringLiteral("setMessage(%1, %2, %3, %4, %5, %6, %7, %8)")
                .arg(jsString(message.id.toString(QUuid::WithoutBraces)),
                     jsString(message.roleName()), jsString(message.content),
                     message.streaming ? QStringLiteral("true") : QStringLiteral("false"),
                     reasoningToJs(message),
                     message.reasoningStreaming ? QStringLiteral("true") : QStringLiteral("false"),
-                    toolCallsToJs(message.toolCalls)));
+                    toolCallsToJs(message.toolCalls), elementOrderToJs(message)));
 }
 
 void WebChatView::onMessageUpdated(const Message &message) {

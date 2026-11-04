@@ -68,6 +68,7 @@ void createTables(QSqlDatabase &database) {
                        "position INTEGER NOT NULL, "
                        "tool_calls TEXT NOT NULL DEFAULT '[]', "
                        "reasoning TEXT NOT NULL DEFAULT '', "
+                       "element_order TEXT NOT NULL DEFAULT '', "
                        "FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE)"));
     query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS mcp_servers ("
                               "id TEXT PRIMARY KEY NOT NULL, "
@@ -151,6 +152,10 @@ bool ChatDatabase::open(const QString &filePath) {
                        m_lastError);
     addColumnIfMissing(m_database,
                        QStringLiteral("ALTER TABLE messages ADD COLUMN reasoning TEXT "
+                                      "NOT NULL DEFAULT ''"),
+                       m_lastError);
+    addColumnIfMissing(m_database,
+                       QStringLiteral("ALTER TABLE messages ADD COLUMN element_order TEXT "
                                       "NOT NULL DEFAULT ''"),
                        m_lastError);
     return true;
@@ -277,6 +282,12 @@ StoredMessage storedMessageFrom(const QSqlQuery &query) {
             message.reasoningSegments.append(value.toString());
     } else if (!rawReasoning.isEmpty()) {
         message.reasoningSegments.append(rawReasoning); // legacy single string
+    }
+    const QString rawOrder = query.value(9).toString();
+    if (rawOrder.startsWith(QLatin1Char('['))) {
+        const QJsonArray orderArr = QJsonDocument::fromJson(rawOrder.toUtf8()).array();
+        for (const auto &value : orderArr)
+            message.elementOrder.append(value.toString());
     }
     return message;
 }
@@ -528,7 +539,8 @@ QVector<StoredMessage> ChatDatabase::messagesForSession(const QString &sessionId
     QSqlQuery query(m_database);
     if (limit >= 0) {
         query.prepare(QStringLiteral("SELECT id, role, content, streaming, error, timestamp, "
-                                     "tokens_per_second, tool_calls, reasoning FROM messages "
+                                     "tokens_per_second, tool_calls, reasoning, element_order "
+                                     "FROM messages "
                                      "WHERE session_id = ? "
                                      "ORDER BY position DESC LIMIT ? OFFSET ?"));
         query.addBindValue(sessionId);
@@ -546,7 +558,7 @@ QVector<StoredMessage> ChatDatabase::messagesForSession(const QString &sessionId
     }
     query.prepare(
         QStringLiteral("SELECT id, role, content, streaming, error, timestamp, tokens_per_second, "
-                       "tool_calls, reasoning FROM messages WHERE session_id = ? "
+                       "tool_calls, reasoning, element_order FROM messages WHERE session_id = ? "
                        "ORDER BY position ASC"));
     query.addBindValue(sessionId);
     if (!query.exec()) {
@@ -595,7 +607,8 @@ bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messag
                                  const QDateTime &timestamp, const QVector<ImageAttachment> &images,
                                  const QVector<FileAttachment> &files,
                                  const QVector<ToolCall> &toolCalls,
-                                 const QStringList &reasoningSegments) {
+                                 const QStringList &reasoningSegments,
+                                 const QStringList &elementOrder) {
     QSqlQuery position(m_database);
     position.prepare(QStringLiteral("SELECT COALESCE(MAX(position) + 1, 0) FROM messages "
                                     "WHERE session_id = ?"));
@@ -611,11 +624,15 @@ bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messag
         reasoningJson.append(segment);
     const QByteArray reasoningJsonBytes =
         QJsonDocument(reasoningJson).toJson(QJsonDocument::Compact);
+    QJsonArray orderJson;
+    for (const auto &token : elementOrder)
+        orderJson.append(token);
+    const QByteArray orderJsonBytes = QJsonDocument(orderJson).toJson(QJsonDocument::Compact);
     const bool stored =
         execute(QStringLiteral("INSERT INTO messages (id, session_id, role, "
                                "content, streaming, error, timestamp, position, tool_calls, "
-                               "reasoning) "
-                               "VALUES (?, ?, ?, ?, 0, '', ?, ?, ?, ?) "
+                               "reasoning, element_order) "
+                               "VALUES (?, ?, ?, ?, 0, '', ?, ?, ?, ?, ?) "
                                "ON CONFLICT (id) DO UPDATE SET role = "
                                "excluded.role, content = excluded.content"),
                 {
@@ -627,6 +644,7 @@ bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messag
                     position.value(0),
                     toolCallsJson,
                     reasoningJsonBytes.isEmpty() ? QByteArray("[]") : reasoningJsonBytes,
+                    orderJsonBytes.isEmpty() ? QByteArray("[]") : orderJsonBytes,
                 });
     if (!stored)
         return false;
@@ -721,6 +739,15 @@ bool ChatDatabase::setReasoning(const QString &messageId, const QStringList &rea
         arr.append(segment);
     return execute(
         QStringLiteral("UPDATE messages SET reasoning = ? WHERE id = ?"),
+        {QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact)), messageId});
+}
+
+bool ChatDatabase::setElementOrder(const QString &messageId, const QStringList &elementOrder) {
+    QJsonArray arr;
+    for (const auto &token : elementOrder)
+        arr.append(token);
+    return execute(
+        QStringLiteral("UPDATE messages SET element_order = ? WHERE id = ?"),
         {QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact)), messageId});
 }
 

@@ -82,6 +82,13 @@ struct Message {
     // (one collapsed "Thinking" element in the chat); a model that thinks
     // again after a tool round adds a new segment.
     QStringList reasoningSegments;
+    // Interleaved order of the thinking phases and tool calls inside this
+    // message, as tokens "thinking:<segment index>" and "tool:<call index>"
+    // (e.g. ["thinking:0", "tool:0", "thinking:1", "tool:1"]). The chat
+    // renders the elements strictly in this sequence; empty for messages
+    // persisted before the order was recorded (rendered grouped, thinking
+    // first).
+    QStringList elementOrder;
     // True while reasoning tokens are still arriving; the collapsed element
     // shows a progress indicator until the answer starts.
     bool reasoningStreaming = false;

@@ -8,6 +8,10 @@
     "marked": "readonly",
     "katex": "readonly",
     "hljs": "readonly",
-    "qt": "readonly"
+    "qt": "readonly",
+    "QWebChannel": "readonly"
+  },
+  "rules": {
+    "no-unused-vars": ["error", { "varsIgnorePattern": "^(setMessage|clearLog|setTheme)$" }]
   }
 }

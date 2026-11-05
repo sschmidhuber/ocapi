@@ -279,6 +279,28 @@
       // backslashes of the \\( \\) and \\[ \\] delimiters and would otherwise
       // leave them as literal text. Fenced code blocks and inline code are
       // stashed first so no math is extracted from them.
+
+      // Renders a math span with KaTeX. The extraction regex below can match
+      // prose that merely contains dollar signs (e.g. IPA transcriptions like
+      // $ˈwɔːtəʃ$); KaTeX then logs "Unrecognized Unicode character" and "No
+      // character metrics" console warnings for such input. strict:false
+      // silences the strict-mode warnings, and console.warn is muted for the
+      // duration of the render because the metrics warnings are not gated by
+      // strict. Rendering itself still falls back gracefully (throwOnError).
+      function renderMath(tex, displayMode) {
+        const origWarn = console.warn;
+        console.warn = function () {};
+        try {
+          return katex.renderToString(tex, {
+            displayMode: displayMode,
+            throwOnError: false,
+            strict: false,
+          });
+        } finally {
+          console.warn = origWarn;
+        }
+      }
+
       function renderMarkdown(text) {
         const stash = [];
         function stashToken(s) {
@@ -297,9 +319,7 @@
           function (m, d1, d2, d3, d4) {
             const tex = d1 !== undefined ? d1 : d2 !== undefined ? d2 : d3 !== undefined ? d3 : d4;
             const display = d1 !== undefined || d2 !== undefined;
-            return stashToken(
-              katex.renderToString(tex, { displayMode: display, throwOnError: false }),
-            );
+            return stashToken(renderMath(tex, display));
           },
         );
 

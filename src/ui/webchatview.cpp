@@ -3,6 +3,7 @@
 #include "ui/webchatview.h"
 
 #include <QClipboard>
+#include <QContextMenuEvent>
 #include <QDialog>
 #include <QFile>
 #include <QFileDialog>
@@ -15,7 +16,6 @@
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWebChannel>
-#include <QWebEngineContextMenuRequest>
 #include <QWebEnginePage>
 #include <QWebEngineSettings>
 
@@ -110,10 +110,6 @@ WebChatView::WebChatView(QWidget *parent) : QWebEngineView(parent) {
     m_channel->registerObject(QStringLiteral("qtBridge"), m_bridge);
     connect(m_bridge, &WebChatBridge::scrolledToTop, this, &WebChatView::olderMessagesRequested);
     page()->setWebChannel(m_channel);
-    // The default page menu offers "Save Page"/"View Page Source", which do
-    // nothing for a qrc:// page; replace it with working variants.
-    connect(page(), &QWebEnginePage::contextMenuRequested, this,
-            &WebChatView::onContextMenuRequested);
 
     settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessFileUrls, true);
     settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessRemoteUrls, false);
@@ -175,13 +171,15 @@ void WebChatView::onMessageUpdated(const Message &message) {
     onMessageAdded(message);
 }
 
-void WebChatView::onContextMenuRequested(const QWebEngineContextMenuRequest *request) {
+// The default page menu offers "Save Page"/"View Page Source", which do
+// nothing for a qrc:// page; replace it with working variants.
+void WebChatView::contextMenuEvent(QContextMenuEvent *event) {
     QMenu menu(this);
     QAction *savePage = menu.addAction(tr("Save Page\u2026"));
     connect(savePage, &QAction::triggered, this, &WebChatView::savePageAs);
     QAction *viewSource = menu.addAction(tr("View Page Source"));
     connect(viewSource, &QAction::triggered, this, &WebChatView::showPageSource);
-    menu.exec(request->globalPos());
+    menu.exec(event->globalPos());
 }
 
 void WebChatView::savePageAs() {

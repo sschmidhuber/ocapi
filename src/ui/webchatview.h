@@ -7,8 +7,8 @@
 #include <QVector>
 #include <QWebEngineView>
 
+class QContextMenuEvent;
 class QWebChannel;
-class QWebEngineContextMenuRequest;
 
 namespace ocapi {
 class ChatSession;
@@ -46,7 +46,7 @@ private:
     void callJs(const QString &expr);
     void onMessageAdded(const Message &message);
     void onMessageUpdated(const Message &message);
-    void onContextMenuRequested(const QWebEngineContextMenuRequest *request);
+    void contextMenuEvent(QContextMenuEvent *event) override;
     void savePageAs();
     void showPageSource();
 

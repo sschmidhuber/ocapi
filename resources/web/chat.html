@@ -264,10 +264,8 @@
 
   function renderAssistantElements(messageId, thinking, toolCalls, elementOrder,
                                    reasoningStreaming) {
+    const log = document.getElementById('log');
     const bodyEl = document.getElementById('msg-' + messageId);
-    if (!bodyEl || !bodyEl.parentNode)
-      return;
-    const log = bodyEl.parentNode;
     const rawTokens = elementOrder || [];
     const textIdx = rawTokens.indexOf('text');
     const above = [];
@@ -296,16 +294,28 @@
     // at its position: insertBefore removes and re-inserts the node even
     // within the same parent, which would restart the spinner's CSS
     // animation on every streaming update.
-    for (let k = aboveW.length - 1; k >= 0; k--) {
-      const desiredNext = (k + 1 < aboveW.length) ? aboveW[k + 1] : bodyEl;
-      if (aboveW[k].nextSibling !== desiredNext)
-        log.insertBefore(aboveW[k], desiredNext);
-    }
-    let anchor = bodyEl;
-    for (const w of belowW) {
-      if (w.previousSibling !== anchor)
-        log.insertBefore(w, anchor.nextSibling);
-      anchor = w;
+    if (!bodyEl || !bodyEl.parentNode) {
+      // The assistant message has no answer text (yet), so it is not in the
+      // log as an element; its thinking/tool-call rows go to the end of the
+      // log in their recorded order.
+      let tail = log.lastChild;
+      for (const w of aboveW.concat(belowW)) {
+        if (w.previousSibling !== tail)
+          log.insertBefore(w, tail ? tail.nextSibling : log.firstChild);
+        tail = w;
+      }
+    } else {
+      for (let k = aboveW.length - 1; k >= 0; k--) {
+        const desiredNext = (k + 1 < aboveW.length) ? aboveW[k + 1] : bodyEl;
+        if (aboveW[k].nextSibling !== desiredNext)
+          log.insertBefore(aboveW[k], desiredNext);
+      }
+      let anchor = bodyEl;
+      for (const w of belowW) {
+        if (w.previousSibling !== anchor)
+          log.insertBefore(w, anchor.nextSibling);
+        anchor = w;
+      }
     }
     // Drop this message's element wrappers whose token is no longer present
     // (e.g. after a reload).
@@ -349,7 +359,28 @@
         // Hide the copy button while the answer is still streaming.
         btn.style.display = 'none';
       }
-      document.getElementById('log').appendChild(el);
+      // An assistant message without answer text (e.g. a round that only
+      // requested tool calls) must not appear as an empty element in the
+      // log; it is attached once it has content, at its recorded position.
+      if (role !== 'assistant' || content) {
+        const log = document.getElementById('log');
+        if (role === 'assistant') {
+          const raw = elementOrder || [];
+          const textIdx = raw.indexOf('text');
+          let ref = null;
+          if (textIdx !== -1) {
+            for (let i = textIdx + 1; i < raw.length; i++) {
+              ref = document.getElementById('msg-' + id + '-' + raw[i]);
+              if (ref) break;
+            }
+          }
+          log.insertBefore(el, ref); // ref null -> append at the end
+        } else {
+          log.appendChild(el);
+        }
+      }
+    } else if (role === 'assistant' && !content && el.parentNode) {
+      el.remove();
     }
     el.dataset.raw = content;
     const body = el.querySelector('.body');

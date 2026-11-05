@@ -289,8 +289,8 @@ void TestOllamaBackend::fullConversationHistoryIsSentToModel() {
 
     OllamaBackend backend(ollamaConfig(m_server.port()));
     ChatSession session;
-    constexpr int kTurns = 60; // more than one UI page (50 messages)
-    for (int i = 0; i < kTurns; ++i) {
+    constexpr qsizetype kTurns = 60; // more than one UI page (50 messages)
+    for (qsizetype i = 0; i < kTurns; ++i) {
         session.appendMessage(Role::User, QStringLiteral("question %1").arg(i));
         session.appendMessage(Role::Assistant, QStringLiteral("answer %1").arg(i));
     }
@@ -303,14 +303,14 @@ void TestOllamaBackend::fullConversationHistoryIsSentToModel() {
     // The new streaming assistant message is appended to the session but
     // must be skipped in the request.
     QCOMPARE(messages.size(), 2 * kTurns);
-    for (int i = 0; i < kTurns; ++i) {
+    for (qsizetype i = 0; i < kTurns; ++i) {
         QCOMPARE(messages.at(2 * i).toObject().value(QLatin1String("role")).toString(),
                  QStringLiteral("user"));
         QCOMPARE(messages.at(2 * i).toObject().value(QLatin1String("content")).toString(),
                  QStringLiteral("question %1").arg(i));
-        QCOMPARE(messages.at(2 * i + 1).toObject().value(QLatin1String("role")).toString(),
+        QCOMPARE(messages.at((2 * i) + 1).toObject().value(QLatin1String("role")).toString(),
                  QStringLiteral("assistant"));
-        QCOMPARE(messages.at(2 * i + 1).toObject().value(QLatin1String("content")).toString(),
+        QCOMPARE(messages.at((2 * i) + 1).toObject().value(QLatin1String("content")).toString(),
                  QStringLiteral("answer %1").arg(i));
     }
 }

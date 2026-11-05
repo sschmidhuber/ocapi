@@ -9,6 +9,8 @@
 #include <QToolButton>
 #include <QtTest>
 
+#include <algorithm>
+
 using namespace ocapi;
 
 // MainWindow writes ocapi.conf/ocapi.sqlite under the app config/data dirs;
@@ -178,11 +180,18 @@ void TestMainWindow::fullChatHistoryIsLoadedBeforeSending() {
     session->setModel(QStringLiteral("mock-model"));
 
     // The send itself fails (no server at the backend URL), which is fine:
-    // the history load happens synchronously before the request.
+    // the history load happens synchronously before the request. The backend
+    // also appends the new (empty, streaming) assistant message synchronously.
     window.sendTextForTest(QStringLiteral("hello"));
-    QCOMPARE(session->messages().size(), kStoredMessages + 2); // + user msg + system prompt
+    QCOMPARE(session->messages().size(),
+             kStoredMessages + 3); // + user msg + system prompt + assistant
     QCOMPARE(session->messages().constFirst().role, Role::System);
     QVERIFY(!session->messages().constFirst().content.contains(QStringLiteral("{{")));
+    // Every stored message is in the session now.
+    for (int i = 0; i < kStoredMessages; ++i)
+        QVERIFY(std::ranges::any_of(session->messages(), [i](const Message &m) {
+            return m.content == QStringLiteral("q%1").arg(i);
+        }));
 }
 
 int main(int argc, char *argv[]) {

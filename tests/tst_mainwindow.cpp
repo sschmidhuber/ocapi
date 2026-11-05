@@ -113,7 +113,7 @@ void TestMainWindow::keyboardShortcuts() {
     ChatSession *before = window.currentSession();
     QVERIFY(before);
     // Key events must reach the focus widget for window shortcuts to fire.
-    QTest::qWaitForWindowExposed(&window);
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
     QWidget *focusWidget = window.focusWidget();
     QVERIFY(focusWidget);
     QTest::keyClick(focusWidget, Qt::Key_N, Qt::ControlModifier);

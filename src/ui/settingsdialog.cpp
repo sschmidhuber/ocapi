@@ -4,10 +4,12 @@
 #include "core/mcpmanager.h"
 #include "core/mcpregistry.h"
 #include "core/sttregistry.h"
+#include "core/systemprompt.h"
 #include "core/ttsregistry.h"
 #include "ui/backendpage.h"
 #include "ui/mcppage.h"
 #include "ui/sttpage.h"
+#include "ui/systempromptpage.h"
 #include "ui/ttspage.h"
 
 #include <QDialogButtonBox>
@@ -23,7 +25,8 @@ namespace ocapi {
 
 SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mcpRegistry,
                                McpManager *mcpManager, SttRegistry *sttRegistry,
-                               TtsRegistry *ttsRegistry, QWidget *parent)
+                               TtsRegistry *ttsRegistry, SystemPrompt *systemPrompt,
+                               QWidget *parent)
     : QDialog(parent) {
     setWindowTitle(tr("Settings"));
     resize(880, 580);
@@ -40,6 +43,8 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
     addTab(tr("LLM"), QStringLiteral("llm"), new BackendPage(backendRegistry, m_stack));
     addTab(tr("STT"), QStringLiteral("stt"), new SttPage(sttRegistry, backendRegistry, m_stack));
     addTab(tr("TTS"), QStringLiteral("tts"), new TtsPage(ttsRegistry, backendRegistry, m_stack));
+    addTab(tr("System Prompt"), QStringLiteral("systemprompt"),
+           new SystemPromptPage(systemPrompt, m_stack));
 
     addCategory(tr("Tools"), QStringLiteral("tools"),
                 QStringLiteral(":/resources/icons/tools.svg"));

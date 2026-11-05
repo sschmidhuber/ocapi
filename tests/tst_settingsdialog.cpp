@@ -2,6 +2,7 @@
 #include "core/mcpmanager.h"
 #include "core/mcpregistry.h"
 #include "core/sttregistry.h"
+#include "core/systemprompt.h"
 #include "core/ttsregistry.h"
 #include "ui/settingsdialog.h"
 
@@ -49,7 +50,9 @@ SettingsDialog *TestSettingsDialog::makeDialog() {
     McpManager mcpManager(&mcpRegistry);
     SttRegistry sttRegistry;
     TtsRegistry ttsRegistry;
-    return new SettingsDialog(&backends, &mcpRegistry, &mcpManager, &sttRegistry, &ttsRegistry);
+    SystemPrompt systemPrompt;
+    return new SettingsDialog(&backends, &mcpRegistry, &mcpManager, &sttRegistry, &ttsRegistry,
+                              &systemPrompt);
 }
 
 void TestSettingsDialog::categoriesAreTopLevelItems() {
@@ -73,10 +76,11 @@ void TestSettingsDialog::pagesAreTabsOfTheirCategory() {
     QVERIFY(modelsTabs);
     QVERIFY(toolsTabs);
 
-    QCOMPARE(modelsTabs->count(), 3);
+    QCOMPARE(modelsTabs->count(), 4);
     QCOMPARE(modelsTabs->tabText(0), QStringLiteral("LLM"));
     QCOMPARE(modelsTabs->tabText(1), QStringLiteral("STT"));
     QCOMPARE(modelsTabs->tabText(2), QStringLiteral("TTS"));
+    QCOMPARE(modelsTabs->tabText(3), QStringLiteral("System Prompt"));
 
     QCOMPARE(toolsTabs->count(), 1);
     QCOMPARE(toolsTabs->tabText(0), QStringLiteral("MCP"));

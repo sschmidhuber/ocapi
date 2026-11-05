@@ -23,6 +23,7 @@ set(OCAPI_TESTS
     tst_mcpmanager
     tst_sttconfig
     tst_sttregistry
+    tst_systemprompt
     tst_voiceinput
     tst_audiochunker
     tst_sttclient
@@ -64,6 +65,7 @@ add_executable(tst_settingsdialog tst_settingsdialog.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/backendpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/mcppage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/sttpage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/systempromptpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/ttspage.cpp)
 target_include_directories(tst_settingsdialog PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(tst_settingsdialog PRIVATE ocapi-core Qt6::Test Qt6::Widgets)
@@ -81,6 +83,7 @@ add_executable(tst_mainwindow tst_mainwindow.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/backendpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/mcppage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/sttpage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/systempromptpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/ttspage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/settingsdialog.cpp)
 target_include_directories(tst_mainwindow PRIVATE ${CMAKE_SOURCE_DIR}/src)

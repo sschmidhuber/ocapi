@@ -42,6 +42,8 @@ set(OCAPI_CORE_SOURCES
     core/sttconfig.cpp
     core/sttregistry.h
     core/sttregistry.cpp
+    core/systemprompt.h
+    core/systemprompt.cpp
     core/ttsconfig.h
     core/ttsconfig.cpp
     core/ttsregistry.h
@@ -139,6 +141,8 @@ set(OCAPI_UI_SOURCES
     ui/mcppage.cpp
     ui/sttpage.h
     ui/sttpage.cpp
+    ui/systempromptpage.h
+    ui/systempromptpage.cpp
     ui/ttspage.h
     ui/ttspage.cpp
     ui/settingsdialog.h

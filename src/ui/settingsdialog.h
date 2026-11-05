@@ -13,6 +13,7 @@ class BackendRegistry;
 class McpManager;
 class McpRegistry;
 class SttRegistry;
+class SystemPrompt;
 class TtsRegistry;
 
 // Settings dialog following the structure of KDE's KCM configuration
@@ -25,7 +26,7 @@ class SettingsDialog : public QDialog {
 public:
     SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mcpRegistry,
                    McpManager *mcpManager, SttRegistry *sttRegistry, TtsRegistry *ttsRegistry,
-                   QWidget *parent = nullptr);
+                   SystemPrompt *systemPrompt, QWidget *parent = nullptr);
     ~SettingsDialog() override;
 
     // Selects the category ("models", "tools") and, if the category has

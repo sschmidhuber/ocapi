@@ -21,6 +21,7 @@ private slots:
     void newChatKeepsCurrentBackendAndModel();
     void toolCallFailureAppendsToolMessageWithoutCrashing();
     void keyboardShortcuts();
+    void newChatFocusesInput();
 
 private:
     QTemporaryDir m_home;
@@ -119,6 +120,28 @@ void TestMainWindow::keyboardShortcuts() {
     QTest::keyClick(focusWidget, Qt::Key_N, Qt::ControlModifier);
     QVERIFY(window.currentSession());
     QVERIFY(window.currentSession() != before);
+}
+
+// Opening a new chat must move keyboard focus to the message input so the
+// user can start typing immediately.
+void TestMainWindow::newChatFocusesInput() {
+    MainWindow window;
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    // Move focus away from the input first to prove onNewChat restores it.
+    QToolButton *settingsButton = nullptr;
+    for (auto *button : window.findChildren<QToolButton *>()) {
+        if (button->text() == QStringLiteral("Settings"))
+            settingsButton = button;
+    }
+    QVERIFY(settingsButton);
+    settingsButton->setFocus();
+    QCOMPARE(window.focusWidget(), settingsButton);
+
+    window.startNewChat();
+    QWidget *focus = window.focusWidget();
+    QVERIFY(focus && focus->accessibleName() == QStringLiteral("Message input"));
 }
 
 int main(int argc, char *argv[]) {

@@ -485,6 +485,8 @@ void MainWindow::onNewChat() {
     const QString backendId = m_currentSession ? m_currentSession->backendId() : QString();
     const QString model = m_currentSession ? m_currentSession->model() : QString();
     createSession(backendId, model);
+    // A new chat is where the user starts typing: move focus to the input.
+    m_composer->focusInput();
 }
 
 void MainWindow::createSession(const QString &backendId, const QString &model) {

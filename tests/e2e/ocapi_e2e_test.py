@@ -101,8 +101,8 @@ class OcapiE2E(unittest.TestCase):
 
     def test_01_start(self):
         # A fresh session exists with a composer and a send button; the
-        # toolbar offers "New chat" and "Settings".
-        self.find_by_name("New chat")
+        # toolbar offers "New" and "Settings".
+        self.find_by_name("New")
         self.find_by_name("Settings")
         self.find_by_name("Send")
 
@@ -187,7 +187,7 @@ class OcapiE2E(unittest.TestCase):
         self.assertNotIn("mock-model-2", picker.text)
 
         selected = picker.text
-        self.find_by_name("New chat").click()
+        self.find_by_name("New").click()
         new_picker = self.wait_for("//*[contains(@name, 'Mock backend')]", timeout=10)
         self.assertEqual(new_picker.text, selected)
         self.assertIn("mock-model", new_picker.text)

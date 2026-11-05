@@ -252,7 +252,7 @@ void MainWindow::setupUi() {
     m_toolBar->setIconSize(QSize(16, 16));
     m_toolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_newChatButton = new QToolButton(m_toolBar);
-    m_newChatButton->setText(tr("New chat"));
+    m_newChatButton->setText(tr("New"));
     m_newChatButton->setIcon(
         QIcon(QString::fromUtf8(":/resources/icons/contact-new-symbolic.svg")));
     // Widgets added via addWidget() don't inherit the toolbar's
@@ -485,8 +485,11 @@ void MainWindow::onNewChat() {
     const QString backendId = m_currentSession ? m_currentSession->backendId() : QString();
     const QString model = m_currentSession ? m_currentSession->model() : QString();
     createSession(backendId, model);
-    // A new chat is where the user starts typing: move focus to the input.
-    m_composer->focusInput();
+    // A new chat is where the user starts typing: always move focus to the
+    // input. Deferred to the next event-loop iteration so a focus grab by
+    // the previously focused widget (e.g. the chat web view after a click
+    // there) cannot steal the focus back afterwards.
+    QTimer::singleShot(0, this, [this]() { m_composer->focusInput(); });
 }
 
 void MainWindow::createSession(const QString &backendId, const QString &model) {

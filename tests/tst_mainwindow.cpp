@@ -103,7 +103,7 @@ void TestMainWindow::keyboardShortcuts() {
     QToolButton *newChatButton = nullptr;
     QToolButton *micButton = nullptr;
     for (auto *button : window.findChildren<QToolButton *>()) {
-        if (button->text() == QStringLiteral("New chat"))
+        if (button->text() == QStringLiteral("New"))
             newChatButton = button;
         if (button->accessibleName() == QStringLiteral("Dictate message"))
             micButton = button;
@@ -143,6 +143,7 @@ void TestMainWindow::newChatFocusesInput() {
     QCOMPARE(window.focusWidget(), settingsButton);
 
     window.startNewChat();
+    QTest::qWait(50); // focus is applied via a deferred singleShot(0)
     QWidget *focus = window.focusWidget();
     QVERIFY(focus && focus->accessibleName() == QStringLiteral("Message input"));
 }

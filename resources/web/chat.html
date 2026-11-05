@@ -25,7 +25,7 @@
   // round: Thinking/tool-call rows) must sit as close together as the rows
   // inside one message, so override the default 10px message margin.
   .msg.assistant { background: transparent; padding: 2px 0; max-width: 100%;
-    margin: 2px 0; margin-right: auto; }
+    margin: 1px 0; margin-right: auto; }
   .msg.tool { background: transparent; border: 1px solid var(--border);
     color: var(--muted); font-size: 12px; }
   .msg pre { background: var(--code-bg); padding: 8px; border-radius: 6px;
@@ -72,7 +72,10 @@
   .cursor::after { content: "\2588"; animation: blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   .katex-display { margin: 8px 0; }
-  .msg .actions { margin-top: 4px; display: flex; align-items: center; gap: 8px; }
+  // Below the copy button the gap must be larger than the 4px between the
+  // assistant message and the button itself.
+  .msg .actions { margin-top: 4px; margin-bottom: 8px; display: flex;
+    align-items: center; gap: 8px; }
   .msg .actions .copy-btn { color: var(--muted);
     background: transparent; border: 1px solid var(--border); border-radius: 4px;
     padding: 2px; cursor: pointer; width: 24px; height: 24px;

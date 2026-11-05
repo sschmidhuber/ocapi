@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QToolButton>
 #include <QtTest>
 
 using namespace ocapi;
@@ -19,6 +20,7 @@ private slots:
     void initTestCase();
     void newChatKeepsCurrentBackendAndModel();
     void toolCallFailureAppendsToolMessageWithoutCrashing();
+    void keyboardShortcuts();
 
 private:
     QTemporaryDir m_home;
@@ -89,6 +91,32 @@ void TestMainWindow::toolCallFailureAppendsToolMessageWithoutCrashing() {
     // Let the deferred continuation run; must not crash or hang.
     QTest::qWait(100);
     QVERIFY(window.currentSession() == session);
+}
+
+// The toolbar/composer buttons must advertise their keyboard shortcuts in
+// their tooltips, and Ctrl+N must start a new chat just like the button.
+void TestMainWindow::keyboardShortcuts() {
+    MainWindow window;
+    window.show();
+
+    QToolButton *newChatButton = nullptr;
+    QToolButton *micButton = nullptr;
+    for (auto *button : window.findChildren<QToolButton *>()) {
+        if (button->text() == QStringLiteral("New chat"))
+            newChatButton = button;
+        if (button->accessibleName() == QStringLiteral("Dictate message"))
+            micButton = button;
+    }
+    QVERIFY(newChatButton);
+    QVERIFY(micButton);
+    QVERIFY(newChatButton->toolTip().contains(QStringLiteral("Ctrl+N")));
+    QVERIFY(micButton->toolTip().contains(QStringLiteral("Ctrl+.")));
+
+    ChatSession *before = window.currentSession();
+    QVERIFY(before);
+    QTest::keyClick(&window, Qt::Key_N, Qt::ControlModifier);
+    QVERIFY(window.currentSession());
+    QVERIFY(window.currentSession() != before);
 }
 
 int main(int argc, char *argv[]) {

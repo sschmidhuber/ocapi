@@ -16,11 +16,13 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QJsonDocument>
+#include <QKeySequence>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSet>
 #include <QSettings>
+#include <QShortcut>
 #include <QSize>
 #include <QSplitter>
 #include <QStandardPaths>
@@ -256,7 +258,9 @@ void MainWindow::setupUi() {
     // Widgets added via addWidget() don't inherit the toolbar's
     // toolButtonStyle; set it explicitly so icon and text both show.
     m_newChatButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    m_newChatButton->setToolTip(tr("Start a new chat"));
+    const QKeySequence newChatSequence(QStringLiteral("Ctrl+N"));
+    m_newChatButton->setToolTip(
+        tr("Start a new chat (%1)").arg(newChatSequence.toString(QKeySequence::NativeText)));
     m_settingsButton = new QToolButton(m_toolBar);
     m_settingsButton->setText(tr("Settings"));
     m_settingsButton->setIcon(
@@ -366,6 +370,9 @@ void MainWindow::setupUi() {
 
 void MainWindow::setupConnections() {
     connect(m_newChatButton, &QToolButton::clicked, this, &MainWindow::onNewChat);
+    auto *newChatShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+N")), this);
+    newChatShortcut->setContext(Qt::WindowShortcut);
+    connect(newChatShortcut, &QShortcut::activated, this, &MainWindow::onNewChat);
     connect(m_settingsButton, &QToolButton::clicked, this, [this] { openSettings(QString()); });
     connect(m_sidebar, &Sidebar::sessionSelected, this, &MainWindow::onSessionSelected);
     connect(m_sidebar, &Sidebar::sessionDeleteRequested, this,

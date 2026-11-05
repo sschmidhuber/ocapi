@@ -9,11 +9,13 @@
 #include <QIcon>
 #include <QImage>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QMessageBox>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPixmap>
+#include <QShortcut>
 #include <QTextCursor>
 #include <QToolButton>
 #include <QUrl>
@@ -191,7 +193,9 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     } else {
         m_micButton->setText(QString::fromUtf8("\U0001F3A4"));
     }
-    m_micButton->setToolTip(tr("Dictate message (speech-to-text)"));
+    const QKeySequence dictateSequence(QStringLiteral("Ctrl+."));
+    m_micButton->setToolTip(tr("Dictate message (speech-to-text) (%1)")
+                                .arg(dictateSequence.toString(QKeySequence::NativeText)));
     m_micButton->setAccessibleName(tr("Dictate message"));
     m_micButton->setAutoRaise(true);
     m_micButton->setCheckable(true);
@@ -221,6 +225,12 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
         if (checked == m_dictationActive)
             return;
         emit dictationRequested();
+    });
+    auto *dictateShortcut = new QShortcut(dictateSequence, this);
+    dictateShortcut->setContext(Qt::WindowShortcut);
+    connect(dictateShortcut, &QShortcut::activated, this, [this]() {
+        if (m_dictationAvailable && !m_busy)
+            emit dictationRequested();
     });
 }
 

@@ -65,6 +65,12 @@ void ChatSession::prependMessages(const QVector<Message> &messages) {
 void ChatSession::updateMessage(const QUuid &id, const QString &content, bool streaming) {
     for (auto &message : m_messages) {
         if (message.id == id) {
+            // Record where the answer text sits relative to thinking phases
+            // and tool calls: the first non-empty content appends the "text"
+            // token, so elements that happen after the answer started render
+            // below it instead of above it.
+            if (!content.isEmpty() && !message.elementOrder.contains(QStringLiteral("text")))
+                message.elementOrder.append(QStringLiteral("text"));
             message.content = content;
             message.streaming = streaming;
             message.error.clear();

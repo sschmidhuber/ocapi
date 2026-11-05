@@ -25,7 +25,7 @@
   // round: Thinking/tool-call rows) must sit as close together as the rows
   // inside one message, so override the default 10px message margin.
   .msg.assistant { background: transparent; padding: 2px 0; max-width: 100%;
-    margin: 2px 0; margin-right: auto; }
+    margin: 1px 0; margin-right: auto; }
   .msg.tool { background: transparent; border: 1px solid var(--border);
     color: var(--muted); font-size: 12px; }
   .msg pre { background: var(--code-bg); padding: 8px; border-radius: 6px;
@@ -72,7 +72,10 @@
   .cursor::after { content: "\2588"; animation: blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   .katex-display { margin: 8px 0; }
-  .msg .actions { margin-top: 4px; display: flex; align-items: center; gap: 8px; }
+  // Below the copy button the gap must be larger than the 4px between the
+  // assistant message and the button itself.
+  .msg .actions { margin-top: 4px; margin-bottom: 8px; display: flex;
+    align-items: center; gap: 8px; }
   .msg .actions .copy-btn { color: var(--muted);
     background: transparent; border: 1px solid var(--border); border-radius: 4px;
     padding: 2px; cursor: pointer; width: 24px; height: 24px;
@@ -228,61 +231,83 @@
 
   // Renders the thinking phases and tool calls of an assistant message as
   // collapsible elements (same style), strictly in the order they happened:
-  // elementOrder holds "thinking:<i>" / "tool:<i>" tokens, e.g. a turn that
-  // thought, called a tool, thought again and called another tool renders
-  // Thinking, tool call, Thinking, tool call — not all thinkings first.
+  // elementOrder holds "thinking:<i>" / "tool:<i>" tokens plus a "text" token
+  // marking where the answer sits, e.g. a turn that thought, called a tool,
+  // thought again and called another tool renders Thinking, tool call,
+  // Thinking, tool call — not all thinkings first. Elements recorded before
+  // "text" render above the answer, later ones below it; a turn that answers
+  // first and only then calls tools shows the tool calls under the answer.
   // Messages without a recorded order (persisted before ordering existed)
-  // fall back to all thinking phases, then all tool calls. The user's
-  // expand/collapse choice per element is preserved across streaming updates.
+  // fall back to all thinking phases, then all tool calls, above the answer.
+  // The user's expand/collapse choice per element is preserved across
+  // streaming updates.
   function renderElements(el, thinking, toolCalls, elementOrder, reasoningStreaming) {
-    let container = el.querySelector('.elements');
-    if (!container) {
-      container = document.createElement('div');
-      container.className = 'elements';
-      el.insertBefore(container, el.querySelector('.body'));
+    const body = el.querySelector('.body');
+    let above = el.querySelector('.elements');
+    if (!above) {
+      above = document.createElement('div');
+      above.className = 'elements';
+      el.insertBefore(above, body);
     }
-    let tokens = (elementOrder || []).filter(function(t) {
-      const parts = String(t).split(':');
-      if (parts[0] === 'thinking') return Number(parts[1]) < thinking.length;
-      if (parts[0] === 'tool') return Number(parts[1]) < toolCalls.length;
-      return false;
-    });
-    if (!tokens.length) {
-      for (let i = 0; i < thinking.length; i++) tokens.push('thinking:' + i);
-      for (let i = 0; i < toolCalls.length; i++) tokens.push('tool:' + i);
+    let below = el.querySelector('.elements.after');
+    if (!below) {
+      below = document.createElement('div');
+      below.className = 'elements after';
+      // Insert after the copy-button row so the button always sits directly
+      // below the assistant message, never below trailing tool-call elements.
+      el.insertBefore(below, (el.querySelector('.actions') || body).nextSibling);
     }
-    const wanted = {};
-    for (let i = 0; i < tokens.length; i++) {
-      const token = tokens[i];
-      wanted[token] = true;
-      let d = container.querySelector('details[data-token="' + CSS.escape(token) + '"]');
-      if (!d) {
-        const parts = token.split(':');
-        d = (parts[0] === 'thinking') ? createThinkingElement(parts[1])
-                                      : createToolCallElement(parts[1]);
+    const rawTokens = elementOrder || [];
+    const textIdx = rawTokens.indexOf('text');
+    const groups = [[above, []], [below, []]];
+    for (let i = 0; i < rawTokens.length; i++) {
+      const t = String(rawTokens[i]);
+      const parts = t.split(':');
+      let valid = false;
+      if (parts[0] === 'thinking') valid = Number(parts[1]) < thinking.length;
+      else if (parts[0] === 'tool') valid = Number(parts[1]) < toolCalls.length;
+      if (!valid) continue; // includes the 'text' token itself
+      groups[(textIdx === -1 || i < textIdx) ? 0 : 1][1].push(t);
+    }
+    if (!groups[0][1].length && !groups[1][1].length) {
+      for (let i = 0; i < thinking.length; i++) groups[0][1].push('thinking:' + i);
+      for (let i = 0; i < toolCalls.length; i++) groups[0][1].push('tool:' + i);
+    }
+    for (const [container, tokens] of groups) {
+      const wanted = {};
+      for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+        wanted[token] = true;
+        let d = container.querySelector('details[data-token="' + CSS.escape(token) + '"]');
+        if (!d) {
+          const parts = token.split(':');
+          d = (parts[0] === 'thinking') ? createThinkingElement(parts[1])
+                                        : createToolCallElement(parts[1]);
+        }
+        // Only (re)insert when the element is not already at its position:
+        // appendChild/insertBefore remove and re-insert the node even within
+        // the same parent, which would restart the spinner's CSS animation on
+        // every streaming update.
+        if (container.children[i] !== d)
+          container.insertBefore(d, container.children[i] || null);
+        const idx = Number(token.split(':')[1]);
+        if (token.startsWith('thinking:'))
+          updateThinkingElement(d, idx, thinking[idx], reasoningStreaming, thinking.length);
+        else
+          updateToolCallElement(d, toolCalls[idx]);
       }
-      // Only (re)insert when the element is not already at its position:
-      // appendChild/insertBefore remove and re-insert the node even within
-      // the same parent, which would restart the spinner's CSS animation on
-      // every streaming update.
-      if (container.children[i] !== d)
-        container.insertBefore(d, container.children[i] || null);
-      const idx = Number(token.split(':')[1]);
-      if (token.startsWith('thinking:'))
-        updateThinkingElement(d, idx, thinking[idx], reasoningStreaming, thinking.length);
-      else
-        updateToolCallElement(d, toolCalls[idx]);
+      // Drop elements whose token is no longer present (e.g. after a reload).
+      for (const d of container.querySelectorAll('details[data-token]')) {
+        if (!wanted[d.dataset.token]) d.remove();
+      }
+      container.style.display = tokens.length ? '' : 'none';
     }
-    // Drop elements whose token is no longer present (e.g. after a reload).
-    for (const d of container.querySelectorAll('details[data-token]')) {
-      if (!wanted[d.dataset.token]) d.remove();
-    }
-    container.style.display = tokens.length ? '' : 'none';
   }
 
   // Append or update one message. id = message id; role: user|assistant|tool;
   // toolCalls = array of {id, name, arguments, status, result} in call order;
-  // elementOrder = ["thinking:<i>", "tool:<i>", ...] tokens in display order.
+  // elementOrder = ["thinking:<i>", "tool:<i>", ..., "text", ...] tokens in
+  // display order; "text" marks where the answer sits among the elements.
   function setMessage(id, role, content, streaming, thinking, reasoningStreaming, toolCalls, elementOrder) {
     let el = document.getElementById('msg-' + id);
     if (!el) {

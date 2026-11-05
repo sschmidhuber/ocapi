@@ -180,10 +180,6 @@ private:
     bool m_loadingOlder = false;
     bool m_runningTools = false; // a tool-call round is in progress
     QUuid m_streamedMessageId;
-    // Assistant message of the current turn. Tool-call rounds continue this
-    // same message instead of appending a new one, so Thinking, tool calls
-    // and the answer text all live in a single chat message.
-    QUuid m_turnAssistantMessageId;
     int m_streamedTokens = 0;
     QDateTime m_firstToken;
     // Models detected per backend id (survives session switches).

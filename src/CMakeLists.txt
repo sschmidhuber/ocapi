@@ -171,6 +171,7 @@ qt_add_resources(ocapi "ocapi_resources"
         ../resources/icons/settings-configure-symbolic.svg
         ../resources/icons/ai_chip.svg
         ../resources/icons/tools.svg
+        ../resources/icons/general.svg
         ../resources/icons/audio-symbolic.svg
         ../resources/web/chat.html
         ../resources/web/marked.min.js

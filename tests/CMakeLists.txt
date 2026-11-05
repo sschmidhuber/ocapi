@@ -96,8 +96,11 @@ set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icons/ai_chip.svg
     PROPERTIES QT_RESOURCE_ALIAS "resources/icons/ai_chip.svg")
 set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icons/tools.svg
     PROPERTIES QT_RESOURCE_ALIAS "resources/icons/tools.svg")
+set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icons/general.svg
+    PROPERTIES QT_RESOURCE_ALIAS "resources/icons/general.svg")
 qt_add_resources(tst_settingsdialog "ocapi_resources"
     PREFIX "/"
     FILES
         ${CMAKE_SOURCE_DIR}/resources/icons/ai_chip.svg
-        ${CMAKE_SOURCE_DIR}/resources/icons/tools.svg)
+        ${CMAKE_SOURCE_DIR}/resources/icons/tools.svg
+        ${CMAKE_SOURCE_DIR}/resources/icons/general.svg)

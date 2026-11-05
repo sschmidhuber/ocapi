@@ -38,13 +38,16 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
 
     m_stack = new QStackedWidget(splitter);
 
+    addCategory(tr("General"), QStringLiteral("general"),
+                QStringLiteral(":/resources/icons/general.svg"));
+    addTab(tr("System Prompt"), QStringLiteral("systemprompt"),
+           new SystemPromptPage(systemPrompt, m_stack));
+
     addCategory(tr("Models"), QStringLiteral("models"),
                 QStringLiteral(":/resources/icons/ai_chip.svg"));
     addTab(tr("LLM"), QStringLiteral("llm"), new BackendPage(backendRegistry, m_stack));
     addTab(tr("STT"), QStringLiteral("stt"), new SttPage(sttRegistry, backendRegistry, m_stack));
     addTab(tr("TTS"), QStringLiteral("tts"), new TtsPage(ttsRegistry, backendRegistry, m_stack));
-    addTab(tr("System Prompt"), QStringLiteral("systemprompt"),
-           new SystemPromptPage(systemPrompt, m_stack));
 
     addCategory(tr("Tools"), QStringLiteral("tools"),
                 QStringLiteral(":/resources/icons/tools.svg"));

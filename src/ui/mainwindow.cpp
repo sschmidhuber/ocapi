@@ -1048,10 +1048,8 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
     // The backend appends the assistant message inside sendMessage().
     if (m_currentSession->messages().size() > count) {
         const Message &assistant = m_currentSession->messages().constLast();
-        if (assistant.role == Role::Assistant) {
+        if (assistant.role == Role::Assistant)
             m_streamedMessageId = assistant.id;
-            m_turnAssistantMessageId = assistant.id;
-        }
     }
 }
 
@@ -1317,11 +1315,8 @@ void MainWindow::sendConversationAfterToolResults(ChatSession *session) {
         return; // already continued
     if (!session || session != m_currentSession)
         return;
-    if (toolDebug::enabled()) {
-        toolDebug::log(QStringLiteral("sendConversationAfterToolResults: continuing message %1")
-                           .arg(m_turnAssistantMessageId.toString(QUuid::WithoutBraces)));
+    if (toolDebug::enabled())
         toolDebug::logSession(session, QStringLiteral("session before next round"));
-    }
     m_runningTools = false;
     m_toolSession = nullptr;
     // Send the conversation (now including tool results) back to the model.
@@ -1345,10 +1340,17 @@ void MainWindow::sendConversationAfterToolResults(ChatSession *session) {
     m_sendButton->setVisible(false);
     m_stopButton->setVisible(true);
     statusBar()->showMessage(tr("Generating…"));
-    // Continue the same assistant message: the new round's thinking, tool
-    // calls and answer text all belong to the one message of this turn.
-    m_backend->sendMessage(session, model, m_turnAssistantMessageId);
-    m_streamedMessageId = m_turnAssistantMessageId;
+    // Start a new assistant message for this round: the chat then shows each
+    // round's thinking, tool calls and answer text as their own message in
+    // the order they actually happened, instead of merging the new answer
+    // into the message that already ended before the last tool call.
+    const qsizetype messageCount = session->messages().size();
+    m_backend->sendMessage(session, model);
+    if (session->messages().size() > messageCount) {
+        const Message &assistant = session->messages().constLast();
+        if (assistant.role == Role::Assistant)
+            m_streamedMessageId = assistant.id;
+    }
 }
 
 void MainWindow::onMcpPermissionRequested(const QString &callKey, const QString &serverName,

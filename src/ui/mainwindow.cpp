@@ -928,7 +928,7 @@ void MainWindow::detectModels() {
                     if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS"))
                         qWarning().noquote()
                             << "[ocapi models] detection FAILED for" << backendId << ":" << error;
-                    if (m_detectors.find(backendId) != m_detectors.end() &&
+                    if (m_detectors.contains(backendId) &&
                         *m_detectors.find(backendId) == detector) {
                         m_pendingDetection.remove(backendId); // allow retry on next trigger
                         m_detectors.remove(backendId);
@@ -974,7 +974,7 @@ void MainWindow::onModelsDetected(const QString &backendId, const QStringList &m
     // "Backend | model".
     if (backendId == m_modelPicker->currentBackendId() && m_modelPicker->currentModel().isEmpty() &&
         !cached.isEmpty()) {
-        const QString first = cached.first();
+        const QString &first = cached.first();
         m_modelPicker->setBackendAndModel(m_modelPicker->backendName(), backendId, first);
         if (m_currentSession)
             m_currentSession->setModel(first);

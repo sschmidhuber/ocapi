@@ -107,14 +107,16 @@ void TestMainWindow::keyboardShortcuts() {
         if (button->accessibleName() == QStringLiteral("Dictate message"))
             micButton = button;
     }
-    QVERIFY(newChatButton);
-    QVERIFY(micButton);
-    QVERIFY(newChatButton->toolTip().contains(QStringLiteral("Ctrl+N")));
-    QVERIFY(micButton->toolTip().contains(QStringLiteral("Ctrl+.")));
+    QVERIFY(newChatButton && newChatButton->toolTip().contains(QStringLiteral("Ctrl+N")));
+    QVERIFY(micButton && micButton->toolTip().contains(QStringLiteral("Ctrl+.")));
 
     ChatSession *before = window.currentSession();
     QVERIFY(before);
-    QTest::keyClick(&window, Qt::Key_N, Qt::ControlModifier);
+    // Key events must reach the focus widget for window shortcuts to fire.
+    QTest::qWaitForWindowExposed(&window);
+    QWidget *focusWidget = window.focusWidget();
+    QVERIFY(focusWidget);
+    QTest::keyClick(focusWidget, Qt::Key_N, Qt::ControlModifier);
     QVERIFY(window.currentSession());
     QVERIFY(window.currentSession() != before);
 }

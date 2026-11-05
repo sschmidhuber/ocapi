@@ -16,11 +16,13 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QJsonDocument>
+#include <QKeySequence>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSet>
 #include <QSettings>
+#include <QShortcut>
 #include <QSize>
 #include <QSplitter>
 #include <QStandardPaths>
@@ -256,7 +258,9 @@ void MainWindow::setupUi() {
     // Widgets added via addWidget() don't inherit the toolbar's
     // toolButtonStyle; set it explicitly so icon and text both show.
     m_newChatButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    m_newChatButton->setToolTip(tr("Start a new chat"));
+    const QKeySequence newChatSequence(QStringLiteral("Ctrl+N"));
+    m_newChatButton->setToolTip(
+        tr("Start a new chat (%1)").arg(newChatSequence.toString(QKeySequence::NativeText)));
     m_settingsButton = new QToolButton(m_toolBar);
     m_settingsButton->setText(tr("Settings"));
     m_settingsButton->setIcon(
@@ -366,6 +370,9 @@ void MainWindow::setupUi() {
 
 void MainWindow::setupConnections() {
     connect(m_newChatButton, &QToolButton::clicked, this, &MainWindow::onNewChat);
+    auto *newChatShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+N")), this);
+    newChatShortcut->setContext(Qt::WindowShortcut);
+    connect(newChatShortcut, &QShortcut::activated, this, &MainWindow::onNewChat);
     connect(m_settingsButton, &QToolButton::clicked, this, [this] { openSettings(QString()); });
     connect(m_sidebar, &Sidebar::sessionSelected, this, &MainWindow::onSessionSelected);
     connect(m_sidebar, &Sidebar::sessionDeleteRequested, this,
@@ -921,7 +928,7 @@ void MainWindow::detectModels() {
                     if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS"))
                         qWarning().noquote()
                             << "[ocapi models] detection FAILED for" << backendId << ":" << error;
-                    if (m_detectors.find(backendId) != m_detectors.end() &&
+                    if (m_detectors.contains(backendId) &&
                         *m_detectors.find(backendId) == detector) {
                         m_pendingDetection.remove(backendId); // allow retry on next trigger
                         m_detectors.remove(backendId);
@@ -967,7 +974,7 @@ void MainWindow::onModelsDetected(const QString &backendId, const QStringList &m
     // "Backend | model".
     if (backendId == m_modelPicker->currentBackendId() && m_modelPicker->currentModel().isEmpty() &&
         !cached.isEmpty()) {
-        const QString first = cached.first();
+        const QString &first = cached.first();
         m_modelPicker->setBackendAndModel(m_modelPicker->backendName(), backendId, first);
         if (m_currentSession)
             m_currentSession->setModel(first);

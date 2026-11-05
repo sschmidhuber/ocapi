@@ -1,0 +1,5 @@
+resources/web/*.min.js
+resources/web/*.min.css
+resources/web/github.css
+resources/web/highlight-github.css
+resources/web/katex-fonts/

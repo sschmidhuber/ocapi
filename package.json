@@ -1,0 +1,22 @@
+{
+  "name": "ocapi-web-lint",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dev-only static analysis for the web chat assets in resources/web (ESLint, Stylelint, HTMLHint, Prettier). Not part of the shipped app.",
+  "scripts": {
+    "lint:js": "eslint resources/web/chat.html",
+    "lint:css": "stylelint \"resources/web/chat.html\"",
+    "lint:html": "htmlhint resources/web/chat.html",
+    "lint:format": "prettier --check resources/web/chat.html",
+    "lint:web": "npm run lint:js && npm run lint:css && npm run lint:html && npm run lint:format"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "eslint-plugin-html": "^8.1.2",
+    "htmlhint": "^1.1.4",
+    "postcss-html": "^1.8.1",
+    "prettier": "^3.3.3",
+    "stylelint": "^16.10.0",
+    "stylelint-config-standard": "^36.0.1"
+  }
+}

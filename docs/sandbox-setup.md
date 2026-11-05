@@ -104,6 +104,26 @@ pip install clang-format cppcheck clang-tidy
 
 All end up in `/home/appuser/.local/bin/`.
 
+### Node.js (for web asset linting: ESLint, Stylelint, HTMLHint, Prettier)
+
+The sandbox has no system Node.js; install it into `/home/appuser/` like Qt:
+
+```bash
+cd /home/appuser
+curl -fsSLO https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-x64.tar.xz
+tar -xf node-v22.14.0-linux-x64.tar.xz
+export PATH="/home/appuser/node-v22.14.0-linux-x64/bin:$PATH"
+node --version   # v22.x
+```
+
+Then install the lint tools declared in the repo's `package.json`
+(`node_modules/` and `package-lock.json` are gitignored):
+
+```bash
+cd /workspace/github__sschmidhuber__ocapi
+npm install --no-audit --no-fund
+```
+
 ## 5. Configure CMake
 
 ```bash
@@ -179,12 +199,28 @@ Or use the repo's script:
 scripts/clang-tidy-changed.sh
 ```
 
+### Web assets: ESLint / Stylelint / HTMLHint / Prettier
+
+Lints `resources/web/chat.html` (inline JS via `eslint-plugin-html`,
+embedded CSS via Stylelint with `postcss-html`, HTML via HTMLHint) and
+checks formatting with Prettier — the same checks as the CI `web-lint` job:
+
+```bash
+cd /workspace/github__sschmidhuber__ocapi
+npm run lint:web          # all four checks
+npm run lint:js           # eslint resources/web/chat.html
+npm run lint:css          # stylelint "resources/web/chat.html"
+npm run lint:html         # htmlhint resources/web/chat.html
+npm run lint:format       # prettier --check resources/web/chat.html
+npx prettier --write resources/web/chat.html   # auto-fix formatting
+```
+
 ## 9. Environment Variables (save these)
 
 Add to `~/.bashrc` or export in each session:
 
 ```bash
-export PATH="/home/appuser/.local/bin:$PATH"
+export PATH="/home/appuser/.local/bin:/home/appuser/node-v22.14.0-linux-x64/bin:$PATH"
 export LD_LIBRARY_PATH=/home/appuser/sysroot/usr/lib/x86_64-linux-gnu:/home/appuser/sysroot/usr/lib/x86_64-linux-gnu/pulseaudio:/home/appuser/sysroot/lib/x86_64-linux-gnu:/home/appuser/qt/6.8.2/gcc_64/lib
 export QT_QPA_PLATFORM=offscreen
 ```
@@ -195,7 +231,7 @@ If `/home/appuser/qt`, `/home/appuser/sysroot`, and `/home/appuser/.local/bin/`
 already exist (persisted from a previous session), skip to:
 
 ```bash
-export PATH="/home/appuser/.local/bin:$PATH"
+export PATH="/home/appuser/.local/bin:/home/appuser/node-v22.14.0-linux-x64/bin:$PATH"
 export LD_LIBRARY_PATH=/home/appuser/sysroot/usr/lib/x86_64-linux-gnu:/home/appuser/sysroot/usr/lib/x86_64-linux-gnu/pulseaudio:/home/appuser/sysroot/lib/x86_64-linux-gnu:/home/appuser/qt/6.8.2/gcc_64/lib
 export QT_QPA_PLATFORM=offscreen
 cd /workspace/github__sschmidhuber__ocapi   # or your repo path

@@ -1,431 +1,628 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-<meta charset="utf-8">
-<link rel="stylesheet" href="katex.min.css">
-<link rel="stylesheet" href="highlight-github.css">
-<style id="theme">
-  :root {
-    --bg: #ffffff; --fg: #1b1b1b; --muted: #6a6a6a; --bubble-user: #d6e9ff;
-    --border: #d0d0d0; --code-bg: #f0f0f0;
-    --link: #2a82da; --accent: #3a7bd5;
-  }
-  html.dark {
-    --bg: #1e1e1e; --fg: #e0e0e0; --muted: #9a9a9a; --bubble-user: #2d4a6b;
-    --border: #444; --code-bg: #2d2d2d;
-    --link: #6aa9ff; --accent: #5b9bd5;
-  }
-  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
-    font-family: sans-serif; font-size: 14px; line-height: 1.5; }
-  #log { padding: 8px 12px 16px; }
-  .msg { margin: 10px 0; padding: 8px 12px; border-radius: 8px; max-width: 92%;
-    overflow-wrap: break-word; }
-  .msg.user { background: var(--bubble-user); margin-left: auto; }
-  /* Assistant messages have no bubble; consecutive ones (user message,
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="katex.min.css" />
+    <link rel="stylesheet" href="highlight-github.css" />
+    <style id="theme">
+      :root {
+        --bg: #ffffff;
+        --fg: #1b1b1b;
+        --muted: #6a6a6a;
+        --bubble-user: #d6e9ff;
+        --border: #d0d0d0;
+        --code-bg: #f0f0f0;
+        --link: #2a82da;
+        --accent: #3a7bd5;
+      }
+      html.dark {
+        --bg: #1e1e1e;
+        --fg: #e0e0e0;
+        --muted: #9a9a9a;
+        --bubble-user: #2d4a6b;
+        --border: #444;
+        --code-bg: #2d2d2d;
+        --link: #6aa9ff;
+        --accent: #5b9bd5;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      #log {
+        padding: 8px 12px 16px;
+      }
+      .msg {
+        margin: 10px 0;
+        padding: 8px 12px;
+        border-radius: 8px;
+        max-width: 92%;
+        overflow-wrap: break-word;
+      }
+      .msg.user {
+        background: var(--bubble-user);
+        margin-left: auto;
+      }
+      /* Assistant messages have no bubble; consecutive ones (user message,
      thinking, tool call, assistant answer) must sit as close together as
      rows of one turn, so override the default 10px message margin. */
-  .msg.assistant { background: transparent; padding: 2px 0; max-width: 100%;
-    margin: 1px 0; margin-right: auto; }
-  /* Thinking and tool-call rows are their own elements (not .msg), without
+      .msg.assistant {
+        background: transparent;
+        padding: 2px 0;
+        max-width: 100%;
+        margin: 1px 0;
+        margin-right: auto;
+      }
+      /* Thinking and tool-call rows are their own elements (not .msg), without
      the message spacing. */
-  .element-row { margin: 0; padding: 0; }
-  .element-row summary { padding-top: 0; padding-bottom: 0; }
-  .msg.tool { background: transparent; border: 1px solid var(--border);
-    color: var(--muted); font-size: 12px; }
-  .msg pre { background: var(--code-bg); padding: 8px; border-radius: 6px;
-    overflow-x: auto; }
-  .msg code { font-family: monospace; background: var(--code-bg); padding: 1px 4px;
-    border-radius: 4px; }
-  .msg pre code { background: transparent; padding: 0; }
-  .msg a { color: var(--link); }
-  .msg table { border-collapse: collapse; }
-  .msg th, .msg td { border: 1px solid var(--border); padding: 4px 8px; }
-  .msg blockquote { border-left: 3px solid var(--border); margin-left: 0;
-    padding-left: 10px; color: var(--muted); }
-  .thinking { color: var(--muted); margin: 0; }
-  .thinking summary { cursor: pointer; user-select: none;
-    display: flex; align-items: center; gap: 6px; padding: 2px 0; }
-  .thinking summary .chev { width: 12px; height: 12px; display: inline-block;
-    transition: transform 0.15s; }
-  .thinking[open] summary .chev { transform: rotate(90deg); }
-  .thinking .spinner { display: inline-block; width: 12px; height: 12px;
-    border: 2px solid var(--border); border-top-color: var(--muted); border-radius: 50%;
-    animation: spin 0.8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .thinking .reasoning-body { font-style: italic; border-left: 3px solid var(--border);
-    padding: 4px 0 4px 10px; margin-top: 4px; white-space: pre-wrap; }
-  .msg .body:empty { display: none; }
-  .toolcall { color: var(--muted); }
-  .toolcall summary { cursor: pointer; user-select: none;
-    display: flex; align-items: center; gap: 6px; padding: 2px 0; }
-  .toolcall summary .chev { width: 12px; height: 12px; display: inline-block;
-    transition: transform 0.15s; }
-  .toolcall[open] summary .chev { transform: rotate(90deg); }
-  .toolcall summary .tc-name { font-family: monospace; }
-  .toolcall summary .spinner { display: inline-block; width: 12px; height: 12px;
-    border: 2px solid var(--border); border-top-color: var(--muted); border-radius: 50%;
-    animation: spin 0.8s linear infinite; }
-  .toolcall .tc-body { border-left: 3px solid var(--border);
-    padding: 4px 0 4px 10px; margin-top: 4px; }
-  .toolcall .tc-label { font-size: 11px; text-transform: uppercase;
-    letter-spacing: 0.04em; margin: 4px 0 2px; }
-  .toolcall .tc-body pre { margin: 2px 0; }
-  .toolcall .tc-result { white-space: pre-wrap; }
-  .cursor::after { content: "\2588"; animation: blink 1s steps(1) infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-  .katex-display { margin: 8px 0; }
-  /* Below the copy button the gap must be larger than the 4px between the
-     assistant message and the button itself. */
-  .msg .actions { margin-top: 4px; margin-bottom: 8px; display: flex;
-    align-items: center; gap: 8px; }
-  .msg .actions .copy-btn { color: var(--muted);
-    background: transparent; border: 1px solid var(--border); border-radius: 4px;
-    padding: 2px; cursor: pointer; width: 24px; height: 24px;
-    display: inline-flex; align-items: center; justify-content: center; }
-  .msg .actions .copy-btn:hover { color: var(--fg); border-color: var(--muted); }
-  .msg .actions .copy-btn svg.icon { width: 16px; height: 16px; }
-</style>
-<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-<script>
-  // Initialized asynchronously; the C++ side pushes messages only after the
-  // page finished loading, but clicks can also arrive before the channel is
-  // up, so every bridge use must handle a null bridge.
-  window.qtBridge = null;
-  if (typeof qt !== 'undefined' && qt.webChannelTransport) {
-    new QWebChannel(qt.webChannelTransport, function(channel) {
-      window.qtBridge = channel.objects.qtBridge;
-    });
-  }
-</script>
-<script src="marked.min.js"></script>
-<script src="katex.min.js"></script>
-<script src="highlight.min.js"></script>
-<script>
-  marked.setOptions({ breaks: true, gfm: true, highlight: function(code, lang) {
-    try {
-      if (lang && hljs.getLanguage(lang)) return hljs.highlight(lang, code, true).value;
-      return hljs.highlightAuto(code).value;
-    } catch (e) {
-      return null; // let marked escape and render the code block unhighlighted
-    }
-  }});
-
-  // Renders markdown to HTML. LaTeX math is extracted from the raw text and
-  // rendered with KaTeX before marked runs, because marked consumes the
-  // backslashes of the \\( \\) and \\[ \\] delimiters and would otherwise
-  // leave them as literal text. Fenced code blocks and inline code are
-  // stashed first so no math is extracted from them.
-  function renderMarkdown(text) {
-    const stash = [];
-    function stashToken(s) {
-      stash.push(s);
-      return '@@ocapi' + (stash.length - 1) + '@@';
-    }
-
-    let masked = text.replace(/(```|~~~)[\s\S]*?(?:\1|$)/g,
-                              function(m) { return stashToken(m); });
-    masked = masked.replace(/`[^`\n]*`/g, function(m) { return stashToken(m); });
-    masked = masked.replace(
-      /\$\$([\s\S]+?)\$\$|\\+\[([\s\S]+?)\\+\]|\\+\(([^\n]+?)\\+\)|\$([^$\n]+?)\$/g,
-      function(m, d1, d2, d3, d4) {
-        const tex = d1 !== undefined ? d1 : d2 !== undefined ? d2 : d3 !== undefined ? d3 : d4;
-        const display = d1 !== undefined || d2 !== undefined;
-        return stashToken(katex.renderToString(tex, {displayMode: display, throwOnError: false}));
-      });
-
-    let html = marked.parse(masked);
-    for (let i = 0; i < stash.length; i++) {
-      const token = '@@ocapi' + i + '@@';
-      let replacement = stash[i];
-      if (replacement.charAt(0) === '`' && replacement.charAt(1) === '`')
-        replacement = marked.parse(replacement);      // fenced code block
-      else if (replacement.charAt(0) === '`')
-        replacement = marked.parseInline(replacement); // inline code span
-      html = html.split(token).join(replacement);
-    }
-    return html;
-  }
-
-  function showCopied(el) {
-    const copyBtn = el.querySelector('.copy-btn');
-    if (!copyBtn) return;
-    copyBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>';
-    copyBtn.style.color = 'var(--accent)';
-    clearTimeout(copyBtn._timer);
-    copyBtn._timer = setTimeout(function() {
-      copyBtn.style.color = '';
-      copyBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15 h-1.5 a1 1 0 0 1 -1 -1 v-10.5 a1 1 0 0 1 1 -1 h10.5 a1 1 0 0 1 1 1 v1.5"/></g></svg>';
-    }, 1500);
-  }
-
-  // Copies a message's raw (markdown) content through the Qt clipboard via
-  // the web channel bridge, with JS clipboard fallbacks.
-  function copyMessageContent(id) {
-    const el = document.getElementById('msg-' + id);
-    if (!el) return;
-    const text = el.dataset.raw || '';
-    if (!text) return;
-    if (window.qtBridge && window.qtBridge.copyToClipboard) {
-      window.qtBridge.copyToClipboard(text);
-      showCopied(el);
-    } else if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function() { showCopied(el); },
-                                                function() {});
-    } else {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      showCopied(el);
-    }
-  }
-
-  function createThinkingElement(idx) {
-    const d = document.createElement('details');
-    d.className = 'thinking';
-    d.dataset.token = 'thinking:' + idx;
-    d.innerHTML = '<summary>' +
-                  '<svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m6 3 5 5-5 5-1-1 4-4-4-4z"/></svg>' +
-                  '<span class="tlabel">Thinking</span>' +
-                  '<span class="spinner" style="display:none"></span></summary>' +
-                  '<div class="reasoning-body"></div>';
-    // Collapse each phase on first appearance.
-    d.removeAttribute('open');
-    return d;
-  }
-
-  function createToolCallElement(idx) {
-    const d = document.createElement('details');
-    d.className = 'toolcall';
-    d.dataset.token = 'tool:' + idx;
-    d.innerHTML = '<summary><svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m6 3 5 5-5 5-1-1 4-4-4-4z"/></svg>' +
-                  '<span class="tc-name"></span>' +
-                  '<span class="spinner" style="display:none"></span></summary>' +
-                  '<div class="tc-body">' +
-                  '<div class="tc-label">Parameters</div>' +
-                  '<pre><code class="tc-params"></code></pre>' +
-                  '<div class="tc-result-wrap" style="display:none">' +
-                  '<div class="tc-label">Result</div>' +
-                  '<div class="tc-result"></div></div></div>';
-    return d;
-  }
-
-  function updateThinkingElement(d, idx, segment, reasoningStreaming, segmentCount) {
-    d.querySelector('.reasoning-body').textContent = segment;
-    d.querySelector('.spinner').style.display =
-      (reasoningStreaming && idx === segmentCount - 1) ? '' : 'none';
-  }
-
-  function updateToolCallElement(d, call) {
-    d.querySelector('.tc-name').textContent = call.name;
-    d.querySelector('.tc-params').textContent = JSON.stringify(call.arguments || {}, null, 2);
-    d.querySelector('.spinner').style.display = (call.status === 'running') ? '' : 'none';
-    const resultWrap = d.querySelector('.tc-result-wrap');
-    if (call.status !== 'running' && call.result) {
-      resultWrap.style.display = '';
-      d.querySelector('.tc-result').innerHTML = renderMarkdown(call.result);
-    } else {
-      resultWrap.style.display = 'none';
-    }
-  }
-
-  // Each thinking phase and tool call of an assistant message is rendered as
-  // its own top-level element in the log (wrapped in an .element-row div),
-  // strictly in the order they happened: elementOrder holds "thinking:<i>" /
-  // "tool:<i>" tokens plus a "text" token marking where the answer sits, e.g.
-  // a turn that thought, called a tool, thought again and called another tool
-  // renders Thinking, tool call, Thinking, tool call as separate elements —
-  // not all thinkings first. Elements recorded before "text" are placed above
-  // the assistant message element, later ones below it; a turn that answers
-  // first and only then calls tools shows the tool calls under the answer.
-  // Messages without a recorded order (persisted before ordering existed)
-  // fall back to all thinking phases, then all tool calls, above the answer.
-  // The user's expand/collapse choice per element is preserved across
-  // streaming updates.
-  function elementWrapper(messageId, token, thinking, toolCalls, reasoningStreaming) {
-    let wrap = document.getElementById('msg-' + messageId + '-' + token);
-    if (!wrap) {
-      wrap = document.createElement('div');
-      wrap.className = 'element-row';
-      wrap.id = 'msg-' + messageId + '-' + token;
-      const parts = token.split(':');
-      wrap.appendChild(parts[0] === 'thinking' ? createThinkingElement(parts[1])
-                                                : createToolCallElement(parts[1]));
-    }
-    const d = wrap.firstChild;
-    const idx = Number(token.split(':')[1]);
-    if (token.startsWith('thinking:'))
-      updateThinkingElement(d, idx, thinking[idx], reasoningStreaming, thinking.length);
-    else
-      updateToolCallElement(d, toolCalls[idx]);
-    return wrap;
-  }
-
-  function renderAssistantElements(messageId, thinking, toolCalls, elementOrder,
-                                   reasoningStreaming) {
-    const log = document.getElementById('log');
-    const bodyEl = document.getElementById('msg-' + messageId);
-    const rawTokens = elementOrder || [];
-    const textIdx = rawTokens.indexOf('text');
-    const above = [];
-    const below = [];
-    for (let i = 0; i < rawTokens.length; i++) {
-      const t = String(rawTokens[i]);
-      const parts = t.split(':');
-      let valid = false;
-      if (parts[0] === 'thinking') valid = Number(parts[1]) < thinking.length;
-      else if (parts[0] === 'tool') valid = Number(parts[1]) < toolCalls.length;
-      if (!valid)
-        continue; // includes the 'text' token itself
-      ((textIdx === -1 || i < textIdx) ? above : below).push(t);
-    }
-    if (!above.length && !below.length) {
-      for (let i = 0; i < thinking.length; i++) above.push('thinking:' + i);
-      for (let i = 0; i < toolCalls.length; i++) above.push('tool:' + i);
-    }
-    const aboveW = above.map(function(t) {
-      return elementWrapper(messageId, t, thinking, toolCalls, reasoningStreaming);
-    });
-    const belowW = below.map(function(t) {
-      return elementWrapper(messageId, t, thinking, toolCalls, reasoningStreaming);
-    });
-    // Position the elements. Only (re)insert when the element is not already
-    // at its position: insertBefore removes and re-inserts the node even
-    // within the same parent, which would restart the spinner's CSS
-    // animation on every streaming update.
-    if (!bodyEl || !bodyEl.parentNode) {
-      // The assistant message has no answer text (yet), so it is not in the
-      // log as an element; its thinking/tool-call rows go to the end of the
-      // log in their recorded order.
-      let tail = log.lastChild;
-      for (const w of aboveW.concat(belowW)) {
-        if (w.previousSibling !== tail)
-          log.insertBefore(w, tail ? tail.nextSibling : log.firstChild);
-        tail = w;
+      .element-row {
+        margin: 0;
+        padding: 0;
       }
-    } else {
-      for (let k = aboveW.length - 1; k >= 0; k--) {
-        const desiredNext = (k + 1 < aboveW.length) ? aboveW[k + 1] : bodyEl;
-        if (aboveW[k].nextSibling !== desiredNext)
-          log.insertBefore(aboveW[k], desiredNext);
+      .element-row summary {
+        padding-top: 0;
+        padding-bottom: 0;
       }
-      let anchor = bodyEl;
-      for (const w of belowW) {
-        if (w.previousSibling !== anchor)
-          log.insertBefore(w, anchor.nextSibling);
-        anchor = w;
+      .msg.tool {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 12px;
       }
-    }
-    // Drop this message's element wrappers whose token is no longer present
-    // (e.g. after a reload).
-    const wanted = {};
-    for (const w of aboveW.concat(belowW)) wanted[w.id] = true;
-    for (const el of log.querySelectorAll(':scope > .element-row')) {
-      if (el.id.startsWith('msg-' + messageId + '-') && !wanted[el.id])
-        el.remove();
-    }
-  }
-
-  // Append or update one message. id = message id; role: user|assistant|tool;
-  // toolCalls = array of {id, name, arguments, status, result} in call order;
-  // elementOrder = ["thinking:<i>", "tool:<i>", ..., "text", ...] tokens in
-  // display order; "text" marks where the answer sits among the elements.
-  function setMessage(id, role, content, streaming, thinking, reasoningStreaming, toolCalls, elementOrder) {
-    let el = document.getElementById('msg-' + id);
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'msg-' + id;
-      el.className = 'msg ' + role;
-      // Tool results are shown inside the requesting assistant message's
-      // collapsible tool-call entries, not as separate bubbles.
-      if (role === 'tool')
-        el.style.display = 'none';
-      el.innerHTML = '<div class="body"></div>';
-      // The copy button exists only under the assistant's answer and copies
-      // only that answer's content (el.dataset.raw of this message).
-      if (role === 'assistant') {
-        const actions = document.createElement('div');
-        actions.className = 'actions';
-        const btn = document.createElement('button');
-        btn.className = 'copy-btn';
-        btn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15 h-1.5 a1 1 0 0 1 -1 -1 v-10.5 a1 1 0 0 1 1 -1 h10.5 a1 1 0 0 1 1 1 v1.5"/></g></svg>';
-        btn.addEventListener('click', function(ev) {
-          ev.stopPropagation();
-          copyMessageContent(id);
-        });
-        el.appendChild(actions);
-        actions.appendChild(btn);
-        // Hide the copy button while the answer is still streaming.
-        btn.style.display = 'none';
+      .msg pre {
+        background: var(--code-bg);
+        padding: 8px;
+        border-radius: 6px;
+        overflow-x: auto;
       }
-      // An assistant message without answer text (e.g. a round that only
-      // requested tool calls) must not appear as an empty element in the
-      // log; it is attached once it has content, at its recorded position.
-      if (role !== 'assistant' || content) {
-        const log = document.getElementById('log');
-        if (role === 'assistant') {
-          const raw = elementOrder || [];
-          const textIdx = raw.indexOf('text');
-          let ref = null;
-          if (textIdx !== -1) {
-            for (let i = textIdx + 1; i < raw.length; i++) {
-              ref = document.getElementById('msg-' + id + '-' + raw[i]);
-              if (ref) break;
-            }
-          }
-          log.insertBefore(el, ref); // ref null -> append at the end
-        } else {
-          log.appendChild(el);
+      .msg code {
+        font-family: monospace;
+        background: var(--code-bg);
+        padding: 1px 4px;
+        border-radius: 4px;
+      }
+      .msg pre code {
+        background: transparent;
+        padding: 0;
+      }
+      .msg a {
+        color: var(--link);
+      }
+      .msg table {
+        border-collapse: collapse;
+      }
+      .msg th,
+      .msg td {
+        border: 1px solid var(--border);
+        padding: 4px 8px;
+      }
+      .msg blockquote {
+        border-left: 3px solid var(--border);
+        margin-left: 0;
+        padding-left: 10px;
+        color: var(--muted);
+      }
+      .thinking {
+        color: var(--muted);
+        margin: 0;
+      }
+      .thinking summary {
+        cursor: pointer;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 0;
+      }
+      .thinking summary .chev {
+        width: 12px;
+        height: 12px;
+        display: inline-block;
+        transition: transform 0.15s;
+      }
+      .thinking[open] summary .chev {
+        transform: rotate(90deg);
+      }
+      .thinking .spinner {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 2px solid var(--border);
+        border-top-color: var(--muted);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
         }
       }
-    } else if (role === 'assistant' && !content && el.parentNode) {
-      el.remove();
-    }
-    el.dataset.raw = content;
-    const body = el.querySelector('.body');
-    if (role === 'user') {
-      body.textContent = content;
-    } else {
-      // Empty content (e.g. a message that only requested tool calls) must
-      // not render an empty <p>, which would add a blank line between the
-      // Thinking/tool-call rows and the answer.
-      body.innerHTML = content ? renderMarkdown(content) : '';
-      if (streaming) body.classList.add('cursor'); else body.classList.remove('cursor');
-    }
-    // Show the copy button for assistant messages only when streaming is done
-    // and the message actually has answer content; a message that only
-    // requested tool calls (empty body) must not get a button below the
-    // tool-call row.
-    if (role === 'assistant' && !streaming && content) {
-      const copyBtn = el.querySelector('.copy-btn');
-      if (copyBtn) copyBtn.style.display = '';
-    }
-    if (role === 'assistant') {
-      renderAssistantElements(id, thinking || [], toolCalls || [], elementOrder,
-                              streaming && reasoningStreaming);
-    }
-    scrollToBottom();
-  }
+      .thinking .reasoning-body {
+        font-style: italic;
+        border-left: 3px solid var(--border);
+        padding: 4px 0 4px 10px;
+        margin-top: 4px;
+        white-space: pre-wrap;
+      }
+      .msg .body:empty {
+        display: none;
+      }
+      .toolcall {
+        color: var(--muted);
+      }
+      .toolcall summary {
+        cursor: pointer;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 0;
+      }
+      .toolcall summary .chev {
+        width: 12px;
+        height: 12px;
+        display: inline-block;
+        transition: transform 0.15s;
+      }
+      .toolcall[open] summary .chev {
+        transform: rotate(90deg);
+      }
+      .toolcall summary .tc-name {
+        font-family: monospace;
+      }
+      .toolcall summary .spinner {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 2px solid var(--border);
+        border-top-color: var(--muted);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      .toolcall .tc-body {
+        border-left: 3px solid var(--border);
+        padding: 4px 0 4px 10px;
+        margin-top: 4px;
+      }
+      .toolcall .tc-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin: 4px 0 2px;
+      }
+      .toolcall .tc-body pre {
+        margin: 2px 0;
+      }
+      .toolcall .tc-result {
+        white-space: pre-wrap;
+      }
+      .cursor::after {
+        content: '\2588';
+        animation: blink 1s steps(1) infinite;
+      }
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+      .katex-display {
+        margin: 8px 0;
+      }
+      /* Below the copy button the gap must be larger than the 4px between the
+     assistant message and the button itself. */
+      .msg .actions {
+        margin-top: 4px;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .msg .actions .copy-btn {
+        color: var(--muted);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 2px;
+        cursor: pointer;
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .msg .actions .copy-btn:hover {
+        color: var(--fg);
+        border-color: var(--muted);
+      }
+      .msg .actions .copy-btn svg.icon {
+        width: 16px;
+        height: 16px;
+      }
+    </style>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script>
+      // Initialized asynchronously; the C++ side pushes messages only after the
+      // page finished loading, but clicks can also arrive before the channel is
+      // up, so every bridge use must handle a null bridge.
+      window.qtBridge = null;
+      if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+        new QWebChannel(qt.webChannelTransport, function (channel) {
+          window.qtBridge = channel.objects.qtBridge;
+        });
+      }
+    </script>
+    <script src="marked.min.js"></script>
+    <script src="katex.min.js"></script>
+    <script src="highlight.min.js"></script>
+    <script>
+      marked.setOptions({
+        breaks: true,
+        gfm: true,
+        highlight: function (code, lang) {
+          try {
+            if (lang && hljs.getLanguage(lang)) return hljs.highlight(lang, code, true).value;
+            return hljs.highlightAuto(code).value;
+          } catch (e) {
+            return null; // let marked escape and render the code block unhighlighted
+          }
+        },
+      });
 
-  function clearLog() { document.getElementById('log').innerHTML = ''; }
+      // Renders markdown to HTML. LaTeX math is extracted from the raw text and
+      // rendered with KaTeX before marked runs, because marked consumes the
+      // backslashes of the \\( \\) and \\[ \\] delimiters and would otherwise
+      // leave them as literal text. Fenced code blocks and inline code are
+      // stashed first so no math is extracted from them.
+      function renderMarkdown(text) {
+        const stash = [];
+        function stashToken(s) {
+          stash.push(s);
+          return '@@ocapi' + (stash.length - 1) + '@@';
+        }
 
-  function scrollToBottom() {
-    window.scrollTo(0, document.body.scrollHeight);
-    // signal scroll position for "load older" detection
-    if (window.scrollY < 40 && window.qtBridge) window.qtBridge.notifyScrolledToTop();
-  }
-  window.addEventListener('scroll', function() {
-    if (window.scrollY < 40 && window.qtBridge) window.qtBridge.notifyScrolledToTop();
-  });
+        let masked = text.replace(/(```|~~~)[\s\S]*?(?:\1|$)/g, function (m) {
+          return stashToken(m);
+        });
+        masked = masked.replace(/`[^`\n]*`/g, function (m) {
+          return stashToken(m);
+        });
+        masked = masked.replace(
+          /\$\$([\s\S]+?)\$\$|\\+\[([\s\S]+?)\\+\]|\\+\(([^\n]+?)\\+\)|\$([^$\n]+?)\$/g,
+          function (m, d1, d2, d3, d4) {
+            const tex = d1 !== undefined ? d1 : d2 !== undefined ? d2 : d3 !== undefined ? d3 : d4;
+            const display = d1 !== undefined || d2 !== undefined;
+            return stashToken(
+              katex.renderToString(tex, { displayMode: display, throwOnError: false }),
+            );
+          },
+        );
 
-  function setTheme(dark) {
-    document.documentElement.classList.toggle('dark', dark);
-  }
-</script>
-</head>
-<body>
-<div id="log"></div>
-</body>
+        let html = marked.parse(masked);
+        for (let i = 0; i < stash.length; i++) {
+          const token = '@@ocapi' + i + '@@';
+          let replacement = stash[i];
+          if (replacement.charAt(0) === '`' && replacement.charAt(1) === '`')
+            replacement = marked.parse(replacement); // fenced code block
+          else if (replacement.charAt(0) === '`') replacement = marked.parseInline(replacement); // inline code span
+          html = html.split(token).join(replacement);
+        }
+        return html;
+      }
+
+      function showCopied(el) {
+        const copyBtn = el.querySelector('.copy-btn');
+        if (!copyBtn) return;
+        copyBtn.innerHTML =
+          '<svg class="icon" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 6L9 17l-5-5"/></svg>';
+        copyBtn.style.color = 'var(--accent)';
+        clearTimeout(copyBtn._timer);
+        copyBtn._timer = setTimeout(function () {
+          copyBtn.style.color = '';
+          copyBtn.innerHTML =
+            '<svg class="icon" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15 h-1.5 a1 1 0 0 1 -1 -1 v-10.5 a1 1 0 0 1 1 -1 h10.5 a1 1 0 0 1 1 1 v1.5"/></g></svg>';
+        }, 1500);
+      }
+
+      // Copies a message's raw (markdown) content through the Qt clipboard via
+      // the web channel bridge, with JS clipboard fallbacks.
+      function copyMessageContent(id) {
+        const el = document.getElementById('msg-' + id);
+        if (!el) return;
+        const text = el.dataset.raw || '';
+        if (!text) return;
+        if (window.qtBridge && window.qtBridge.copyToClipboard) {
+          window.qtBridge.copyToClipboard(text);
+          showCopied(el);
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(
+            function () {
+              showCopied(el);
+            },
+            function () {},
+          );
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          showCopied(el);
+        }
+      }
+
+      function createThinkingElement(idx) {
+        const d = document.createElement('details');
+        d.className = 'thinking';
+        d.dataset.token = 'thinking:' + idx;
+        d.innerHTML =
+          '<summary>' +
+          '<svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m6 3 5 5-5 5-1-1 4-4-4-4z"/></svg>' +
+          '<span class="tlabel">Thinking</span>' +
+          '<span class="spinner" style="display:none"></span></summary>' +
+          '<div class="reasoning-body"></div>';
+        // Collapse each phase on first appearance.
+        d.removeAttribute('open');
+        return d;
+      }
+
+      function createToolCallElement(idx) {
+        const d = document.createElement('details');
+        d.className = 'toolcall';
+        d.dataset.token = 'tool:' + idx;
+        d.innerHTML =
+          '<summary><svg class="chev" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m6 3 5 5-5 5-1-1 4-4-4-4z"/></svg>' +
+          '<span class="tc-name"></span>' +
+          '<span class="spinner" style="display:none"></span></summary>' +
+          '<div class="tc-body">' +
+          '<div class="tc-label">Parameters</div>' +
+          '<pre><code class="tc-params"></code></pre>' +
+          '<div class="tc-result-wrap" style="display:none">' +
+          '<div class="tc-label">Result</div>' +
+          '<div class="tc-result"></div></div></div>';
+        return d;
+      }
+
+      function updateThinkingElement(d, idx, segment, reasoningStreaming, segmentCount) {
+        d.querySelector('.reasoning-body').textContent = segment;
+        d.querySelector('.spinner').style.display =
+          reasoningStreaming && idx === segmentCount - 1 ? '' : 'none';
+      }
+
+      function updateToolCallElement(d, call) {
+        d.querySelector('.tc-name').textContent = call.name;
+        d.querySelector('.tc-params').textContent = JSON.stringify(call.arguments || {}, null, 2);
+        d.querySelector('.spinner').style.display = call.status === 'running' ? '' : 'none';
+        const resultWrap = d.querySelector('.tc-result-wrap');
+        if (call.status !== 'running' && call.result) {
+          resultWrap.style.display = '';
+          d.querySelector('.tc-result').innerHTML = renderMarkdown(call.result);
+        } else {
+          resultWrap.style.display = 'none';
+        }
+      }
+
+      // Each thinking phase and tool call of an assistant message is rendered as
+      // its own top-level element in the log (wrapped in an .element-row div),
+      // strictly in the order they happened: elementOrder holds "thinking:<i>" /
+      // "tool:<i>" tokens plus a "text" token marking where the answer sits, e.g.
+      // a turn that thought, called a tool, thought again and called another tool
+      // renders Thinking, tool call, Thinking, tool call as separate elements —
+      // not all thinkings first. Elements recorded before "text" are placed above
+      // the assistant message element, later ones below it; a turn that answers
+      // first and only then calls tools shows the tool calls under the answer.
+      // Messages without a recorded order (persisted before ordering existed)
+      // fall back to all thinking phases, then all tool calls, above the answer.
+      // The user's expand/collapse choice per element is preserved across
+      // streaming updates.
+      function elementWrapper(messageId, token, thinking, toolCalls, reasoningStreaming) {
+        let wrap = document.getElementById('msg-' + messageId + '-' + token);
+        if (!wrap) {
+          wrap = document.createElement('div');
+          wrap.className = 'element-row';
+          wrap.id = 'msg-' + messageId + '-' + token;
+          const parts = token.split(':');
+          wrap.appendChild(
+            parts[0] === 'thinking'
+              ? createThinkingElement(parts[1])
+              : createToolCallElement(parts[1]),
+          );
+        }
+        const d = wrap.firstChild;
+        const idx = Number(token.split(':')[1]);
+        if (token.startsWith('thinking:'))
+          updateThinkingElement(d, idx, thinking[idx], reasoningStreaming, thinking.length);
+        else updateToolCallElement(d, toolCalls[idx]);
+        return wrap;
+      }
+
+      function renderAssistantElements(
+        messageId,
+        thinking,
+        toolCalls,
+        elementOrder,
+        reasoningStreaming,
+      ) {
+        const log = document.getElementById('log');
+        const bodyEl = document.getElementById('msg-' + messageId);
+        const rawTokens = elementOrder || [];
+        const textIdx = rawTokens.indexOf('text');
+        const above = [];
+        const below = [];
+        for (let i = 0; i < rawTokens.length; i++) {
+          const t = String(rawTokens[i]);
+          const parts = t.split(':');
+          let valid = false;
+          if (parts[0] === 'thinking') valid = Number(parts[1]) < thinking.length;
+          else if (parts[0] === 'tool') valid = Number(parts[1]) < toolCalls.length;
+          if (!valid) continue; // includes the 'text' token itself
+          (textIdx === -1 || i < textIdx ? above : below).push(t);
+        }
+        if (!above.length && !below.length) {
+          for (let i = 0; i < thinking.length; i++) above.push('thinking:' + i);
+          for (let i = 0; i < toolCalls.length; i++) above.push('tool:' + i);
+        }
+        const aboveW = above.map(function (t) {
+          return elementWrapper(messageId, t, thinking, toolCalls, reasoningStreaming);
+        });
+        const belowW = below.map(function (t) {
+          return elementWrapper(messageId, t, thinking, toolCalls, reasoningStreaming);
+        });
+        // Position the elements. Only (re)insert when the element is not already
+        // at its position: insertBefore removes and re-inserts the node even
+        // within the same parent, which would restart the spinner's CSS
+        // animation on every streaming update.
+        if (!bodyEl || !bodyEl.parentNode) {
+          // The assistant message has no answer text (yet), so it is not in the
+          // log as an element; its thinking/tool-call rows go to the end of the
+          // log in their recorded order.
+          let tail = log.lastChild;
+          for (const w of aboveW.concat(belowW)) {
+            if (w.previousSibling !== tail)
+              log.insertBefore(w, tail ? tail.nextSibling : log.firstChild);
+            tail = w;
+          }
+        } else {
+          for (let k = aboveW.length - 1; k >= 0; k--) {
+            const desiredNext = k + 1 < aboveW.length ? aboveW[k + 1] : bodyEl;
+            if (aboveW[k].nextSibling !== desiredNext) log.insertBefore(aboveW[k], desiredNext);
+          }
+          let anchor = bodyEl;
+          for (const w of belowW) {
+            if (w.previousSibling !== anchor) log.insertBefore(w, anchor.nextSibling);
+            anchor = w;
+          }
+        }
+        // Drop this message's element wrappers whose token is no longer present
+        // (e.g. after a reload).
+        const wanted = {};
+        for (const w of aboveW.concat(belowW)) wanted[w.id] = true;
+        for (const el of log.querySelectorAll(':scope > .element-row')) {
+          if (el.id.startsWith('msg-' + messageId + '-') && !wanted[el.id]) el.remove();
+        }
+      }
+
+      // Append or update one message. id = message id; role: user|assistant|tool;
+      // toolCalls = array of {id, name, arguments, status, result} in call order;
+      // elementOrder = ["thinking:<i>", "tool:<i>", ..., "text", ...] tokens in
+      // display order; "text" marks where the answer sits among the elements.
+      function setMessage(
+        id,
+        role,
+        content,
+        streaming,
+        thinking,
+        reasoningStreaming,
+        toolCalls,
+        elementOrder,
+      ) {
+        let el = document.getElementById('msg-' + id);
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'msg-' + id;
+          el.className = 'msg ' + role;
+          // Tool results are shown inside the requesting assistant message's
+          // collapsible tool-call entries, not as separate bubbles.
+          if (role === 'tool') el.style.display = 'none';
+          el.innerHTML = '<div class="body"></div>';
+          // The copy button exists only under the assistant's answer and copies
+          // only that answer's content (el.dataset.raw of this message).
+          if (role === 'assistant') {
+            const actions = document.createElement('div');
+            actions.className = 'actions';
+            const btn = document.createElement('button');
+            btn.className = 'copy-btn';
+            btn.innerHTML =
+              '<svg class="icon" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="1.5"/><path d="M5 15 h-1.5 a1 1 0 0 1 -1 -1 v-10.5 a1 1 0 0 1 1 -1 h10.5 a1 1 0 0 1 1 1 v1.5"/></g></svg>';
+            btn.addEventListener('click', function (ev) {
+              ev.stopPropagation();
+              copyMessageContent(id);
+            });
+            el.appendChild(actions);
+            actions.appendChild(btn);
+            // Hide the copy button while the answer is still streaming.
+            btn.style.display = 'none';
+          }
+          // An assistant message without answer text (e.g. a round that only
+          // requested tool calls) must not appear as an empty element in the
+          // log; it is attached once it has content, at its recorded position.
+          if (role !== 'assistant' || content) {
+            const log = document.getElementById('log');
+            if (role === 'assistant') {
+              const raw = elementOrder || [];
+              const textIdx = raw.indexOf('text');
+              let ref = null;
+              if (textIdx !== -1) {
+                for (let i = textIdx + 1; i < raw.length; i++) {
+                  ref = document.getElementById('msg-' + id + '-' + raw[i]);
+                  if (ref) break;
+                }
+              }
+              log.insertBefore(el, ref); // ref null -> append at the end
+            } else {
+              log.appendChild(el);
+            }
+          }
+        } else if (role === 'assistant' && !content && el.parentNode) {
+          el.remove();
+        }
+        el.dataset.raw = content;
+        const body = el.querySelector('.body');
+        if (role === 'user') {
+          body.textContent = content;
+        } else {
+          // Empty content (e.g. a message that only requested tool calls) must
+          // not render an empty <p>, which would add a blank line between the
+          // Thinking/tool-call rows and the answer.
+          body.innerHTML = content ? renderMarkdown(content) : '';
+          if (streaming) body.classList.add('cursor');
+          else body.classList.remove('cursor');
+        }
+        // Show the copy button for assistant messages only when streaming is done
+        // and the message actually has answer content; a message that only
+        // requested tool calls (empty body) must not get a button below the
+        // tool-call row.
+        if (role === 'assistant' && !streaming && content) {
+          const copyBtn = el.querySelector('.copy-btn');
+          if (copyBtn) copyBtn.style.display = '';
+        }
+        if (role === 'assistant') {
+          renderAssistantElements(
+            id,
+            thinking || [],
+            toolCalls || [],
+            elementOrder,
+            streaming && reasoningStreaming,
+          );
+        }
+        scrollToBottom();
+      }
+
+      function clearLog() {
+        document.getElementById('log').innerHTML = '';
+      }
+
+      function scrollToBottom() {
+        window.scrollTo(0, document.body.scrollHeight);
+        // signal scroll position for "load older" detection
+        if (window.scrollY < 40 && window.qtBridge) window.qtBridge.notifyScrolledToTop();
+      }
+      window.addEventListener('scroll', function () {
+        if (window.scrollY < 40 && window.qtBridge) window.qtBridge.notifyScrolledToTop();
+      });
+
+      function setTheme(dark) {
+        document.documentElement.classList.toggle('dark', dark);
+      }
+    </script>
+  </head>
+  <body>
+    <div id="log"></div>
+  </body>
 </html>

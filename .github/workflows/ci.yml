@@ -94,6 +94,19 @@ jobs:
       - name: Check formatting
         run: ruff format --check tests/e2e/
 
+  web-lint:
+    name: Web lint (ESLint/Stylelint/HTMLHint/Prettier)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install web lint tools
+        run: npm install --no-audit --no-fund
+      - name: Run web lint (JS, CSS, HTML, formatting)
+        run: npm run lint:web
+
   e2e:
     name: E2E (selenium-webdriver-at-spi, Ubuntu)
     runs-on: ubuntu-latest

@@ -1,0 +1,17 @@
+{
+  "root": true,
+  "env": { "browser": true, "es2021": true },
+  "parserOptions": { "ecmaVersion": 2021, "sourceType": "script" },
+  "plugins": ["html"],
+  "extends": ["eslint:recommended"],
+  "globals": {
+    "marked": "readonly",
+    "katex": "readonly",
+    "hljs": "readonly",
+    "qt": "readonly",
+    "QWebChannel": "readonly"
+  },
+  "rules": {
+    "no-unused-vars": ["error", { "varsIgnorePattern": "^(setMessage|clearLog|setTheme)$" }]
+  }
+}

@@ -21,15 +21,15 @@
   .msg { margin: 10px 0; padding: 8px 12px; border-radius: 8px; max-width: 92%;
     overflow-wrap: break-word; }
   .msg.user { background: var(--bubble-user); margin-left: auto; }
-  // Assistant messages have no bubble; consecutive ones (user message,
-  // thinking, tool call, assistant answer) must sit as close together as
-  // rows of one turn, so override the default 10px message margin.
+  /* Assistant messages have no bubble; consecutive ones (user message,
+     thinking, tool call, assistant answer) must sit as close together as
+     rows of one turn, so override the default 10px message margin. */
   .msg.assistant { background: transparent; padding: 2px 0; max-width: 100%;
     margin: 1px 0; margin-right: auto; }
-  // Thinking and tool-call elements are their own rows of the turn, without
-  // the spacing of user/assistant messages.
-  .msg.element { margin: 0; padding-top: 0; padding-bottom: 0; }
-  .msg.element summary { padding-top: 0; padding-bottom: 0; }
+  /* Thinking and tool-call rows are their own elements (not .msg), without
+     the message spacing. */
+  .element-row { margin: 0; padding: 0; }
+  .element-row summary { padding-top: 0; padding-bottom: 0; }
   .msg.tool { background: transparent; border: 1px solid var(--border);
     color: var(--muted); font-size: 12px; }
   .msg pre { background: var(--code-bg); padding: 8px; border-radius: 6px;
@@ -42,41 +42,40 @@
   .msg th, .msg td { border: 1px solid var(--border); padding: 4px 8px; }
   .msg blockquote { border-left: 3px solid var(--border); margin-left: 0;
     padding-left: 10px; color: var(--muted); }
-  .msg .thinking { color: var(--muted); margin: 0; }
-  .msg .thinking summary { cursor: pointer; user-select: none;
+  .thinking { color: var(--muted); margin: 0; }
+  .thinking summary { cursor: pointer; user-select: none;
     display: flex; align-items: center; gap: 6px; padding: 2px 0; }
-  .msg .thinking summary .chev { width: 12px; height: 12px; display: inline-block;
+  .thinking summary .chev { width: 12px; height: 12px; display: inline-block;
     transition: transform 0.15s; }
-  .msg .thinking[open] summary .chev { transform: rotate(90deg); }
-  .msg .thinking .spinner { display: inline-block; width: 12px; height: 12px;
+  .thinking[open] summary .chev { transform: rotate(90deg); }
+  .thinking .spinner { display: inline-block; width: 12px; height: 12px;
     border: 2px solid var(--border); border-top-color: var(--muted); border-radius: 50%;
     animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .msg .thinking .reasoning-body { font-style: italic; border-left: 3px solid var(--border);
+  .thinking .reasoning-body { font-style: italic; border-left: 3px solid var(--border);
     padding: 4px 0 4px 10px; margin-top: 4px; white-space: pre-wrap; }
   .msg .body:empty { display: none; }
-  .msg .toolcall { color: var(--muted); }
-  .msg .toolcall + .toolcall { margin-top: 2px; }
-  .msg .toolcall summary { cursor: pointer; user-select: none;
+  .toolcall { color: var(--muted); }
+  .toolcall summary { cursor: pointer; user-select: none;
     display: flex; align-items: center; gap: 6px; padding: 2px 0; }
-  .msg .toolcall summary .chev { width: 12px; height: 12px; display: inline-block;
+  .toolcall summary .chev { width: 12px; height: 12px; display: inline-block;
     transition: transform 0.15s; }
-  .msg .toolcall[open] summary .chev { transform: rotate(90deg); }
-  .msg .toolcall summary .tc-name { font-family: monospace; }
-  .msg .toolcall summary .spinner { display: inline-block; width: 12px; height: 12px;
+  .toolcall[open] summary .chev { transform: rotate(90deg); }
+  .toolcall summary .tc-name { font-family: monospace; }
+  .toolcall summary .spinner { display: inline-block; width: 12px; height: 12px;
     border: 2px solid var(--border); border-top-color: var(--muted); border-radius: 50%;
     animation: spin 0.8s linear infinite; }
-  .msg .toolcall .tc-body { border-left: 3px solid var(--border);
+  .toolcall .tc-body { border-left: 3px solid var(--border);
     padding: 4px 0 4px 10px; margin-top: 4px; }
-  .msg .toolcall .tc-label { font-size: 11px; text-transform: uppercase;
+  .toolcall .tc-label { font-size: 11px; text-transform: uppercase;
     letter-spacing: 0.04em; margin: 4px 0 2px; }
-  .msg .toolcall .tc-body pre { margin: 2px 0; }
-  .msg .toolcall .tc-result { white-space: pre-wrap; }
+  .toolcall .tc-body pre { margin: 2px 0; }
+  .toolcall .tc-result { white-space: pre-wrap; }
   .cursor::after { content: "\2588"; animation: blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   .katex-display { margin: 8px 0; }
-  // Below the copy button the gap must be larger than the 4px between the
-  // assistant message and the button itself.
+  /* Below the copy button the gap must be larger than the 4px between the
+     assistant message and the button itself. */
   .msg .actions { margin-top: 4px; margin-bottom: 8px; display: flex;
     align-items: center; gap: 8px; }
   .msg .actions .copy-btn { color: var(--muted);
@@ -233,7 +232,7 @@
   }
 
   // Each thinking phase and tool call of an assistant message is rendered as
-  // its own top-level element in the log (wrapped in a .msg.assistant row),
+  // its own top-level element in the log (wrapped in an .element-row div),
   // strictly in the order they happened: elementOrder holds "thinking:<i>" /
   // "tool:<i>" tokens plus a "text" token marking where the answer sits, e.g.
   // a turn that thought, called a tool, thought again and called another tool
@@ -249,7 +248,7 @@
     let wrap = document.getElementById('msg-' + messageId + '-' + token);
     if (!wrap) {
       wrap = document.createElement('div');
-      wrap.className = 'msg assistant element';
+      wrap.className = 'element-row';
       wrap.id = 'msg-' + messageId + '-' + token;
       const parts = token.split(':');
       wrap.appendChild(parts[0] === 'thinking' ? createThinkingElement(parts[1])
@@ -323,7 +322,7 @@
     // (e.g. after a reload).
     const wanted = {};
     for (const w of aboveW.concat(belowW)) wanted[w.id] = true;
-    for (const el of log.querySelectorAll(':scope > .msg.element')) {
+    for (const el of log.querySelectorAll(':scope > .element-row')) {
       if (el.id.startsWith('msg-' + messageId + '-') && !wanted[el.id])
         el.remove();
     }

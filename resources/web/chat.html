@@ -250,7 +250,9 @@
     if (!below) {
       below = document.createElement('div');
       below.className = 'elements after';
-      el.insertBefore(below, body.nextSibling);
+      // Insert after the copy-button row so the button always sits directly
+      // below the assistant message, never below trailing tool-call elements.
+      el.insertBefore(below, (el.querySelector('.actions') || body).nextSibling);
     }
     const rawTokens = elementOrder || [];
     const textIdx = rawTokens.indexOf('text');

@@ -135,7 +135,10 @@ void TestMainWindow::newChatFocusesInput() {
         if (button->text() == QStringLiteral("Settings"))
             settingsButton = button;
     }
-    QVERIFY(settingsButton);
+    if (!settingsButton) {
+        QFAIL("Settings button not found");
+        return;
+    }
     settingsButton->setFocus();
     QCOMPARE(window.focusWidget(), settingsButton);
 

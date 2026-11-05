@@ -18,6 +18,7 @@ private slots:
     void updateReasoningAccumulatesAndSignals();
     void updateReasoningRecordsElementOrderPerPhase();
     void updateReasoningContinuesPhaseAfterContentToken();
+    void elementOrderRecordsTextPosition();
     void updateMessageClearsError();
     void updateMessageIgnoresUnknownId();
     void failMessageSetsErrorAndStopsStreaming();
@@ -159,6 +160,43 @@ void TestChatSession::updateReasoningContinuesPhaseAfterContentToken() {
              QStringList({QStringLiteral("Step 1. Step 2."), QStringLiteral("New thought.")}));
     QCOMPARE(session.messages().constLast().elementOrder,
              QStringList({QStringLiteral("thinking:0"), QStringLiteral("thinking:1")}));
+}
+
+void TestChatSession::elementOrderRecordsTextPosition() {
+    // Text first, then a tool call, then another thinking phase: the "text"
+    // token must sit before the later elements so the chat renders them
+    // below the answer.
+    ChatSession session;
+    const QUuid id = session.appendMessage(Role::Assistant).id;
+
+    session.updateMessage(id, QStringLiteral("Hier ist die Antwort."), true);
+    QCOMPARE(session.messages().constLast().elementOrder, QStringList{QStringLiteral("text")});
+
+    ToolCall call;
+    call.id = QStringLiteral("call_1");
+    call.name = QStringLiteral("server__tool");
+    session.appendToolCalls(id, {call});
+    QCOMPARE(session.messages().constLast().elementOrder,
+             QStringList({QStringLiteral("text"), QStringLiteral("tool:0")}));
+
+    session.updateReasoning(id, QStringLiteral("New thought."), true);
+    QCOMPARE(session.messages().constLast().elementOrder,
+             QStringList(
+                 {QStringLiteral("text"), QStringLiteral("tool:0"), QStringLiteral("thinking:0")}));
+
+    // The "text" token is recorded only once, even as content keeps streaming.
+    session.updateMessage(id, QStringLiteral("Hier ist die Antwort. Teil 2."), true);
+    QCOMPARE(session.messages().constLast().elementOrder,
+             QStringList(
+                 {QStringLiteral("text"), QStringLiteral("tool:0"), QStringLiteral("thinking:0")}));
+
+    // Thinking before any text stays before the "text" token.
+    ChatSession session2;
+    const QUuid id2 = session2.appendMessage(Role::Assistant).id;
+    session2.updateReasoning(id2, QStringLiteral("Step 1."), true);
+    session2.updateMessage(id2, QStringLiteral("Antwort."), true);
+    QCOMPARE(session2.messages().constLast().elementOrder,
+             QStringList({QStringLiteral("thinking:0"), QStringLiteral("text")}));
 }
 
 void TestChatSession::updateMessageClearsError() {

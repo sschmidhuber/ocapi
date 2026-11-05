@@ -7,6 +7,7 @@
 #include <QVector>
 #include <QWebEngineView>
 
+class QContextMenuEvent;
 class QWebChannel;
 
 namespace ocapi {
@@ -45,6 +46,9 @@ private:
     void callJs(const QString &expr);
     void onMessageAdded(const Message &message);
     void onMessageUpdated(const Message &message);
+    void contextMenuEvent(QContextMenuEvent *event) override;
+    void savePageAs();
+    void showPageSource();
 
     ChatSession *m_session = nullptr;
     QWebChannel *m_channel = nullptr;

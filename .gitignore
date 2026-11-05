@@ -76,3 +76,7 @@ __pycache__/
 *.py[cod]
 src/*.moc
 src/**/*.moc
+
+# Node (web asset linting)
+node_modules/
+package-lock.json

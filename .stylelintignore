@@ -1,0 +1,3 @@
+resources/web/*.min.css
+resources/web/github.css
+resources/web/highlight-github.css

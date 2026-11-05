@@ -22,6 +22,7 @@ private slots:
     void toolCallFailureAppendsToolMessageWithoutCrashing();
     void keyboardShortcuts();
     void newChatFocusesInput();
+    void fullChatHistoryIsLoadedBeforeSending();
 
 private:
     QTemporaryDir m_home;
@@ -146,6 +147,42 @@ void TestMainWindow::newChatFocusesInput() {
     QTest::qWait(50); // focus is applied via a deferred singleShot(0)
     QWidget *focus = window.focusWidget();
     QVERIFY(focus && focus->accessibleName() == QStringLiteral("Message input"));
+}
+
+// Regression: a long chat is loaded into the session only page by page (the
+// last 50 messages) for the UI. When sending, the full history must be
+// loaded first, otherwise the model's context misses the older messages.
+void TestMainWindow::fullChatHistoryIsLoadedBeforeSending() {
+    constexpr int kStoredMessages = 60;
+    {
+        MainWindow window;
+        window.show();
+        auto &registry = window.registryForTest();
+        auto &backend = registry.add(QStringLiteral("Ollama"), BackendKind::Ollama);
+        registry.save();
+        ChatSession *session = window.currentSession();
+        QVERIFY(session);
+        session->setBackendId(backend.id.toString());
+        session->setModel(QStringLiteral("mock-model"));
+        for (int i = 0; i < kStoredMessages; ++i)
+            session->appendMessage(Role::User, QStringLiteral("q%1").arg(i));
+    }
+
+    // Reopen with the same (temp) config/data dir: only the last page is
+    // loaded from the database.
+    MainWindow window;
+    window.show();
+    ChatSession *session = window.currentSession();
+    QVERIFY(session);
+    QCOMPARE(session->messages().size(), 50);
+    session->setModel(QStringLiteral("mock-model"));
+
+    // The send itself fails (no server at the backend URL), which is fine:
+    // the history load happens synchronously before the request.
+    window.sendTextForTest(QStringLiteral("hello"));
+    QCOMPARE(session->messages().size(), kStoredMessages + 2); // + user msg + system prompt
+    QCOMPARE(session->messages().constFirst().role, Role::System);
+    QVERIFY(!session->messages().constFirst().content.contains(QStringLiteral("{{")));
 }
 
 int main(int argc, char *argv[]) {

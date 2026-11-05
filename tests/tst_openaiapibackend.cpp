@@ -113,6 +113,7 @@ private slots:
     void reasoningContentIsStreamed();
     void thinkingPartsAreStreamedAsReasoning();
     void reasoningIsNotSentBackInConversationHistory();
+    void fullConversationHistoryIsSentToModel();
 
 private:
     FakeOpenAiServer m_server;
@@ -289,6 +290,41 @@ void TestOpenAiApiBackend::reasoningIsNotSentBackInConversationHistory() {
     QVERIFY(!replayed.value(QStringLiteral("content"))
                  .toString()
                  .contains(QStringLiteral("secret chain of thought")));
+}
+
+// Regression: every message of the chat history must end up in the request
+// payload (not just a recent window), in order.
+void TestOpenAiApiBackend::fullConversationHistoryIsSentToModel() {
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents({chunkJson(
+        QJsonObject{{QStringLiteral("content"), QStringLiteral("ok")}}, QStringLiteral("stop"))});
+
+    OpenAiApiBackend backend(apiConfig(m_server.port()));
+    ChatSession session;
+    constexpr int kTurns = 60; // more than one UI page (50 messages)
+    for (int i = 0; i < kTurns; ++i) {
+        session.appendMessage(Role::User, QStringLiteral("question %1").arg(i));
+        session.appendMessage(Role::Assistant, QStringLiteral("answer %1").arg(i));
+    }
+
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("fake-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+
+    const auto messages = m_server.lastRequest().value(QStringLiteral("messages")).toArray();
+    // The new streaming assistant message is appended to the session but
+    // must be skipped in the request.
+    QCOMPARE(messages.size(), 2 * kTurns);
+    for (int i = 0; i < kTurns; ++i) {
+        QCOMPARE(messages.at(2 * i).toObject().value(QStringLiteral("role")).toString(),
+                 QStringLiteral("user"));
+        QCOMPARE(messages.at(2 * i).toObject().value(QStringLiteral("content")).toString(),
+                 QStringLiteral("question %1").arg(i));
+        QCOMPARE(messages.at(2 * i + 1).toObject().value(QStringLiteral("role")).toString(),
+                 QStringLiteral("assistant"));
+        QCOMPARE(messages.at(2 * i + 1).toObject().value(QStringLiteral("content")).toString(),
+                 QStringLiteral("answer %1").arg(i));
+    }
 }
 
 QTEST_GUILESS_MAIN(TestOpenAiApiBackend)

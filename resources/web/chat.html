@@ -26,8 +26,9 @@
   // rows of one turn, so override the default 10px message margin.
   .msg.assistant { background: transparent; padding: 2px 0; max-width: 100%;
     margin: 1px 0; margin-right: auto; }
-  // Thinking and tool-call elements are their own rows of the turn.
-  .msg.element { padding: 0; }
+  // Thinking and tool-call elements are their own rows of the turn, without
+  // the spacing of user/assistant messages.
+  .msg.element { margin: 0; padding-top: 0; padding-bottom: 0; }
   .msg.tool { background: transparent; border: 1px solid var(--border);
     color: var(--muted); font-size: 12px; }
   .msg pre { background: var(--code-bg); padding: 8px; border-radius: 6px;

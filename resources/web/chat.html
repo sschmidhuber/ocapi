@@ -21,11 +21,15 @@
   .msg { margin: 10px 0; padding: 8px 12px; border-radius: 8px; max-width: 92%;
     overflow-wrap: break-word; }
   .msg.user { background: var(--bubble-user); margin-left: auto; }
-  // Assistant messages have no bubble; consecutive ones (e.g. one per tool
-  // round: Thinking/tool-call rows) must sit as close together as the rows
-  // inside one message, so override the default 10px message margin.
+  /* Assistant messages have no bubble; consecutive ones (user message,
+     thinking, tool call, assistant answer) must sit as close together as
+     rows of one turn, so override the default 10px message margin. */
   .msg.assistant { background: transparent; padding: 2px 0; max-width: 100%;
     margin: 1px 0; margin-right: auto; }
+  /* Thinking and tool-call rows are their own elements (not .msg), without
+     the message spacing. */
+  .element-row { margin: 0; padding: 0; }
+  .element-row summary { padding-top: 0; padding-bottom: 0; }
   .msg.tool { background: transparent; border: 1px solid var(--border);
     color: var(--muted); font-size: 12px; }
   .msg pre { background: var(--code-bg); padding: 8px; border-radius: 6px;
@@ -38,42 +42,40 @@
   .msg th, .msg td { border: 1px solid var(--border); padding: 4px 8px; }
   .msg blockquote { border-left: 3px solid var(--border); margin-left: 0;
     padding-left: 10px; color: var(--muted); }
-  .msg .elements { margin: 0; }
-  .msg .thinking { color: var(--muted); margin: 0; }
-  .msg .thinking summary { cursor: pointer; user-select: none;
+  .thinking { color: var(--muted); margin: 0; }
+  .thinking summary { cursor: pointer; user-select: none;
     display: flex; align-items: center; gap: 6px; padding: 2px 0; }
-  .msg .thinking summary .chev { width: 12px; height: 12px; display: inline-block;
+  .thinking summary .chev { width: 12px; height: 12px; display: inline-block;
     transition: transform 0.15s; }
-  .msg .thinking[open] summary .chev { transform: rotate(90deg); }
-  .msg .thinking .spinner { display: inline-block; width: 12px; height: 12px;
+  .thinking[open] summary .chev { transform: rotate(90deg); }
+  .thinking .spinner { display: inline-block; width: 12px; height: 12px;
     border: 2px solid var(--border); border-top-color: var(--muted); border-radius: 50%;
     animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .msg .thinking .reasoning-body { font-style: italic; border-left: 3px solid var(--border);
+  .thinking .reasoning-body { font-style: italic; border-left: 3px solid var(--border);
     padding: 4px 0 4px 10px; margin-top: 4px; white-space: pre-wrap; }
   .msg .body:empty { display: none; }
-  .msg .toolcall { color: var(--muted); }
-  .msg .toolcall + .toolcall { margin-top: 2px; }
-  .msg .toolcall summary { cursor: pointer; user-select: none;
+  .toolcall { color: var(--muted); }
+  .toolcall summary { cursor: pointer; user-select: none;
     display: flex; align-items: center; gap: 6px; padding: 2px 0; }
-  .msg .toolcall summary .chev { width: 12px; height: 12px; display: inline-block;
+  .toolcall summary .chev { width: 12px; height: 12px; display: inline-block;
     transition: transform 0.15s; }
-  .msg .toolcall[open] summary .chev { transform: rotate(90deg); }
-  .msg .toolcall summary .tc-name { font-family: monospace; }
-  .msg .toolcall summary .spinner { display: inline-block; width: 12px; height: 12px;
+  .toolcall[open] summary .chev { transform: rotate(90deg); }
+  .toolcall summary .tc-name { font-family: monospace; }
+  .toolcall summary .spinner { display: inline-block; width: 12px; height: 12px;
     border: 2px solid var(--border); border-top-color: var(--muted); border-radius: 50%;
     animation: spin 0.8s linear infinite; }
-  .msg .toolcall .tc-body { border-left: 3px solid var(--border);
+  .toolcall .tc-body { border-left: 3px solid var(--border);
     padding: 4px 0 4px 10px; margin-top: 4px; }
-  .msg .toolcall .tc-label { font-size: 11px; text-transform: uppercase;
+  .toolcall .tc-label { font-size: 11px; text-transform: uppercase;
     letter-spacing: 0.04em; margin: 4px 0 2px; }
-  .msg .toolcall .tc-body pre { margin: 2px 0; }
-  .msg .toolcall .tc-result { white-space: pre-wrap; }
+  .toolcall .tc-body pre { margin: 2px 0; }
+  .toolcall .tc-result { white-space: pre-wrap; }
   .cursor::after { content: "\2588"; animation: blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
   .katex-display { margin: 8px 0; }
-  // Below the copy button the gap must be larger than the 4px between the
-  // assistant message and the button itself.
+  /* Below the copy button the gap must be larger than the 4px between the
+     assistant message and the button itself. */
   .msg .actions { margin-top: 4px; margin-bottom: 8px; display: flex;
     align-items: center; gap: 8px; }
   .msg .actions .copy-btn { color: var(--muted);
@@ -229,78 +231,100 @@
     }
   }
 
-  // Renders the thinking phases and tool calls of an assistant message as
-  // collapsible elements (same style), strictly in the order they happened:
-  // elementOrder holds "thinking:<i>" / "tool:<i>" tokens plus a "text" token
-  // marking where the answer sits, e.g. a turn that thought, called a tool,
-  // thought again and called another tool renders Thinking, tool call,
-  // Thinking, tool call — not all thinkings first. Elements recorded before
-  // "text" render above the answer, later ones below it; a turn that answers
+  // Each thinking phase and tool call of an assistant message is rendered as
+  // its own top-level element in the log (wrapped in an .element-row div),
+  // strictly in the order they happened: elementOrder holds "thinking:<i>" /
+  // "tool:<i>" tokens plus a "text" token marking where the answer sits, e.g.
+  // a turn that thought, called a tool, thought again and called another tool
+  // renders Thinking, tool call, Thinking, tool call as separate elements —
+  // not all thinkings first. Elements recorded before "text" are placed above
+  // the assistant message element, later ones below it; a turn that answers
   // first and only then calls tools shows the tool calls under the answer.
   // Messages without a recorded order (persisted before ordering existed)
   // fall back to all thinking phases, then all tool calls, above the answer.
   // The user's expand/collapse choice per element is preserved across
   // streaming updates.
-  function renderElements(el, thinking, toolCalls, elementOrder, reasoningStreaming) {
-    const body = el.querySelector('.body');
-    let above = el.querySelector('.elements');
-    if (!above) {
-      above = document.createElement('div');
-      above.className = 'elements';
-      el.insertBefore(above, body);
+  function elementWrapper(messageId, token, thinking, toolCalls, reasoningStreaming) {
+    let wrap = document.getElementById('msg-' + messageId + '-' + token);
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.className = 'element-row';
+      wrap.id = 'msg-' + messageId + '-' + token;
+      const parts = token.split(':');
+      wrap.appendChild(parts[0] === 'thinking' ? createThinkingElement(parts[1])
+                                                : createToolCallElement(parts[1]));
     }
-    let below = el.querySelector('.elements.after');
-    if (!below) {
-      below = document.createElement('div');
-      below.className = 'elements after';
-      // Insert after the copy-button row so the button always sits directly
-      // below the assistant message, never below trailing tool-call elements.
-      el.insertBefore(below, (el.querySelector('.actions') || body).nextSibling);
-    }
+    const d = wrap.firstChild;
+    const idx = Number(token.split(':')[1]);
+    if (token.startsWith('thinking:'))
+      updateThinkingElement(d, idx, thinking[idx], reasoningStreaming, thinking.length);
+    else
+      updateToolCallElement(d, toolCalls[idx]);
+    return wrap;
+  }
+
+  function renderAssistantElements(messageId, thinking, toolCalls, elementOrder,
+                                   reasoningStreaming) {
+    const log = document.getElementById('log');
+    const bodyEl = document.getElementById('msg-' + messageId);
     const rawTokens = elementOrder || [];
     const textIdx = rawTokens.indexOf('text');
-    const groups = [[above, []], [below, []]];
+    const above = [];
+    const below = [];
     for (let i = 0; i < rawTokens.length; i++) {
       const t = String(rawTokens[i]);
       const parts = t.split(':');
       let valid = false;
       if (parts[0] === 'thinking') valid = Number(parts[1]) < thinking.length;
       else if (parts[0] === 'tool') valid = Number(parts[1]) < toolCalls.length;
-      if (!valid) continue; // includes the 'text' token itself
-      groups[(textIdx === -1 || i < textIdx) ? 0 : 1][1].push(t);
+      if (!valid)
+        continue; // includes the 'text' token itself
+      ((textIdx === -1 || i < textIdx) ? above : below).push(t);
     }
-    if (!groups[0][1].length && !groups[1][1].length) {
-      for (let i = 0; i < thinking.length; i++) groups[0][1].push('thinking:' + i);
-      for (let i = 0; i < toolCalls.length; i++) groups[0][1].push('tool:' + i);
+    if (!above.length && !below.length) {
+      for (let i = 0; i < thinking.length; i++) above.push('thinking:' + i);
+      for (let i = 0; i < toolCalls.length; i++) above.push('tool:' + i);
     }
-    for (const [container, tokens] of groups) {
-      const wanted = {};
-      for (let i = 0; i < tokens.length; i++) {
-        const token = tokens[i];
-        wanted[token] = true;
-        let d = container.querySelector('details[data-token="' + CSS.escape(token) + '"]');
-        if (!d) {
-          const parts = token.split(':');
-          d = (parts[0] === 'thinking') ? createThinkingElement(parts[1])
-                                        : createToolCallElement(parts[1]);
-        }
-        // Only (re)insert when the element is not already at its position:
-        // appendChild/insertBefore remove and re-insert the node even within
-        // the same parent, which would restart the spinner's CSS animation on
-        // every streaming update.
-        if (container.children[i] !== d)
-          container.insertBefore(d, container.children[i] || null);
-        const idx = Number(token.split(':')[1]);
-        if (token.startsWith('thinking:'))
-          updateThinkingElement(d, idx, thinking[idx], reasoningStreaming, thinking.length);
-        else
-          updateToolCallElement(d, toolCalls[idx]);
+    const aboveW = above.map(function(t) {
+      return elementWrapper(messageId, t, thinking, toolCalls, reasoningStreaming);
+    });
+    const belowW = below.map(function(t) {
+      return elementWrapper(messageId, t, thinking, toolCalls, reasoningStreaming);
+    });
+    // Position the elements. Only (re)insert when the element is not already
+    // at its position: insertBefore removes and re-inserts the node even
+    // within the same parent, which would restart the spinner's CSS
+    // animation on every streaming update.
+    if (!bodyEl || !bodyEl.parentNode) {
+      // The assistant message has no answer text (yet), so it is not in the
+      // log as an element; its thinking/tool-call rows go to the end of the
+      // log in their recorded order.
+      let tail = log.lastChild;
+      for (const w of aboveW.concat(belowW)) {
+        if (w.previousSibling !== tail)
+          log.insertBefore(w, tail ? tail.nextSibling : log.firstChild);
+        tail = w;
       }
-      // Drop elements whose token is no longer present (e.g. after a reload).
-      for (const d of container.querySelectorAll('details[data-token]')) {
-        if (!wanted[d.dataset.token]) d.remove();
+    } else {
+      for (let k = aboveW.length - 1; k >= 0; k--) {
+        const desiredNext = (k + 1 < aboveW.length) ? aboveW[k + 1] : bodyEl;
+        if (aboveW[k].nextSibling !== desiredNext)
+          log.insertBefore(aboveW[k], desiredNext);
       }
-      container.style.display = tokens.length ? '' : 'none';
+      let anchor = bodyEl;
+      for (const w of belowW) {
+        if (w.previousSibling !== anchor)
+          log.insertBefore(w, anchor.nextSibling);
+        anchor = w;
+      }
+    }
+    // Drop this message's element wrappers whose token is no longer present
+    // (e.g. after a reload).
+    const wanted = {};
+    for (const w of aboveW.concat(belowW)) wanted[w.id] = true;
+    for (const el of log.querySelectorAll(':scope > .element-row')) {
+      if (el.id.startsWith('msg-' + messageId + '-') && !wanted[el.id])
+        el.remove();
     }
   }
 
@@ -318,10 +342,7 @@
       // collapsible tool-call entries, not as separate bubbles.
       if (role === 'tool')
         el.style.display = 'none';
-      el.innerHTML = (role === 'assistant'
-                       ? '<div class="elements"></div>'
-                       : '') +
-                     '<div class="body"></div>';
+      el.innerHTML = '<div class="body"></div>';
       // The copy button exists only under the assistant's answer and copies
       // only that answer's content (el.dataset.raw of this message).
       if (role === 'assistant') {
@@ -339,7 +360,28 @@
         // Hide the copy button while the answer is still streaming.
         btn.style.display = 'none';
       }
-      document.getElementById('log').appendChild(el);
+      // An assistant message without answer text (e.g. a round that only
+      // requested tool calls) must not appear as an empty element in the
+      // log; it is attached once it has content, at its recorded position.
+      if (role !== 'assistant' || content) {
+        const log = document.getElementById('log');
+        if (role === 'assistant') {
+          const raw = elementOrder || [];
+          const textIdx = raw.indexOf('text');
+          let ref = null;
+          if (textIdx !== -1) {
+            for (let i = textIdx + 1; i < raw.length; i++) {
+              ref = document.getElementById('msg-' + id + '-' + raw[i]);
+              if (ref) break;
+            }
+          }
+          log.insertBefore(el, ref); // ref null -> append at the end
+        } else {
+          log.appendChild(el);
+        }
+      }
+    } else if (role === 'assistant' && !content && el.parentNode) {
+      el.remove();
     }
     el.dataset.raw = content;
     const body = el.querySelector('.body');
@@ -361,8 +403,8 @@
       if (copyBtn) copyBtn.style.display = '';
     }
     if (role === 'assistant') {
-      renderElements(el, thinking || [], toolCalls || [], elementOrder,
-                     streaming && reasoningStreaming);
+      renderAssistantElements(id, thinking || [], toolCalls || [], elementOrder,
+                              streaming && reasoningStreaming);
     }
     scrollToBottom();
   }

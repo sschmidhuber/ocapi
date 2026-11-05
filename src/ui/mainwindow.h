@@ -6,6 +6,7 @@
 #include "core/mcpregistry.h"
 #include "core/message.h"
 #include "core/sttregistry.h"
+#include "core/systemprompt.h"
 #include "core/ttsplayer.h"
 #include "core/ttsregistry.h"
 #include "core/voiceinput.h"
@@ -136,6 +137,7 @@ private:
     [[nodiscard]] bool openDatabase();
     void loadBackendsFromDatabase();
     void loadSttSettingsFromDatabase();
+    void loadSystemPrompt();
     void loadLastModels();
     void configureVoiceInput();
     void loadTtsSettingsFromDatabase();
@@ -165,6 +167,7 @@ private:
     BackendRegistry m_registry;
     SttRegistry m_sttRegistry;
     TtsRegistry m_ttsRegistry;
+    SystemPrompt m_systemPrompt;
     TtsPlayer m_ttsPlayer;
     VoiceInput m_voiceInput;
     McpRegistry m_mcpRegistry;

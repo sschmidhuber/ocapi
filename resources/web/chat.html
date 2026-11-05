@@ -549,7 +549,9 @@
           el.className = 'msg ' + role;
           // Tool results are shown inside the requesting assistant message's
           // collapsible tool-call entries, not as separate bubbles.
-          if (role === 'tool') el.style.display = 'none';
+          // Tool results live inside the tool-call entries; the system
+          // prompt is sent to the model but never shown as a bubble.
+          if (role === 'tool' || role === 'system') el.style.display = 'none';
           el.innerHTML = '<div class="body"></div>';
           // The copy button exists only under the assistant's answer and copies
           // only that answer's content (el.dataset.raw of this message).

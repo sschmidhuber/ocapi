@@ -2,6 +2,7 @@
 #include "core/mcpmanager.h"
 #include "core/mcpregistry.h"
 #include "core/sttregistry.h"
+#include "core/systemprompt.h"
 #include "core/ttsregistry.h"
 #include "ui/settingsdialog.h"
 
@@ -49,29 +50,38 @@ SettingsDialog *TestSettingsDialog::makeDialog() {
     McpManager mcpManager(&mcpRegistry);
     SttRegistry sttRegistry;
     TtsRegistry ttsRegistry;
-    return new SettingsDialog(&backends, &mcpRegistry, &mcpManager, &sttRegistry, &ttsRegistry);
+    SystemPrompt systemPrompt;
+    return new SettingsDialog(&backends, &mcpRegistry, &mcpManager, &sttRegistry, &ttsRegistry,
+                              &systemPrompt);
 }
 
 void TestSettingsDialog::categoriesAreTopLevelItems() {
     std::unique_ptr<SettingsDialog> dialog(makeDialog());
     auto *list = categoriesList(*dialog);
     QVERIFY(list);
-    QCOMPARE(list->count(), 2);
-    QCOMPARE(list->item(0)->text(), QStringLiteral("Models"));
-    QCOMPARE(list->item(1)->text(), QStringLiteral("Tools"));
+    QCOMPARE(list->count(), 3);
+    QCOMPARE(list->item(0)->text(), QStringLiteral("General"));
+    QCOMPARE(list->item(1)->text(), QStringLiteral("Models"));
+    QCOMPARE(list->item(2)->text(), QStringLiteral("Tools"));
 
     // Each category carries its themed icon with the bundled SVG fallback,
     // so it renders even without an icon theme providing the name.
     QVERIFY(!list->item(0)->icon().isNull());
     QVERIFY(!list->item(1)->icon().isNull());
+    QVERIFY(!list->item(2)->icon().isNull());
 }
 
 void TestSettingsDialog::pagesAreTabsOfTheirCategory() {
     std::unique_ptr<SettingsDialog> dialog(makeDialog());
-    auto *modelsTabs = tabsOf(*dialog, 0);
-    auto *toolsTabs = tabsOf(*dialog, 1);
+    auto *generalTabs = tabsOf(*dialog, 0);
+    auto *modelsTabs = tabsOf(*dialog, 1);
+    auto *toolsTabs = tabsOf(*dialog, 2);
+    QVERIFY(generalTabs);
     QVERIFY(modelsTabs);
     QVERIFY(toolsTabs);
+
+    QCOMPARE(generalTabs->count(), 1);
+    QCOMPARE(generalTabs->tabText(0), QStringLiteral("System Prompt"));
 
     QCOMPARE(modelsTabs->count(), 3);
     QCOMPARE(modelsTabs->tabText(0), QStringLiteral("LLM"));
@@ -85,19 +95,24 @@ void TestSettingsDialog::pagesAreTabsOfTheirCategory() {
 void TestSettingsDialog::selectPageSelectsCategoryAndTab() {
     std::unique_ptr<SettingsDialog> dialog(makeDialog());
     auto *list = categoriesList(*dialog);
-    auto *modelsTabs = tabsOf(*dialog, 0);
-    auto *toolsTabs = tabsOf(*dialog, 1);
+    auto *generalTabs = tabsOf(*dialog, 0);
+    auto *modelsTabs = tabsOf(*dialog, 1);
+    auto *toolsTabs = tabsOf(*dialog, 2);
 
     dialog->selectPage(QStringLiteral("tools/mcp"));
-    QCOMPARE(list->currentRow(), 1);
+    QCOMPARE(list->currentRow(), 2);
     QCOMPARE(toolsTabs->currentIndex(), 0);
 
-    dialog->selectPage(QStringLiteral("models/llm"));
+    dialog->selectPage(QStringLiteral("general/systemprompt"));
     QCOMPARE(list->currentRow(), 0);
+    QCOMPARE(generalTabs->currentIndex(), 0);
+
+    dialog->selectPage(QStringLiteral("models/llm"));
+    QCOMPARE(list->currentRow(), 1);
     QCOMPARE(modelsTabs->currentIndex(), 0);
 
     dialog->selectPage(QStringLiteral("models/tts"));
-    QCOMPARE(list->currentRow(), 0);
+    QCOMPARE(list->currentRow(), 1);
     QCOMPARE(modelsTabs->currentIndex(), 2);
 }
 

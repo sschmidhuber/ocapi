@@ -4,10 +4,12 @@
 #include "core/mcpmanager.h"
 #include "core/mcpregistry.h"
 #include "core/sttregistry.h"
+#include "core/systemprompt.h"
 #include "core/ttsregistry.h"
 #include "ui/backendpage.h"
 #include "ui/mcppage.h"
 #include "ui/sttpage.h"
+#include "ui/systempromptpage.h"
 #include "ui/ttspage.h"
 
 #include <QDialogButtonBox>
@@ -23,7 +25,8 @@ namespace ocapi {
 
 SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mcpRegistry,
                                McpManager *mcpManager, SttRegistry *sttRegistry,
-                               TtsRegistry *ttsRegistry, QWidget *parent)
+                               TtsRegistry *ttsRegistry, SystemPrompt *systemPrompt,
+                               QWidget *parent)
     : QDialog(parent) {
     setWindowTitle(tr("Settings"));
     resize(880, 580);
@@ -34,6 +37,11 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
     m_categories->setMaximumWidth(220);
 
     m_stack = new QStackedWidget(splitter);
+
+    addCategory(tr("General"), QStringLiteral("general"),
+                QStringLiteral(":/resources/icons/general.svg"));
+    addTab(tr("System Prompt"), QStringLiteral("systemprompt"),
+           new SystemPromptPage(systemPrompt, m_stack));
 
     addCategory(tr("Models"), QStringLiteral("models"),
                 QStringLiteral(":/resources/icons/ai_chip.svg"));

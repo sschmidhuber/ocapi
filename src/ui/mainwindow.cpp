@@ -210,6 +210,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     loadBackendsFromDatabase();
     loadMcpServersFromDatabase();
     loadSttSettingsFromDatabase();
+    loadSystemPrompt();
     loadLastModels();
 
     setupUi();
@@ -583,7 +584,7 @@ void MainWindow::onSessionDeleteRequested(const QUuid &id) {
 
 void MainWindow::openSettings(const QString &pageId) {
     SettingsDialog dialog(&m_registry, &m_mcpRegistry, &m_mcpManager, &m_sttRegistry,
-                          &m_ttsRegistry, this);
+                          &m_ttsRegistry, &m_systemPrompt, this);
     if (!pageId.isEmpty())
         dialog.selectPage(pageId);
     dialog.exec();
@@ -592,6 +593,13 @@ void MainWindow::openSettings(const QString &pageId) {
 void MainWindow::loadMcpServersFromDatabase() {
     if (m_database.isOpen())
         m_mcpRegistry.load(m_database);
+}
+
+void MainWindow::loadSystemPrompt() {
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir().mkpath(configDir);
+    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    m_systemPrompt.load(settings);
 }
 
 void MainWindow::loadSttSettingsFromDatabase() {
@@ -1047,6 +1055,24 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
     m_sendButton->setVisible(false);
     m_stopButton->setVisible(true);
     statusBar()->showMessage(tr("Generating…"));
+
+    // Inject the system prompt (with dynamic fields substituted for right
+    // now) as the session's first message so every backend picks it up from
+    // the conversation. It is prepended without emitting messageAdded, so it
+    // is not persisted and not shown in the chat view.
+    const QString systemPrompt = m_systemPrompt.substituted();
+    if (!systemPrompt.isEmpty()) {
+        const auto &msgs = m_currentSession->messages();
+        if (!msgs.isEmpty() && msgs.constFirst().role == Role::System) {
+            if (msgs.constFirst().content != systemPrompt)
+                m_currentSession->updateMessage(msgs.constFirst().id, systemPrompt, false);
+        } else {
+            Message sys;
+            sys.role = Role::System;
+            sys.content = systemPrompt;
+            m_currentSession->prependMessages({sys});
+        }
+    }
 
     const qsizetype count = m_currentSession->messages().size();
     m_backend->sendMessage(m_currentSession, model);

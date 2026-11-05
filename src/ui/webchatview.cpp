@@ -3,12 +3,20 @@
 #include "ui/webchatview.h"
 
 #include <QClipboard>
+#include <QDialog>
+#include <QFile>
+#include <QFileDialog>
 #include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMenu>
+#include <QPlainTextEdit>
 #include <QUrl>
+#include <QVBoxLayout>
 #include <QWebChannel>
+#include <QWebEngineContextMenuRequest>
+#include <QWebEnginePage>
 #include <QWebEngineSettings>
 
 namespace ocapi {
@@ -102,6 +110,10 @@ WebChatView::WebChatView(QWidget *parent) : QWebEngineView(parent) {
     m_channel->registerObject(QStringLiteral("qtBridge"), m_bridge);
     connect(m_bridge, &WebChatBridge::scrolledToTop, this, &WebChatView::olderMessagesRequested);
     page()->setWebChannel(m_channel);
+    // The default page menu offers "Save Page"/"View Page Source", which do
+    // nothing for a qrc:// page; replace it with working variants.
+    connect(page(), &QWebEnginePage::contextMenuRequested, this,
+            &WebChatView::onContextMenuRequested);
 
     settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessFileUrls, true);
     settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessRemoteUrls, false);
@@ -161,6 +173,41 @@ void WebChatView::onMessageAdded(const Message &message) {
 
 void WebChatView::onMessageUpdated(const Message &message) {
     onMessageAdded(message);
+}
+
+void WebChatView::onContextMenuRequested(const QWebEngineContextMenuRequest *request) {
+    QMenu menu(this);
+    QAction *savePage = menu.addAction(tr("Save Page\u2026"));
+    connect(savePage, &QAction::triggered, this, &WebChatView::savePageAs);
+    QAction *viewSource = menu.addAction(tr("View Page Source"));
+    connect(viewSource, &QAction::triggered, this, &WebChatView::showPageSource);
+    menu.exec(request->globalPos());
+}
+
+void WebChatView::savePageAs() {
+    const QString path =
+        QFileDialog::getSaveFileName(this, tr("Save Page"), QStringLiteral("chat.html"),
+                                     tr("HTML files (*.html);;All files (*)"));
+    if (path.isEmpty())
+        return;
+    page()->toHtml([path](const QString &html) {
+        QFile file(path);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            file.write(html.toUtf8());
+    });
+}
+
+void WebChatView::showPageSource() {
+    auto *dialog = new QDialog(this);
+    dialog->setWindowTitle(tr("Page Source"));
+    dialog->resize(800, 600);
+    auto *edit = new QPlainTextEdit(dialog);
+    edit->setReadOnly(true);
+    auto *layout = new QVBoxLayout(dialog);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(edit);
+    page()->toHtml([edit](const QString &html) { edit->setPlainText(html); });
+    dialog->show();
 }
 
 } // namespace ocapi

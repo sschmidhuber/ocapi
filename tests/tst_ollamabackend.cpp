@@ -102,6 +102,7 @@ private slots:
     void sendMessageEmitsToolCalls();
     void toolCallsIncludedInConversationHistory();
     void toolsSentOnlyWhenEnabled();
+    void toolsNotSentWhenDisabledForBackend();
     void reasoningIsNotSentBackInConversationHistory();
     void sendMessageContinuesExistingAssistantMessage();
     void fullConversationHistoryIsSentToModel();
@@ -328,6 +329,31 @@ void TestOllamaBackend::toolsSentOnlyWhenEnabled() {
     backend.sendMessage(&session, QStringLiteral("mock-model"));
     QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
     QVERIFY(!m_server.lastRequest().contains(QLatin1String("tools")));
+}
+
+// Regression: when tool-offering is disabled for the backend, no tools must
+// be sent — some local models (e.g. qwen3.5 via /api/chat) lose conversation
+// history recall when tool definitions are present in the request.
+void TestOllamaBackend::toolsNotSentWhenDisabledForBackend() {
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
+
+    BackendConfig config = ollamaConfig(m_server.port());
+    config.toolsEnabled = false;
+    OllamaBackend backend(config);
+    QJsonArray tools;
+    tools.append(QJsonObject{{QStringLiteral("type"), QStringLiteral("function")},
+                             {QStringLiteral("function"),
+                              QJsonObject{{QStringLiteral("name"), QStringLiteral("srv__echo")}}}});
+    backend.setAvailableTools(tools);
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hello"));
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+    QVERIFY(!m_server.lastRequest().contains(QLatin1String("tools")));
+    QVERIFY(!m_server.lastRequest().contains(QLatin1String("tool_choice")));
 }
 
 void TestOllamaBackend::reasoningIsNotSentBackInConversationHistory() {

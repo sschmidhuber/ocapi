@@ -53,6 +53,7 @@ private:
     QLineEdit *m_urlEdit;
     QLineEdit *m_apiKeyEdit;
     QCheckBox *m_enabledBox;
+    QCheckBox *m_toolsBox;
     QPushButton *m_testButton;
     QLabel *m_testResultLabel;
     IBackend *m_testBackend = nullptr;

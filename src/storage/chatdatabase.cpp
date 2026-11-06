@@ -46,6 +46,21 @@ void createTables(QSqlDatabase &database) {
                               "api_key TEXT NOT NULL DEFAULT '', "
                               "default_model TEXT NOT NULL DEFAULT '', "
                               "enabled INTEGER NOT NULL DEFAULT 1)"));
+    // Migration: add tools_enabled to existing databases (guarded, so a
+    // repeated ALTER is not attempted once the column exists).
+    {
+        QSqlQuery cols(database);
+        bool hasToolsEnabled = false;
+        if (cols.exec(QStringLiteral("PRAGMA table_info(backends)"))) {
+            while (cols.next()) {
+                if (cols.value(1).toString() == QLatin1String("tools_enabled"))
+                    hasToolsEnabled = true;
+            }
+        }
+        if (!hasToolsEnabled)
+            query.exec(QStringLiteral("ALTER TABLE backends ADD COLUMN tools_enabled INTEGER "
+                                      "NOT NULL DEFAULT 1"));
+    }
     query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS settings ("
                               "key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL)"));
     query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS sessions ("
@@ -415,12 +430,13 @@ int ChatDatabase::messageCount(const QString &sessionId) const {
 
 void ChatDatabase::insertBackend(const BackendConfig &config) {
     execute(QStringLiteral("INSERT INTO backends (id, name, kind, base_url, api_key, "
-                           "default_model, enabled) VALUES (?, ?, ?, ?, ?, ?, ?) "
+                           "default_model, enabled, tools_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
                            "ON CONFLICT (id) DO UPDATE SET name = excluded.name, "
                            "kind = excluded.kind, base_url = excluded.base_url, "
                            "api_key = excluded.api_key, "
                            "default_model = excluded.default_model, "
-                           "enabled = excluded.enabled"),
+                           "enabled = excluded.enabled, "
+                           "tools_enabled = excluded.tools_enabled"),
             {
                 config.id.toString(QUuid::WithoutBraces),
                 nullToEmpty(config.name),
@@ -429,6 +445,7 @@ void ChatDatabase::insertBackend(const BackendConfig &config) {
                 nullToEmpty(config.apiKey),
                 nullToEmpty(config.defaultModel),
                 config.enabled ? 1 : 0,
+                config.toolsEnabled ? 1 : 0,
             });
 }
 
@@ -444,7 +461,7 @@ QVector<BackendConfig> ChatDatabase::loadBackends() const {
     QVector<BackendConfig> result;
     QSqlQuery query(m_database);
     if (!query.exec(QStringLiteral("SELECT id, name, kind, base_url, api_key, default_model, "
-                                   "enabled FROM backends ORDER BY rowid ASC"))) {
+                                   "enabled, tools_enabled FROM backends ORDER BY rowid ASC"))) {
         m_lastError = query.lastError().text();
         return result;
     }
@@ -461,6 +478,7 @@ QVector<BackendConfig> ChatDatabase::loadBackends() const {
         config.apiKey = query.value(4).toString();
         config.defaultModel = query.value(5).toString();
         config.enabled = query.value(6).toInt() != 0;
+        config.toolsEnabled = query.value(7).toInt() != 0;
         result.push_back(std::move(config));
     }
     return result;

@@ -122,9 +122,11 @@ void OllamaBackend::sendMessage(ChatSession *session, const QString &model,
         {QStringLiteral("messages"), messages},
         {QStringLiteral("stream"), true},
     };
-    if (m_toolsEnabled) {
+    // Some local models (e.g. qwen3.5 on Ollama) lose conversation-history
+    // recall when tool definitions are present in the request, so tools are
+    // only sent when enabled for this backend.
+    if (m_toolsEnabled && m_config.toolsEnabled) {
         payload.insert(QStringLiteral("tools"), m_availableTools);
-        payload.insert(QStringLiteral("tool_choice"), QStringLiteral("auto"));
     }
 
     m_stream = std::make_unique<SseClient>(m_nam, this);

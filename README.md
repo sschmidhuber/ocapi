@@ -212,6 +212,21 @@ session, the full session state before each new round, and the exact
 visible whether tool results reached the model's context.
 The setting adds no overhead when unset.
 
+### Ollama: models ignoring previous messages
+
+Ollama renders the system prompt, the full conversation history and every
+MCP tool definition into a single prompt and — unlike the Ollama CLI —
+defaults to a small context window (`num_ctx`, typically 4096 tokens). When
+the prompt does not fit, Ollama silently drops the oldest messages first, so
+the model answers without any knowledge of earlier turns. ocapi therefore
+requests `options.num_ctx = 8192` with every Ollama chat request. Set
+`OCAPI_OLLAMA_NUM_CTX` to change the window size (e.g. `16384` for big
+local models), or to `0` to keep the server's default:
+
+```bash
+OCAPI_OLLAMA_NUM_CTX=16384 ocapi
+```
+
 ### Debugging the chat element rendering
 
 When thinking phases, tool calls and the answer of one assistant message do

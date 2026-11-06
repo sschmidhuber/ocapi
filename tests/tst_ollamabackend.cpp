@@ -104,6 +104,8 @@ private slots:
     void toolsSentOnlyWhenEnabled();
     void reasoningIsNotSentBackInConversationHistory();
     void sendMessageContinuesExistingAssistantMessage();
+    void contextWindowRequestedByDefault();
+    void contextWindowOverrideAndOptOut();
 
 private:
     FakeOllamaServer m_server;
@@ -383,6 +385,50 @@ void TestOllamaBackend::sendMessageContinuesExistingAssistantMessage() {
     }
     QVERIFY(sawAssistantToolCalls);
     QVERIFY(sawToolResult);
+}
+
+// Ollama silently drops the oldest messages when the rendered prompt
+// (system prompt + history + tool definitions) exceeds its small default
+// num_ctx; the request must therefore raise the window explicitly.
+void TestOllamaBackend::contextWindowRequestedByDefault() {
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
+
+    OllamaBackend backend(ollamaConfig(m_server.port()));
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hello"));
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+
+    const auto options = m_server.lastRequest().value(QLatin1String("options")).toObject();
+    QCOMPARE(options.value(QLatin1String("num_ctx")).toInt(), 8192);
+}
+
+void TestOllamaBackend::contextWindowOverrideAndOptOut() {
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
+
+    OllamaBackend backend(ollamaConfig(m_server.port()));
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hello"));
+
+    qputenv("OCAPI_OLLAMA_NUM_CTX", QByteArrayLiteral("16384"));
+    QSignalSpy firstSend(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(firstSend.count() >= 1, 10000);
+    const auto options = m_server.lastRequest().value(QLatin1String("options")).toObject();
+    QCOMPARE(options.value(QLatin1String("num_ctx")).toInt(), 16384);
+
+    qputenv("OCAPI_OLLAMA_NUM_CTX", QByteArrayLiteral("0"));
+    QSignalSpy secondSend(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(secondSend.count() >= 1, 10000);
+    QVERIFY(!m_server.lastRequest().contains(QLatin1String("options")));
+
+    qunsetenv("OCAPI_OLLAMA_NUM_CTX");
 }
 
 QTEST_GUILESS_MAIN(TestOllamaBackend)

@@ -3,12 +3,18 @@
 #include "core/sessiongrouper.h"
 
 #include <QHeaderView>
+#include <QIcon>
+#include <QIconEngine>
 #include <QMap>
 #include <QMenu>
+#include <QPainter>
+#include <QPainterPath>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <functional>
 
 namespace ocapi {
 
@@ -16,6 +22,34 @@ namespace {
 
 constexpr auto kSessionIdRole = Qt::UserRole;
 constexpr auto kIsGroupRole = Qt::UserRole + 1;
+
+// Vector icon: paints its callback at whatever pixel size Qt requests, so
+// the badge stays sharp on high-DPI screens (Qt asks the engine for
+// size * devicePixelRatio) instead of upscaling a fixed low-resolution
+// bitmap.
+class VectorIconEngine : public QIconEngine {
+public:
+    using Painter = std::function<void(QPainter &, const QRectF &)>;
+    explicit VectorIconEngine(Painter painter) : m_painter(std::move(painter)) {}
+    [[nodiscard]] QIconEngine *clone() const override { return new VectorIconEngine(*this); }
+    void paint(QPainter *painter, const QRect &rect, QIcon::Mode mode,
+               QIcon::State state) override {
+        Q_UNUSED(mode);
+        Q_UNUSED(state);
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        m_painter(*painter, QRectF(rect));
+    }
+    QPixmap pixmap(const QSize &size, QIcon::Mode mode, QIcon::State state) override {
+        QPixmap pixmap(size);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        paint(&painter, QRect(QPoint(0, 0), size), mode, state);
+        return pixmap;
+    }
+
+private:
+    Painter m_painter;
+};
 
 // Sessions are expected newest-first; group them by last activity and
 // return the group keys in chronological order (newest group first).
@@ -47,6 +81,12 @@ QStringList orderedGroupKeys(const QVector<ChatSession *> &sessions) {
 } // namespace
 
 Sidebar::Sidebar(QWidget *parent) : QWidget(parent), m_tree(new QTreeWidget(this)) {
+    // The spinner of running chats rotates continuously; started lazily in
+    // setIndicators() so an idle sidebar keeps no timer running.
+    m_spinnerTimer = new QTimer(this);
+    m_spinnerTimer->setInterval(120);
+    connect(m_spinnerTimer, &QTimer::timeout, this, &Sidebar::advanceSpinner);
+
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(8, 8, 8, 8);
     layout->setSpacing(6);
@@ -109,6 +149,7 @@ void Sidebar::setSessions(const QVector<ChatSession *> &sessions) {
                 m_tree->setCurrentItem(item);
         }
     }
+    applyIndicators();
 }
 
 void Sidebar::selectSession(const QUuid &id) {
@@ -129,6 +170,73 @@ QUuid Sidebar::currentSessionId() const {
     if (!item || item->data(0, kIsGroupRole).toBool())
         return {};
     return QUuid(item->data(0, kSessionIdRole).toString());
+}
+
+void Sidebar::setIndicators(const QSet<QUuid> &running, const QSet<QUuid> &unread) {
+    m_running = running;
+    m_unread = unread;
+    if (!m_running.isEmpty())
+        m_spinnerTimer->start();
+    else
+        m_spinnerTimer->stop();
+    applyIndicators();
+}
+
+void Sidebar::applyIndicators() {
+    for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
+        auto *group = m_tree->topLevelItem(i);
+        for (int j = 0; j < group->childCount(); ++j) {
+            auto *item = group->child(j);
+            const QUuid id(item->data(0, kSessionIdRole).toString());
+            QIcon icon;
+            QStringList state;
+            if (m_running.contains(id)) {
+                icon = spinnerIcon();
+                state << tr("generating");
+            }
+            if (m_unread.contains(id)) {
+                if (icon.isNull())
+                    icon = unreadDotIcon();
+                state << tr("unread messages");
+            }
+            item->setIcon(0, icon);
+            item->setToolTip(0, state.isEmpty() ? item->text(0)
+                                                : item->text(0) + QLatin1String(" — ") +
+                                                      state.join(QLatin1String(", ")));
+        }
+    }
+}
+
+void Sidebar::advanceSpinner() {
+    m_spinnerAngle = (m_spinnerAngle + 45) % 360;
+    applyIndicators();
+}
+
+QIcon Sidebar::spinnerIcon() const {
+    // Breeze-style loading spinner: a thick arc sweeping most of the circle,
+    // rotating with the timer.
+    const QPen pen(palette().color(QPalette::Text), 2.4, Qt::SolidLine, Qt::RoundCap);
+    const int angle = m_spinnerAngle;
+    return QIcon(new VectorIconEngine([pen, angle](QPainter &painter, const QRectF &rect) {
+        // The pen width scales with the icon so the spinner keeps its look
+        // at every size; the arc leaves a gap that rotates with the timer.
+        QPen scaled = pen;
+        scaled.setWidthF(pen.widthF() * (rect.width() / 16.0));
+        painter.setPen(scaled);
+        const QRectF circle = rect.marginsRemoved(QMarginsF(
+            rect.width() * 0.14, rect.height() * 0.14, rect.width() * 0.14, rect.height() * 0.14));
+        painter.drawArc(circle, -angle * 16, 300 * 16);
+    }));
+}
+
+QIcon Sidebar::unreadDotIcon() const {
+    // Unread badge: a filled circle in the theme's highlight color.
+    const QBrush brush(palette().color(QPalette::Highlight));
+    return QIcon(new VectorIconEngine([brush](QPainter &painter, const QRectF &rect) {
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(brush);
+        painter.drawEllipse(rect.center(), rect.width() * 0.25, rect.height() * 0.25);
+    }));
 }
 
 } // namespace ocapi

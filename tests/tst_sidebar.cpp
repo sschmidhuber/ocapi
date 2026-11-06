@@ -42,6 +42,7 @@ private slots:
     void currentSessionIdIsNullForGroupItems();
     void emptySessionsClearTree();
     void sidebarHasNoToolbarButtons();
+    void indicatorsBadgeRunningAndUnreadChats();
 };
 
 void TestSidebar::firstBuildExpandsOnlyToday() {
@@ -162,6 +163,73 @@ void TestSidebar::emptySessionsClearTree() {
 
     sidebar.setSessions({});
     QCOMPARE(tree->topLevelItemCount(), 0);
+}
+
+// The running/unread badges: a running chat shows a spinner icon, an
+// unread chat a dot; a chat that is neither has no icon. Rebuilding the
+// tree (setSessions) must keep the badges.
+void TestSidebar::indicatorsBadgeRunningAndUnreadChats() {
+    const QDateTime now = QDateTime::currentDateTime();
+    auto running = makeSession(QStringLiteral("running chat"), now);
+    auto unread = makeSession(QStringLiteral("unread chat"), now);
+    auto plain = makeSession(QStringLiteral("plain chat"), now);
+    const QVector<ChatSession *> sessions{running.get(), unread.get(), plain.get()};
+
+    Sidebar sidebar;
+    auto *tree = sidebar.findChild<QTreeWidget *>();
+    QVERIFY(tree);
+    sidebar.setSessions(sessions);
+
+    sidebar.setIndicators({running->id()}, {unread->id()});
+
+    auto *group = groupItem(tree, now);
+    QVERIFY(group);
+    QCOMPARE(group->childCount(), 3);
+    bool sawRunning = false;
+    bool sawUnread = false;
+    bool sawPlain = false;
+    for (int i = 0; i < group->childCount(); ++i) {
+        auto *item = group->child(i);
+        const QUuid id(item->data(0, Qt::UserRole).toString());
+        if (id == running->id()) {
+            QVERIFY(!item->icon(0).isNull());
+            QVERIFY(item->toolTip(0).contains(QStringLiteral("generating")));
+            sawRunning = true;
+        } else if (id == unread->id()) {
+            QVERIFY(!item->icon(0).isNull());
+            QVERIFY(item->toolTip(0).contains(QStringLiteral("unread")));
+            sawUnread = true;
+        } else {
+            QVERIFY(item->icon(0).isNull());
+            QCOMPARE(item->toolTip(0), item->text(0));
+            sawPlain = true;
+        }
+    }
+    QVERIFY(sawRunning && sawUnread && sawPlain);
+
+    // A rebuild must keep the badges.
+    sidebar.setSessions(sessions);
+    group = groupItem(tree, now);
+    QVERIFY(group);
+    bool runningKept = false;
+    bool unreadKept = false;
+    for (int i = 0; i < group->childCount(); ++i) {
+        auto *item = group->child(i);
+        const QUuid id(item->data(0, Qt::UserRole).toString());
+        if (id == running->id() && !item->icon(0).isNull())
+            runningKept = true;
+        if (id == unread->id() && !item->icon(0).isNull())
+            unreadKept = true;
+    }
+    QVERIFY(runningKept);
+    QVERIFY(unreadKept);
+
+    // Clearing the indicators removes the badges again.
+    sidebar.setIndicators({}, {});
+    group = groupItem(tree, now);
+    QVERIFY(group);
+    for (int i = 0; i < group->childCount(); ++i)
+        QVERIFY(group->child(i)->icon(0).isNull());
 }
 
 // Sidebar is a QWidget, so the test needs a QApplication; force the

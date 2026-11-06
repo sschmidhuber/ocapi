@@ -43,6 +43,7 @@ REPLY_TEXT = "Hello from the mock backend!"
 REASONING_REPLY_TEXT = "Hello from the reasoning mock! I thought about it first."
 THINKING_TEXT = "The user greets me, so I should greet back."
 TOOL_REPLY_TEXT = "The tool says: echo: Hello from the MCP tool!"
+DOUBLE_TOOL_REPLY_TEXT = "The tool says: echo: Hello from the MCP tool! And twice!"
 
 
 class OcapiE2E(unittest.TestCase):
@@ -172,6 +173,20 @@ class OcapiE2E(unittest.TestCase):
         # text, so match the tool name and the reply text anywhere in the
         # accessible tree (they appear as text nodes, not named elements).
         self.wait_for(f"//*[contains(@name, '{TOOL_REPLY_TEXT}')]", timeout=60)
+
+    def test_05b_mcp_parallel_tool_roundtrip(self):
+        # Regression: a round requesting TWO tool calls whose results arrive
+        # asynchronously hung the tool-call loop — the round counter was
+        # decremented only for the first result, so the conversation never
+        # continued and no final assistant answer appeared. The mock backend
+        # requests the echo tool twice; ocapi must run both calls, feed both
+        # results back and stream the double-round answer (a text that is
+        # not already on screen from the single-round test before).
+        composer = self.find_by_name("Message input")
+        composer.send_keys("Please use two tools for me.")
+        self.find_by_name("Send").click()
+
+        self.wait_for(f"//*[contains(@name, '{DOUBLE_TOOL_REPLY_TEXT}']", timeout=60)
 
     def test_06_new_chat_keeps_backend_and_model(self):
         # Two mock backends are seeded and the picker starts on the first one

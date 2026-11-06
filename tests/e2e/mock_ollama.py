@@ -39,8 +39,10 @@ REPLY_TEXT = "Hello from the mock backend!"
 REASONING_REPLY_TEXT = "Hello from the reasoning mock! I thought about it first."
 THINKING_TEXT = "The user greets me, so I should greet back."
 TOOL_REPLY_TEXT = "The tool says: echo: Hello from the MCP tool!"
+DOUBLE_TOOL_REPLY_TEXT = "The tool says: echo: Hello from the MCP tool! And twice!"
 TOOL_NAME = "Mock MCP__echo"
 TOOL_TRIGGER = "use the tool"
+DOUBLE_TOOL_TRIGGER = "use two tools"
 REASONING_TRIGGER = "reasoning"
 
 
@@ -86,7 +88,41 @@ class OllamaMockHandler(BaseHTTPRequestHandler):
         # done: answer with text. This must win over the trigger check, since
         # the triggering user message is still the last one.
         if self._in_tool_round(request):
-            reply = TOOL_REPLY_TEXT
+            reply = self._tool_round_reply(request)
+        elif self._wants_double_tool(request):
+            # One round requesting the same tool twice: ocapi must run both
+            # calls, wait for BOTH results and only then continue the
+            # conversation (regression: the second result was never counted
+            # and the loop hung without a final assistant answer).
+            send_event(
+                {
+                    "model": MODEL_NAME,
+                    "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "function": {
+                                    "name": TOOL_NAME,
+                                    "arguments": {"text": "Hello from the MCP tool!"},
+                                }
+                            },
+                            {
+                                "function": {
+                                    "name": TOOL_NAME,
+                                    "arguments": {"text": "Hello again from the MCP tool!"},
+                                }
+                            },
+                        ],
+                    },
+                    "done": False,
+                }
+            )
+            send_event(
+                {"model": MODEL_NAME, "message": {"role": "assistant", "content": ""}, "done": True}
+            )
+            self.wfile.write(b"0\r\n\r\n")
+            return
         elif self._wants_tool(request):
             send_event(
                 {
@@ -194,6 +230,21 @@ class OllamaMockHandler(BaseHTTPRequestHandler):
         if not tools:
             return False
         return TOOL_TRIGGER in self._last_user_message(request).lower()
+
+    def _wants_double_tool(self, request):
+        tools = request.get("tools") or []
+        if not tools:
+            return False
+        return DOUBLE_TOOL_TRIGGER in self._last_user_message(request).lower()
+
+    @staticmethod
+    def _tool_round_reply(request):
+        # Distinguish the double round's final answer from the single round's
+        # so the E2E test can wait for a text that is not already on screen.
+        tool_results = [m for m in request.get("messages") or [] if m.get("role") == "tool"]
+        if len(tool_results) >= 2:
+            return DOUBLE_TOOL_REPLY_TEXT
+        return TOOL_REPLY_TEXT
 
     @staticmethod
     def _in_tool_round(request):

@@ -1313,11 +1313,18 @@ void MainWindow::runToolCalls(ChatSession *session, const QUuid &assistantMessag
             [this, session, watcher](const Message &message) {
                 if (message.role != Role::Tool)
                     return;
-                watcher->deleteLater();
+                // Keep watching until every call of the round reported back:
+                // results of parallel tool calls arrive in later event-loop
+                // iterations, so stopping (and deleting the watcher) after the
+                // first result left the round count stuck and the conversation
+                // without its final assistant answer.
                 --m_pendingToolRounds;
-                if (m_pendingToolRounds <= 0)
+                if (m_pendingToolRounds <= 0) {
+                    watcher->deleteLater();
                     continueAfterToolResults(session);
+                }
             });
+    connect(session, &QObject::destroyed, watcher, &QObject::deleteLater);
     for (const auto &call : toolCalls) {
         // executeToolCall returns false when the user must be asked first; in
         // that case the round is accounted for when the permission is decided

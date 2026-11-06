@@ -4,6 +4,10 @@
 
 #include <memory>
 
+#include <QHash>
+#include <QJsonArray>
+#include <QVector>
+
 class QNetworkAccessManager;
 class QNetworkReply;
 
@@ -22,9 +26,12 @@ public:
     void sendMessage(ChatSession *session, const QString &model,
                      const QUuid &continueMessageId = {}) override;
     void cancel() override;
+    [[nodiscard]] bool supportsTools() const override { return true; }
+    void setAvailableTools(const QJsonArray &tools) override;
 
 private:
     void onStreamEvent(const QString &eventName, const QByteArray &data);
+    void finishToolCallsIfComplete();
 
     QNetworkAccessManager *m_nam;
     std::unique_ptr<SseClient> m_stream;
@@ -32,6 +39,10 @@ private:
     QUuid m_currentMessageId;
     QString m_accumulated;
     QString m_accumulatedReasoning;
+    QJsonArray m_availableTools;
+    bool m_toolsEnabled = false;
+    QVector<ToolCall> m_pendingToolCalls;
+    QHash<int, QString> m_argumentsBuffer;
 };
 
 } // namespace ocapi

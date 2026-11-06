@@ -27,6 +27,26 @@ QString geminiRole(Role role) {
     }
 }
 
+// The MCP layer offers tools in OpenAI shape ({type, function: {name,
+// description, parameters}}); the Gemini API wants a tools array of
+// functionDeclarations.
+QJsonArray geminiTools(const QJsonArray &openAiTools) {
+    QJsonArray declarations;
+    for (const auto &value : openAiTools) {
+        const auto function = value.toObject().value(QStringLiteral("function")).toObject();
+        QJsonObject parameters = function.value(QStringLiteral("parameters")).toObject();
+        if (parameters.isEmpty())
+            parameters = QJsonObject{{QStringLiteral("type"), QStringLiteral("object")},
+                                     {QStringLiteral("properties"), QJsonObject{}}};
+        declarations.append(QJsonObject{
+            {QStringLiteral("name"), function.value(QStringLiteral("name"))},
+            {QStringLiteral("description"), function.value(QStringLiteral("description"))},
+            {QStringLiteral("parameters"), parameters},
+        });
+    }
+    return QJsonArray{QJsonObject{{QStringLiteral("functionDeclarations"), declarations}}};
+}
+
 } // namespace
 
 QStringList fallbackModels() {
@@ -89,6 +109,7 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model,
     // copy button that belongs to a finished message.
     m_currentMessageId =
         beginAssistantMessage(session, continueMessageId, m_accumulated, m_accumulatedReasoning);
+    m_pendingToolCalls.clear();
 
     QString systemPrompt;
     QJsonArray contents;
@@ -106,6 +127,22 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model,
             systemPrompt.append(message.content).append(QLatin1Char('\n'));
             continue;
         }
+        // Tool results travel as user-role functionResponse parts.
+        if (message.role == Role::Tool) {
+            const QString text = message.textForModel();
+            contents.append(QJsonObject{
+                {QStringLiteral("role"), QStringLiteral("user")},
+                {QStringLiteral("parts"), QJsonArray{QJsonObject{
+                                              {QStringLiteral("functionResponse"),
+                                               QJsonObject{
+                                                   {QStringLiteral("name"), message.toolName},
+                                                   {QStringLiteral("response"),
+                                                    QJsonObject{{QStringLiteral("result"), text}}},
+                                               }},
+                                          }}},
+            });
+            continue;
+        }
         QJsonArray parts;
         const QString text = message.textForModel();
         if (!text.isEmpty())
@@ -116,6 +153,16 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model,
                  QJsonObject{
                      {QStringLiteral("mimeType"), image.mimeType},
                      {QStringLiteral("data"), image.base64Data()},
+                 }},
+            });
+        }
+        // Replay the model's earlier function calls as functionCall parts.
+        for (const auto &call : message.toolCalls) {
+            parts.append(QJsonObject{
+                {QStringLiteral("functionCall"),
+                 QJsonObject{
+                     {QStringLiteral("name"), call.name},
+                     {QStringLiteral("args"), call.arguments},
                  }},
             });
         }
@@ -140,6 +187,10 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model,
                                                      }}},
                        });
     }
+    // Some local/small models lose conversation-history recall when tool
+    // definitions are present, so offering tools can be disabled per backend.
+    if (m_toolsEnabled && m_config.toolsEnabled)
+        payload.insert(QStringLiteral("tools"), geminiTools(m_availableTools));
 
     QUrl url(m_config.effectiveBaseUrl() + QStringLiteral("/models/") + model +
              QStringLiteral(":streamGenerateContent?alt=sse"));
@@ -189,14 +240,43 @@ void GeminiBackend::onStreamEvent(const QByteArray &data) {
             emit reasoningReceived(m_currentMessageId, m_accumulatedReasoning);
             continue;
         }
+        // Function calls arrive as complete functionCall parts (no deltas).
+        const QJsonObject functionCall =
+            partObject.value(QStringLiteral("functionCall")).toObject();
+        if (!functionCall.isEmpty()) {
+            ToolCall call;
+            call.name = functionCall.value(QStringLiteral("name")).toString();
+            call.arguments = functionCall.value(QStringLiteral("args")).toObject();
+            m_pendingToolCalls.append(call);
+            continue;
+        }
         const QString token = partObject.value(QStringLiteral("text")).toString();
         m_accumulated.append(token);
     }
     emit tokenReceived(m_currentMessageId, m_accumulated);
     const bool done =
         !candidates.first().toObject().value(QStringLiteral("finishReason")).toString().isEmpty();
-    if (done)
+    if (done) {
+        finishToolCallsIfComplete();
         emit finished(m_currentMessageId);
+    }
+}
+
+void GeminiBackend::finishToolCallsIfComplete() {
+    if (m_pendingToolCalls.isEmpty())
+        return;
+    for (int i = 0; i < m_pendingToolCalls.size(); ++i) {
+        if (m_pendingToolCalls[i].id.isEmpty())
+            m_pendingToolCalls[i].id = QStringLiteral("call_%1").arg(i);
+    }
+    emit toolCallsRequested(m_currentMessageId, m_pendingToolCalls);
+    m_pendingToolCalls.clear();
+    m_accumulated.clear();
+}
+
+void GeminiBackend::setAvailableTools(const QJsonArray &tools) {
+    m_toolsEnabled = !tools.isEmpty();
+    m_availableTools = tools;
 }
 
 void GeminiBackend::cancel() {

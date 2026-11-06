@@ -12,6 +12,8 @@ set(OCAPI_TESTS
     tst_backendfactory
     tst_ollamabackend
     tst_openaiapibackend
+    tst_anthropicbackend
+    tst_geminibackend
     tst_sseparser
     tst_chatdatabase
     tst_textextractor

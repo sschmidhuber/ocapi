@@ -12,6 +12,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QSplitter>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -34,6 +35,7 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
 
     auto *formWidget = new QWidget(splitter);
     auto *formLayout = new QFormLayout(formWidget);
+    m_formLayout = formLayout;
     formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     m_kindCombo = new QComboBox(formWidget);
     {
@@ -53,6 +55,18 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
     m_apiKeyEdit = new QLineEdit(formWidget);
     m_apiKeyEdit->setEchoMode(QLineEdit::Password);
     m_apiKeyEdit->setPlaceholderText(tr("API key"));
+    // Ollama drops the oldest messages of a conversation once the rendered
+    // prompt (system prompt + history + tool definitions) exceeds num_ctx;
+    // the window must therefore be requested explicitly. 0 keeps the
+    // server's default.
+    m_contextSpin = new QSpinBox(formWidget);
+    m_contextSpin->setRange(0, 1000000);
+    m_contextSpin->setSingleStep(1024);
+    m_contextSpin->setSpecialValueText(tr("Server default"));
+    m_contextSpin->setToolTip(
+        tr("Context window (Ollama num_ctx) requested from the server. Ollama "
+           "silently drops the oldest messages when the conversation and the "
+           "tool definitions do not fit; 0 keeps the server's default."));
     m_enabledBox = new QCheckBox(tr("Enabled"), formWidget);
     m_enabledBox->setChecked(true);
     m_testButton = new QPushButton(tr("Test connection"), formWidget);
@@ -66,6 +80,7 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
     formLayout->addRow(tr("Name:"), m_nameEdit);
     formLayout->addRow(tr("Base URL:"), m_urlEdit);
     formLayout->addRow(tr("API key:"), m_apiKeyEdit);
+    formLayout->addRow(tr("Context window:"), m_contextSpin);
     formLayout->addRow(m_enabledBox);
     formLayout->addRow(m_testButton);
     formLayout->addRow(m_testResultLabel);
@@ -102,6 +117,7 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
         connect(edit, &QLineEdit::textEdited, this, &BackendPage::onFieldEdited);
     }
     connect(m_enabledBox, &QCheckBox::toggled, this, &BackendPage::onFieldEdited);
+    connect(m_contextSpin, &QSpinBox::valueChanged, this, &BackendPage::onFieldEdited);
 
     populateList();
     if (!m_registry->backends().isEmpty())
@@ -158,6 +174,7 @@ void BackendPage::onSelectionChanged() {
     m_nameEdit->setEnabled(hasSelection);
     m_urlEdit->setEnabled(hasSelection);
     m_apiKeyEdit->setEnabled(hasSelection);
+    m_contextSpin->setEnabled(hasSelection);
     m_enabledBox->setEnabled(hasSelection);
     m_testButton->setEnabled(hasSelection);
     m_testResultLabel->clear();
@@ -175,6 +192,7 @@ void BackendPage::onSelectionChanged() {
         m_enabledBox->setChecked(true);
     }
     updateUrlState();
+    updateContextWindowState();
     m_updatingForm = false;
 }
 
@@ -195,6 +213,7 @@ void BackendPage::onKindChanged(int index) {
         m_urlEdit->setText(BackendConfig::defaultBaseUrl(kind));
     }
     updateUrlState();
+    updateContextWindowState();
     onFieldEdited();
 }
 
@@ -274,7 +293,9 @@ void BackendPage::loadConfigIntoForm(const BackendConfig &config) {
     m_kindCombo->setCurrentIndex(kindIndex < 0 ? 0 : kindIndex);
     m_urlEdit->setText(config.baseUrl);
     m_apiKeyEdit->setText(config.apiKey);
+    m_contextSpin->setValue(config.contextWindow);
     m_enabledBox->setChecked(config.enabled);
+    updateContextWindowState();
 }
 
 void BackendPage::saveFormIntoConfig(BackendConfig &config) {
@@ -286,6 +307,7 @@ void BackendPage::saveFormIntoConfig(BackendConfig &config) {
     if (config.baseUrl.isEmpty() && !BackendConfig::isCloud(config.kind))
         config.baseUrl = BackendConfig::defaultBaseUrl(config.kind);
     config.apiKey = m_apiKeyEdit->text().trimmed();
+    config.contextWindow = m_contextSpin->value();
     config.enabled = m_enabledBox->isChecked();
 }
 
@@ -296,6 +318,13 @@ void BackendPage::updateUrlState() {
     m_urlEdit->setPlaceholderText(BackendConfig::isCloud(currentKind())
                                       ? tr("Custom endpoint (optional)")
                                       : QStringLiteral("http://127.0.0.1:11434"));
+}
+
+void BackendPage::updateContextWindowState() {
+    // num_ctx is an Ollama-specific option; hide the row for other kinds.
+    const bool ollama = m_hasSelection && currentKind() == BackendKind::Ollama;
+    m_formLayout->setRowVisible(m_contextSpin, ollama);
+    m_contextSpin->setEnabled(ollama);
 }
 
 bool BackendPage::nameFollowsProvider(const QString &name) {

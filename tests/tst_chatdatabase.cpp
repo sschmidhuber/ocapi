@@ -241,6 +241,7 @@ void TestChatDatabase::backendRoundTrip() {
     config.apiKey = QStringLiteral("secret");
     config.defaultModel = QStringLiteral("llama3.2");
     config.enabled = false;
+    config.contextWindow = 16384;
     db().insertBackend(config);
     QVERIFY(!db().loadBackends().isEmpty());
     const auto loaded = db().loadBackends();
@@ -251,6 +252,7 @@ void TestChatDatabase::backendRoundTrip() {
     QCOMPARE(loaded.at(0).apiKey, QStringLiteral("secret"));
     QCOMPARE(loaded.at(0).defaultModel, QStringLiteral("llama3.2"));
     QVERIFY(!loaded.at(0).enabled);
+    QCOMPARE(loaded.at(0).contextWindow, 16384);
 }
 
 void TestChatDatabase::backendUpdateOverwritesEntry() {
@@ -261,12 +263,14 @@ void TestChatDatabase::backendUpdateOverwritesEntry() {
     config.name = QStringLiteral("after");
     config.kind = BackendKind::Groq;
     config.enabled = false;
+    config.contextWindow = 0;
     db().updateBackend(config);
     const auto loaded = db().loadBackends();
     QCOMPARE(loaded.size(), 1);
     QCOMPARE(loaded.at(0).name, QStringLiteral("after"));
     QCOMPARE(loaded.at(0).kind, BackendKind::Groq);
     QVERIFY(!loaded.at(0).enabled);
+    QCOMPARE(loaded.at(0).contextWindow, 0);
 }
 
 void TestChatDatabase::backendDeleteRemovesEntry() {

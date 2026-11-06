@@ -219,13 +219,10 @@ MCP tool definition into a single prompt and — unlike the Ollama CLI —
 defaults to a small context window (`num_ctx`, typically 4096 tokens). When
 the prompt does not fit, Ollama silently drops the oldest messages first, so
 the model answers without any knowledge of earlier turns. ocapi therefore
-requests `options.num_ctx = 8192` with every Ollama chat request. Set
-`OCAPI_OLLAMA_NUM_CTX` to change the window size (e.g. `16384` for big
-local models), or to `0` to keep the server's default:
-
-```bash
-OCAPI_OLLAMA_NUM_CTX=16384 ocapi
-```
+requests `options.num_ctx` with every Ollama chat request. The window size
+is the backend's **Context window** setting under Settings → Backends
+(default 8192; raise it for big local models, or set it to *Server default*
+to keep the server's own value).
 
 ### Debugging the chat element rendering
 

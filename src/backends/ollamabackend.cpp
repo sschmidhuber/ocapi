@@ -10,7 +10,6 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QUrl>
-#include <QtGlobal>
 
 namespace ocapi {
 
@@ -31,20 +30,6 @@ QNetworkRequest makeRequest(const QUrl &url, const QString &apiKey) {
     if (!apiKey.isEmpty())
         request.setRawHeader("Authorization", QByteArray("Bearer ") + apiKey.toUtf8());
     return request;
-}
-
-// Ollama's default context window (num_ctx, typically 4096) is far too
-// small for a chat client: the system prompt, the full conversation history
-// and every MCP tool definition are rendered into one prompt. When it does
-// not fit, Ollama silently drops the oldest messages (ollama/ollama#5877,
-// ollama/ollama#14259) — the model then answers without any knowledge of
-// previous turns. Request a larger window explicitly; override with
-// OCAPI_OLLAMA_NUM_CTX (0 keeps the server's default).
-int contextWindowTokens() {
-    const QByteArray env = qgetenv("OCAPI_OLLAMA_NUM_CTX");
-    bool ok = false;
-    const int value = env.toInt(&ok);
-    return ok && value >= 0 ? value : 8192;
 }
 
 QJsonObject toOllamaMessage(const Message &message) {
@@ -137,7 +122,14 @@ void OllamaBackend::sendMessage(ChatSession *session, const QString &model,
         {QStringLiteral("messages"), messages},
         {QStringLiteral("stream"), true},
     };
-    if (const int numCtx = contextWindowTokens(); numCtx > 0) {
+    // Ollama's default context window (num_ctx, typically 4096) is far too
+    // small for a chat client: the system prompt, the full conversation
+    // history and every MCP tool definition are rendered into one prompt,
+    // and when it does not fit Ollama silently drops the oldest messages
+    // (ollama/ollama#5877, ollama/ollama#14259) — the model then answers
+    // without any knowledge of previous turns. Request the configured
+    // window explicitly; 0 keeps the server's default.
+    if (const int numCtx = m_config.contextWindow; numCtx > 0) {
         payload.insert(QStringLiteral("options"), QJsonObject{{QStringLiteral("num_ctx"), numCtx}});
     }
     if (m_toolsEnabled) {

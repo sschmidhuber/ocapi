@@ -237,20 +237,32 @@ class OllamaMockHandler(BaseHTTPRequestHandler):
             return False
         return DOUBLE_TOOL_TRIGGER in self._last_user_message(request).lower()
 
-    @staticmethod
-    def _tool_round_reply(request):
+    @classmethod
+    def _tool_round_reply(cls, request):
         # Distinguish the double round's final answer from the single round's
         # so the E2E test can wait for a text that is not already on screen.
-        tool_results = [m for m in request.get("messages") or [] if m.get("role") == "tool"]
-        if len(tool_results) >= 2:
+        if len(cls._tool_results_since_last_user(request)) >= 2:
             return DOUBLE_TOOL_REPLY_TEXT
         return TOOL_REPLY_TEXT
 
     @staticmethod
-    def _in_tool_round(request):
-        # A tool result message in the conversation means the tool round is
+    def _tool_results_since_last_user(request):
+        # Tool results appended after the last user message belong to the
+        # tool round that message started. The E2E chat is one continuous
+        # session, so older rounds' results must not count.
+        results = []
+        for message in request.get("messages") or []:
+            if message.get("role") == "user":
+                results = []
+            elif message.get("role") == "tool":
+                results.append(message)
+        return results
+
+    @classmethod
+    def _in_tool_round(cls, request):
+        # A tool result after the last user message means the tool round is
         # done; answer with text summarizing it.
-        return any(message.get("role") == "tool" for message in request.get("messages") or [])
+        return bool(cls._tool_results_since_last_user(request))
 
     def _write_chunk(self, data):
         self.wfile.write(f"{len(data):x}\r\n".encode() + data + b"\r\n")

@@ -4,6 +4,7 @@
 
 #include <QHeaderView>
 #include <QIcon>
+#include <QIconEngine>
 #include <QMap>
 #include <QMenu>
 #include <QPainter>
@@ -13,6 +14,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <functional>
 
 namespace ocapi {
 
@@ -20,6 +22,34 @@ namespace {
 
 constexpr auto kSessionIdRole = Qt::UserRole;
 constexpr auto kIsGroupRole = Qt::UserRole + 1;
+
+// Vector icon: paints its callback at whatever pixel size Qt requests, so
+// the badge stays sharp on high-DPI screens (Qt asks the engine for
+// size * devicePixelRatio) instead of upscaling a fixed low-resolution
+// bitmap.
+class VectorIconEngine : public QIconEngine {
+public:
+    using Painter = std::function<void(QPainter &, const QRectF &)>;
+    explicit VectorIconEngine(Painter painter) : m_painter(std::move(painter)) {}
+    [[nodiscard]] QIconEngine *clone() const override { return new VectorIconEngine(*this); }
+    void paint(QPainter *painter, const QRect &rect, QIcon::Mode mode,
+               QIcon::State state) override {
+        Q_UNUSED(mode);
+        Q_UNUSED(state);
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        m_painter(*painter, QRectF(rect));
+    }
+    QPixmap pixmap(const QSize &size, QIcon::Mode mode, QIcon::State state) override {
+        QPixmap pixmap(size);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        paint(&painter, QRect(QPoint(0, 0), size), mode, state);
+        return pixmap;
+    }
+
+private:
+    Painter m_painter;
+};
 
 // Sessions are expected newest-first; group them by last activity and
 // return the group keys in chronological order (newest group first).
@@ -185,27 +215,28 @@ void Sidebar::advanceSpinner() {
 QIcon Sidebar::spinnerIcon() const {
     // Breeze-style loading spinner: a thick arc sweeping most of the circle,
     // rotating with the timer.
-    QPixmap pixmap(16, 16);
-    pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing);
     const QPen pen(palette().color(QPalette::Text), 2.4, Qt::SolidLine, Qt::RoundCap);
-    painter.setPen(pen);
-    const QRectF rect(2.2, 2.2, 11.6, 11.6);
-    painter.drawArc(rect, -m_spinnerAngle * 16, 300 * 16);
-    return {pixmap};
+    const int angle = m_spinnerAngle;
+    return QIcon(new VectorIconEngine([pen, angle](QPainter &painter, const QRectF &rect) {
+        // The pen width scales with the icon so the spinner keeps its look
+        // at every size; the arc leaves a gap that rotates with the timer.
+        QPen scaled = pen;
+        scaled.setWidthF(pen.widthF() * (rect.width() / 16.0));
+        painter.setPen(scaled);
+        const QRectF circle = rect.marginsRemoved(QMarginsF(
+            rect.width() * 0.14, rect.height() * 0.14, rect.width() * 0.14, rect.height() * 0.14));
+        painter.drawArc(circle, -angle * 16, 300 * 16);
+    }));
 }
 
 QIcon Sidebar::unreadDotIcon() const {
     // Unread badge: a filled circle in the theme's highlight color.
-    QPixmap pixmap(16, 16);
-    pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(palette().color(QPalette::Highlight));
-    painter.drawEllipse(QPointF(8, 8), 4.0, 4.0);
-    return {pixmap};
+    const QBrush brush(palette().color(QPalette::Highlight));
+    return QIcon(new VectorIconEngine([brush](QPainter &painter, const QRectF &rect) {
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(brush);
+        painter.drawEllipse(rect.center(), rect.width() * 0.25, rect.height() * 0.25);
+    }));
 }
 
 } // namespace ocapi

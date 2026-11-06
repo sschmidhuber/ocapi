@@ -2,6 +2,7 @@
 #include "core/backendregistry.h"
 #include "core/chatsession.h"
 #include "ui/mainwindow.h"
+#include "ui/sidebar.h"
 
 #include <QApplication>
 #include <QStandardPaths>
@@ -22,6 +23,8 @@ private slots:
     void toolCallFailureAppendsToolMessageWithoutCrashing();
     void keyboardShortcuts();
     void newChatFocusesInput();
+    void f9TogglesSidebar();
+    void ctrlTabCyclesChats();
 
 private:
     QTemporaryDir m_home;
@@ -29,9 +32,13 @@ private:
 
 void TestMainWindow::initTestCase() {
     QVERIFY(m_home.isValid());
+    // Redirect config and data into a per-process temp dir. Test mode is
+    // deliberately NOT enabled: it forces the shared ~/.qttest paths and
+    // would ignore these variables, letting sessions and backends leak
+    // between test runs (and processes) and making order-dependent tests
+    // flaky.
     qputenv("XDG_CONFIG_HOME", (m_home.path() + QStringLiteral("/.config")).toUtf8());
     qputenv("XDG_DATA_HOME", (m_home.path() + QStringLiteral("/.local/share")).toUtf8());
-    QStandardPaths::setTestModeEnabled(true);
 }
 
 void TestMainWindow::newChatKeepsCurrentBackendAndModel() {
@@ -120,6 +127,71 @@ void TestMainWindow::keyboardShortcuts() {
     QTest::keyClick(focusWidget, Qt::Key_N, Qt::ControlModifier);
     QVERIFY(window.currentSession());
     QVERIFY(window.currentSession() != before);
+}
+
+// F9 shows and hides the chat history sidebar.
+void TestMainWindow::f9TogglesSidebar() {
+    MainWindow window;
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto *sidebar = window.findChild<Sidebar *>();
+    QVERIFY(sidebar);
+    QVERIFY(sidebar->isVisible());
+
+    QTest::keyClick(&window, Qt::Key_F9);
+    QVERIFY(!sidebar->isVisible());
+
+    QTest::keyClick(&window, Qt::Key_F9);
+    QVERIFY(sidebar->isVisible());
+}
+
+// Ctrl+Tab / Ctrl+Shift+Tab switch to the next / previous chat of the
+// history, wrapping around at both ends. Earlier tests of this binary
+// persist their chats, so the window loads leftover sessions; the test
+// places its own chats at the top of the history and cycles around the
+// whole list instead of assuming it is alone.
+void TestMainWindow::ctrlTabCyclesChats() {
+    MainWindow window;
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    ChatSession *oldest = window.currentSession();
+    QVERIFY(oldest);
+    window.startNewChat();
+    ChatSession *middle = window.currentSession();
+    window.startNewChat();
+    ChatSession *newest = window.currentSession();
+    QVERIFY(oldest != middle && middle != newest && oldest != newest);
+    // Future timestamps put the three chats at the top of the newest-first
+    // history, above any leftover chat of earlier tests.
+    const QDateTime soon = QDateTime::currentDateTime().addSecs(3600);
+    oldest->setLastActivityAt(soon.addSecs(-100));
+    middle->setLastActivityAt(soon.addSecs(-50));
+    newest->setLastActivityAt(soon);
+    const int total = window.findChildren<ChatSession *>().size();
+    QVERIFY(total >= 3);
+
+    // Ctrl+Tab walks down the history: middle, oldest, then the leftovers,
+    // and after a full cycle back to the newest.
+    QTest::keyClick(&window, Qt::Key_Tab, Qt::ControlModifier);
+    QVERIFY(window.currentSession() == middle);
+    QTest::keyClick(&window, Qt::Key_Tab, Qt::ControlModifier);
+    QVERIFY(window.currentSession() == oldest);
+    for (int i = 0; i < total - 2; ++i)
+        QTest::keyClick(&window, Qt::Key_Tab, Qt::ControlModifier);
+    QVERIFY(window.currentSession() == newest);
+
+    // Ctrl+Shift+Tab walks back up: one step wraps to the end of the list,
+    // and a full cycle returns to the newest.
+    QTest::keyClick(&window, Qt::Key_Tab, Qt::ControlModifier | Qt::ShiftModifier);
+    QVERIFY(window.currentSession() != newest);
+    for (int i = 0; i < total - 1; ++i)
+        QTest::keyClick(&window, Qt::Key_Tab, Qt::ControlModifier | Qt::ShiftModifier);
+    QVERIFY(window.currentSession() == newest);
+    // Walking backward over the leftovers reaches our oldest chat again.
+    for (int i = 0; i < total - 2; ++i)
+        QTest::keyClick(&window, Qt::Key_Tab, Qt::ControlModifier | Qt::ShiftModifier);
+    QVERIFY(window.currentSession() == oldest);
 }
 
 // Opening a new chat must move keyboard focus to the message input so the

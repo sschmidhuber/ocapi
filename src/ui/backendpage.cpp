@@ -313,7 +313,7 @@ bool BackendPage::nameFollowsProvider(const QString &name) {
     // provider name (including the previous one).
     if (name.trimmed().isEmpty())
         return true;
-    const auto kinds = BackendConfig::allKinds();
+    const auto &kinds = BackendConfig::allKinds();
     return std::ranges::any_of(
         kinds, [&](BackendKind kind) { return name.trimmed() == BackendConfig::kindName(kind); });
 }

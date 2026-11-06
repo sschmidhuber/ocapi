@@ -316,6 +316,10 @@ void TestTtsClient::sendsMistralPayloadWithVoiceId() {
     config.apiKey = QStringLiteral("mistral-key");
     config.model = QStringLiteral("voxtral-mini-tts-3-0");
     config.voice = QStringLiteral("gb_jane_neutral");
+    // The optional language must NOT be sent: Mistral's speech API has no
+    // such field and answers 422 "extra_forbidden" (the model infers the
+    // language from the text).
+    config.language = QStringLiteral("de");
     TtsClient client(config);
     QSignalSpy audio(&client, &TtsClient::audioReady);
 
@@ -329,6 +333,7 @@ void TestTtsClient::sendsMistralPayloadWithVoiceId() {
     QVERIFY(body.contains(QStringLiteral("\"input\":\"[pace=moderate] Hello.\"")));
     QVERIFY(body.contains(QStringLiteral("\"voice_id\":\"gb_jane_neutral\"")));
     QVERIFY(!body.contains(QStringLiteral("\"voice\":")));
+    QVERIFY(!body.contains(QStringLiteral("\"language\":")));
     QCOMPARE(m_server.authorizationHeaders().first(), QStringLiteral("Bearer mistral-key"));
 }
 

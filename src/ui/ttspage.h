@@ -6,6 +6,7 @@
 
 class QCheckBox;
 class QComboBox;
+class QFormLayout;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -55,6 +56,9 @@ private:
     void loadConfigIntoForm(const TtsServiceConfig &config);
     void saveFormIntoConfig(TtsServiceConfig &config);
     void updateUrlState();
+    // The optional language field exists only for the generic
+    // OpenAI-compatible kind; the known providers' speech APIs reject it.
+    void updateLanguageRowState();
     [[nodiscard]] QString knownApiKey() const;
     [[nodiscard]] TtsServiceKind currentKind() const;
 
@@ -64,6 +68,7 @@ private:
     QListWidget *m_list;
     QCheckBox *m_speakResponsesBox;
     QLineEdit *m_nameEdit;
+    QFormLayout *m_formLayout = nullptr;
     QComboBox *m_kindCombo;
     QLineEdit *m_urlEdit;
     QLineEdit *m_apiKeyEdit;

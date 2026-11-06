@@ -38,6 +38,7 @@ TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidge
 
     auto *formWidget = new QWidget(splitter);
     auto *formLayout = new QFormLayout(formWidget);
+    m_formLayout = formLayout;
     m_speakResponsesBox = new QCheckBox(tr("Speak assistant responses aloud"), formWidget);
     m_speakResponsesBox->setChecked(m_registry->speakResponses());
     m_nameEdit = new QLineEdit(formWidget);
@@ -90,7 +91,7 @@ TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidge
         m_speedValueLabel->fontMetrics().horizontalAdvance(QStringLiteral("very fast")));
     speedRow->addWidget(m_speedValueLabel);
     formLayout->addRow(m_speedLabel = new QLabel(tr("Speed:"), formWidget), speedRow);
-    formLayout->addRow(tr("Language:"), m_languageEdit);
+    formLayout->addRow(new QLabel(tr("Language:"), formWidget), m_languageEdit);
     formLayout->addRow(m_enabledBox);
     formLayout->addRow(m_testButton);
     formLayout->addRow(m_testResultLabel);
@@ -277,7 +278,17 @@ void TtsPage::onKindChanged(int index) {
             m_apiKeyEdit->setText(knownKey);
     }
     updateUrlState();
+    updateLanguageRowState();
     onFieldEdited();
+}
+
+void TtsPage::updateLanguageRowState() {
+    // The known speech APIs have no language field (Mistral answers 422
+    // "extra_forbidden"), so the optional field is only offered for a custom
+    // OpenAI-compatible server whose owner knows it accepts it.
+    const bool generic = currentKind() == TtsServiceKind::OpenAiTts;
+    m_formLayout->setRowVisible(m_languageEdit, generic);
+    m_languageEdit->setEnabled(generic);
 }
 
 void TtsPage::updateSpeedRange() {
@@ -411,6 +422,7 @@ void TtsPage::loadConfigIntoForm(const TtsServiceConfig &config) {
     m_speedSlider->setValue(speedValue);
     onSpeedChanged(m_speedSlider->value());
     m_languageEdit->setText(config.language);
+    updateLanguageRowState();
     m_enabledBox->setChecked(config.enabled);
 }
 

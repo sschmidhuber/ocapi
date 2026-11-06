@@ -28,11 +28,6 @@ struct BackendConfig {
     QString apiKey;
     QString defaultModel;
     bool enabled = true;
-    // Whether MCP tools are offered to the model on every request. Some local
-    // models (e.g. qwen3.5 via Ollama's native /api/chat) lose conversation
-    // history recall when tool definitions are present, so this can be
-    // disabled per backend.
-    bool toolsEnabled = true;
 
     [[nodiscard]] static QString kindName(BackendKind kind);
     [[nodiscard]] static QString kindKey(BackendKind kind);

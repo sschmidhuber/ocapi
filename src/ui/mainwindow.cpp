@@ -721,28 +721,6 @@ void MainWindow::loadBackendsFromDatabase() {
         m_registry.load(m_database);
 }
 
-void MainWindow::ensureFullHistoryLoaded(ChatSession *session) {
-    if (!m_database.isOpen() || !session)
-        return;
-    const QString sessionId = session->id().toString(QUuid::WithoutBraces);
-    // All stored rows, oldest first; rows already in the session (the live
-    // tail) are skipped so nothing is duplicated.
-    QVector<Message> older;
-    for (const auto &stored : m_database.messagesForSession(sessionId, -1, 0)) {
-        Message message = storedToMessage(stored);
-        if (!message.id.isNull() &&
-            std::ranges::none_of(session->messages(),
-                                 [&message](const Message &m) { return m.id == message.id; }))
-            older.push_back(message);
-    }
-    if (older.isEmpty())
-        return;
-    session->prependMessages(older);
-    m_chatView->prependMessages(older);
-    // Everything is loaded now; later scroll-up loads find nothing left.
-    session->setProperty("ocapi_loadedCount", m_database.messageCount(sessionId));
-}
-
 void MainWindow::loadOlderMessages(ChatSession *session) {
     if (!m_database.isOpen() || !session || m_loadingOlder)
         return;
@@ -1065,9 +1043,6 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
     m_currentSession->appendMessage(userMessage);
     m_composer->clearText();
     m_composer->clearAttachments();
-    // The session only holds the visible last page of a long history; load
-    // everything so the model gets the full chat in its context.
-    ensureFullHistoryLoaded(m_currentSession);
 
     m_backend = createBackend(*config);
     if (m_backend->supportsTools())
@@ -1400,9 +1375,6 @@ void MainWindow::sendConversationAfterToolResults(ChatSession *session) {
     // round's thinking, tool calls and answer text as their own message in
     // the order they actually happened, instead of merging the new answer
     // into the message that already ended before the last tool call.
-    // Same as onSend: give the model the full history, not just the
-    // currently loaded page.
-    ensureFullHistoryLoaded(session);
     const qsizetype messageCount = session->messages().size();
     m_backend->sendMessage(session, model);
     if (session->messages().size() > messageCount) {

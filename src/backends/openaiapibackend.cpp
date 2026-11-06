@@ -173,7 +173,7 @@ void OpenAiApiBackend::sendMessage(ChatSession *session, const QString &model,
         {QStringLiteral("messages"), requestMessages},
         {QStringLiteral("stream"), true},
     };
-    if (m_toolsEnabled && m_config.toolsEnabled) {
+    if (m_toolsEnabled) {
         payload.insert(QStringLiteral("tools"), m_availableTools);
         payload.insert(QStringLiteral("tool_choice"), QStringLiteral("auto"));
     }

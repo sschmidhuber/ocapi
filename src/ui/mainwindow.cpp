@@ -200,6 +200,20 @@ void appendStoredMessage(ChatSession *session, const StoredMessage &stored) {
 
 } // namespace
 
+// Per-chat state of one in-flight model turn: the backend instance streaming
+// it and the bookkeeping the stream handlers need. Chats run in parallel, so
+// every value that used to be a singleton in the main window lives here now.
+struct StreamContext {
+    ChatSession *session = nullptr;
+    std::unique_ptr<IBackend> backend;
+    bool streaming = false;
+    bool runningTools = false; // a tool-call round is in progress
+    int pendingToolRounds = 0;
+    QUuid streamedMessageId;
+    int streamedTokens = 0;
+    QDateTime firstToken;
+};
+
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_mcpRegistry) {
     setWindowTitle(tr("ocapi"));
     resize(1100, 720);
@@ -415,7 +429,7 @@ void MainWindow::setupConnections() {
         if (speaking) {
             message = tr("Speaking\u2026");
             timeout = 0;
-        } else if (m_streaming) {
+        } else if (contextFor(m_currentSession)) {
             message = tr("Generating\u2026");
         } else {
             message = tr("Ready");
@@ -438,7 +452,9 @@ void MainWindow::setupConnections() {
         if (m_currentSession && !id.isEmpty()) {
             m_currentSession->setBackendId(id);
             syncSessionToDatabase(m_currentSession);
-            disconnectBackend();
+            // The running turn belongs to the previous backend; switching
+            // the chat's backend ends it, as before the parallel-chats rework.
+            cancelContext(m_currentSession);
         }
         detectModels();
     });
@@ -537,7 +553,8 @@ void MainWindow::createSession(const QString &backendId, const QString &model) {
 }
 
 void MainWindow::onSessionSelected(const QUuid &id) {
-    disconnectBackend();
+    // Switching chats never interrupts a running turn: the context of the
+    // previous chat keeps streaming in the background.
     m_currentSession = nullptr;
     for (auto *session : m_sessions) {
         if (session->id() == id) {
@@ -548,6 +565,10 @@ void MainWindow::onSessionSelected(const QUuid &id) {
     m_chatView->setSession(m_currentSession);
     m_sidebar->selectSession(id);
 
+    // The user is looking at this chat now: its unread badge clears.
+    if (m_currentSession && m_unreadSessions.remove(id))
+        updateStreamingUi();
+
     refreshBackendSelector();
     detectModels();
 
@@ -555,14 +576,16 @@ void MainWindow::onSessionSelected(const QUuid &id) {
     m_composer->setEnabled(hasSession);
     m_sendButton->setEnabled(hasSession);
     m_modelPicker->setEnabled(hasSession);
+    updateStreamingUi();
     updateEmptyState();
 }
 
 void MainWindow::onSessionDeleteRequested(const QUuid &id) {
     for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
         if ((*it)->id() == id) {
+            // A running turn of the deleted chat is cancelled with it.
+            cancelContext(*it);
             if (*it == m_currentSession) {
-                disconnectBackend();
                 m_currentSession = nullptr;
                 m_chatView->setSession(nullptr);
             }
@@ -573,6 +596,7 @@ void MainWindow::onSessionDeleteRequested(const QUuid &id) {
             break;
         }
     }
+    m_unreadSessions.remove(id);
     refreshSidebar();
     if (m_sessions.isEmpty())
         createSession();
@@ -995,18 +1019,19 @@ void MainWindow::onModelsDetected(const QString &backendId, const QStringList &m
     }
 }
 
-double MainWindow::throughputFor(const QUuid &messageId) {
-    if (messageId != m_streamedMessageId || m_streamedTokens <= 0 || !m_firstToken.isValid())
+double MainWindow::throughputFor(StreamContext *context, const QUuid &messageId) {
+    if (!contextAlive(context) || messageId != context->streamedMessageId ||
+        context->streamedTokens <= 0 || !context->firstToken.isValid())
         return -1.0;
-    const qint64 elapsedMs = m_firstToken.msecsTo(QDateTime::currentDateTime());
+    const qint64 elapsedMs = context->firstToken.msecsTo(QDateTime::currentDateTime());
     if (elapsedMs <= 0)
         return -1.0;
-    return m_streamedTokens * 1000.0 / static_cast<double>(elapsedMs);
+    return context->streamedTokens * 1000.0 / static_cast<double>(elapsedMs);
 }
 
 void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &images,
                         const QVector<FileAttachment> &files) {
-    if (!m_currentSession || m_streaming || m_runningTools)
+    if (!m_currentSession || contextFor(m_currentSession))
         return;
     if (text.isEmpty() && images.isEmpty() && files.isEmpty())
         return;
@@ -1044,17 +1069,15 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
     m_composer->clearText();
     m_composer->clearAttachments();
 
-    m_backend = createBackend(*config);
-    if (m_backend->supportsTools())
-        m_backend->setAvailableTools(m_mcpManager.availableTools());
-    m_streamedTokens = 0;
-    m_firstToken = QDateTime();
-    connectBackend(m_backend.get());
-    m_streaming = true;
-    m_composer->setBusy(true);
-    m_sendButton->setVisible(false);
-    m_stopButton->setVisible(true);
-    statusBar()->showMessage(tr("Generating…"));
+    StreamContext *context = ensureContext(m_currentSession);
+    context->backend = createBackend(*config);
+    if (context->backend->supportsTools())
+        context->backend->setAvailableTools(m_mcpManager.availableTools());
+    context->streamedTokens = 0;
+    context->firstToken = QDateTime();
+    connectContext(context);
+    context->streaming = true;
+    updateStreamingUi();
 
     // Inject the system prompt (with dynamic fields substituted for right
     // now) as the session's first message so every backend picks it up from
@@ -1075,67 +1098,79 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
     }
 
     const qsizetype count = m_currentSession->messages().size();
-    m_backend->sendMessage(m_currentSession, model);
+    context->backend->sendMessage(m_currentSession, model);
     // The backend appends the assistant message inside sendMessage().
     if (m_currentSession->messages().size() > count) {
         const Message &assistant = m_currentSession->messages().constLast();
         if (assistant.role == Role::Assistant)
-            m_streamedMessageId = assistant.id;
+            context->streamedMessageId = assistant.id;
     }
 }
 
 void MainWindow::onStop() {
     m_ttsPlayer.stop();
-    if (m_backend)
-        m_backend->cancel();
+    if (StreamContext *context = contextFor(m_currentSession))
+        context->backend->cancel();
 }
 
-IBackend *MainWindow::activeBackend() {
-    return m_backend.get();
+void MainWindow::connectContext(StreamContext *context) {
+    // Route every backend signal to its chat's context: chats run in
+    // parallel, so the handlers must know which session a token belongs to.
+    connect(context->backend.get(), &IBackend::toolCallsRequested, this,
+            [this, context](const QUuid &messageId, const QVector<ToolCall> &toolCalls) {
+                onToolCallsRequested(context, messageId, toolCalls);
+            });
+    connect(context->backend.get(), &IBackend::tokenReceived, this,
+            [this, context](const QUuid &messageId, const QString &text) {
+                onTokenReceived(context, messageId, text);
+            });
+    connect(context->backend.get(), &IBackend::reasoningReceived, this,
+            [this, context](const QUuid &messageId, const QString &text) {
+                onReasoningReceived(context, messageId, text);
+            });
+    connect(context->backend.get(), &IBackend::finished, this,
+            [this, context](const QUuid &messageId) { onStreamFinished(context, messageId); });
+    connect(context->backend.get(), &IBackend::failed, this,
+            [this, context](const QUuid &messageId, const QString &error) {
+                onStreamFailed(context, messageId, error);
+            });
 }
 
-void MainWindow::connectBackend(IBackend *backend) {
-    connect(backend, &IBackend::toolCallsRequested, this, &MainWindow::onToolCallsRequested);
-    connectStreamingSignals(backend);
-}
-
-void MainWindow::connectStreamingSignals(IBackend *backend) const {
-    connect(backend, &IBackend::tokenReceived, this, &MainWindow::onTokenReceived);
-    connect(backend, &IBackend::reasoningReceived, this, &MainWindow::onReasoningReceived);
-    connect(backend, &IBackend::finished, this, &MainWindow::onStreamFinished);
-    connect(backend, &IBackend::failed, this, &MainWindow::onStreamFailed);
-}
-
-void MainWindow::onTokenReceived(const QUuid &messageId, const QString &text) {
+void MainWindow::onTokenReceived(StreamContext *context, const QUuid &messageId,
+                                 const QString &text) {
+    if (!contextAlive(context))
+        return;
     if (qEnvironmentVariableIsSet("OCAPI_DEBUG_SSE"))
         qWarning().noquote() << "[ocapi debug] tokenReceived" << messageId.toString()
                              << "len:" << text.size() << "text:" << text.left(200);
-    if (messageId == m_streamedMessageId) {
-        ++m_streamedTokens;
-        if (!m_firstToken.isValid())
-            m_firstToken = QDateTime::currentDateTime();
+    if (messageId == context->streamedMessageId) {
+        ++context->streamedTokens;
+        if (!context->firstToken.isValid())
+            context->firstToken = QDateTime::currentDateTime();
     }
-    if (m_currentSession) {
-        m_currentSession->updateMessage(messageId, text, true);
-        // The first visible answer token ends the reasoning phase.
-        m_currentSession->setReasoningStreaming(messageId, false);
-    }
-    if (m_ttsRegistry.speakResponses())
+    context->session->updateMessage(messageId, text, true);
+    // The first visible answer token ends the reasoning phase.
+    context->session->setReasoningStreaming(messageId, false);
+    markChatUnread(context->session);
+    // Only the chat the user is watching is spoken aloud.
+    if (context->session == m_currentSession && m_ttsRegistry.speakResponses())
         m_ttsPlayer.feedText(text);
     if (m_database.isOpen())
         m_database.updateMessage(messageId.toString(QUuid::WithoutBraces), text, true);
 }
 
-void MainWindow::onReasoningReceived(const QUuid &messageId, const QString &text) {
+void MainWindow::onReasoningReceived(StreamContext *context, const QUuid &messageId,
+                                     const QString &text) {
+    if (!contextAlive(context))
+        return;
     // Reasoning streams before the visible answer; keep the message in the
     // reasoning-streaming state until the answer or the stream end arrives.
-    if (m_currentSession) {
-        m_currentSession->updateReasoning(messageId, text, true);
-        if (messageId == m_streamedMessageId) {
-            ++m_streamedTokens;
-            if (!m_firstToken.isValid())
-                m_firstToken = QDateTime::currentDateTime();
-        }
+    context->session->updateReasoning(messageId, text, true);
+    markChatUnread(context->session);
+    if (messageId == context->streamedMessageId) {
+        ++context->streamedTokens;
+        if (!context->firstToken.isValid())
+            context->firstToken = QDateTime::currentDateTime();
     }
     if (m_database.isOpen()) {
         // Persist all thinking phases of the message, not just the current one,
@@ -1143,13 +1178,11 @@ void MainWindow::onReasoningReceived(const QUuid &messageId, const QString &text
         // the sequence they happened after a reload.
         QStringList segments;
         QStringList elementOrder;
-        if (m_currentSession) {
-            for (const auto &message : m_currentSession->messages()) {
-                if (message.id == messageId) {
-                    segments = message.reasoningSegments;
-                    elementOrder = message.elementOrder;
-                    break;
-                }
+        for (const auto &message : context->session->messages()) {
+            if (message.id == messageId) {
+                segments = message.reasoningSegments;
+                elementOrder = message.elementOrder;
+                break;
             }
         }
         m_database.setReasoning(messageId.toString(QUuid::WithoutBraces), segments);
@@ -1157,72 +1190,159 @@ void MainWindow::onReasoningReceived(const QUuid &messageId, const QString &text
     }
 }
 
-void MainWindow::onStreamFinished(const QUuid &messageId) {
-    const QString content = messageContent(messageId);
+void MainWindow::onStreamFinished(StreamContext *context, const QUuid &messageId) {
+    if (!contextAlive(context))
+        return;
+    const QString content = messageContent(context, messageId);
     if (qEnvironmentVariableIsSet("OCAPI_DEBUG_SSE"))
         qWarning().noquote() << "[ocapi debug] streamFinished" << messageId.toString()
                              << "len:" << content.size() << "content:" << content.left(300);
-    if (m_currentSession) {
-        m_currentSession->updateMessage(messageId, content, false);
-        m_currentSession->setReasoningStreaming(messageId, false);
-    }
-    if (m_ttsRegistry.speakResponses())
-        m_ttsPlayer.endOfText();
-    const double tokensPerSecond = throughputFor(messageId);
-    if (tokensPerSecond > 0.0 && m_currentSession)
-        m_currentSession->setThroughput(messageId, tokensPerSecond);
+    context->session->updateMessage(messageId, content, false);
+    context->session->setReasoningStreaming(messageId, false);
+    markChatUnread(context->session);
+    const double tokensPerSecond = throughputFor(context, messageId);
+    if (tokensPerSecond > 0.0)
+        context->session->setThroughput(messageId, tokensPerSecond);
     if (m_database.isOpen()) {
         m_database.updateMessage(messageId.toString(QUuid::WithoutBraces), content, false);
         if (tokensPerSecond > 0.0)
             m_database.setThroughput(messageId.toString(QUuid::WithoutBraces), tokensPerSecond);
-        syncSessionToDatabase(m_currentSession);
+        syncSessionToDatabase(context->session);
     }
-    endStreaming(tr("Ready"));
-    m_composer->focusInput();
+    // A tool round is about to continue the turn: the context stays alive
+    // and the UI keeps showing the chat as busy (also fixes the double
+    // "finished" emission of backends ending a tool-call round).
+    if (context->runningTools)
+        return;
+    finalizeContext(context, tr("Ready"));
 }
 
-void MainWindow::onStreamFailed(const QUuid &messageId, const QString &error) {
-    if (m_currentSession)
-        m_currentSession->failMessage(messageId, error);
-    m_ttsPlayer.stop();
+void MainWindow::onStreamFailed(StreamContext *context, const QUuid &messageId,
+                                const QString &error) {
+    if (!contextAlive(context))
+        return;
+    context->session->failMessage(messageId, error);
+    markChatUnread(context->session);
+    if (context->session == m_currentSession)
+        m_ttsPlayer.stop();
     if (m_database.isOpen())
         m_database.failMessage(messageId.toString(QUuid::WithoutBraces), error);
-    endStreaming(tr("Error: %1").arg(error));
+    finalizeContext(context, tr("Error: %1").arg(error));
 }
 
-QString MainWindow::messageContent(const QUuid &messageId) const {
-    if (!m_currentSession)
+QString MainWindow::messageContent(StreamContext *context, const QUuid &messageId) {
+    if (!context)
         return {};
-    for (const auto &message : m_currentSession->messages())
+    for (const auto &message : context->session->messages())
         if (message.id == messageId)
             return message.content;
     return {};
 }
 
-void MainWindow::endStreaming(const QString &statusMessage) {
-    m_streaming = false;
-    if (m_ttsRegistry.speakResponses())
-        m_ttsPlayer.endOfText();
-    m_composer->setBusy(false);
-    m_sendButton->setVisible(true);
-    m_stopButton->setVisible(false);
-    statusBar()->showMessage(statusMessage);
-}
-
-void MainWindow::disconnectBackend() {
-    m_ttsPlayer.stop();
-    if (m_backend) {
-        m_backend->cancel();
-        m_backend->disconnect(this);
-        m_backend.reset();
+void MainWindow::finalizeContext(StreamContext *context, const QString &statusMessage) {
+    if (!contextAlive(context))
+        return;
+    context->streaming = false;
+    const bool isCurrent = context->session == m_currentSession;
+    if (isCurrent) {
+        if (m_ttsRegistry.speakResponses())
+            m_ttsPlayer.endOfText();
+        statusBar()->showMessage(statusMessage);
+        m_composer->focusInput();
     }
-    m_streaming = false;
-    m_composer->setBusy(false);
-    m_sendButton->setVisible(true);
-    m_stopButton->setVisible(false);
+    updateStreamingUi();
+    // The context (and its backend) may still be delivering this very
+    // signal; defer the deletion to the next event-loop iteration. Backends
+    // can emit failed AND finished for one turn, so this may be scheduled
+    // twice; the id-based guard makes the second run a no-op instead of a
+    // use-after-free.
+    const QUuid sessionId = context->session->id();
+    QTimer::singleShot(0, this, [this, sessionId, context]() {
+        if (contextAliveFor(sessionId, context))
+            destroyContext(context);
+    });
 }
 
-void MainWindow::onToolCallsRequested(const QUuid &messageId, const QVector<ToolCall> &toolCalls) {
+StreamContext *MainWindow::contextFor(const ChatSession *session) const {
+    return session ? m_streams.value(session->id()) : nullptr;
+}
+
+StreamContext *MainWindow::ensureContext(ChatSession *session) {
+    if (!session)
+        return nullptr;
+    StreamContext *context = m_streams.value(session->id());
+    if (!context) {
+        context = new StreamContext;
+        context->session = session;
+        m_streams.insert(session->id(), context);
+    }
+    return context;
+}
+
+bool MainWindow::contextAlive(const StreamContext *context) const {
+    return context && m_streams.value(context->session->id()) == context;
+}
+
+bool MainWindow::contextAliveFor(const QUuid &sessionId, const StreamContext *context) const {
+    // Callbacks that outlive their context (timers, session signals) must
+    // never dereference it: comparing against the map entry detects a
+    // deleted context without touching freed memory.
+    return context && m_streams.value(sessionId) == context;
+}
+
+void MainWindow::destroyContext(StreamContext *context) {
+    if (!contextAlive(context))
+        return;
+    if (m_toolContext == context)
+        m_toolContext = nullptr;
+    m_streams.remove(context->session->id());
+    if (context->backend)
+        context->backend->cancel();
+    delete context;
+    updateStreamingUi();
+}
+
+void MainWindow::cancelContext(ChatSession *session) {
+    if (StreamContext *context = contextFor(session)) {
+        context->runningTools = false;
+        context->streaming = false;
+        if (session == m_currentSession)
+            m_ttsPlayer.stop();
+        destroyContext(context);
+    }
+}
+
+void MainWindow::updateStreamingUi() {
+    const StreamContext *context = contextFor(m_currentSession);
+    const bool busy = context != nullptr;
+    m_composer->setBusy(busy);
+    m_sendButton->setVisible(!busy);
+    m_stopButton->setVisible(busy);
+    if (context)
+        statusBar()->showMessage(context->runningTools ? tr("Running MCP tools\u2026")
+                                                       : tr("Generating\u2026"));
+    m_sidebar->setIndicators(runningSessionIds(), m_unreadSessions);
+    updateEmptyState();
+}
+
+void MainWindow::markChatUnread(const ChatSession *session) {
+    if (!session || session == m_currentSession)
+        return;
+    if (m_unreadSessions.contains(session->id()))
+        return;
+    m_unreadSessions.insert(session->id());
+    m_sidebar->setIndicators(runningSessionIds(), m_unreadSessions);
+}
+
+QSet<QUuid> MainWindow::runningSessionIds() const {
+    QSet<QUuid> running;
+    for (auto it = m_streams.keyBegin(); it != m_streams.keyEnd(); ++it)
+        running.insert(*it);
+    return running;
+}
+
+void MainWindow::onToolCallsRequested(StreamContext *context, const QUuid &messageId,
+                                      const QVector<ToolCall> &toolCalls) {
     if (toolDebug::enabled()) {
         QJsonArray calls;
         for (const auto &call : toolCalls) {
@@ -1237,8 +1357,9 @@ void MainWindow::onToolCallsRequested(const QUuid &messageId, const QVector<Tool
                 .arg(messageId.toString(QUuid::WithoutBraces),
                      QString::fromUtf8(QJsonDocument(calls).toJson(QJsonDocument::Compact))));
     }
-    if (!m_currentSession || toolCalls.isEmpty())
+    if (!contextAlive(context) || toolCalls.isEmpty())
         return;
+    ChatSession *session = context->session;
     // Record the requested tool calls on the assistant message so the chat UI
     // can render them (collapsed, with a progress indicator) and the
     // conversation history stays complete. Tool-call rounds continue the same
@@ -1251,9 +1372,9 @@ void MainWindow::onToolCallsRequested(const QUuid &messageId, const QVector<Tool
         if (call.id.isEmpty())
             call.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     }
-    m_currentSession->appendToolCalls(messageId, calls);
-    persistToolCalls(m_currentSession, messageId);
-    runToolCalls(m_currentSession, messageId, calls);
+    session->appendToolCalls(messageId, calls);
+    persistToolCalls(session, messageId);
+    runToolCalls(context, messageId, calls);
 }
 
 void MainWindow::persistToolCalls(ChatSession *session, const QUuid &messageId) {
@@ -1274,54 +1395,76 @@ void MainWindow::persistToolCalls(ChatSession *session, const QUuid &messageId) 
                              message->toolCalls, message->reasoningSegments, message->elementOrder);
 }
 
-void MainWindow::onToolResultReady(const QString &toolName, const QString &resultText,
-                                   bool isError) {
-    if (!m_currentSession)
-        return;
-    // Mark the matching tool call finished on the assistant message that
-    // requested it; the chat repaints the element without the spinner.
-    for (const auto &message : m_currentSession->messages()) {
+bool MainWindow::markRunningToolCallResult(const QString &toolName, const QString &resultText,
+                                           bool isError) {
+    // Chats run in parallel, so the call can belong to any session; prefer
+    // the ones with a running turn, they requested the most recent calls.
+    for (auto it = m_streams.constBegin(); it != m_streams.constEnd(); ++it) {
+        if (markRunningToolCallResultIn(it.value()->session, toolName, resultText, isError))
+            return true;
+    }
+    return std::ranges::any_of(m_sessions, [&](ChatSession *session) {
+        return markRunningToolCallResultIn(session, toolName, resultText, isError);
+    });
+}
+
+bool MainWindow::markRunningToolCallResultIn(ChatSession *session, const QString &toolName,
+                                             const QString &resultText, bool isError) {
+    for (const auto &message : session->messages()) {
         for (const auto &call : message.toolCalls) {
             if (call.name == toolName && call.status == ToolCallStatus::Running) {
-                m_currentSession->setToolCallStatus(
-                    message.id, call.id, isError ? ToolCallStatus::Failed : ToolCallStatus::Done,
-                    resultText);
+                const auto status = isError ? ToolCallStatus::Failed : ToolCallStatus::Done;
+                session->setToolCallStatus(message.id, call.id, status, resultText);
                 if (m_database.isOpen())
-                    m_database.updateToolCallStatus(
-                        message.id.toString(QUuid::WithoutBraces), call.id,
-                        isError ? ToolCallStatus::Failed : ToolCallStatus::Done, resultText);
-                return;
+                    m_database.updateToolCallStatus(message.id.toString(QUuid::WithoutBraces),
+                                                    call.id, status, resultText);
+                return true;
             }
         }
     }
+    return false;
+}
+
+void MainWindow::onToolResultReady(const QString &toolName, const QString &resultText,
+                                   bool isError) {
+    // Mark the matching tool call finished on the assistant message that
+    // requested it; the chat repaints the element without the spinner.
+    if (markRunningToolCallResult(toolName, resultText, isError))
+        return;
     statusBar()->showMessage(isError ? tr("MCP tool \"%1\" failed.").arg(toolName)
                                      : tr("MCP tool \"%1\" finished.").arg(toolName),
                              5000);
 }
 
-void MainWindow::runToolCalls(ChatSession *session, const QUuid &assistantMessageId,
+void MainWindow::runToolCalls(StreamContext *context, const QUuid &assistantMessageId,
                               const QVector<ToolCall> &toolCalls) {
     Q_UNUSED(assistantMessageId)
-    m_runningTools = true;
-    m_toolSession = session;
-    m_pendingToolRounds = static_cast<int>(toolCalls.size());
-    m_composer->setBusy(true);
-    statusBar()->showMessage(tr("Running MCP tools…"));
+    if (!contextAlive(context))
+        return;
+    ChatSession *session = context->session;
+    context->runningTools = true;
+    context->pendingToolRounds = static_cast<int>(toolCalls.size());
+    updateStreamingUi();
     // Watch for tool result messages; each result decrements the round count.
+    const QUuid sessionId = session->id();
     auto *watcher = new QObject(this);
     connect(session, &ChatSession::messageAdded, watcher,
-            [this, session, watcher](const Message &message) {
+            [this, sessionId, context, watcher](const Message &message) {
                 if (message.role != Role::Tool)
                     return;
+                if (!contextAliveFor(sessionId, context)) {
+                    watcher->deleteLater();
+                    return;
+                }
                 // Keep watching until every call of the round reported back:
                 // results of parallel tool calls arrive in later event-loop
                 // iterations, so stopping (and deleting the watcher) after the
                 // first result left the round count stuck and the conversation
                 // without its final assistant answer.
-                --m_pendingToolRounds;
-                if (m_pendingToolRounds <= 0) {
+                --context->pendingToolRounds;
+                if (context->pendingToolRounds <= 0) {
                     watcher->deleteLater();
-                    continueAfterToolResults(session);
+                    continueAfterToolResults(context);
                 }
             });
     connect(session, &QObject::destroyed, watcher, &QObject::deleteLater);
@@ -1331,6 +1474,7 @@ void MainWindow::runToolCalls(ChatSession *session, const QUuid &assistantMessag
         // (see onMcpPermissionRequested). Synchronous failures (unknown tool,
         // disabled tool/server) append a Role::Tool message immediately, which
         // the watcher above picks up.
+        m_toolContext = context;
         m_mcpManager.executeToolCall(session, call);
     }
     // When every call failed synchronously, the watcher already fired and the
@@ -1338,61 +1482,66 @@ void MainWindow::runToolCalls(ChatSession *session, const QUuid &assistantMessag
     // decision resume in onMcpPermissionRequested.
 }
 
-void MainWindow::continueAfterToolResults(ChatSession *session) {
+void MainWindow::continueAfterToolResults(StreamContext *context) {
     // Defer to the next event-loop iteration: this can be reached synchronously
     // from within the backend's toolCallsRequested emission (a synchronously
     // failing tool call or a denied permission appends its tool result
     // immediately, and the watcher in runToolCalls then lands here). Replacing
-    // m_backend below would destroy the emitting backend while its signal is
+    // the backend below would destroy the emitting backend while its signal is
     // still being delivered, corrupting the heap.
-    QTimer::singleShot(0, this, [this, session]() { sendConversationAfterToolResults(session); });
+    const QUuid sessionId = context->session->id();
+    QTimer::singleShot(0, this, [this, sessionId, context]() {
+        if (contextAliveFor(sessionId, context))
+            sendConversationAfterToolResults(context);
+    });
 }
 
-void MainWindow::sendConversationAfterToolResults(ChatSession *session) {
-    if (!m_runningTools)
-        return; // already continued
-    if (!session || session != m_currentSession)
-        return;
+void MainWindow::sendConversationAfterToolResults(StreamContext *context) {
+    if (!contextAliveFor(context->session->id(), context) || !context->runningTools)
+        return; // already continued or the turn was cancelled
+    ChatSession *session = context->session;
     if (toolDebug::enabled())
         toolDebug::logSession(session, QStringLiteral("session before next round"));
-    m_runningTools = false;
-    m_toolSession = nullptr;
+    context->runningTools = false;
     // Send the conversation (now including tool results) back to the model.
     const QString backendId = session->backendId();
     auto *config = m_registry.find(backendId);
     if (!config || !config->enabled) {
-        endStreaming(tr("Ready"));
+        finalizeContext(context, tr("Ready"));
         return;
     }
     QString model = session->model();
     if (model.isEmpty())
         model = m_modelPicker->currentModel().trimmed();
-    m_backend = createBackend(*config);
-    if (m_backend->supportsTools())
-        m_backend->setAvailableTools(m_mcpManager.availableTools());
-    m_streamedTokens = 0;
-    m_firstToken = QDateTime();
-    connectBackend(m_backend.get());
-    m_streaming = true;
-    m_composer->setBusy(true);
-    m_sendButton->setVisible(false);
-    m_stopButton->setVisible(true);
-    statusBar()->showMessage(tr("Generating…"));
+    context->backend = createBackend(*config);
+    if (context->backend->supportsTools())
+        context->backend->setAvailableTools(m_mcpManager.availableTools());
+    context->streamedTokens = 0;
+    context->firstToken = QDateTime();
+    connectContext(context);
+    context->streaming = true;
+    updateStreamingUi();
     // Start a new assistant message for this round: the chat then shows each
     // round's thinking, tool calls and answer text as their own message in
     // the order they actually happened, instead of merging the new answer
     // into the message that already ended before the last tool call.
     const qsizetype messageCount = session->messages().size();
-    m_backend->sendMessage(session, model);
+    context->backend->sendMessage(session, model);
     if (session->messages().size() > messageCount) {
         const Message &assistant = session->messages().constLast();
         if (assistant.role == Role::Assistant)
-            m_streamedMessageId = assistant.id;
+            context->streamedMessageId = assistant.id;
     }
 }
 
 void MainWindow::onMcpPermissionRequested(const QString &callKey, const QString &serverName,
                                           const QString &toolName, const QJsonObject &arguments) {
+    // The request is emitted synchronously from executeToolCall, which stored
+    // its context right before; capture it before the modal dialog's nested
+    // event loop can run other chats' tool calls.
+    StreamContext *context = m_toolContext;
+    if (!contextAlive(context))
+        return;
     const QString args =
         QString::fromUtf8(QJsonDocument(arguments).toJson(QJsonDocument::Indented));
     QMessageBox box(this);
@@ -1405,25 +1554,24 @@ void MainWindow::onMcpPermissionRequested(const QString &callKey, const QString 
     const bool allow = box.exec() == QMessageBox::Yes;
     // decidePermission either starts the call (result arrives via the session's
     // messageAdded signal) or appends a denial message synchronously.
-    const int toolMessagesBefore = [this]() {
+    const int toolMessagesBefore = [context]() {
         int count = 0;
-        if (m_toolSession)
-            for (const auto &message : m_toolSession->messages())
-                if (message.role == Role::Tool)
-                    ++count;
+        for (const auto &message : context->session->messages())
+            if (message.role == Role::Tool)
+                ++count;
         return count;
     }();
     m_mcpManager.decidePermission(callKey, allow);
-    if (!allow && m_toolSession) {
+    if (!allow && contextAlive(context)) {
         // Denied: a tool message was appended synchronously; account for it.
         int toolMessagesAfter = 0;
-        for (const auto &message : m_toolSession->messages())
+        for (const auto &message : context->session->messages())
             if (message.role == Role::Tool)
                 ++toolMessagesAfter;
         if (toolMessagesAfter > toolMessagesBefore) {
-            --m_pendingToolRounds;
-            if (m_pendingToolRounds <= 0)
-                continueAfterToolResults(m_toolSession);
+            --context->pendingToolRounds;
+            if (context->pendingToolRounds <= 0)
+                continueAfterToolResults(context);
         }
     }
 }

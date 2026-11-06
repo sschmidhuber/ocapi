@@ -33,6 +33,11 @@ class Composer;
 class IBackend;
 class Sidebar;
 
+// One in-flight model turn per chat: chats run in parallel, so the backend
+// instance and the streaming/tool-round bookkeeping live per session
+// instead of as singletons in the main window.
+struct StreamContext;
+
 // Compact single-widget model picker: one button showing "Backend | model"
 // with a menu that lists each backend's models as submenus.
 class ModelPickerButton : public QToolButton {
@@ -86,8 +91,9 @@ public:
     [[nodiscard]] BackendRegistry &registryForTest() { return m_registry; }
     // Simulates the backend requesting MCP tool calls on the current session.
     void simulateToolCallsForTest(const QVector<ToolCall> &calls) {
-        if (m_currentSession)
-            onToolCallsRequested(QUuid::createUuid(), calls);
+        if (!m_currentSession)
+            return;
+        onToolCallsRequested(ensureContextForTest(m_currentSession), QUuid::createUuid(), calls);
     }
 
 protected:
@@ -106,7 +112,8 @@ private slots:
     void onModelsDetected(const QString &backendId, const QStringList &models);
     // Adds detected models to the picker's model list for the backend.
     void addModelsToPicker(const QString &backendId, const QStringList &models);
-    void onToolCallsRequested(const QUuid &messageId, const QVector<ToolCall> &toolCalls);
+    void onToolCallsRequested(StreamContext *context, const QUuid &messageId,
+                              const QVector<ToolCall> &toolCalls);
     // Marks the matching tool call finished and persists its status/result.
     void onToolResultReady(const QString &toolName, const QString &resultText, bool isError);
     void onMcpPermissionRequested(const QString &callKey, const QString &serverName,
@@ -117,11 +124,11 @@ private slots:
 private:
     void setupUi();
     void setupConnections();
-    void connectStreamingSignals(IBackend *backend) const;
-    void onTokenReceived(const QUuid &messageId, const QString &text);
-    void onReasoningReceived(const QUuid &messageId, const QString &text);
-    void onStreamFinished(const QUuid &messageId);
-    void onStreamFailed(const QUuid &messageId, const QString &error);
+    void connectContext(StreamContext *context);
+    void onTokenReceived(StreamContext *context, const QUuid &messageId, const QString &text);
+    void onReasoningReceived(StreamContext *context, const QUuid &messageId, const QString &text);
+    void onStreamFinished(StreamContext *context, const QUuid &messageId);
+    void onStreamFailed(StreamContext *context, const QUuid &messageId, const QString &error);
     void createSession(const QString &backendId = {}, const QString &model = {});
     void refreshSidebar();
     void refreshBackendSelector();
@@ -150,19 +157,45 @@ private:
     // results) are stored.
     void persistToolCalls(ChatSession *session, const QUuid &messageId);
     void syncSessionToDatabase(ChatSession *session);
-    [[nodiscard]] QString messageContent(const QUuid &messageId) const;
-    [[nodiscard]] double throughputFor(const QUuid &messageId);
-    void endStreaming(const QString &statusMessage);
-    IBackend *activeBackend();
-    void connectBackend(IBackend *backend);
-    void disconnectBackend();
+    [[nodiscard]] static QString messageContent(StreamContext *context, const QUuid &messageId);
+    [[nodiscard]] double throughputFor(StreamContext *context, const QUuid &messageId);
+    // Ends the turn of one chat: clears its streaming state, updates the UI
+    // and schedules the context (with its backend) for deletion.
+    void finalizeContext(StreamContext *context, const QString &statusMessage);
     void detectModels();
-    // Runs the MCP tool-call loop for the session: executes the requested
+    // Runs the MCP tool-call loop for the chat: executes the requested
     // tools and re-sends the conversation until the model answers with text.
-    void runToolCalls(ChatSession *session, const QUuid &assistantMessageId,
+    void runToolCalls(StreamContext *context, const QUuid &assistantMessageId,
                       const QVector<ToolCall> &toolCalls);
-    void continueAfterToolResults(ChatSession *session);
-    void sendConversationAfterToolResults(ChatSession *session);
+    void continueAfterToolResults(StreamContext *context);
+    void sendConversationAfterToolResults(StreamContext *context);
+
+    // Per-chat turn state (see StreamContext). A context exists while the
+    // chat's model is streaming or running tools.
+    [[nodiscard]] StreamContext *contextFor(const ChatSession *session) const;
+    [[nodiscard]] StreamContext *ensureContext(ChatSession *session);
+    [[nodiscard]] StreamContext *ensureContextForTest(ChatSession *session) {
+        return ensureContext(session);
+    }
+    [[nodiscard]] bool contextAlive(const StreamContext *context) const;
+    // Same check for callbacks (timers, session signals) that can outlive the
+    // context: never dereferences it, so a deleted context is detected safely.
+    [[nodiscard]] bool contextAliveFor(const QUuid &sessionId, const StreamContext *context) const;
+    void destroyContext(StreamContext *context);
+    // Cancels and drops the turn of one chat (stop button, deleted chat,
+    // backend switch of that chat).
+    void cancelContext(ChatSession *session);
+    // Reflects the current chat's turn state in composer, stop button and
+    // status bar, and pushes the running/unread badges to the sidebar.
+    void updateStreamingUi();
+    // Marks the first running tool call with the given name (across all
+    // chats) done/failed; returns whether one was found.
+    [[nodiscard]] bool markRunningToolCallResult(const QString &toolName, const QString &resultText,
+                                                 bool isError);
+    [[nodiscard]] bool markRunningToolCallResultIn(ChatSession *session, const QString &toolName,
+                                                   const QString &resultText, bool isError);
+    void markChatUnread(const ChatSession *session);
+    [[nodiscard]] QSet<QUuid> runningSessionIds() const;
 
     BackendRegistry m_registry;
     SttRegistry m_sttRegistry;
@@ -175,24 +208,24 @@ private:
     ChatDatabase m_database;
     QVector<ChatSession *> m_sessions;
     ChatSession *m_currentSession = nullptr;
-    std::unique_ptr<IBackend> m_backend;
+    // One in-flight model turn per chat, keyed by session id: chats run in
+    // parallel and switching chats never interrupts a running one.
+    QHash<QUuid, StreamContext *> m_streams;
+    // Chats that produced assistant output the user has not seen yet.
+    QSet<QUuid> m_unreadSessions;
+    // The context whose tool call is currently being executed; permission
+    // requests are emitted synchronously from executeToolCall, so the
+    // context is read at the start of onMcpPermissionRequested.
+    StreamContext *m_toolContext = nullptr;
     // One in-flight model detection per backend id.
     QHash<QString, IBackend *> m_detectors;
     QSet<QString> m_pendingDetection;
-    bool m_streaming = false;
     bool m_loadingOlder = false;
-    bool m_runningTools = false; // a tool-call round is in progress
-    QUuid m_streamedMessageId;
-    int m_streamedTokens = 0;
-    QDateTime m_firstToken;
     // Models detected per backend id (survives session switches).
     QHash<QString, QStringList> m_detectedModels;
     // Last model selected per backend id, loaded from/saved to ocapi.conf.
     QHash<QString, QString> m_lastModels;
     QString m_dictatedText;
-    // Session waiting for tool results before the next model round.
-    ChatSession *m_toolSession = nullptr;
-    int m_pendingToolRounds = 0;
 
     Sidebar *m_sidebar = nullptr;
     WebChatView *m_chatView = nullptr;

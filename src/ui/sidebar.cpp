@@ -3,8 +3,12 @@
 #include "core/sessiongrouper.h"
 
 #include <QHeaderView>
+#include <QIcon>
 #include <QMap>
 #include <QMenu>
+#include <QPainter>
+#include <QPainterPath>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
@@ -47,6 +51,12 @@ QStringList orderedGroupKeys(const QVector<ChatSession *> &sessions) {
 } // namespace
 
 Sidebar::Sidebar(QWidget *parent) : QWidget(parent), m_tree(new QTreeWidget(this)) {
+    // The spinner of running chats rotates continuously; started lazily in
+    // setIndicators() so an idle sidebar keeps no timer running.
+    m_spinnerTimer = new QTimer(this);
+    m_spinnerTimer->setInterval(120);
+    connect(m_spinnerTimer, &QTimer::timeout, this, &Sidebar::advanceSpinner);
+
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(8, 8, 8, 8);
     layout->setSpacing(6);
@@ -109,6 +119,7 @@ void Sidebar::setSessions(const QVector<ChatSession *> &sessions) {
                 m_tree->setCurrentItem(item);
         }
     }
+    applyIndicators();
 }
 
 void Sidebar::selectSession(const QUuid &id) {
@@ -129,6 +140,72 @@ QUuid Sidebar::currentSessionId() const {
     if (!item || item->data(0, kIsGroupRole).toBool())
         return {};
     return QUuid(item->data(0, kSessionIdRole).toString());
+}
+
+void Sidebar::setIndicators(const QSet<QUuid> &running, const QSet<QUuid> &unread) {
+    m_running = running;
+    m_unread = unread;
+    if (!m_running.isEmpty())
+        m_spinnerTimer->start();
+    else
+        m_spinnerTimer->stop();
+    applyIndicators();
+}
+
+void Sidebar::applyIndicators() {
+    for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
+        auto *group = m_tree->topLevelItem(i);
+        for (int j = 0; j < group->childCount(); ++j) {
+            auto *item = group->child(j);
+            const QUuid id(item->data(0, kSessionIdRole).toString());
+            QIcon icon;
+            QStringList state;
+            if (m_running.contains(id)) {
+                icon = spinnerIcon();
+                state << tr("generating");
+            }
+            if (m_unread.contains(id)) {
+                if (icon.isNull())
+                    icon = unreadDotIcon();
+                state << tr("unread messages");
+            }
+            item->setIcon(0, icon);
+            item->setToolTip(0, state.isEmpty() ? item->text(0)
+                                                : item->text(0) + QLatin1String(" — ") +
+                                                      state.join(QLatin1String(", ")));
+        }
+    }
+}
+
+void Sidebar::advanceSpinner() {
+    m_spinnerAngle = (m_spinnerAngle + 45) % 360;
+    applyIndicators();
+}
+
+QIcon Sidebar::spinnerIcon() const {
+    // Breeze-style loading spinner: a thick arc sweeping most of the circle,
+    // rotating with the timer.
+    QPixmap pixmap(16, 16);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    const QPen pen(palette().color(QPalette::Text), 2.4, Qt::SolidLine, Qt::RoundCap);
+    painter.setPen(pen);
+    const QRectF rect(2.2, 2.2, 11.6, 11.6);
+    painter.drawArc(rect, -m_spinnerAngle * 16, 300 * 16);
+    return {pixmap};
+}
+
+QIcon Sidebar::unreadDotIcon() const {
+    // Unread badge: a filled circle in the theme's highlight color.
+    QPixmap pixmap(16, 16);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(palette().color(QPalette::Highlight));
+    painter.drawEllipse(QPointF(8, 8), 4.0, 4.0);
+    return {pixmap};
 }
 
 } // namespace ocapi

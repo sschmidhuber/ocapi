@@ -186,7 +186,7 @@ class OcapiE2E(unittest.TestCase):
         composer.send_keys("Please use two tools for me.")
         self.find_by_name("Send").click()
 
-        self.wait_for(f"//*[contains(@name, '{DOUBLE_TOOL_REPLY_TEXT}']", timeout=60)
+        self.wait_for(f"//*[contains(@name, '{DOUBLE_TOOL_REPLY_TEXT}')]", timeout=60)
 
     def test_06_new_chat_keeps_backend_and_model(self):
         # Two mock backends are seeded and the picker starts on the first one

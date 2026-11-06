@@ -244,6 +244,41 @@
         width: 16px;
         height: 16px;
       }
+      /* "Move to Bottom" button, bottom-right over the chat: shown while
+     content extends below the visible area (e.g. a streaming answer the
+     capped auto-scroll keeps below the fold). */
+      #jump-btn {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--bg);
+        color: var(--muted);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 1px 4px rgb(0 0 0 / 25%);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 150ms ease;
+      }
+      #jump-btn.visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      #jump-btn:hover {
+        color: var(--fg);
+        border-color: var(--muted);
+      }
+      #jump-btn svg {
+        width: 16px;
+        height: 16px;
+      }
     </style>
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script>
@@ -595,6 +630,7 @@
           el.remove();
         }
         el.dataset.raw = content;
+        const wasStreaming = el.dataset.streaming === 'true';
         const body = el.querySelector('.body');
         if (role === 'user') {
           body.textContent = content;
@@ -623,20 +659,103 @@
             streaming && reasoningStreaming,
           );
         }
-        scrollToBottom();
+        el.dataset.streaming = streaming;
+        // A user message (re-)engages the automatic scrolling: sending a
+        // message implies the user wants to watch this turn.
+        if (role === 'user') autoScroll = true;
+        // An answer that just finished keeps the view where the capped
+        // auto-scroll left it (the Move to Bottom button leads down);
+        // jumping to the end here would defeat the cap. History loads and
+        // messages that never streamed still scroll fully into view.
+        if (role === 'assistant' && wasStreaming && !streaming) {
+          updateJumpButton();
+        } else {
+          followContent(streaming);
+        }
       }
 
       function clearLog() {
         document.getElementById('log').innerHTML = '';
       }
 
-      function scrollToBottom() {
-        window.scrollTo(0, document.body.scrollHeight);
+      // Auto-scroll state: while the model works, the view follows the
+      // content only as far as the last user message stays fully visible;
+      // any user scroll immediately stops the automatic scrolling.
+      var autoScroll = true;
+      var programmaticScroll = false;
+      var programmaticTarget = 0;
+
+      function lastUserMessage() {
+        var msgs = document.querySelectorAll('#log > .msg.user');
+        return msgs.length ? msgs[msgs.length - 1] : null;
+      }
+
+      function updateJumpButton() {
+        var below = document.body.scrollHeight - window.scrollY - window.innerHeight;
+        document.getElementById('jump-btn').classList.toggle('visible', below > 40);
+      }
+
+      function programmaticScrollTo(target) {
+        programmaticScroll = true;
+        programmaticTarget = target;
+        window.scrollTo(0, target);
+      }
+
+      function followContent(streaming) {
+        if (!autoScroll) {
+          updateJumpButton();
+          return;
+        }
+        if (!streaming) {
+          // History loads and finished answers show the full content.
+          programmaticScrollTo(Math.max(0, document.body.scrollHeight - window.innerHeight));
+        } else {
+          // While the answer streams, never scroll past the last user message:
+          // it must stay fully visible while the model works on it.
+          var viewportH = window.innerHeight;
+          var target = Math.max(0, document.body.scrollHeight - viewportH);
+          var userMsg = lastUserMessage();
+          if (userMsg) {
+            var rect = userMsg.getBoundingClientRect();
+            var top = rect.top + window.scrollY;
+            var bottom = rect.bottom + window.scrollY;
+            var cap = Math.max(top, bottom - viewportH);
+            target = Math.min(target, Math.max(0, cap));
+          }
+          programmaticScrollTo(target);
+        }
         // signal scroll position for "load older" detection
         if (window.scrollY < 40 && window.qtBridge) window.qtBridge.notifyScrolledToTop();
+        updateJumpButton();
       }
-      window.addEventListener('scroll', function () {
+
+      function scrollToBottom() {
+        programmaticScrollTo(Math.max(0, document.body.scrollHeight - window.innerHeight));
         if (window.scrollY < 40 && window.qtBridge) window.qtBridge.notifyScrolledToTop();
+        updateJumpButton();
+      }
+
+      window.addEventListener('scroll', function () {
+        if (programmaticScroll && Math.abs(window.scrollY - programmaticTarget) < 2) {
+          programmaticScroll = false;
+        } else {
+          // The user scrolled: stop following the content immediately.
+          autoScroll = false;
+        }
+        updateJumpButton();
+        if (window.scrollY < 40 && window.qtBridge) window.qtBridge.notifyScrolledToTop();
+      });
+      window.addEventListener('wheel', function () {
+        autoScroll = false;
+        updateJumpButton();
+      });
+      window.addEventListener('resize', updateJumpButton);
+
+      document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('jump-btn').addEventListener('click', function () {
+          autoScroll = true;
+          scrollToBottom();
+        });
       });
 
       function setTheme(dark) {
@@ -646,5 +765,10 @@
   </head>
   <body>
     <div id="log"></div>
+    <button id="jump-btn" title="Move to Bottom" aria-label="Move to Bottom">
+      <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M8 11.707l-6-6L2.707 5 8 10.293 13.293 5l.707.707-6 6z" fill="currentColor" />
+      </svg>
+    </button>
   </body>
 </html>

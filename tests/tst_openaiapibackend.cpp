@@ -113,6 +113,7 @@ private slots:
     void reasoningContentIsStreamed();
     void thinkingPartsAreStreamedAsReasoning();
     void reasoningIsNotSentBackInConversationHistory();
+    void toolCallNameSurvivesArgumentDeltas();
 
 private:
     FakeOpenAiServer m_server;
@@ -289,6 +290,38 @@ void TestOpenAiApiBackend::reasoningIsNotSentBackInConversationHistory() {
     QVERIFY(!replayed.value(QStringLiteral("content"))
                  .toString()
                  .contains(QStringLiteral("secret chain of thought")));
+}
+
+// OpenAI-compatible servers (OpenRouter, DeepSeek, ...) stream a tool call
+// as several deltas: the first carries the id and the function name, the
+// following ones only argument fragments. The name must survive the later
+// deltas; wiping it to "" made every tool call fail with "Unknown MCP tool".
+void TestOpenAiApiBackend::toolCallNameSurvivesArgumentDeltas() {
+    QVERIFY(m_server.start());
+    const auto delta = [](const char *json) { return QJsonDocument::fromJson(json).object(); };
+    m_server.setStreamEvents(
+        {chunkJson(
+             delta(
+                 R"({"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"Mock MCP__echo","arguments":""}}]})"),
+             QString()),
+         chunkJson(
+             delta(R"({"tool_calls":[{"index":0,"function":{"arguments":"{\"text\":\"hi\"}"}}]})"),
+             QString()),
+         chunkJson(QJsonObject{}, QStringLiteral("tool_calls"))});
+
+    OpenAiApiBackend backend(apiConfig(m_server.port()));
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("use the tool"));
+    QSignalSpy callsSpy(&backend, &IBackend::toolCallsRequested);
+    backend.sendMessage(&session, QStringLiteral("fake-model"));
+
+    QVERIFY(callsSpy.wait(10000));
+    QCOMPARE(callsSpy.count(), 1);
+    const auto calls = callsSpy.first().at(1).value<QVector<ToolCall>>();
+    QCOMPARE(calls.size(), 1);
+    QCOMPARE(calls.first().id, QStringLiteral("call_1"));
+    QCOMPARE(calls.first().name, QStringLiteral("Mock MCP__echo"));
+    QCOMPARE(calls.first().arguments.value(QLatin1String("text")).toString(), QStringLiteral("hi"));
 }
 
 QTEST_GUILESS_MAIN(TestOpenAiApiBackend)

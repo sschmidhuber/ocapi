@@ -43,12 +43,19 @@ QJsonObject toOllamaMessage(const Message &message) {
             images.append(QString::fromLatin1(image.data.toBase64()));
         object.insert(QStringLiteral("images"), images);
     }
+    // Tool results must carry the tool name so Ollama can pair them with the
+    // assistant's tool_calls (see docs.ollama.com/capabilities/tool-calling).
+    if (message.role == Role::Tool && !message.toolName.isEmpty())
+        object.insert(QStringLiteral("tool_name"), message.toolName);
     if (message.role == Role::Assistant && message.hasToolCalls()) {
         QJsonArray toolCalls;
+        int index = 0;
         for (const auto &call : message.toolCalls) {
             toolCalls.append(QJsonObject{
+                {QStringLiteral("type"), QStringLiteral("function")},
                 {QStringLiteral("function"),
                  QJsonObject{
+                     {QStringLiteral("index"), index++},
                      {QStringLiteral("name"), call.name},
                      {QStringLiteral("arguments"), call.arguments},
                  }},

@@ -271,7 +271,13 @@ void OpenAiApiBackend::processToolCallDeltas(const QJsonArray &toolCallDeltas) {
         if (!id.isEmpty())
             call.id = id;
         const auto function = toolCallDelta.value(QStringLiteral("function")).toObject();
-        call.name = function.value(QStringLiteral("name")).toString();
+        // OpenAI-compatible servers (OpenRouter, DeepSeek, ...) send the id and
+        // the function name only with the FIRST delta of a tool call; the
+        // following deltas carry argument fragments without them. Assigning
+        // unconditionally would wipe the name back to "" mid-stream.
+        const QString name = function.value(QStringLiteral("name")).toString();
+        if (!name.isEmpty())
+            call.name = name;
         m_argumentsBuffer[index].append(function.value(QStringLiteral("arguments")).toString());
     }
     m_hasToolCalls = true;

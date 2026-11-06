@@ -630,6 +630,7 @@
           el.remove();
         }
         el.dataset.raw = content;
+        const wasStreaming = el.dataset.streaming === 'true';
         const body = el.querySelector('.body');
         if (role === 'user') {
           body.textContent = content;
@@ -658,10 +659,19 @@
             streaming && reasoningStreaming,
           );
         }
+        el.dataset.streaming = streaming;
         // A user message (re-)engages the automatic scrolling: sending a
         // message implies the user wants to watch this turn.
         if (role === 'user') autoScroll = true;
-        followContent(streaming);
+        // An answer that just finished keeps the view where the capped
+        // auto-scroll left it (the Move to Bottom button leads down);
+        // jumping to the end here would defeat the cap. History loads and
+        // messages that never streamed still scroll fully into view.
+        if (role === 'assistant' && wasStreaming && !streaming) {
+          updateJumpButton();
+        } else {
+          followContent(streaming);
+        }
       }
 
       function clearLog() {

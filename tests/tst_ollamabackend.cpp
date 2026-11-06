@@ -59,6 +59,13 @@ private:
 
         m_lastRequest = QJsonDocument::fromJson(buffer.mid(headerEnd + 4, contentLength)).object();
 
+        // Consume the parsed request: QNetworkAccessManager can reuse the
+        // connection (keep-alive), so the next request can arrive on the same
+        // socket while these bytes are still buffered. Without consuming them
+        // the server would re-parse the PREVIOUS request and report it as the
+        // last one, flaking the assertions on the second request's payload.
+        m_requests[socket].remove(0, headerEnd + 4 + contentLength);
+
         QByteArray body;
         for (const QString &event : m_events) {
             body += event.toUtf8() + "\n";

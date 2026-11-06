@@ -294,200 +294,203 @@ void TestOllamaBackend::toolsMatchOllamaDocsFormat() {
         {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
 
     OllamaBackend backend(ollamaConfig(m_server.port()));
-    QJsonArray tools;
-    tools.append(
-        QJsonObject{{QStringLiteral("type"), QStringLiteral("function")},
-                    {QStringLiteral("function"),
-                     QJsonObject{{QStringLiteral("name"), QStringLiteral("srv__echo")},
-                                 {QStringLiteral("description"), QStringLiteral("Echo")},
-                                 {QStringLiteral("parameters"),
-                                  QJsonObject{{QStringLiteral("type"), QStringLiteral("object")},
-                                              {QStringLiteral("properties"), QJsonObject{}},
-                                              {QStringLiteral("required"), QJsonArray{}}}}}});
-        backend.setAvailableTools(tools);
-        ChatSession session;
-        session.appendMessage(Role::User, QStringLiteral("hi"));
-        QSignalSpy finishedSpy(&backend, &IBackend::finished);
-        backend.sendMessage(&session, QStringLiteral("mock-model"));
-        QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+    const QJsonObject parameters{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), QJsonObject{}},
+        {QStringLiteral("required"), QJsonArray{}},
+    };
+    const QJsonObject function{
+        {QStringLiteral("name"), QStringLiteral("srv__echo")},
+        {QStringLiteral("description"), QStringLiteral("Echo")},
+        {QStringLiteral("parameters"), parameters},
+    };
+    const QJsonObject tool{
+        {QStringLiteral("type"), QStringLiteral("function")},
+        {QStringLiteral("function"), function},
+    };
+    backend.setAvailableTools(QJsonArray{tool});
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hi"));
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
 
-        const auto sent = m_server.lastRequest().value(QLatin1String("tools")).toArray();
-        QCOMPARE(sent.size(), 1);
-        QCOMPARE(sent.first().toObject().value(QLatin1String("type")).toString(),
-                 QStringLiteral("function"));
-        const auto fn = sent.first().toObject().value(QLatin1String("function")).toObject();
-        QCOMPARE(fn.value(QLatin1String("name")).toString(), QStringLiteral("srv__echo"));
-        QCOMPARE(fn.value(QLatin1String("description")).toString(), QStringLiteral("Echo"));
-        QVERIFY(fn.contains(QLatin1String("parameters")));
-        // The native Ollama payload must not carry OpenAI-only fields.
-        QVERIFY(!m_server.lastRequest().contains(QLatin1String("tool_choice")));
+    const auto sent = m_server.lastRequest().value(QLatin1String("tools")).toArray();
+    QCOMPARE(sent.size(), 1);
+    QCOMPARE(sent.first().toObject().value(QLatin1String("type")).toString(),
+             QStringLiteral("function"));
+    const auto fn = sent.first().toObject().value(QLatin1String("function")).toObject();
+    QCOMPARE(fn.value(QLatin1String("name")).toString(), QStringLiteral("srv__echo"));
+    QCOMPARE(fn.value(QLatin1String("description")).toString(), QStringLiteral("Echo"));
+    QVERIFY(fn.contains(QLatin1String("parameters")));
+    // The native Ollama payload must not carry OpenAI-only fields.
+    QVERIFY(!m_server.lastRequest().contains(QLatin1String("tool_choice")));
 }
 
 // Regression: every message of the chat history must end up in the request
 // payload (not just a recent window), in order.
 void TestOllamaBackend::fullConversationHistoryIsSentToModel() {
-        QVERIFY(m_server.start());
-        m_server.setStreamEvents(
-            {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
 
-        OllamaBackend backend(ollamaConfig(m_server.port()));
-        ChatSession session;
-        constexpr qsizetype kTurns = 60; // more than one UI page (50 messages)
-        for (qsizetype i = 0; i < kTurns; ++i) {
-            session.appendMessage(Role::User, QStringLiteral("question %1").arg(i));
-            session.appendMessage(Role::Assistant, QStringLiteral("answer %1").arg(i));
-        }
+    OllamaBackend backend(ollamaConfig(m_server.port()));
+    ChatSession session;
+    constexpr qsizetype kTurns = 60; // more than one UI page (50 messages)
+    for (qsizetype i = 0; i < kTurns; ++i) {
+        session.appendMessage(Role::User, QStringLiteral("question %1").arg(i));
+        session.appendMessage(Role::Assistant, QStringLiteral("answer %1").arg(i));
+    }
 
-        QSignalSpy finishedSpy(&backend, &IBackend::finished);
-        backend.sendMessage(&session, QStringLiteral("mock-model"));
-        QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
 
-        const auto messages = m_server.lastRequest().value(QLatin1String("messages")).toArray();
-        // The new streaming assistant message is appended to the session but
-        // must be skipped in the request.
-        QCOMPARE(messages.size(), 2 * kTurns);
-        for (qsizetype i = 0; i < kTurns; ++i) {
-            QCOMPARE(messages.at(2 * i).toObject().value(QLatin1String("role")).toString(),
-                     QStringLiteral("user"));
-            QCOMPARE(messages.at(2 * i).toObject().value(QLatin1String("content")).toString(),
-                     QStringLiteral("question %1").arg(i));
-            QCOMPARE(messages.at((2 * i) + 1).toObject().value(QLatin1String("role")).toString(),
-                     QStringLiteral("assistant"));
-            QCOMPARE(messages.at((2 * i) + 1).toObject().value(QLatin1String("content")).toString(),
-                     QStringLiteral("answer %1").arg(i));
-        }
+    const auto messages = m_server.lastRequest().value(QLatin1String("messages")).toArray();
+    // The new streaming assistant message is appended to the session but
+    // must be skipped in the request.
+    QCOMPARE(messages.size(), 2 * kTurns);
+    for (qsizetype i = 0; i < kTurns; ++i) {
+        QCOMPARE(messages.at(2 * i).toObject().value(QLatin1String("role")).toString(),
+                 QStringLiteral("user"));
+        QCOMPARE(messages.at(2 * i).toObject().value(QLatin1String("content")).toString(),
+                 QStringLiteral("question %1").arg(i));
+        QCOMPARE(messages.at((2 * i) + 1).toObject().value(QLatin1String("role")).toString(),
+                 QStringLiteral("assistant"));
+        QCOMPARE(messages.at((2 * i) + 1).toObject().value(QLatin1String("content")).toString(),
+                 QStringLiteral("answer %1").arg(i));
+    }
 }
 
 void TestOllamaBackend::toolsSentOnlyWhenEnabled() {
-        QVERIFY(m_server.start());
-        m_server.setStreamEvents(
-            {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
 
-        OllamaBackend backend(ollamaConfig(m_server.port()));
-        // No tools set: the payload must not contain a "tools" field.
-        ChatSession session;
-        session.appendMessage(Role::User, QStringLiteral("hello"));
-        QSignalSpy finishedSpy(&backend, &IBackend::finished);
-        backend.sendMessage(&session, QStringLiteral("mock-model"));
-        QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
-        QVERIFY(!m_server.lastRequest().contains(QLatin1String("tools")));
+    OllamaBackend backend(ollamaConfig(m_server.port()));
+    // No tools set: the payload must not contain a "tools" field.
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hello"));
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+    QVERIFY(!m_server.lastRequest().contains(QLatin1String("tools")));
 }
 
 // Regression: when tool-offering is disabled for the backend, no tools must
 // be sent — some local models (e.g. qwen3.5 via /api/chat) lose conversation
 // history recall when tool definitions are present in the request.
 void TestOllamaBackend::toolsNotSentWhenDisabledForBackend() {
-        QVERIFY(m_server.start());
-        m_server.setStreamEvents(
-            {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
 
-        BackendConfig config = ollamaConfig(m_server.port());
-        config.toolsEnabled = false;
-        OllamaBackend backend(config);
-        QJsonArray tools;
-        tools.append(
-            QJsonObject{{QStringLiteral("type"), QStringLiteral("function")},
-                        {QStringLiteral("function"),
-                         QJsonObject{{QStringLiteral("name"), QStringLiteral("srv__echo")}}}});
-        backend.setAvailableTools(tools);
-        ChatSession session;
-        session.appendMessage(Role::User, QStringLiteral("hello"));
-        QSignalSpy finishedSpy(&backend, &IBackend::finished);
-        backend.sendMessage(&session, QStringLiteral("mock-model"));
-        QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
-        QVERIFY(!m_server.lastRequest().contains(QLatin1String("tools")));
-        QVERIFY(!m_server.lastRequest().contains(QLatin1String("tool_choice")));
+    BackendConfig config = ollamaConfig(m_server.port());
+    config.toolsEnabled = false;
+    OllamaBackend backend(config);
+    QJsonArray tools;
+    tools.append(QJsonObject{{QStringLiteral("type"), QStringLiteral("function")},
+                             {QStringLiteral("function"),
+                              QJsonObject{{QStringLiteral("name"), QStringLiteral("srv__echo")}}}});
+    backend.setAvailableTools(tools);
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hello"));
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+    QVERIFY(!m_server.lastRequest().contains(QLatin1String("tools")));
+    QVERIFY(!m_server.lastRequest().contains(QLatin1String("tool_choice")));
 }
 
 void TestOllamaBackend::reasoningIsNotSentBackInConversationHistory() {
-        // Regression: the reasoning ("thinking") text of a previous answer is
-        // display-only and must never be replayed into the model's context.
-        QVERIFY(m_server.start());
-        m_server.setStreamEvents(
-            {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
+    // Regression: the reasoning ("thinking") text of a previous answer is
+    // display-only and must never be replayed into the model's context.
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
 
-        OllamaBackend backend(ollamaConfig(m_server.port()));
-        ChatSession session;
-        session.appendMessage(Role::User, QStringLiteral("2+2?"));
-        const QUuid answerId = session.appendMessage(Role::Assistant, QStringLiteral("Four.")).id;
-        session.updateReasoning(answerId, QStringLiteral("secret chain of thought"), false);
-        session.appendMessage(Role::User, QStringLiteral("thanks"));
+    OllamaBackend backend(ollamaConfig(m_server.port()));
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("2+2?"));
+    const QUuid answerId = session.appendMessage(Role::Assistant, QStringLiteral("Four.")).id;
+    session.updateReasoning(answerId, QStringLiteral("secret chain of thought"), false);
+    session.appendMessage(Role::User, QStringLiteral("thanks"));
 
-        QSignalSpy finishedSpy(&backend, &IBackend::finished);
-        backend.sendMessage(&session, QStringLiteral("mock-model"));
-        QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
 
-        const auto messages = m_server.lastRequest().value(QLatin1String("messages")).toArray();
-        QCOMPARE(messages.size(), 3);
-        const auto replayed = messages.at(1).toObject();
-        QCOMPARE(replayed.value(QLatin1String("role")).toString(), QStringLiteral("assistant"));
-        QCOMPARE(replayed.value(QLatin1String("content")).toString(), QStringLiteral("Four."));
-        QVERIFY(!replayed.contains(QLatin1String("thinking")));
-        QVERIFY(!replayed.value(QLatin1String("content"))
-                     .toString()
-                     .contains(QLatin1String("secret chain of thought")));
+    const auto messages = m_server.lastRequest().value(QLatin1String("messages")).toArray();
+    QCOMPARE(messages.size(), 3);
+    const auto replayed = messages.at(1).toObject();
+    QCOMPARE(replayed.value(QLatin1String("role")).toString(), QStringLiteral("assistant"));
+    QCOMPARE(replayed.value(QLatin1String("content")).toString(), QStringLiteral("Four."));
+    QVERIFY(!replayed.contains(QLatin1String("thinking")));
+    QVERIFY(!replayed.value(QLatin1String("content"))
+                 .toString()
+                 .contains(QLatin1String("secret chain of thought")));
 }
 
 // A tool-call round must continue the same assistant message instead of
 // appending a new one: one assistant turn = one message in the chat.
 void TestOllamaBackend::sendMessageContinuesExistingAssistantMessage() {
-        QVERIFY(m_server.start());
-        m_server.setStreamEvents({QStringLiteral(
-            R"({"message":{"role":"assistant","content":"Round two"},"done":true})")});
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"Round two"},"done":true})")});
 
-        OllamaBackend backend(ollamaConfig(m_server.port()));
-        ChatSession session;
-        session.appendMessage(Role::User, QStringLiteral("hello"));
-        QSignalSpy finishedSpy(&backend, &IBackend::finished);
-        backend.sendMessage(&session, QStringLiteral("mock-model"));
-        QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
-        const QUuid firstId = session.messages().constLast().id;
-        const qsizetype countAfterFirst = session.messages().size();
+    OllamaBackend backend(ollamaConfig(m_server.port()));
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hello"));
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+    const QUuid firstId = session.messages().constLast().id;
+    const qsizetype countAfterFirst = session.messages().size();
 
-        // Simulate a completed tool round: the assistant message carries the
-        // requested tool call (with some text, as a real turn has) and a
-        // tool-result message was appended after it.
-        ToolCall call;
-        call.id = QStringLiteral("call_1");
-        call.name = QStringLiteral("echo");
-        call.arguments = QJsonObject{{QStringLiteral("text"), QStringLiteral("hi")}};
-        session.updateMessage(firstId, QStringLiteral("Let me check."), false);
-        session.setToolCalls(firstId, {call});
-        Message toolResult;
-        toolResult.role = Role::Tool;
-        toolResult.toolCallId = call.id;
-        toolResult.toolName = call.name;
-        toolResult.content = QStringLiteral("echo: hi");
-        session.appendMessage(toolResult);
+    // Simulate a completed tool round: the assistant message carries the
+    // requested tool call (with some text, as a real turn has) and a
+    // tool-result message was appended after it.
+    ToolCall call;
+    call.id = QStringLiteral("call_1");
+    call.name = QStringLiteral("echo");
+    call.arguments = QJsonObject{{QStringLiteral("text"), QStringLiteral("hi")}};
+    session.updateMessage(firstId, QStringLiteral("Let me check."), false);
+    session.setToolCalls(firstId, {call});
+    Message toolResult;
+    toolResult.role = Role::Tool;
+    toolResult.toolCallId = call.id;
+    toolResult.toolName = call.name;
+    toolResult.content = QStringLiteral("echo: hi");
+    session.appendMessage(toolResult);
 
-        backend.sendMessage(&session, QStringLiteral("mock-model"), firstId);
-        QCOMPARE(session.messages().size(), countAfterFirst + 1); // only the tool result is new
-        QCOMPARE(session.messages().constLast().role, Role::Tool);
-        QCOMPARE(session.messages().at(session.messages().size() - 2).id, firstId);
-        QVERIFY(session.messages().at(session.messages().size() - 2).streaming); // resumed
+    backend.sendMessage(&session, QStringLiteral("mock-model"), firstId);
+    QCOMPARE(session.messages().size(), countAfterFirst + 1); // only the tool result is new
+    QCOMPARE(session.messages().constLast().role, Role::Tool);
+    QCOMPARE(session.messages().at(session.messages().size() - 2).id, firstId);
+    QVERIFY(session.messages().at(session.messages().size() - 2).streaming); // resumed
 
-        QSignalSpy tokenSpy(&backend, &IBackend::tokenReceived);
-        QTRY_VERIFY_WITH_TIMEOUT(tokenSpy.count() >= 1, 10000);
-        // The continued round appends to the existing content.
-        QCOMPARE(tokenSpy.last().at(1).toString(), QStringLiteral("Let me check.Round two"));
+    QSignalSpy tokenSpy(&backend, &IBackend::tokenReceived);
+    QTRY_VERIFY_WITH_TIMEOUT(tokenSpy.count() >= 1, 10000);
+    // The continued round appends to the existing content.
+    QCOMPARE(tokenSpy.last().at(1).toString(), QStringLiteral("Let me check.Round two"));
 
-        // The request must contain the assistant's tool_calls AND the tool
-        // result that was appended after the continued message; dropping either
-        // makes the model repeat the tool call forever.
-        const auto messages = m_server.lastRequest().value(QLatin1String("messages")).toArray();
-        bool sawAssistantToolCalls = false;
-        bool sawToolResult = false;
-        for (const auto &value : messages) {
-            const auto obj = value.toObject();
-            if (obj.value(QLatin1String("role")).toString() == QLatin1String("assistant") &&
-                obj.contains(QLatin1String("tool_calls")))
-                sawAssistantToolCalls = true;
-            if (obj.value(QLatin1String("role")).toString() == QLatin1String("tool") &&
-                obj.value(QLatin1String("content")).toString().contains(QLatin1String("echo: hi")))
-                sawToolResult = true;
-        }
-        QVERIFY(sawAssistantToolCalls);
-        QVERIFY(sawToolResult);
+    // The request must contain the assistant's tool_calls AND the tool
+    // result that was appended after the continued message; dropping either
+    // makes the model repeat the tool call forever.
+    const auto messages = m_server.lastRequest().value(QLatin1String("messages")).toArray();
+    bool sawAssistantToolCalls = false;
+    bool sawToolResult = false;
+    for (const auto &value : messages) {
+        const auto obj = value.toObject();
+        if (obj.value(QLatin1String("role")).toString() == QLatin1String("assistant") &&
+            obj.contains(QLatin1String("tool_calls")))
+            sawAssistantToolCalls = true;
+        if (obj.value(QLatin1String("role")).toString() == QLatin1String("tool") &&
+            obj.value(QLatin1String("content")).toString().contains(QLatin1String("echo: hi")))
+            sawToolResult = true;
+    }
+    QVERIFY(sawAssistantToolCalls);
+    QVERIFY(sawToolResult);
 }
 
 QTEST_GUILESS_MAIN(TestOllamaBackend)

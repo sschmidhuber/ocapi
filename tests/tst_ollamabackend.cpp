@@ -89,6 +89,12 @@ BackendConfig ollamaConfig(quint16 port) {
     return config;
 }
 
+BackendConfig ollamaConfig(quint16 port, int contextWindow) {
+    BackendConfig config = ollamaConfig(port);
+    config.contextWindow = contextWindow;
+    return config;
+}
+
 } // namespace
 
 class TestOllamaBackend : public QObject {
@@ -104,6 +110,8 @@ private slots:
     void toolsSentOnlyWhenEnabled();
     void reasoningIsNotSentBackInConversationHistory();
     void sendMessageContinuesExistingAssistantMessage();
+    void contextWindowRequestedByDefault();
+    void contextWindowOverrideAndOptOut();
 
 private:
     FakeOllamaServer m_server;
@@ -383,6 +391,52 @@ void TestOllamaBackend::sendMessageContinuesExistingAssistantMessage() {
     }
     QVERIFY(sawAssistantToolCalls);
     QVERIFY(sawToolResult);
+}
+
+// Ollama silently drops the oldest messages when the rendered prompt
+// (system prompt + history + tool definitions) exceeds its small default
+// num_ctx; the request must therefore raise the window explicitly. The
+// backend's configured context window is the default.
+void TestOllamaBackend::contextWindowRequestedByDefault() {
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
+
+    OllamaBackend backend(ollamaConfig(m_server.port()));
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hello"));
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+
+    const auto options = m_server.lastRequest().value(QLatin1String("options")).toObject();
+    QCOMPARE(options.value(QLatin1String("num_ctx")).toInt(), 8192);
+}
+
+void TestOllamaBackend::contextWindowOverrideAndOptOut() {
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
+
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hello"));
+
+    {
+        OllamaBackend backend(ollamaConfig(m_server.port(), 16384));
+        QSignalSpy finishedSpy(&backend, &IBackend::finished);
+        backend.sendMessage(&session, QStringLiteral("mock-model"));
+        QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+        const auto options = m_server.lastRequest().value(QLatin1String("options")).toObject();
+        QCOMPARE(options.value(QLatin1String("num_ctx")).toInt(), 16384);
+    }
+
+    {
+        OllamaBackend backend(ollamaConfig(m_server.port(), 0));
+        QSignalSpy finishedSpy(&backend, &IBackend::finished);
+        backend.sendMessage(&session, QStringLiteral("mock-model"));
+        QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+        QVERIFY(!m_server.lastRequest().contains(QLatin1String("options")));
+    }
 }
 
 QTEST_GUILESS_MAIN(TestOllamaBackend)

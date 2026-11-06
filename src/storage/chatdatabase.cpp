@@ -45,7 +45,8 @@ void createTables(QSqlDatabase &database) {
                               "base_url TEXT NOT NULL DEFAULT '', "
                               "api_key TEXT NOT NULL DEFAULT '', "
                               "default_model TEXT NOT NULL DEFAULT '', "
-                              "enabled INTEGER NOT NULL DEFAULT 1)"));
+                              "enabled INTEGER NOT NULL DEFAULT 1, "
+                              "context_window INTEGER NOT NULL DEFAULT 8192)"));
     query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS settings ("
                               "key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL)"));
     query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS sessions ("
@@ -157,6 +158,10 @@ bool ChatDatabase::open(const QString &filePath) {
     addColumnIfMissing(m_database,
                        QStringLiteral("ALTER TABLE messages ADD COLUMN element_order TEXT "
                                       "NOT NULL DEFAULT ''"),
+                       m_lastError);
+    addColumnIfMissing(m_database,
+                       QStringLiteral("ALTER TABLE backends ADD COLUMN context_window INTEGER "
+                                      "NOT NULL DEFAULT 8192"),
                        m_lastError);
     return true;
 }
@@ -415,12 +420,14 @@ int ChatDatabase::messageCount(const QString &sessionId) const {
 
 void ChatDatabase::insertBackend(const BackendConfig &config) {
     execute(QStringLiteral("INSERT INTO backends (id, name, kind, base_url, api_key, "
-                           "default_model, enabled) VALUES (?, ?, ?, ?, ?, ?, ?) "
+                           "default_model, enabled, context_window) "
+                           "VALUES (?, ?, ?, ?, ?, ?, ?, ?) "
                            "ON CONFLICT (id) DO UPDATE SET name = excluded.name, "
                            "kind = excluded.kind, base_url = excluded.base_url, "
                            "api_key = excluded.api_key, "
                            "default_model = excluded.default_model, "
-                           "enabled = excluded.enabled"),
+                           "enabled = excluded.enabled, "
+                           "context_window = excluded.context_window"),
             {
                 config.id.toString(QUuid::WithoutBraces),
                 nullToEmpty(config.name),
@@ -429,6 +436,7 @@ void ChatDatabase::insertBackend(const BackendConfig &config) {
                 nullToEmpty(config.apiKey),
                 nullToEmpty(config.defaultModel),
                 config.enabled ? 1 : 0,
+                config.contextWindow,
             });
 }
 
@@ -444,7 +452,7 @@ QVector<BackendConfig> ChatDatabase::loadBackends() const {
     QVector<BackendConfig> result;
     QSqlQuery query(m_database);
     if (!query.exec(QStringLiteral("SELECT id, name, kind, base_url, api_key, default_model, "
-                                   "enabled FROM backends ORDER BY rowid ASC"))) {
+                                   "enabled, context_window FROM backends ORDER BY rowid ASC"))) {
         m_lastError = query.lastError().text();
         return result;
     }
@@ -461,6 +469,7 @@ QVector<BackendConfig> ChatDatabase::loadBackends() const {
         config.apiKey = query.value(4).toString();
         config.defaultModel = query.value(5).toString();
         config.enabled = query.value(6).toInt() != 0;
+        config.contextWindow = qMax(0, query.value(7).toInt());
         result.push_back(std::move(config));
     }
     return result;

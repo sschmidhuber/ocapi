@@ -73,6 +73,7 @@ void TestBackendConfig::defaultConstructedConfigIsEnabledWithUniqueId() {
     QVERIFY(!a.id.isNull());
     QVERIFY(a.id != b.id);
     QCOMPARE(a.kindName(), BackendConfig::kindName(a.kind));
+    QCOMPARE(a.contextWindow, 8192);
 }
 
 void TestBackendConfig::everyKindHasMatchingRoundTripName() {

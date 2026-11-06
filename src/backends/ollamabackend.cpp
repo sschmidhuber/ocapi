@@ -122,6 +122,16 @@ void OllamaBackend::sendMessage(ChatSession *session, const QString &model,
         {QStringLiteral("messages"), messages},
         {QStringLiteral("stream"), true},
     };
+    // Ollama's default context window (num_ctx, typically 4096) is far too
+    // small for a chat client: the system prompt, the full conversation
+    // history and every MCP tool definition are rendered into one prompt,
+    // and when it does not fit Ollama silently drops the oldest messages
+    // (ollama/ollama#5877, ollama/ollama#14259) — the model then answers
+    // without any knowledge of previous turns. Request the configured
+    // window explicitly; 0 keeps the server's default.
+    if (const int numCtx = m_config.contextWindow; numCtx > 0) {
+        payload.insert(QStringLiteral("options"), QJsonObject{{QStringLiteral("num_ctx"), numCtx}});
+    }
     if (m_toolsEnabled) {
         payload.insert(QStringLiteral("tools"), m_availableTools);
         payload.insert(QStringLiteral("tool_choice"), QStringLiteral("auto"));

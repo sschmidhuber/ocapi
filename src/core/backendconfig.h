@@ -28,6 +28,12 @@ struct BackendConfig {
     QString apiKey;
     QString defaultModel;
     bool enabled = true;
+    // Context window (Ollama's num_ctx) requested from the server. Ollama
+    // silently drops the oldest messages of a conversation when the rendered
+    // prompt (system prompt + history + tool definitions) exceeds the window,
+    // so a chat client must request a larger one than the server default.
+    // 0 keeps the server's default; ignored by backends without the concept.
+    int contextWindow = 8192;
 
     [[nodiscard]] static QString kindName(BackendKind kind);
     [[nodiscard]] static QString kindKey(BackendKind kind);

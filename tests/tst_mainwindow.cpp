@@ -9,8 +9,6 @@
 #include <QToolButton>
 #include <QtTest>
 
-#include <algorithm>
-
 using namespace ocapi;
 
 // MainWindow writes ocapi.conf/ocapi.sqlite under the app config/data dirs;
@@ -24,7 +22,6 @@ private slots:
     void toolCallFailureAppendsToolMessageWithoutCrashing();
     void keyboardShortcuts();
     void newChatFocusesInput();
-    void fullChatHistoryIsLoadedBeforeSending();
 
 private:
     QTemporaryDir m_home;
@@ -149,50 +146,6 @@ void TestMainWindow::newChatFocusesInput() {
     QTest::qWait(50); // focus is applied via a deferred singleShot(0)
     QWidget *focus = window.focusWidget();
     QVERIFY(focus && focus->accessibleName() == QStringLiteral("Message input"));
-}
-
-// Regression: a long chat is loaded into the session only page by page (the
-// last 50 messages) for the UI. When sending, the full history must be
-// loaded first, otherwise the model's context misses the older messages.
-void TestMainWindow::fullChatHistoryIsLoadedBeforeSending() {
-    constexpr int kStoredMessages = 60;
-    {
-        MainWindow window;
-        window.show();
-        auto &registry = window.registryForTest();
-        auto &backend = registry.add(QStringLiteral("Ollama"), BackendKind::Ollama);
-        registry.save();
-        ChatSession *session = window.currentSession();
-        QVERIFY(session);
-        session->setBackendId(backend.id.toString());
-        session->setModel(QStringLiteral("mock-model"));
-        for (int i = 0; i < kStoredMessages; ++i)
-            session->appendMessage(Role::User, QStringLiteral("q%1").arg(i));
-    }
-
-    // Reopen with the same (temp) config/data dir: only the last page is
-    // loaded from the database.
-    MainWindow window;
-    window.show();
-    ChatSession *session = window.currentSession();
-    QVERIFY(session);
-    QCOMPARE(session->messages().size(), 50);
-    session->setModel(QStringLiteral("mock-model"));
-
-    // The send itself fails (no server at the backend URL), which is fine:
-    // the history load happens synchronously before the request. The backend
-    // also appends the new (empty, streaming) assistant message synchronously.
-    window.sendTextForTest(QStringLiteral("hello"));
-    // + user msg + system prompt + the new (streaming) assistant message;
-    // use >= because a synchronously failing backend may add an error marker.
-    QVERIFY(session->messages().size() >= kStoredMessages + 3);
-    QCOMPARE(session->messages().constFirst().role, Role::System);
-    QVERIFY(!session->messages().constFirst().content.contains(QStringLiteral("{{")));
-    // Every stored message is in the session now.
-    for (int i = 0; i < kStoredMessages; ++i)
-        QVERIFY(std::ranges::any_of(session->messages(), [i](const Message &m) {
-            return m.content == QStringLiteral("q%1").arg(i);
-        }));
 }
 
 int main(int argc, char *argv[]) {

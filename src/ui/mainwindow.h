@@ -83,7 +83,6 @@ public:
     // registry (to seed backends in tests).
     [[nodiscard]] ChatSession *currentSession() const { return m_currentSession; }
     void startNewChat() { onNewChat(); }
-    void sendTextForTest(const QString &text) { onSend(text, {}, {}); }
     [[nodiscard]] BackendRegistry &registryForTest() { return m_registry; }
     // Simulates the backend requesting MCP tool calls on the current session.
     void simulateToolCallsForTest(const QVector<ToolCall> &calls) {
@@ -145,10 +144,6 @@ private:
     void configureTts();
     void loadMcpServersFromDatabase();
     void loadOlderMessages(ChatSession *session);
-    // Loads every stored message of the session that is not loaded yet, so
-    // the model receives the full chat history and not just the visible
-    // last page.
-    void ensureFullHistoryLoaded(ChatSession *session);
     void persistSession(ChatSession *session);
     void persistMessageForSession(ChatSession *session, const Message &message);
     // Re-persists an assistant message so its current tool calls (status and

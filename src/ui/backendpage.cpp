@@ -55,6 +55,11 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
     m_apiKeyEdit->setPlaceholderText(tr("API key"));
     m_enabledBox = new QCheckBox(tr("Enabled"), formWidget);
     m_enabledBox->setChecked(true);
+    m_toolsBox = new QCheckBox(tr("Offer MCP tools to the model"), formWidget);
+    m_toolsBox->setChecked(true);
+    m_toolsBox->setToolTip(tr("When disabled, no tool definitions are sent with the request. "
+                              "Some local models (e.g. qwen3.5 via Ollama) lose conversation "
+                              "history recall when tools are present."));
     m_testButton = new QPushButton(tr("Test connection"), formWidget);
     m_testResultLabel = new QLabel(formWidget);
     m_testResultLabel->setWordWrap(true);
@@ -67,6 +72,7 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
     formLayout->addRow(tr("Base URL:"), m_urlEdit);
     formLayout->addRow(tr("API key:"), m_apiKeyEdit);
     formLayout->addRow(m_enabledBox);
+    formLayout->addRow(m_toolsBox);
     formLayout->addRow(m_testButton);
     formLayout->addRow(m_testResultLabel);
 
@@ -102,6 +108,7 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
         connect(edit, &QLineEdit::textEdited, this, &BackendPage::onFieldEdited);
     }
     connect(m_enabledBox, &QCheckBox::toggled, this, &BackendPage::onFieldEdited);
+    connect(m_toolsBox, &QCheckBox::toggled, this, &BackendPage::onFieldEdited);
 
     populateList();
     if (!m_registry->backends().isEmpty())
@@ -159,6 +166,7 @@ void BackendPage::onSelectionChanged() {
     m_urlEdit->setEnabled(hasSelection);
     m_apiKeyEdit->setEnabled(hasSelection);
     m_enabledBox->setEnabled(hasSelection);
+    m_toolsBox->setEnabled(hasSelection);
     m_testButton->setEnabled(hasSelection);
     m_testResultLabel->clear();
     m_testResultLabel->hide();
@@ -275,6 +283,7 @@ void BackendPage::loadConfigIntoForm(const BackendConfig &config) {
     m_urlEdit->setText(config.baseUrl);
     m_apiKeyEdit->setText(config.apiKey);
     m_enabledBox->setChecked(config.enabled);
+    m_toolsBox->setChecked(config.toolsEnabled);
 }
 
 void BackendPage::saveFormIntoConfig(BackendConfig &config) {
@@ -287,6 +296,7 @@ void BackendPage::saveFormIntoConfig(BackendConfig &config) {
         config.baseUrl = BackendConfig::defaultBaseUrl(config.kind);
     config.apiKey = m_apiKeyEdit->text().trimmed();
     config.enabled = m_enabledBox->isChecked();
+    config.toolsEnabled = m_toolsBox->isChecked();
 }
 
 void BackendPage::updateUrlState() {
@@ -303,7 +313,7 @@ bool BackendPage::nameFollowsProvider(const QString &name) {
     // provider name (including the previous one).
     if (name.trimmed().isEmpty())
         return true;
-    const auto kinds = BackendConfig::allKinds();
+    const auto &kinds = BackendConfig::allKinds();
     return std::ranges::any_of(
         kinds, [&](BackendKind kind) { return name.trimmed() == BackendConfig::kindName(kind); });
 }

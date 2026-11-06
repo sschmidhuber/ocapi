@@ -29,6 +29,7 @@ private slots:
     void deleteSessionRemovesMessages();
     void updateSessionChangesMetadata();
     void backendRoundTrip();
+    void backendToolsEnabledDefaultsToTrue();
     void backendUpdateOverwritesEntry();
     void backendDeleteRemovesEntry();
     void messagePaginationReturnsLastPage();
@@ -241,6 +242,7 @@ void TestChatDatabase::backendRoundTrip() {
     config.apiKey = QStringLiteral("secret");
     config.defaultModel = QStringLiteral("llama3.2");
     config.enabled = false;
+    config.toolsEnabled = false;
     db().insertBackend(config);
     QVERIFY(!db().loadBackends().isEmpty());
     const auto loaded = db().loadBackends();
@@ -251,6 +253,17 @@ void TestChatDatabase::backendRoundTrip() {
     QCOMPARE(loaded.at(0).apiKey, QStringLiteral("secret"));
     QCOMPARE(loaded.at(0).defaultModel, QStringLiteral("llama3.2"));
     QVERIFY(!loaded.at(0).enabled);
+    QVERIFY(!loaded.at(0).toolsEnabled);
+}
+
+void TestChatDatabase::backendToolsEnabledDefaultsToTrue() {
+    BackendConfig config;
+    config.name = QStringLiteral("default tools");
+    config.kind = BackendKind::Ollama;
+    db().insertBackend(config);
+    const auto loaded = db().loadBackends();
+    QCOMPARE(loaded.size(), 1);
+    QVERIFY(loaded.at(0).toolsEnabled);
 }
 
 void TestChatDatabase::backendUpdateOverwritesEntry() {

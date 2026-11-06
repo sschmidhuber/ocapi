@@ -43,12 +43,19 @@ QJsonObject toOllamaMessage(const Message &message) {
             images.append(QString::fromLatin1(image.data.toBase64()));
         object.insert(QStringLiteral("images"), images);
     }
+    // Tool results must carry the tool name so Ollama can pair them with the
+    // assistant's tool_calls (see docs.ollama.com/capabilities/tool-calling).
+    if (message.role == Role::Tool && !message.toolName.isEmpty())
+        object.insert(QStringLiteral("tool_name"), message.toolName);
     if (message.role == Role::Assistant && message.hasToolCalls()) {
         QJsonArray toolCalls;
+        int index = 0;
         for (const auto &call : message.toolCalls) {
             toolCalls.append(QJsonObject{
+                {QStringLiteral("type"), QStringLiteral("function")},
                 {QStringLiteral("function"),
                  QJsonObject{
+                     {QStringLiteral("index"), index++},
                      {QStringLiteral("name"), call.name},
                      {QStringLiteral("arguments"), call.arguments},
                  }},
@@ -122,9 +129,11 @@ void OllamaBackend::sendMessage(ChatSession *session, const QString &model,
         {QStringLiteral("messages"), messages},
         {QStringLiteral("stream"), true},
     };
-    if (m_toolsEnabled) {
+    // Some local models (e.g. qwen3.5 on Ollama) lose conversation-history
+    // recall when tool definitions are present in the request, so tools are
+    // only sent when enabled for this backend.
+    if (m_toolsEnabled && m_config.toolsEnabled) {
         payload.insert(QStringLiteral("tools"), m_availableTools);
-        payload.insert(QStringLiteral("tool_choice"), QStringLiteral("auto"));
     }
 
     m_stream = std::make_unique<SseClient>(m_nam, this);

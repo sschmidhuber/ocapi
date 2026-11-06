@@ -102,8 +102,11 @@ private slots:
     void sendMessageEmitsToolCalls();
     void toolCallsIncludedInConversationHistory();
     void toolsSentOnlyWhenEnabled();
+    void toolsNotSentWhenDisabledForBackend();
+    void toolsMatchOllamaDocsFormat();
     void reasoningIsNotSentBackInConversationHistory();
     void sendMessageContinuesExistingAssistantMessage();
+    void fullConversationHistoryIsSentToModel();
 
 private:
     FakeOllamaServer m_server;
@@ -266,17 +269,97 @@ void TestOllamaBackend::toolCallsIncludedInConversationHistory() {
     const auto assistantMessage = messages.at(1).toObject();
     QVERIFY(assistantMessage.contains(QLatin1String("tool_calls")));
     const auto replayedCalls = assistantMessage.value(QLatin1String("tool_calls")).toArray();
-    QCOMPARE(replayedCalls.first()
-                 .toObject()
-                 .value(QLatin1String("function"))
-                 .toObject()
-                 .value(QLatin1String("name"))
-                 .toString(),
-             QStringLiteral("Mock MCP__echo"));
+    // Docs-compliant shape (docs.ollama.com/capabilities/tool-calling):
+    // {"type":"function","function":{"index":0,"name":...,"arguments":{...}}}
+    const auto replayedCall = replayedCalls.first().toObject();
+    QCOMPARE(replayedCall.value(QLatin1String("type")).toString(), QStringLiteral("function"));
+    const auto function = replayedCall.value(QLatin1String("function")).toObject();
+    QCOMPARE(function.value(QLatin1String("index")).toInt(), 0);
+    QCOMPARE(function.value(QLatin1String("name")).toString(), QStringLiteral("Mock MCP__echo"));
     const auto toolMessageJson = messages.at(2).toObject();
     QCOMPARE(toolMessageJson.value(QLatin1String("role")).toString(), QStringLiteral("tool"));
+    // Tool results must carry the tool name so Ollama can pair them with the
+    // assistant's tool_calls.
+    QCOMPARE(toolMessageJson.value(QLatin1String("tool_name")).toString(),
+             QStringLiteral("Mock MCP__echo"));
     QCOMPARE(toolMessageJson.value(QLatin1String("content")).toString(),
              QStringLiteral("echo: hi"));
+}
+
+// The tools array must match the documented Ollama format:
+// [{"type":"function","function":{"name","description","parameters"}}].
+void TestOllamaBackend::toolsMatchOllamaDocsFormat() {
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
+
+    OllamaBackend backend(ollamaConfig(m_server.port()));
+    const QJsonObject parameters{
+        {QStringLiteral("type"), QStringLiteral("object")},
+        {QStringLiteral("properties"), QJsonObject{}},
+        {QStringLiteral("required"), QJsonArray{}},
+    };
+    const QJsonObject function{
+        {QStringLiteral("name"), QStringLiteral("srv__echo")},
+        {QStringLiteral("description"), QStringLiteral("Echo")},
+        {QStringLiteral("parameters"), parameters},
+    };
+    const QJsonObject tool{
+        {QStringLiteral("type"), QStringLiteral("function")},
+        {QStringLiteral("function"), function},
+    };
+    backend.setAvailableTools(QJsonArray{tool});
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hi"));
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+
+    const auto sent = m_server.lastRequest().value(QLatin1String("tools")).toArray();
+    QCOMPARE(sent.size(), 1);
+    QCOMPARE(sent.first().toObject().value(QLatin1String("type")).toString(),
+             QStringLiteral("function"));
+    const auto fn = sent.first().toObject().value(QLatin1String("function")).toObject();
+    QCOMPARE(fn.value(QLatin1String("name")).toString(), QStringLiteral("srv__echo"));
+    QCOMPARE(fn.value(QLatin1String("description")).toString(), QStringLiteral("Echo"));
+    QVERIFY(fn.contains(QLatin1String("parameters")));
+    // The native Ollama payload must not carry OpenAI-only fields.
+    QVERIFY(!m_server.lastRequest().contains(QLatin1String("tool_choice")));
+}
+
+// Regression: every message of the chat history must end up in the request
+// payload (not just a recent window), in order.
+void TestOllamaBackend::fullConversationHistoryIsSentToModel() {
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
+
+    OllamaBackend backend(ollamaConfig(m_server.port()));
+    ChatSession session;
+    constexpr qsizetype kTurns = 60; // more than one UI page (50 messages)
+    for (qsizetype i = 0; i < kTurns; ++i) {
+        session.appendMessage(Role::User, QStringLiteral("question %1").arg(i));
+        session.appendMessage(Role::Assistant, QStringLiteral("answer %1").arg(i));
+    }
+
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+
+    const auto messages = m_server.lastRequest().value(QLatin1String("messages")).toArray();
+    // The new streaming assistant message is appended to the session but
+    // must be skipped in the request.
+    QCOMPARE(messages.size(), 2 * kTurns);
+    for (qsizetype i = 0; i < kTurns; ++i) {
+        QCOMPARE(messages.at(2 * i).toObject().value(QLatin1String("role")).toString(),
+                 QStringLiteral("user"));
+        QCOMPARE(messages.at(2 * i).toObject().value(QLatin1String("content")).toString(),
+                 QStringLiteral("question %1").arg(i));
+        QCOMPARE(messages.at((2 * i) + 1).toObject().value(QLatin1String("role")).toString(),
+                 QStringLiteral("assistant"));
+        QCOMPARE(messages.at((2 * i) + 1).toObject().value(QLatin1String("content")).toString(),
+                 QStringLiteral("answer %1").arg(i));
+    }
 }
 
 void TestOllamaBackend::toolsSentOnlyWhenEnabled() {
@@ -292,6 +375,31 @@ void TestOllamaBackend::toolsSentOnlyWhenEnabled() {
     backend.sendMessage(&session, QStringLiteral("mock-model"));
     QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
     QVERIFY(!m_server.lastRequest().contains(QLatin1String("tools")));
+}
+
+// Regression: when tool-offering is disabled for the backend, no tools must
+// be sent — some local models (e.g. qwen3.5 via /api/chat) lose conversation
+// history recall when tool definitions are present in the request.
+void TestOllamaBackend::toolsNotSentWhenDisabledForBackend() {
+    QVERIFY(m_server.start());
+    m_server.setStreamEvents(
+        {QStringLiteral(R"({"message":{"role":"assistant","content":"ok"},"done":true})")});
+
+    BackendConfig config = ollamaConfig(m_server.port());
+    config.toolsEnabled = false;
+    OllamaBackend backend(config);
+    QJsonArray tools;
+    tools.append(QJsonObject{{QStringLiteral("type"), QStringLiteral("function")},
+                             {QStringLiteral("function"),
+                              QJsonObject{{QStringLiteral("name"), QStringLiteral("srv__echo")}}}});
+    backend.setAvailableTools(tools);
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hello"));
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("mock-model"));
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+    QVERIFY(!m_server.lastRequest().contains(QLatin1String("tools")));
+    QVERIFY(!m_server.lastRequest().contains(QLatin1String("tool_choice")));
 }
 
 void TestOllamaBackend::reasoningIsNotSentBackInConversationHistory() {

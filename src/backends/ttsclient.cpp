@@ -99,7 +99,12 @@ QJsonObject speechPayload(const TtsServiceConfig &config, const QString &text) {
         if (!config.effectiveVoice().isEmpty())
             payload.insert(QStringLiteral("voice_id"), config.effectiveVoice());
     }
-    if (!config.language.trimmed().isEmpty())
+    // Only the generic OpenAI-compatible kind sends the optional language:
+    // none of the known speech APIs has a language field (Mistral rejects it
+    // with HTTP 422 "extra_forbidden"; OpenAI, Groq, ElevenLabs and Piper
+    // don't document one either -- the model infers the language from the
+    // text). A custom server's owner knows whether it accepts the field.
+    if (config.kind == TtsServiceKind::OpenAiTts && !config.language.trimmed().isEmpty())
         payload.insert(QStringLiteral("language"), config.language.trimmed());
     return payload;
 }

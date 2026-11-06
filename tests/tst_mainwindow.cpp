@@ -168,7 +168,7 @@ void TestMainWindow::ctrlTabCyclesChats() {
     oldest->setLastActivityAt(soon.addSecs(-100));
     middle->setLastActivityAt(soon.addSecs(-50));
     newest->setLastActivityAt(soon);
-    const int total = window.findChildren<ChatSession *>().size();
+    const int total = static_cast<int>(window.findChildren<ChatSession *>().size());
     QVERIFY(total >= 3);
 
     // Ctrl+Tab walks down the history: middle, oldest, then the leftovers,

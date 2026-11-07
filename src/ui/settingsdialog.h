@@ -12,21 +12,23 @@ namespace ocapi {
 class BackendRegistry;
 class McpManager;
 class McpRegistry;
+class ShortcutRegistry;
 class SttRegistry;
 class SystemPrompt;
 class TtsRegistry;
 
 // Settings dialog following the structure of KDE's KCM configuration
-// dialogs: the top-level categories (for example "Models" or "Tools")
-// are listed in a sidebar on the left, and each category shows its pages
-// (for example "LLM", "STT", "TTS", "MCP") as tabs on the right.
+// dialogs: the top-level categories (for example "Models", "Tools" or
+// "Shortcuts") are listed in a sidebar on the left, and each category shows
+// its pages (for example "LLM", "STT", "TTS", "MCP") as tabs on the right.
 class SettingsDialog : public QDialog {
     Q_OBJECT
 
 public:
     SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mcpRegistry,
                    McpManager *mcpManager, SttRegistry *sttRegistry, TtsRegistry *ttsRegistry,
-                   SystemPrompt *systemPrompt, QWidget *parent = nullptr);
+                   SystemPrompt *systemPrompt, ShortcutRegistry *shortcutRegistry,
+                   QWidget *parent = nullptr);
     ~SettingsDialog() override;
 
     // Selects the category ("models", "tools") and, if the category has

@@ -226,6 +226,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     loadSttSettingsFromDatabase();
     loadSystemPrompt();
     loadLastModels();
+    loadShortcuts();
 
     setupUi();
     setupConnections();
@@ -273,7 +274,7 @@ void MainWindow::setupUi() {
     // Widgets added via addWidget() don't inherit the toolbar's
     // toolButtonStyle; set it explicitly so icon and text both show.
     m_newChatButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    const QKeySequence newChatSequence(QStringLiteral("Ctrl+N"));
+    const QKeySequence newChatSequence = m_shortcuts.sequence(QStringLiteral("newChat"));
     m_newChatButton->setToolTip(
         tr("Start a new chat (%1)").arg(newChatSequence.toString(QKeySequence::NativeText)));
     m_settingsButton = new QToolButton(m_toolBar);
@@ -385,23 +386,9 @@ void MainWindow::setupUi() {
 
 void MainWindow::setupConnections() {
     connect(m_newChatButton, &QToolButton::clicked, this, &MainWindow::onNewChat);
-    auto *newChatShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+N")), this);
-    newChatShortcut->setContext(Qt::WindowShortcut);
-    connect(newChatShortcut, &QShortcut::activated, this, &MainWindow::onNewChat);
-    // F9 shows/hides the chat history sidebar, like the classic file-manager
-    // panels; Ctrl+Tab / Ctrl+Shift+Tab cycle through the chats in the
-    // sidebar's order (newest activity first), wrapping around at the ends.
-    auto *sidebarShortcut = new QShortcut(QKeySequence(Qt::Key_F9), this);
-    sidebarShortcut->setContext(Qt::WindowShortcut);
-    connect(sidebarShortcut, &QShortcut::activated, this,
-            [this]() { m_sidebar->setVisible(!m_sidebar->isVisible()); });
-    auto *nextChatShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Tab")), this);
-    nextChatShortcut->setContext(Qt::WindowShortcut);
-    connect(nextChatShortcut, &QShortcut::activated, this, [this]() { cycleChat(1); });
-    auto *previousChatShortcut =
-        new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+Tab")), this);
-    previousChatShortcut->setContext(Qt::WindowShortcut);
-    connect(previousChatShortcut, &QShortcut::activated, this, [this]() { cycleChat(-1); });
+    createWindowShortcuts();
+    m_composer->setDictateSequence(m_shortcuts.sequence(QStringLiteral("dictate")));
+    connect(&m_shortcuts, &ShortcutRegistry::changed, this, &MainWindow::reapplyShortcuts);
     connect(m_settingsButton, &QToolButton::clicked, this, [this] { openSettings(QString()); });
     connect(m_sidebar, &Sidebar::sessionSelected, this, &MainWindow::onSessionSelected);
     connect(m_sidebar, &Sidebar::sessionDeleteRequested, this,
@@ -640,9 +627,48 @@ void MainWindow::onSessionDeleteRequested(const QUuid &id) {
         updateEmptyState();
 }
 
+void MainWindow::createWindowShortcuts() {
+    // The sequences come from the shortcut registry so the user can rebind
+    // them in the settings; reapplyShortcuts() re-creates the shortcuts when
+    // the registry changes. The sidebar shortcut shows/hides the chat
+    // history, like the classic file-manager panels; the tab shortcuts cycle
+    // through the chats in the sidebar's order (newest activity first),
+    // wrapping around at the ends.
+    auto *newChatShortcut = new QShortcut(m_shortcuts.sequence(QStringLiteral("newChat")), this);
+    newChatShortcut->setContext(Qt::WindowShortcut);
+    connect(newChatShortcut, &QShortcut::activated, this, &MainWindow::onNewChat);
+    m_windowShortcuts.append(newChatShortcut);
+    auto *sidebarShortcut =
+        new QShortcut(m_shortcuts.sequence(QStringLiteral("toggleSidebar")), this);
+    sidebarShortcut->setContext(Qt::WindowShortcut);
+    connect(sidebarShortcut, &QShortcut::activated, this,
+            [this]() { m_sidebar->setVisible(!m_sidebar->isVisible()); });
+    m_windowShortcuts.append(sidebarShortcut);
+    auto *nextChatShortcut = new QShortcut(m_shortcuts.sequence(QStringLiteral("nextChat")), this);
+    nextChatShortcut->setContext(Qt::WindowShortcut);
+    connect(nextChatShortcut, &QShortcut::activated, this, [this]() { cycleChat(1); });
+    m_windowShortcuts.append(nextChatShortcut);
+    auto *previousChatShortcut =
+        new QShortcut(m_shortcuts.sequence(QStringLiteral("previousChat")), this);
+    previousChatShortcut->setContext(Qt::WindowShortcut);
+    connect(previousChatShortcut, &QShortcut::activated, this, [this]() { cycleChat(-1); });
+    m_windowShortcuts.append(previousChatShortcut);
+}
+
+void MainWindow::reapplyShortcuts() {
+    qDeleteAll(m_windowShortcuts);
+    m_windowShortcuts.clear();
+    createWindowShortcuts();
+    const QKeySequence newChatSequence = m_shortcuts.sequence(QStringLiteral("newChat"));
+    m_newChatButton->setToolTip(
+        tr("Start a new chat (%1)").arg(newChatSequence.toString(QKeySequence::NativeText)));
+    if (m_composer)
+        m_composer->setDictateSequence(m_shortcuts.sequence(QStringLiteral("dictate")));
+}
+
 void MainWindow::openSettings(const QString &pageId) {
     SettingsDialog dialog(&m_registry, &m_mcpRegistry, &m_mcpManager, &m_sttRegistry,
-                          &m_ttsRegistry, &m_systemPrompt, this);
+                          &m_ttsRegistry, &m_systemPrompt, &m_shortcuts, this);
     if (!pageId.isEmpty())
         dialog.selectPage(pageId);
     dialog.exec();
@@ -672,6 +698,13 @@ void MainWindow::loadTtsSettingsFromDatabase() {
     QDir().mkpath(configDir);
     QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
     m_ttsRegistry.loadSettings(settings);
+}
+
+void MainWindow::loadShortcuts() {
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir().mkpath(configDir);
+    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    m_shortcuts.load(settings);
 }
 
 void MainWindow::loadLastModels() {

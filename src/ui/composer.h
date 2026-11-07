@@ -4,6 +4,7 @@
 #include "core/message.h"
 #include "core/textextractor.h"
 
+#include <QKeySequence>
 #include <QPlainTextEdit>
 #include <QToolButton>
 #include <QUuid>
@@ -12,6 +13,7 @@
 
 class QHBoxLayout;
 class QMimeData;
+class QShortcut;
 
 class QToolButton;
 
@@ -70,6 +72,9 @@ public:
     // Dictation needs a configured speech-to-text service; hide the mic
     // button entirely while none is available.
     void setDictationAvailable(bool available);
+    // Rebinds the dictate shortcut (e.g. after the user changed it in the
+    // settings) and updates the mic button tooltip accordingly.
+    void setDictateSequence(const QKeySequence &sequence);
 
 signals:
     void sendRequested(const QString &text, const QVector<ocapi::ImageAttachment> &images,
@@ -94,6 +99,7 @@ private:
     MessageTextEdit *m_textEdit = nullptr;
     QToolButton *m_attachButton = nullptr;
     QToolButton *m_micButton = nullptr;
+    QShortcut *m_dictateShortcut = nullptr;
     bool m_dictationActive = false;
     bool m_dictationAvailable = true;
     int m_dictationStart = 0;

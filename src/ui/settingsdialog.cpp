@@ -3,11 +3,13 @@
 #include "core/backendregistry.h"
 #include "core/mcpmanager.h"
 #include "core/mcpregistry.h"
+#include "core/shortcutregistry.h"
 #include "core/sttregistry.h"
 #include "core/systemprompt.h"
 #include "core/ttsregistry.h"
 #include "ui/backendpage.h"
 #include "ui/mcppage.h"
+#include "ui/shortcutpage.h"
 #include "ui/sttpage.h"
 #include "ui/systempromptpage.h"
 #include "ui/ttspage.h"
@@ -26,7 +28,7 @@ namespace ocapi {
 SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mcpRegistry,
                                McpManager *mcpManager, SttRegistry *sttRegistry,
                                TtsRegistry *ttsRegistry, SystemPrompt *systemPrompt,
-                               QWidget *parent)
+                               ShortcutRegistry *shortcutRegistry, QWidget *parent)
     : QDialog(parent) {
     setWindowTitle(tr("Settings"));
     resize(880, 580);
@@ -52,6 +54,11 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
     addCategory(tr("Tools"), QStringLiteral("tools"),
                 QStringLiteral(":/resources/icons/tools.svg"));
     addTab(tr("MCP"), QStringLiteral("mcp"), new McpPage(mcpRegistry, mcpManager, m_stack));
+
+    addCategory(tr("Shortcuts"), QStringLiteral("shortcuts"),
+                QStringLiteral(":/resources/icons/keyboard.svg"));
+    addTab(tr("Shortcuts"), QStringLiteral("shortcuts"),
+           new ShortcutPage(shortcutRegistry, m_stack));
 
     splitter->addWidget(m_categories);
     splitter->addWidget(m_stack);

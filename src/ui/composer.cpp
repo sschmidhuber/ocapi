@@ -226,12 +226,20 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
             return;
         emit dictationRequested();
     });
-    auto *dictateShortcut = new QShortcut(dictateSequence, this);
-    dictateShortcut->setContext(Qt::WindowShortcut);
-    connect(dictateShortcut, &QShortcut::activated, this, [this]() {
+    m_dictateShortcut = new QShortcut(dictateSequence, this);
+    m_dictateShortcut->setContext(Qt::WindowShortcut);
+    connect(m_dictateShortcut, &QShortcut::activated, this, [this]() {
         if (m_dictationAvailable && !m_busy)
             emit dictationRequested();
     });
+}
+
+void Composer::setDictateSequence(const QKeySequence &sequence) {
+    if (!m_dictateShortcut)
+        return;
+    m_dictateShortcut->setKeySequence(sequence);
+    m_micButton->setToolTip(tr("Dictate message (speech-to-text) (%1)")
+                                .arg(sequence.toString(QKeySequence::NativeText)));
 }
 
 void Composer::setDictationAvailable(bool available) {

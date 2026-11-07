@@ -1,15 +1,18 @@
 #include "core/backendregistry.h"
 #include "core/mcpmanager.h"
 #include "core/mcpregistry.h"
+#include "core/shortcutregistry.h"
 #include "core/sttregistry.h"
 #include "core/systemprompt.h"
 #include "core/ttsregistry.h"
 #include "ui/settingsdialog.h"
 
 #include <QApplication>
+#include <QKeySequence>
 #include <QListWidget>
 #include <QStackedWidget>
 #include <QTabWidget>
+#include <QTableWidget>
 #include <QtTest>
 
 #include <memory>
@@ -38,6 +41,7 @@ class TestSettingsDialog : public QObject {
 private slots:
     void categoriesAreTopLevelItems();
     void pagesAreTabsOfTheirCategory();
+    void shortcutsPageListsAllActions();
     void selectPageSelectsCategoryAndTab();
 
 private:
@@ -51,24 +55,25 @@ SettingsDialog *TestSettingsDialog::makeDialog() {
     SttRegistry sttRegistry;
     TtsRegistry ttsRegistry;
     SystemPrompt systemPrompt;
+    ShortcutRegistry shortcutRegistry;
     return new SettingsDialog(&backends, &mcpRegistry, &mcpManager, &sttRegistry, &ttsRegistry,
-                              &systemPrompt);
+                              &systemPrompt, &shortcutRegistry);
 }
 
 void TestSettingsDialog::categoriesAreTopLevelItems() {
     std::unique_ptr<SettingsDialog> dialog(makeDialog());
     auto *list = categoriesList(*dialog);
     QVERIFY(list);
-    QCOMPARE(list->count(), 3);
+    QCOMPARE(list->count(), 4);
     QCOMPARE(list->item(0)->text(), QStringLiteral("General"));
     QCOMPARE(list->item(1)->text(), QStringLiteral("Models"));
     QCOMPARE(list->item(2)->text(), QStringLiteral("Tools"));
+    QCOMPARE(list->item(3)->text(), QStringLiteral("Shortcuts"));
 
     // Each category carries its themed icon with the bundled SVG fallback,
     // so it renders even without an icon theme providing the name.
-    QVERIFY(!list->item(0)->icon().isNull());
-    QVERIFY(!list->item(1)->icon().isNull());
-    QVERIFY(!list->item(2)->icon().isNull());
+    for (int i = 0; i < list->count(); ++i)
+        QVERIFY(!list->item(i)->icon().isNull());
 }
 
 void TestSettingsDialog::pagesAreTabsOfTheirCategory() {
@@ -76,9 +81,11 @@ void TestSettingsDialog::pagesAreTabsOfTheirCategory() {
     auto *generalTabs = tabsOf(*dialog, 0);
     auto *modelsTabs = tabsOf(*dialog, 1);
     auto *toolsTabs = tabsOf(*dialog, 2);
+    auto *shortcutsTabs = tabsOf(*dialog, 3);
     QVERIFY(generalTabs);
     QVERIFY(modelsTabs);
     QVERIFY(toolsTabs);
+    QVERIFY(shortcutsTabs);
 
     QCOMPARE(generalTabs->count(), 1);
     QCOMPARE(generalTabs->tabText(0), QStringLiteral("System Prompt"));
@@ -90,6 +97,28 @@ void TestSettingsDialog::pagesAreTabsOfTheirCategory() {
 
     QCOMPARE(toolsTabs->count(), 1);
     QCOMPARE(toolsTabs->tabText(0), QStringLiteral("MCP"));
+
+    QCOMPARE(shortcutsTabs->count(), 1);
+    QCOMPARE(shortcutsTabs->tabText(0), QStringLiteral("Shortcuts"));
+}
+
+void TestSettingsDialog::shortcutsPageListsAllActions() {
+    std::unique_ptr<SettingsDialog> dialog(makeDialog());
+    // Scope the lookup to the shortcuts tab: other pages (e.g. MCP) have
+    // tables of their own.
+    auto *shortcutsTabs = tabsOf(*dialog, 3);
+    QVERIFY(shortcutsTabs);
+    auto *table = shortcutsTabs->widget(0)->findChild<QTableWidget *>();
+    QVERIFY(table);
+    QCOMPARE(table->columnCount(), 2);
+    QCOMPARE(table->horizontalHeaderItem(0)->text(), QStringLiteral("Action"));
+    QCOMPARE(table->horizontalHeaderItem(1)->text(), QStringLiteral("Shortcut"));
+    QCOMPARE(table->rowCount(), static_cast<int>(ShortcutRegistry::actions().size()));
+    // The first row shows the first action with its default shortcut.
+    const auto first = ShortcutRegistry::actions().constFirst();
+    QCOMPARE(table->item(0, 0)->text(), first.description);
+    QCOMPARE(table->item(0, 0)->data(Qt::UserRole).toString(), first.id);
+    QCOMPARE(table->item(0, 1)->text(), first.defaultSequence.toString(QKeySequence::NativeText));
 }
 
 void TestSettingsDialog::selectPageSelectsCategoryAndTab() {
@@ -98,10 +127,15 @@ void TestSettingsDialog::selectPageSelectsCategoryAndTab() {
     auto *generalTabs = tabsOf(*dialog, 0);
     auto *modelsTabs = tabsOf(*dialog, 1);
     auto *toolsTabs = tabsOf(*dialog, 2);
+    auto *shortcutsTabs = tabsOf(*dialog, 3);
 
     dialog->selectPage(QStringLiteral("tools/mcp"));
     QCOMPARE(list->currentRow(), 2);
     QCOMPARE(toolsTabs->currentIndex(), 0);
+
+    dialog->selectPage(QStringLiteral("shortcuts/shortcuts"));
+    QCOMPARE(list->currentRow(), 3);
+    QCOMPARE(shortcutsTabs->currentIndex(), 0);
 
     dialog->selectPage(QStringLiteral("general/systemprompt"));
     QCOMPARE(list->currentRow(), 0);

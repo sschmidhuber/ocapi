@@ -149,6 +149,9 @@ private:
     // Re-creates the window shortcuts and the composer's dictate shortcut
     // from the current registry state and refreshes the tooltips.
     void reapplyShortcuts();
+    // Wires the composer splitter (drag to resize, persist) and the
+    // attachment-driven growth of the composer column.
+    void setupComposerSplitter();
     // Sizes the composer column to the persisted base height plus the
     // attachment strip (chat area shrinks to make room for thumbnails).
     void applyComposerHeight();

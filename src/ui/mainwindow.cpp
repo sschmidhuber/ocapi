@@ -409,13 +409,7 @@ void MainWindow::setupConnections() {
     connect(&m_uiSettings, &UiSettings::changed, this,
             [this]() { m_chatView->setShowThroughput(m_uiSettings.showThroughput()); });
     connect(m_settingsButton, &QToolButton::clicked, this, [this] { openSettings(QString()); });
-    connect(m_rightSplitter, &QSplitter::splitterMoved, this, &MainWindow::onComposerSplitterMoved);
-    // Attachments grow the composer column (chat area shrinks) while the
-    // text input keeps its height.
-    connect(m_composer, &Composer::attachmentsChanged, this, [this]() {
-        // Defer until the layouts have settled, so the strip height is final.
-        QTimer::singleShot(0, this, [this]() { applyComposerHeight(); });
-    });
+    setupComposerSplitter();
     connect(m_sidebar, &Sidebar::sessionSelected, this, &MainWindow::onSessionSelected);
     connect(m_sidebar, &Sidebar::sessionDeleteRequested, this,
             &MainWindow::onSessionDeleteRequested);
@@ -703,6 +697,16 @@ void MainWindow::deleteSession(const QUuid &id) {
         onSessionSelected(m_sessions.first()->id());
     else
         updateEmptyState();
+}
+
+void MainWindow::setupComposerSplitter() {
+    connect(m_rightSplitter, &QSplitter::splitterMoved, this, &MainWindow::onComposerSplitterMoved);
+    // Attachments grow the composer column (chat area shrinks) while the
+    // text input keeps its height.
+    connect(m_composer, &Composer::attachmentsChanged, this, [this]() {
+        // Defer until the layouts have settled, so the strip height is final.
+        QTimer::singleShot(0, this, [this]() { applyComposerHeight(); });
+    });
 }
 
 void MainWindow::applyComposerHeight() {

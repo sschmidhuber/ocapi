@@ -28,6 +28,12 @@ the Linux accessibility API, never through pixel comparison.
    model, and the final answer (quoting the tool result) appears in the chat.
    This drives the complete agent loop: tool advertisement, model tool call,
    MCP execution, result feedback and the model's follow-up.
+6. **Shortcut configuration** — *Settings → Shortcuts* lists the actions with
+   their default shortcuts; changing "New chat" to another key updates the
+   table, persists the override to `ocapi.conf` (`[shortcuts]` group) and
+   takes effect immediately (pressing the new key starts a new chat). The
+   driver synthesizes real key events for special keys only (no modifier
+   chords), so the test binds a plain special key ("End").
 
 Popup menus (Settings… → Model backends, the model picker menu) cannot be driven with this stack:
 Qt excludes `Qt::Popup` windows such as `QMenu` from the AT-SPI

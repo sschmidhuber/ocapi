@@ -237,7 +237,7 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
 void Composer::setDictateSequence(const QKeySequence &sequence) {
     if (!m_dictateShortcut)
         return;
-    m_dictateShortcut->setKeySequence(sequence);
+    m_dictateShortcut->setKey(sequence);
     m_micButton->setToolTip(tr("Dictate message (speech-to-text) (%1)")
                                 .arg(sequence.toString(QKeySequence::NativeText)));
 }

@@ -2,6 +2,8 @@
 
 #include <QSettings>
 
+#include <algorithm>
+
 namespace ocapi {
 
 namespace {
@@ -9,12 +11,9 @@ namespace {
 constexpr auto kGroup = "shortcuts";
 
 bool isKnownAction(const QString &actionId) {
-    const auto all = ShortcutRegistry::actions();
-    for (const auto &action : all) {
-        if (action.id == actionId)
-            return true;
-    }
-    return false;
+    return std::ranges::any_of(
+        ShortcutRegistry::actions(),
+        [&actionId](const ShortcutAction &action) { return action.id == actionId; });
 }
 
 } // namespace
@@ -23,12 +22,21 @@ ShortcutRegistry::ShortcutRegistry(QObject *parent) : QObject(parent) {}
 
 QVector<ShortcutAction> ShortcutRegistry::actions() {
     return {
-        {QStringLiteral("newChat"), tr("New chat"), QKeySequence(QStringLiteral("Ctrl+N"))},
-        {QStringLiteral("toggleSidebar"), tr("Show/hide chat history"), QKeySequence(Qt::Key_F9)},
-        {QStringLiteral("nextChat"), tr("Next chat"), QKeySequence(QStringLiteral("Ctrl+Tab"))},
-        {QStringLiteral("previousChat"), tr("Previous chat"),
-         QKeySequence(QStringLiteral("Ctrl+Shift+Tab"))},
-        {QStringLiteral("dictate"), tr("Dictate message"), QKeySequence(QStringLiteral("Ctrl+."))},
+        {.id = QStringLiteral("newChat"),
+         .description = tr("New chat"),
+         .defaultSequence = QKeySequence(QStringLiteral("Ctrl+N"))},
+        {.id = QStringLiteral("toggleSidebar"),
+         .description = tr("Show/hide chat history"),
+         .defaultSequence = QKeySequence(Qt::Key_F9)},
+        {.id = QStringLiteral("nextChat"),
+         .description = tr("Next chat"),
+         .defaultSequence = QKeySequence(QStringLiteral("Ctrl+Tab"))},
+        {.id = QStringLiteral("previousChat"),
+         .description = tr("Previous chat"),
+         .defaultSequence = QKeySequence(QStringLiteral("Ctrl+Shift+Tab"))},
+        {.id = QStringLiteral("dictate"),
+         .description = tr("Dictate message"),
+         .defaultSequence = QKeySequence(QStringLiteral("Ctrl+."))},
     };
 }
 

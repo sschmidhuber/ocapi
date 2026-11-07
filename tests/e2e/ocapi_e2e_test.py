@@ -20,6 +20,9 @@
 #   4. the seeded mock MCP server connects, and a chat drives a full tool
 #      round-trip: the model requests the tool, ocapi runs it on the mock
 #      MCP server, feeds the result back and the model's answer appears
+#   5. a keyboard shortcut can be changed via Settings > Shortcuts: the new
+#      sequence shows in the table, is persisted to ocapi.conf and takes
+#      effect immediately (pressing it starts a new chat)
 #
 # Note on menus: Qt excludes Qt::Popup windows (QMenu) from the AT-SPI
 # application tree (QAccessibleApplication::topLevelObjects), so popup
@@ -187,6 +190,59 @@ class OcapiE2E(unittest.TestCase):
         self.find_by_name("Send").click()
 
         self.wait_for(f"//*[contains(@name, '{DOUBLE_TOOL_REPLY_TEXT}')]", timeout=60)
+
+    def _count_new_chat_items(self):
+        # Sidebar entries of chats still titled "New chat" (tree items).
+        return len(
+            self.driver.find_elements(by=AppiumBy.XPATH, value="//tree_item[@name='New chat']")
+        )
+
+    def test_07_change_shortcut(self):
+        # Open Settings and select the Shortcuts category; the table lists
+        # the actions with their default shortcuts.
+        self.find_by_name("Settings").click()
+        self.wait_for("//dialog[@name='Settings']//list_item[@name='Shortcuts']").click()
+        self.wait_for("//dialog[@name='Settings']//table_cell[@name='New chat']")
+        self.wait_for("//dialog[@name='Settings']//table_cell[@name='Ctrl+N']")
+
+        # Select the "New chat" row and capture a new shortcut. The driver
+        # synthesizes real key events for special keys; End (\ue010) is one
+        # of the mappable ones, and modifier chords are not supported.
+        self.find_by_xpath("//dialog[@name='Settings']//table_cell[@name='New chat']").click()
+        self.wait_for(
+            "//dialog[@name='Settings']//push_button[@name='Edit Shortcut\u2026']"
+        ).click()
+        key_edit = self.wait_for("//dialog[@name='Set Shortcut']//text")
+        key_edit.send_keys("\ue010")
+        self.wait_for("//dialog[@name='Set Shortcut']//push_button[@name='OK']").click()
+
+        # The table shows the new shortcut for "New chat" right away.
+        self.wait_for("//dialog[@name='Settings']//table_cell[@name='End']")
+
+        # The override is persisted to ocapi.conf (group "shortcuts").
+        self.wait_for("//dialog[@name='Settings']//push_button[@name='Close']").click()
+        config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+        conf_path = os.path.join(config_home, "sschmidhuber", "ocapi", "ocapi.conf")
+        with open(conf_path, encoding="utf-8") as conf_file:
+            conf = conf_file.read()
+        self.assertIn("[shortcuts]", conf)
+        self.assertRegex(conf, r"(?m)^newChat=End$")
+
+        # The new shortcut is live without a restart: pressing End now starts
+        # a new chat (another "New chat" entry appears in the sidebar tree).
+        before = self._count_new_chat_items()
+
+        def new_chat_appeared(d):
+            return (
+                len(d.find_elements(by=AppiumBy.XPATH, value="//tree_item[@name='New chat']"))
+                > before
+            )
+
+        composer = self.find_by_name("Message input")
+        composer.send_keys("\ue010")
+        WebDriverWait(
+            self.driver, 10, ignored_exceptions=(NoSuchElementException, WebDriverException)
+        ).until(new_chat_appeared)
 
     def test_06_new_chat_keeps_backend_and_model(self):
         # Two mock backends are seeded and the picker starts on the first one

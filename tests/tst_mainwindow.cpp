@@ -426,13 +426,15 @@ void TestMainWindow::editMessageTruncatesHistoryOnSend() {
     session->setBackendId(ollama.id.toString());
     session->setModel(QStringLiteral("mock-model"));
 
-    auto &userMsg = session->appendMessage(Role::User, QStringLiteral("original question"));
+    // Store the id by value: the messages vector reallocates on append.
+    const QUuid userMsgId =
+        session->appendMessage(Role::User, QStringLiteral("original question")).id;
     session->appendMessage(Role::Assistant, QStringLiteral("old answer"));
     session->appendMessage(Role::User, QStringLiteral("follow up"));
     QCOMPARE(session->messages().size(), 3);
 
     // Clicking the edit button loads the message into the composer.
-    window.startEditMessageForTest(userMsg.id);
+    window.startEditMessageForTest(userMsgId);
     QVERIFY(window.isEditingMessageForTest());
 
     // Send the edited version: the old tail is gone, the new user message is

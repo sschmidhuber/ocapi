@@ -208,19 +208,19 @@ class OcapiE2E(unittest.TestCase):
         # Select the "New chat" row and capture a new shortcut. The driver
         # synthesizes real key events for special keys; End (\ue010) is one
         # of the mappable ones, and modifier chords are not supported.
+        # Button lookups stay tag-agnostic: newer at-spi exposes push buttons
+        # with the role name "button", not "push button".
         self.find_by_xpath("//dialog[@name='Settings']//table_cell[@name='New chat']").click()
-        self.wait_for(
-            "//dialog[@name='Settings']//push_button[@name='Edit Shortcut\u2026']"
-        ).click()
+        self.wait_for("//dialog[@name='Settings']//*[contains(@name, 'Edit Shortcut')]").click()
         key_edit = self.wait_for("//dialog[@name='Set Shortcut']//text")
         key_edit.send_keys("\ue010")
-        self.wait_for("//dialog[@name='Set Shortcut']//push_button[@name='OK']").click()
+        self.wait_for("//dialog[@name='Set Shortcut']//*[@name='OK']").click()
 
         # The table shows the new shortcut for "New chat" right away.
         self.wait_for("//dialog[@name='Settings']//table_cell[@name='End']")
 
         # The override is persisted to ocapi.conf (group "shortcuts").
-        self.wait_for("//dialog[@name='Settings']//push_button[@name='Close']").click()
+        self.wait_for("//dialog[@name='Settings']//*[@name='Close']").click()
         config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
         conf_path = os.path.join(config_home, "sschmidhuber", "ocapi", "ocapi.conf")
         with open(conf_path, encoding="utf-8") as conf_file:

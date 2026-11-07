@@ -607,6 +607,7 @@
         tokensPerSecond,
       ) {
         let el = document.getElementById('msg-' + id);
+        const isNewElement = !el;
         if (!el) {
           el = document.createElement('div');
           el.id = 'msg-' + id;
@@ -665,7 +666,6 @@
           el.remove();
         }
         el.dataset.raw = content;
-        const wasStreaming = el.dataset.streaming === 'true';
         const body = el.querySelector('.body');
         if (role === 'user') {
           body.textContent = content;
@@ -712,14 +712,20 @@
         // A user message (re-)engages the automatic scrolling: sending a
         // message implies the user wants to watch this turn.
         if (role === 'user') autoScroll = true;
-        // An answer that just finished keeps the view where the capped
-        // auto-scroll left it (the Move to Bottom button leads down);
-        // jumping to the end here would defeat the cap. History loads and
-        // messages that never streamed still scroll fully into view.
-        if (role === 'assistant' && wasStreaming && !streaming) {
-          updateJumpButton();
-        } else {
+        // Scroll only for user messages, freshly created elements (history
+        // loads and session renders should end at the bottom) and while an
+        // answer streams (capped at the last user message). A live
+        // non-streaming update of an already rendered message — stream
+        // finish, throughput or tool-call status change — must NOT move the
+        // view: it stays at the capped auto-scroll position until the user
+        // scrolls manually or presses "Move to bottom". Hidden rows
+        // (tool/system) never affect the scroll position.
+        if (role === 'tool' || role === 'system') {
+          // Hidden rows never scroll.
+        } else if (role === 'user' || isNewElement || streaming) {
           followContent(streaming);
+        } else {
+          updateJumpButton();
         }
       }
 

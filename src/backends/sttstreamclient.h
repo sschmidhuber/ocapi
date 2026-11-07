@@ -48,6 +48,7 @@ private:
     void onErrorOccurred();
     [[nodiscard]] QUrl sessionUrl() const;
     [[nodiscard]] QByteArray sessionUpdateJson(int sampleRate) const;
+    void sendAudioAppend(const QByteArray &pcm);
     void emitAccumulated();
 
     SttServiceConfig m_config;
@@ -56,6 +57,13 @@ private:
     int m_sampleRate = 16000;
     bool m_closing = false;
     bool m_failed = false;
+    // Mistral's realtime endpoint rejects session-field changes once audio
+    // has started ("Session fields other than context_bias cannot be changed
+    // after audio has started"), so audio is buffered until the session
+    // handshake applied the settings (session.update sent after
+    // session.created; websocket order guarantees it arrives before audio).
+    bool m_audioBuffered = false;
+    QByteArray m_pendingAudio;
     // True once the final transcript was emitted; the disconnect handler
     // must not emit it a second time (duplicated dictated text).
     bool m_finalEmitted = false;

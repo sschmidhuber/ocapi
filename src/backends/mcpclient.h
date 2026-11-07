@@ -139,6 +139,7 @@ private:
     QProcess *m_process = nullptr;
     QNetworkReply *m_streamReply = nullptr; // legacy SSE event stream (GET)
     QByteArray m_stdioBuffer;
+    QByteArray m_stderrBuffer;
     QString m_sseSessionId;
 
     QHash<QString, PendingCall> m_pending;        // request id -> call

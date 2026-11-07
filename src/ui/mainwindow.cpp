@@ -1159,10 +1159,21 @@ double MainWindow::throughputFor(StreamContext *context, const QUuid &messageId)
 
 void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &images,
                         const QVector<FileAttachment> &files) {
-    if (!m_currentSession || contextFor(m_currentSession))
+    if (!m_currentSession)
         return;
     if (text.isEmpty() && images.isEmpty() && files.isEmpty())
         return;
+    if (contextFor(m_currentSession)) {
+        // A turn is still running: the composer stays editable while
+        // streaming, so queue the follow-up and send it when the current
+        // turn finishes.
+        m_pendingMessages.append({.text = text, .images = images, .files = files});
+        m_composer->clearText();
+        m_composer->clearAttachments();
+        statusBar()->showMessage(tr("Queued — will be sent when the current response finishes."),
+                                 5000);
+        return;
+    }
 
     const QString backendId = m_currentSession->backendId();
     auto *config = m_registry.find(backendId);
@@ -1237,8 +1248,28 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
 
 void MainWindow::onStop() {
     m_ttsPlayer.stop();
-    if (StreamContext *context = contextFor(m_currentSession))
-        context->backend->cancel();
+    StreamContext *context = contextFor(m_currentSession);
+    if (!context)
+        return;
+    context->backend->cancel();
+    // Do not rely on the backend emitting finished/failed after cancel():
+    // end the turn right away, otherwise the sidebar spinner keeps running
+    // and the Stop button never turns back into Send. The streamed message
+    // keeps its partial content and is marked finished.
+    if (!context->streamedMessageId.isNull()) {
+        const QString content = messageContent(context, context->streamedMessageId);
+        context->session->updateMessage(context->streamedMessageId, content, false);
+        context->session->setReasoningStreaming(context->streamedMessageId, false);
+    }
+    context->runningTools = false;
+    finalizeContext(context, tr("Stopped"));
+}
+
+void MainWindow::sendPendingIfIdle() {
+    if (!m_currentSession || contextFor(m_currentSession) || m_pendingMessages.isEmpty())
+        return;
+    const PendingMessage next = m_pendingMessages.takeFirst();
+    onSend(next.text, next.images, next.files);
 }
 
 void MainWindow::connectContext(StreamContext *context) {
@@ -1428,6 +1459,8 @@ void MainWindow::destroyContext(StreamContext *context) {
         context->backend->cancel();
     delete context;
     updateStreamingUi();
+    // A queued follow-up message can go out now that the turn is over.
+    sendPendingIfIdle();
 }
 
 void MainWindow::cancelContext(ChatSession *session) {

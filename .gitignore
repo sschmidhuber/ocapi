@@ -46,6 +46,10 @@ build-*/
 # Package build output
 dist/
 
+# Flatpak build state and temp dirs
+.flatpak-builder/
+.flatpak-work.*/
+
 # CMake generated files
 CMakeFiles/
 CMakeCache.txt

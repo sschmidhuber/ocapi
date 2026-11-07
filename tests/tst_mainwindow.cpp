@@ -437,13 +437,22 @@ void TestMainWindow::editMessageTruncatesHistoryOnSend() {
     window.startEditMessageForTest(userMsgId);
     QVERIFY(window.isEditingMessageForTest());
 
-    // Send the edited version: the old tail is gone, the new user message is
-    // the only one left.
+    // Send the edited version: the old tail is gone (the remaining messages
+    // are at most the system prompt, the new user message and the backend's
+    // empty assistant placeholder).
     window.sendTextForTest(QStringLiteral("edited question"));
     QVERIFY(!window.isEditingMessageForTest());
-    QCOMPARE(session->messages().size(), 1);
-    QCOMPARE(session->messages().first().role, Role::User);
-    QCOMPARE(session->messages().first().content, QStringLiteral("edited question"));
+    int userMessages = 0;
+    for (const auto &message : session->messages()) {
+        QVERIFY(!message.content.contains(QStringLiteral("old answer")));
+        QVERIFY(!message.content.contains(QStringLiteral("follow up")));
+        QVERIFY(!message.content.contains(QStringLiteral("original question")));
+        if (message.role == Role::User) {
+            ++userMessages;
+            QCOMPARE(message.content, QStringLiteral("edited question"));
+        }
+    }
+    QCOMPARE(userMessages, 1);
 }
 
 int main(int argc, char *argv[]) {

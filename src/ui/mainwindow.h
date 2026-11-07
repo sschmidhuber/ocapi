@@ -93,6 +93,8 @@ public:
     void startNewChat() { onNewChat(); }
     [[nodiscard]] BackendRegistry &registryForTest() { return m_registry; }
     [[nodiscard]] ShortcutRegistry &shortcutsForTest() { return m_shortcuts; }
+    void requestDeleteSessionsForTest(const QList<QUuid> &ids) { onSessionDeleteRequested(ids); }
+    void markUnreadForTest(const QUuid &id) { m_unreadSessions.insert(id); }
     // Simulates the backend requesting MCP tool calls on the current session.
     void simulateToolCallsForTest(const QVector<ToolCall> &calls) {
         if (!m_currentSession)
@@ -106,7 +108,9 @@ protected:
 private slots:
     void onNewChat();
     void onSessionSelected(const QUuid &id);
-    void onSessionDeleteRequested(const QUuid &id);
+    // Deletes the given chats; asks for confirmation when there are several.
+    // Running and unread chats are never deleted.
+    void onSessionDeleteRequested(const QList<QUuid> &ids);
     // Selects the next (direction 1) or previous (direction -1) chat of the
     // history in the sidebar's order, wrapping around at both ends.
     void cycleChat(int direction);
@@ -143,6 +147,7 @@ private:
     void onStreamFinished(StreamContext *context, const QUuid &messageId);
     void onStreamFailed(StreamContext *context, const QUuid &messageId, const QString &error);
     void createSession(const QString &backendId = {}, const QString &model = {});
+    void deleteSession(const QUuid &id);
     void refreshSidebar();
     void refreshBackendSelector();
     // Previously detected models for one backend (plus the persisted

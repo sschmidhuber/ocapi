@@ -2,13 +2,16 @@
 #include "core/chatsession.h"
 #include "core/sessiongrouper.h"
 
+#include <QApplication>
 #include <QHeaderView>
 #include <QIcon>
 #include <QIconEngine>
+#include <QKeySequence>
 #include <QMap>
 #include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
+#include <QShortcut>
 #include <QTimer>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -95,22 +98,41 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent), m_tree(new QTreeWidget(this
     m_tree->setHeaderHidden(true);
     m_tree->setRootIsDecorated(true);
     m_tree->setIndentation(12);
+    // Multi-selection: Ctrl+click adds items, Shift+click selects a range,
+    // group headers are selectable like chats.
+    m_tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_tree->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
 
     connect(m_tree, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem *item) {
         if (!item || item->data(0, kIsGroupRole).toBool())
             return;
+        // Ctrl/Shift+click only extends the selection (for multi-delete); it
+        // must not switch the visible chat.
+        if (QApplication::keyboardModifiers() & (Qt::ControlModifier | Qt::ShiftModifier))
+            return;
         emit sessionSelected(QUuid(item->data(0, kSessionIdRole).toString()));
     });
     connect(m_tree, &QTreeWidget::customContextMenuRequested, this, [this](const QPoint &pos) {
         auto *item = m_tree->itemAt(pos);
-        if (!item || item->data(0, kIsGroupRole).toBool())
+        if (!item)
             return;
+        // Right-clicking an item outside the selection selects only that
+        // item; right-clicking a selected item keeps the multi-selection.
+        if (!item->isSelected())
+            m_tree->setCurrentItem(item);
         QMenu menu(this);
-        const QAction *deleteAction = menu.addAction(tr("Delete chat"));
+        auto *deleteAction = menu.addAction(tr("Delete chat"));
+        const QList<QUuid> deletable = deletableSelectedSessionIds();
+        // Running and unread chats can never be deleted.
+        deleteAction->setEnabled(!deletable.isEmpty());
         if (menu.exec(m_tree->viewport()->mapToGlobal(pos)) == deleteAction)
-            emit sessionDeleteRequested(QUuid(item->data(0, kSessionIdRole).toString()));
+            emit sessionDeleteRequested(deletable);
     });
+    // The Delete key removes the selected chats while the tree has focus.
+    auto *deleteShortcut = new QShortcut(QKeySequence(Qt::Key_Delete), m_tree);
+    deleteShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(deleteShortcut, &QShortcut::activated, this, &Sidebar::requestDeleteSelected);
 }
 
 void Sidebar::setSessions(const QVector<ChatSession *> &sessions) {
@@ -170,6 +192,37 @@ QUuid Sidebar::currentSessionId() const {
     if (!item || item->data(0, kIsGroupRole).toBool())
         return {};
     return QUuid(item->data(0, kSessionIdRole).toString());
+}
+
+QList<QUuid> Sidebar::selectedSessionIds() const {
+    QSet<QUuid> ids;
+    const auto selected = m_tree->selectedItems();
+    for (const auto *item : selected) {
+        if (item->data(0, kIsGroupRole).toBool()) {
+            // A selected group header contributes all of its chats.
+            for (int j = 0; j < item->childCount(); ++j)
+                ids.insert(QUuid(item->child(j)->data(0, kSessionIdRole).toString()));
+        } else {
+            ids.insert(QUuid(item->data(0, kSessionIdRole).toString()));
+        }
+    }
+    return QList<QUuid>(ids.begin(), ids.end());
+}
+
+QList<QUuid> Sidebar::deletableSelectedSessionIds() const {
+    QList<QUuid> ids = selectedSessionIds();
+    ids.erase(std::remove_if(ids.begin(), ids.end(),
+                             [this](const QUuid &id) {
+                                 return m_running.contains(id) || m_unread.contains(id);
+                             }),
+              ids.end());
+    return ids;
+}
+
+void Sidebar::requestDeleteSelected() {
+    const QList<QUuid> deletable = deletableSelectedSessionIds();
+    if (!deletable.isEmpty())
+        emit sessionDeleteRequested(deletable);
 }
 
 void Sidebar::setIndicators(const QSet<QUuid> &running, const QSet<QUuid> &unread) {

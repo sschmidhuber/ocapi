@@ -601,7 +601,31 @@ void MainWindow::cycleChat(int direction) {
     onSessionSelected(m_sessions.at(index)->id());
 }
 
-void MainWindow::onSessionDeleteRequested(const QUuid &id) {
+void MainWindow::onSessionDeleteRequested(const QList<QUuid> &ids) {
+    // Defense in depth: running and unread chats are never deleted, even if
+    // the requester did not filter them out already.
+    const QSet<QUuid> running = runningSessionIds();
+    QList<QUuid> toDelete;
+    for (const QUuid &id : ids) {
+        if (!id.isNull() && !running.contains(id) && !m_unreadSessions.contains(id))
+            toDelete.append(id);
+    }
+    if (toDelete.isEmpty())
+        return;
+    // Deleting several chats at once asks for confirmation first.
+    if (toDelete.size() > 1) {
+        const auto answer =
+            QMessageBox::question(this, tr("Delete chats"),
+                                  tr("Do you really want to delete %1 chats?").arg(toDelete.size()),
+                                  QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+        if (answer != QMessageBox::Yes)
+            return;
+    }
+    for (const QUuid &id : toDelete)
+        deleteSession(id);
+}
+
+void MainWindow::deleteSession(const QUuid &id) {
     for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
         if ((*it)->id() == id) {
             // A running turn of the deleted chat is cancelled with it.

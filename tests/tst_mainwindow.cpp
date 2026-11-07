@@ -5,12 +5,43 @@
 #include "ui/sidebar.h"
 
 #include <QApplication>
+#include <QMessageBox>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QTimer>
 #include <QToolButton>
+#include <QTreeWidget>
 #include <QtTest>
 
 using namespace ocapi;
+
+namespace {
+
+// Number of chat entries in the sidebar tree (group headers not counted).
+int chatItemCount(MainWindow &window) {
+    auto *tree = window.findChild<QTreeWidget *>();
+    if (!tree)
+        return -1;
+    int count = 0;
+    for (int i = 0; i < tree->topLevelItemCount(); ++i)
+        count += tree->topLevelItem(i)->childCount();
+    return count;
+}
+
+// Clicks the given button of the modal confirmation dialog that
+// onSessionDeleteRequested shows for multi-delete; the timer fires inside
+// the dialog's nested event loop.
+void clickModalButton(QMessageBox::StandardButton button) {
+    QTimer::singleShot(0, [button]() {
+        auto *box = qobject_cast<QMessageBox *>(QApplication::activeModalWidget());
+        QVERIFY(box);
+        auto *b = box->button(button);
+        QVERIFY(b);
+        b->click();
+    });
+}
+
+} // namespace
 
 // MainWindow writes ocapi.conf/ocapi.sqlite under the app config/data dirs;
 // redirect them into a temp dir so the test does not touch real settings.
@@ -26,6 +57,10 @@ private slots:
     void newChatFocusesInput();
     void f9TogglesSidebar();
     void ctrlTabCyclesChats();
+    void deleteSingleChatWithoutConfirmation();
+    void deleteMultipleChatsAsksAndDeletesOnYes();
+    void deleteMultipleChatsKeepsAllOnNo();
+    void unreadChatIsNotDeleted();
 
 private:
     QTemporaryDir m_home;
@@ -239,6 +274,76 @@ void TestMainWindow::newChatFocusesInput() {
     QTest::qWait(50); // focus is applied via a deferred singleShot(0)
     QWidget *focus = window.focusWidget();
     QVERIFY(focus && focus->accessibleName() == QStringLiteral("Message input"));
+}
+
+// A single chat is deleted immediately, without a confirmation dialog (if
+// one appeared, the test would hang in its event loop).
+void TestMainWindow::deleteSingleChatWithoutConfirmation() {
+    MainWindow window;
+    window.show();
+    const QUuid initial = window.currentSession()->id();
+    window.startNewChat();
+    const QUuid second = window.currentSession()->id();
+    QCOMPARE(chatItemCount(window), 2);
+
+    window.requestDeleteSessionsForTest({second});
+    QCOMPARE(chatItemCount(window), 1);
+    QVERIFY(window.currentSession());
+    QCOMPARE(window.currentSession()->id(), initial);
+}
+
+// Deleting several chats asks "Do you really want to delete x chats?" and
+// removes them all when confirmed.
+void TestMainWindow::deleteMultipleChatsAsksAndDeletesOnYes() {
+    MainWindow window;
+    window.show();
+    const QUuid s0 = window.currentSession()->id();
+    window.startNewChat();
+    const QUuid s1 = window.currentSession()->id();
+    window.startNewChat();
+    const QUuid s2 = window.currentSession()->id();
+    QCOMPARE(chatItemCount(window), 3);
+
+    clickModalButton(QMessageBox::Yes);
+    window.requestDeleteSessionsForTest({s0, s1, s2});
+    // All chats deleted; a fresh session is created automatically.
+    QCOMPARE(chatItemCount(window), 1);
+    QVERIFY(window.currentSession());
+    QVERIFY(window.currentSession()->id() != s0);
+    QVERIFY(window.currentSession()->id() != s1);
+    QVERIFY(window.currentSession()->id() != s2);
+}
+
+// Answering "No" to the multi-delete confirmation keeps all chats.
+void TestMainWindow::deleteMultipleChatsKeepsAllOnNo() {
+    MainWindow window;
+    window.show();
+    const QUuid s0 = window.currentSession()->id();
+    window.startNewChat();
+    const QUuid s1 = window.currentSession()->id();
+    QCOMPARE(chatItemCount(window), 2);
+
+    clickModalButton(QMessageBox::No);
+    window.requestDeleteSessionsForTest({s0, s1});
+    QCOMPARE(chatItemCount(window), 2);
+}
+
+// Unread chats are never deleted: the unread one is filtered out before the
+// confirmation, so deleting {read, unread} is a single deletion (no dialog)
+// and only removes the read one.
+void TestMainWindow::unreadChatIsNotDeleted() {
+    MainWindow window;
+    window.show();
+    const QUuid read = window.currentSession()->id();
+    window.startNewChat();
+    const QUuid unread = window.currentSession()->id();
+    window.markUnreadForTest(unread);
+    QCOMPARE(chatItemCount(window), 2);
+
+    window.requestDeleteSessionsForTest({read, unread});
+    QCOMPARE(chatItemCount(window), 1);
+    QVERIFY(window.currentSession());
+    QCOMPARE(window.currentSession()->id(), unread);
 }
 
 int main(int argc, char *argv[]) {

@@ -103,6 +103,9 @@ private slots:
     void onNewChat();
     void onSessionSelected(const QUuid &id);
     void onSessionDeleteRequested(const QUuid &id);
+    // Selects the next (direction 1) or previous (direction -1) chat of the
+    // history in the sidebar's order, wrapping around at both ends.
+    void cycleChat(int direction);
     void openSettings(const QString &pageId = {});
     void onSend(const QString &text, const QVector<ImageAttachment> &images = {},
                 const QVector<FileAttachment> &files = {});

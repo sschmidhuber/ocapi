@@ -388,6 +388,20 @@ void MainWindow::setupConnections() {
     auto *newChatShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+N")), this);
     newChatShortcut->setContext(Qt::WindowShortcut);
     connect(newChatShortcut, &QShortcut::activated, this, &MainWindow::onNewChat);
+    // F9 shows/hides the chat history sidebar, like the classic file-manager
+    // panels; Ctrl+Tab / Ctrl+Shift+Tab cycle through the chats in the
+    // sidebar's order (newest activity first), wrapping around at the ends.
+    auto *sidebarShortcut = new QShortcut(QKeySequence(Qt::Key_F9), this);
+    sidebarShortcut->setContext(Qt::WindowShortcut);
+    connect(sidebarShortcut, &QShortcut::activated, this,
+            [this]() { m_sidebar->setVisible(!m_sidebar->isVisible()); });
+    auto *nextChatShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Tab")), this);
+    nextChatShortcut->setContext(Qt::WindowShortcut);
+    connect(nextChatShortcut, &QShortcut::activated, this, [this]() { cycleChat(1); });
+    auto *previousChatShortcut =
+        new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+Tab")), this);
+    previousChatShortcut->setContext(Qt::WindowShortcut);
+    connect(previousChatShortcut, &QShortcut::activated, this, [this]() { cycleChat(-1); });
     connect(m_settingsButton, &QToolButton::clicked, this, [this] { openSettings(QString()); });
     connect(m_sidebar, &Sidebar::sessionSelected, this, &MainWindow::onSessionSelected);
     connect(m_sidebar, &Sidebar::sessionDeleteRequested, this,
@@ -578,6 +592,26 @@ void MainWindow::onSessionSelected(const QUuid &id) {
     m_modelPicker->setEnabled(hasSession);
     updateStreamingUi();
     updateEmptyState();
+}
+
+void MainWindow::cycleChat(int direction) {
+    if (m_sessions.isEmpty())
+        return;
+    // The sidebar lists chats sorted by last activity (newest first);
+    // cycling walks that visual order and wraps around at both ends.
+    std::ranges::sort(m_sessions, [](const ChatSession *a, const ChatSession *b) {
+        return a->lastActivityAt() > b->lastActivityAt();
+    });
+    const int count = static_cast<int>(m_sessions.size());
+    int index = 0;
+    for (int i = 0; i < count; ++i) {
+        if (m_sessions.at(i) == m_currentSession) {
+            index = i;
+            break;
+        }
+    }
+    index = (index + direction + count) % count;
+    onSessionSelected(m_sessions.at(index)->id());
 }
 
 void MainWindow::onSessionDeleteRequested(const QUuid &id) {

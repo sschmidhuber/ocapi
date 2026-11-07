@@ -4,10 +4,15 @@
 
 #include <QClipboard>
 #include <QGuiApplication>
+#include <QList>
+#include <QUrl>
 #include <QVector>
 #include <QWebEngineView>
 
 class QContextMenuEvent;
+class QDragEnterEvent;
+class QDropEvent;
+class QImage;
 class QWebChannel;
 
 namespace ocapi {
@@ -26,10 +31,12 @@ signals:
     void scrolledToTop();
     void linkActivated(const QString &url);
     void linkHovered(const QString &url); // empty when the pointer leaves the link
+    void attachmentOpenRequested(const QString &path);
 public slots:
     void notifyScrolledToTop() { emit scrolledToTop(); }
     void openUrl(const QString &url) { emit linkActivated(url); }
     void hoverLink(const QString &url) { emit linkHovered(url); }
+    void openAttachment(const QString &path) { emit attachmentOpenRequested(path); }
     static void copyToClipboard(const QString &text) {
         QGuiApplication::clipboard()->setText(text);
     }
@@ -53,12 +60,20 @@ signals:
     // A link in a chat message was clicked / hovered (empty url = left).
     void linkActivated(const QString &url);
     void linkHovered(const QString &url);
+    // A file element in a chat message was clicked (open in default app).
+    void attachmentOpenRequested(const QString &path);
+    // Files/images dragged onto the chat view (forwarded to the composer).
+    void urlsDropped(const QList<QUrl> &urls);
+    void imageDropped(const QImage &image);
 
 private:
     void callJs(const QString &expr);
     void onMessageAdded(const Message &message);
     void onMessageUpdated(const Message &message);
     void contextMenuEvent(QContextMenuEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragLeaveEvent(QDragLeaveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
     void savePageAs();
     void showPageSource();
 

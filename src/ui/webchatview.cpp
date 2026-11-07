@@ -5,19 +5,25 @@
 #include <QClipboard>
 #include <QContextMenuEvent>
 #include <QDialog>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QGuiApplication>
+#include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMenu>
+#include <QMimeData>
 #include <QPlainTextEdit>
 #include <QUrl>
+
 #include <QVBoxLayout>
 #include <QWebChannel>
 #include <QWebEnginePage>
 #include <QWebEngineSettings>
+#include <algorithm>
 
 namespace ocapi {
 
@@ -86,6 +92,7 @@ QString attachmentsToJs(const Message &m) {
         images.append(QJsonObject{
             {QStringLiteral("fileName"), img.fileName},
             {QStringLiteral("mimeType"), img.mimeType},
+            {QStringLiteral("sourcePath"), img.sourcePath},
             {QStringLiteral("data"), QString::fromLatin1(img.data.toBase64())},
         });
     }
@@ -93,6 +100,7 @@ QString attachmentsToJs(const Message &m) {
     for (const auto &file : m.files) {
         files.append(QJsonObject{
             {QStringLiteral("fileName"), file.fileName},
+            {QStringLiteral("sourcePath"), file.sourcePath},
             {QStringLiteral("thumbnail"), QString::fromLatin1(file.thumbnail.toBase64())},
         });
     }
@@ -138,6 +146,8 @@ WebChatView::WebChatView(QWidget *parent) : QWebEngineView(parent) {
     connect(m_bridge, &WebChatBridge::scrolledToTop, this, &WebChatView::olderMessagesRequested);
     connect(m_bridge, &WebChatBridge::linkActivated, this, &WebChatView::linkActivated);
     connect(m_bridge, &WebChatBridge::linkHovered, this, &WebChatView::linkHovered);
+    connect(m_bridge, &WebChatBridge::attachmentOpenRequested, this,
+            &WebChatView::attachmentOpenRequested);
     page()->setWebChannel(m_channel);
 
     settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessFileUrls, true);
@@ -158,7 +168,52 @@ WebChatView::WebChatView(QWidget *parent) : QWebEngineView(parent) {
         }
     });
 
+    // Dropping files/images onto the chat view forwards them to the
+    // composer's attachment strip; a highlight marks the drop target.
+    setAcceptDrops(true);
+
     setUrl(QUrl(QStringLiteral("qrc:/resources/web/chat.html")));
+}
+
+void WebChatView::dragEnterEvent(QDragEnterEvent *event) {
+    const QMimeData *mime = event->mimeData();
+    const bool droppable =
+        mime->hasImage() ||
+        std::ranges::any_of(mime->urls(), [](const QUrl &url) { return url.isLocalFile(); });
+    if (droppable) {
+        event->acceptProposedAction();
+        setStyleSheet(QStringLiteral("WebChatView { border: 2px dashed palette(highlight); }"));
+    } else {
+        event->ignore();
+    }
+}
+
+void WebChatView::dragLeaveEvent(QDragLeaveEvent *event) {
+    setStyleSheet(QString());
+    QWebEngineView::dragLeaveEvent(event);
+}
+
+void WebChatView::dropEvent(QDropEvent *event) {
+    setStyleSheet(QString());
+    const QMimeData *mime = event->mimeData();
+    if (mime->hasImage()) {
+        emit imageDropped(qvariant_cast<QImage>(mime->imageData()));
+        event->acceptProposedAction();
+        return;
+    }
+    if (mime->hasUrls()) {
+        QList<QUrl> local;
+        for (const QUrl &url : mime->urls()) {
+            if (url.isLocalFile())
+                local.append(url);
+        }
+        if (!local.isEmpty()) {
+            emit urlsDropped(local);
+            event->acceptProposedAction();
+            return;
+        }
+    }
+    event->ignore();
 }
 
 void WebChatView::callJs(const QString &expr) {

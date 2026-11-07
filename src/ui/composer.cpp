@@ -3,6 +3,8 @@
 #include "core/attachmentopener.h"
 #include "core/filepreview.h"
 
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
@@ -15,7 +17,9 @@
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPixmap>
+#include <QScrollArea>
 #include <QShortcut>
+#include <QStyle>
 #include <QTextCursor>
 #include <QToolButton>
 #include <QUrl>
@@ -27,13 +31,20 @@ namespace ocapi {
 
 namespace {
 
-constexpr int kMaxAttachmentsPerMessage = 8;
-constexpr int kDocumentThumbSize = 64;
+constexpr int kMaxAttachmentsPerMessage = 50;
+constexpr int kDocumentThumbSize = 128;
 constexpr int kDocumentChipPadding = 6;
 // Attachment chip: thumbnail on top, file name below it; the thumbnail keeps
 // its fixed size, the chip grows vertically to fit the name line.
 constexpr int kAttachmentChipWidth = kDocumentThumbSize + (2 * kDocumentChipPadding);
 constexpr int kAttachmentChipHeight = kDocumentThumbSize + 22;
+// The strip lives in a fixed-height scroll area, so its height never changes
+// with the number of attachments (the text input must not shrink when a
+// second file is added). The fixed height additionally reserves room for the
+// horizontal scrollbar, so chips stay fully visible (thumbnail + name) when
+// it appears.
+constexpr int kAttachmentStripBaseHeight = kAttachmentChipHeight + 4;
+constexpr int kScrollBarAllowance = 18; // fallback when the style reports 0
 
 const QStringList &imageSuffixes() {
     static const QStringList allowed = {
@@ -160,15 +171,32 @@ void MessageTextEdit::insertFromMimeData(const QMimeData *source) {
 }
 
 Composer::Composer(QWidget *parent) : QWidget(parent) {
+    // Drops are accepted on the whole composer (text edit, attachment strip,
+    // buttons), not only on the text edit; a highlight marks the drop target.
+    setAcceptDrops(true);
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
 
-    m_attachmentStrip = new QWidget(this);
-    m_attachmentLayout = new QHBoxLayout(m_attachmentStrip);
+    // Fixed-height horizontal scroll area: adding more attachments never
+    // changes the strip height, so the text input keeps its size and the
+    // chat area shrinks exactly once when the first file is added.
+    m_attachmentStrip = new QScrollArea(this);
+    m_attachmentStrip->setWidgetResizable(true);
+    m_attachmentStrip->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_attachmentStrip->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_attachmentStrip->setFrameShape(QFrame::NoFrame);
+    // Reserve the style's real scrollbar extent so chips (thumbnail + name)
+    // stay fully visible when the horizontal scrollbar appears.
+    const int sbExtent = style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, this);
+    m_stripHeight = kAttachmentStripBaseHeight + (sbExtent > 0 ? sbExtent : kScrollBarAllowance);
+    m_attachmentStrip->setFixedHeight(m_stripHeight);
+    auto *stripContent = new QWidget(m_attachmentStrip);
+    m_attachmentLayout = new QHBoxLayout(stripContent);
     m_attachmentLayout->setContentsMargins(4, 2, 4, 2);
     m_attachmentLayout->setSpacing(4);
     m_attachmentLayout->addStretch(1);
+    m_attachmentStrip->setWidget(stripContent);
     m_attachmentStrip->hide();
     layout->addWidget(m_attachmentStrip);
 
@@ -383,6 +411,68 @@ void Composer::clearAttachments() {
     refreshAttachmentStrip();
 }
 
+void Composer::addDroppedImage(const QImage &image) {
+    QString error;
+    auto attachment = ImagePreprocessor::processImage(image, QStringLiteral("image/png"),
+                                                      tr("pasted-image.png"), &error);
+    if (attachment)
+        addAttachment(*attachment);
+    else
+        QMessageBox::warning(this, tr("Image error"), error);
+}
+
+void Composer::addDroppedUrls(const QList<QUrl> &urls) {
+    for (const QUrl &url : urls) {
+        if (!url.isLocalFile())
+            continue;
+        if (isImageFile(url)) {
+            QString error;
+            auto attachment = ImagePreprocessor::processFile(url.toLocalFile(), &error);
+            if (attachment)
+                addAttachment(*attachment);
+            else
+                QMessageBox::warning(this, tr("Image error"), error);
+        } else {
+            addDocument(url.toLocalFile());
+        }
+    }
+}
+
+void Composer::dragEnterEvent(QDragEnterEvent *event) {
+    const QMimeData *mime = event->mimeData();
+    const bool droppable =
+        mime->hasImage() ||
+        std::ranges::any_of(mime->urls(), [](const QUrl &url) { return url.isLocalFile(); });
+    if (droppable) {
+        event->acceptProposedAction();
+        setStyleSheet(QStringLiteral("Composer { border: 2px dashed palette(highlight); "
+                                     "border-radius: 6px; }"));
+    } else {
+        event->ignore();
+    }
+}
+
+void Composer::dragLeaveEvent(QDragLeaveEvent *event) {
+    setStyleSheet(QString());
+    QWidget::dragLeaveEvent(event);
+}
+
+void Composer::dropEvent(QDropEvent *event) {
+    setStyleSheet(QString());
+    const QMimeData *mime = event->mimeData();
+    if (mime->hasImage()) {
+        addDroppedImage(qvariant_cast<QImage>(mime->imageData()));
+        event->acceptProposedAction();
+        return;
+    }
+    if (mime->hasUrls()) {
+        addDroppedUrls(mime->urls());
+        event->acceptProposedAction();
+        return;
+    }
+    event->ignore();
+}
+
 void Composer::addAttachment(const ImageAttachment &attachment) {
     if (m_attachments.size() + m_documents.size() >= kMaxAttachmentsPerMessage) {
         QMessageBox::warning(
@@ -442,7 +532,7 @@ void Composer::refreshAttachmentStrip() {
     auto addChip = [this](const QString &sourcePath, const QString &toolTip,
                           const QImage &thumbImage, const QString &placeholder,
                           const QString &fileName, const QUuid &id, bool isDocument) {
-        auto *chip = new AttachmentChip(sourcePath, toolTip, m_attachmentStrip);
+        auto *chip = new AttachmentChip(sourcePath, toolTip, m_attachmentStrip->widget());
         chip->setFixedSize(kAttachmentChipWidth, kAttachmentChipHeight);
         auto *chipLayout = new QVBoxLayout(chip);
         chipLayout->setContentsMargins(kDocumentChipPadding, 2, kDocumentChipPadding, 2);
@@ -495,9 +585,9 @@ void Composer::refreshAttachmentStrip() {
 }
 
 int Composer::attachmentStripHeight() const {
-    if (!m_attachmentStrip->isVisible())
+    if (m_attachments.isEmpty() && m_documents.isEmpty())
         return 0;
-    return m_attachmentStrip->sizeHint().height();
+    return m_stripHeight;
 }
 
 } // namespace ocapi

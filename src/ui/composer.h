@@ -5,14 +5,20 @@
 #include "core/textextractor.h"
 
 #include <QKeySequence>
+#include <QList>
 #include <QPlainTextEdit>
 #include <QToolButton>
+#include <QUrl>
 #include <QUuid>
 #include <QVector>
 #include <QWidget>
 
+class QDragEnterEvent;
+class QDragLeaveEvent;
+class QDropEvent;
 class QHBoxLayout;
 class QMimeData;
+class QScrollArea;
 class QShortcut;
 
 class QToolButton;
@@ -67,6 +73,10 @@ public:
 
     void attachFiles();
     void clearAttachments();
+    // Entry points for drag & drop anywhere in the composer or the chat
+    // view (wired up by the main window).
+    void addDroppedUrls(const QList<QUrl> &urls);
+    void addDroppedImage(const QImage &image);
 
     // The mic and attach buttons are created here (behavior, tooltips,
     // state handling) but laid out by the parent, so they can share a row
@@ -91,6 +101,9 @@ public slots:
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragLeaveEvent(QDragLeaveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
 
 private:
     void addAttachment(const ImageAttachment &attachment);
@@ -108,7 +121,8 @@ private:
     bool m_dictationAvailable = true;
     int m_dictationStart = 0;
     int m_dictatedLength = 0;
-    QWidget *m_attachmentStrip = nullptr;
+    QScrollArea *m_attachmentStrip = nullptr;
+    int m_stripHeight = 0; // fixed strip height incl. scrollbar allowance
     QHBoxLayout *m_attachmentLayout = nullptr;
     QVector<ImageAttachment> m_attachments;
     QVector<FileAttachment> m_documents; // non-image files with thumbnails

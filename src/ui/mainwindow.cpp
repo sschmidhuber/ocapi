@@ -2,6 +2,7 @@
 
 #include "backends/backendfactory.h"
 #include "backends/ibackend.h"
+#include "core/attachmentopener.h"
 #include "core/chatsession.h"
 #include "core/tooldebug.h"
 #include "storage/chatdatabase.h"
@@ -386,6 +387,11 @@ void MainWindow::setupUi() {
     m_rightSplitter->addWidget(composerColumn);
     rightLayout->addWidget(m_rightSplitter, 1);
 
+    // Dropping files/images onto the chat view forwards them to the
+    // composer's attachment strip.
+    connect(m_chatView, &WebChatView::urlsDropped, m_composer, &Composer::addDroppedUrls);
+    connect(m_chatView, &WebChatView::imageDropped, m_composer, &Composer::addDroppedImage);
+
     splitter->addWidget(m_sidebar);
     splitter->addWidget(rightPanel);
     splitter->setStretchFactor(1, 1);
@@ -408,10 +414,7 @@ void MainWindow::setupConnections() {
     connect(&m_uiSettings, &UiSettings::changed, this,
             [this]() { m_chatView->setShowThroughput(m_uiSettings.showThroughput()); });
     connect(m_settingsButton, &QToolButton::clicked, this, [this] { openSettings(QString()); });
-    connect(m_rightSplitter, &QSplitter::splitterMoved, this, &MainWindow::onComposerSplitterMoved);
-    // Attachments grow the composer column (chat area shrinks) while the
-    // text input keeps its height.
-    connect(m_composer, &Composer::attachmentsChanged, this, [this]() { applyComposerHeight(); });
+    setupComposerSplitter();
     connect(m_sidebar, &Sidebar::sessionSelected, this, &MainWindow::onSessionSelected);
     connect(m_sidebar, &Sidebar::sessionDeleteRequested, this,
             &MainWindow::onSessionDeleteRequested);
@@ -463,22 +466,7 @@ void MainWindow::setupConnections() {
         statusBar()->showMessage(tr("Text-to-speech failed: %1").arg(message), 10000);
     });
     connect(m_speakButton, &QPushButton::clicked, this, &MainWindow::onSpeakResponsesToggled);
-    connect(m_chatView, &WebChatView::olderMessagesRequested, this,
-            [this]() { loadOlderMessages(m_currentSession); });
-    // Links in chat messages open in the default web browser (http/https
-    // only); while hovering a link its URL is shown in the status bar.
-    connect(m_chatView, &WebChatView::linkActivated, this, [](const QString &url) {
-        const QUrl parsed(url);
-        if (parsed.isValid() &&
-            (parsed.scheme() == QLatin1String("http") || parsed.scheme() == QLatin1String("https")))
-            QDesktopServices::openUrl(parsed);
-    });
-    connect(m_chatView, &WebChatView::linkHovered, this, [this](const QString &url) {
-        if (url.isEmpty())
-            statusBar()->clearMessage();
-        else
-            statusBar()->showMessage(url);
-    });
+    setupChatViewConnections();
     connect(m_sendButton, &QPushButton::clicked, this, [this]() {
         if (m_composer->isEmpty())
             return;
@@ -685,6 +673,49 @@ void MainWindow::deleteSession(const QUuid &id) {
         onSessionSelected(m_sessions.first()->id());
     else
         updateEmptyState();
+}
+
+void MainWindow::setupChatViewConnections() {
+    connect(m_chatView, &WebChatView::olderMessagesRequested, this,
+            [this]() { loadOlderMessages(m_currentSession); });
+    // Links in chat messages open in the default web browser (http/https
+    // only); while hovering a link its URL is shown in the status bar.
+    connect(m_chatView, &WebChatView::linkActivated, this, [](const QString &url) {
+        const QUrl parsed(url);
+        if (parsed.isValid() &&
+            (parsed.scheme() == QLatin1String("http") || parsed.scheme() == QLatin1String("https")))
+            QDesktopServices::openUrl(parsed);
+    });
+    connect(m_chatView, &WebChatView::linkHovered, this, [this](const QString &url) {
+        if (url.isEmpty())
+            statusBar()->clearMessage();
+        else
+            statusBar()->showMessage(url);
+    });
+    // Clicking a file element in a user message opens the file with the
+    // system's default application (non-modal error if that fails).
+    connect(m_chatView, &WebChatView::attachmentOpenRequested, this, [this](const QString &path) {
+        if (path.isEmpty())
+            return;
+        QString error;
+        if (!AttachmentOpener::open(path, &error)) {
+            auto *box = new QMessageBox(QMessageBox::Warning, tr("Could not open attachment"),
+                                        error, QMessageBox::Ok, this);
+            box->setAttribute(Qt::WA_DeleteOnClose);
+            box->setModal(false);
+            box->show();
+        }
+    });
+}
+
+void MainWindow::setupComposerSplitter() {
+    connect(m_rightSplitter, &QSplitter::splitterMoved, this, &MainWindow::onComposerSplitterMoved);
+    // Attachments grow the composer column (chat area shrinks) while the
+    // text input keeps its height.
+    connect(m_composer, &Composer::attachmentsChanged, this, [this]() {
+        // Defer until the layouts have settled, so the strip height is final.
+        QTimer::singleShot(0, this, [this]() { applyComposerHeight(); });
+    });
 }
 
 void MainWindow::applyComposerHeight() {

@@ -24,6 +24,7 @@
 #include <QPushButton>
 #include <QSet>
 #include <QShortcut>
+#include <QSplitter>
 #include <QToolBar>
 #include <QToolButton>
 #include <QVector>
@@ -148,6 +149,10 @@ private:
     // Re-creates the window shortcuts and the composer's dictate shortcut
     // from the current registry state and refreshes the tooltips.
     void reapplyShortcuts();
+    // Sizes the composer column to the persisted base height plus the
+    // attachment strip (chat area shrinks to make room for thumbnails).
+    void applyComposerHeight();
+    void onComposerSplitterMoved(int pos, int index);
     void connectContext(StreamContext *context);
     void onTokenReceived(StreamContext *context, const QUuid &messageId, const QString &text);
     void onReasoningReceived(StreamContext *context, const QUuid &messageId, const QString &text);
@@ -271,6 +276,9 @@ private:
     Sidebar *m_sidebar = nullptr;
     WebChatView *m_chatView = nullptr;
     Composer *m_composer = nullptr;
+    // Vertical splitter between chat area and composer column.
+    QSplitter *m_rightSplitter = nullptr;
+    QWidget *m_composerColumn = nullptr;
     QToolBar *m_toolBar = nullptr;
     QToolButton *m_newChatButton = nullptr;
     QToolButton *m_settingsButton = nullptr;

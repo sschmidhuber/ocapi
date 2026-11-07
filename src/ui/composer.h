@@ -56,6 +56,10 @@ public:
     void finishDictation(const QString &text);
     [[nodiscard]] bool isEmpty() const;
     [[nodiscard]] QVector<ImageAttachment> attachments() const { return m_attachments; }
+    // Height the attachment strip currently adds to the composer (0 when no
+    // attachments are shown); the main window grows the composer area by
+    // this amount so the text input keeps its height.
+    [[nodiscard]] int attachmentStripHeight() const;
     [[nodiscard]] QVector<FileAttachment> documents() const { return m_documents; }
     [[nodiscard]] bool hasAttachments() const {
         return !m_attachments.isEmpty() || !m_documents.isEmpty();

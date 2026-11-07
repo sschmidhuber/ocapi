@@ -7,6 +7,7 @@
 #include <QApplication>
 #include <QMessageBox>
 #include <QStandardPaths>
+#include <QStatusBar>
 #include <QTemporaryDir>
 #include <QTimer>
 #include <QToolButton>
@@ -68,6 +69,7 @@ private slots:
     void deleteMultipleChatsAsksAndDeletesOnYes();
     void deleteMultipleChatsKeepsAllOnNo();
     void unreadChatIsNotDeleted();
+    void statusBarShowsReadyAfterStreamFinishes();
 
 private:
     QTemporaryDir m_home;
@@ -356,6 +358,25 @@ void TestMainWindow::unreadChatIsNotDeleted() {
     QVERIFY(sidebarHasSession(window, unread));
     QVERIFY(window.currentSession());
     QCOMPARE(window.currentSession()->id(), unread);
+}
+
+// Regression: after the last message of a turn finished, the status bar must
+// show "Ready" again, not keep "Generating…" (the finished context still
+// existed until its deferred deletion and updateStreamingUi() overwrote the
+// final status with "Generating…").
+void TestMainWindow::statusBarShowsReadyAfterStreamFinishes() {
+    MainWindow window;
+    window.show();
+    auto *statusBar = window.findChild<QStatusBar *>();
+    QVERIFY(statusBar);
+
+    window.simulateStreamStartForTest();
+    QVERIFY(statusBar->currentMessage().contains(QStringLiteral("Generating")));
+
+    window.simulateStreamFinishForTest();
+    // Let the deferred context deletion (singleShot(0)) run.
+    QTest::qWait(20);
+    QCOMPARE(statusBar->currentMessage(), QStringLiteral("Ready"));
 }
 
 int main(int argc, char *argv[]) {

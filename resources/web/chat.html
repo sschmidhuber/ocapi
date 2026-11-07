@@ -536,12 +536,28 @@
         if (!bodyEl || !bodyEl.parentNode) {
           // The assistant message has no answer text (yet), so it is not in the
           // log as an element; its thinking/tool-call rows go to the end of the
-          // log in their recorded order.
-          let tail = log.lastChild;
-          for (const w of aboveW.concat(belowW)) {
-            if (w.previousSibling !== tail)
+          // log in their recorded order. Only touch the DOM when the wrappers
+          // are not already the last children in the desired order:
+          // insertBefore removes and re-inserts a node even within the same
+          // parent, which restarts the spinner's CSS animation on every
+          // streaming update (the old "w.previousSibling !== tail" guard
+          // re-inserted the last wrapper on every update).
+          const allW = aboveW.concat(belowW);
+          let inPlace = true;
+          let node = log.lastChild;
+          for (let k = allW.length - 1; k >= 0; k--) {
+            if (node !== allW[k]) {
+              inPlace = false;
+              break;
+            }
+            node = node ? node.previousSibling : null;
+          }
+          if (!inPlace) {
+            let tail = log.lastChild;
+            for (const w of allW) {
               log.insertBefore(w, tail ? tail.nextSibling : log.firstChild);
-            tail = w;
+              tail = w;
+            }
           }
         } else {
           for (let k = aboveW.length - 1; k >= 0; k--) {

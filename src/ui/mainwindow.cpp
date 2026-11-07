@@ -12,6 +12,7 @@
 
 #include <QDateTime>
 #include <QDebug>
+#include <QDesktopServices>
 #include <QDir>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -447,6 +448,20 @@ void MainWindow::setupConnections() {
     connect(m_speakButton, &QPushButton::clicked, this, &MainWindow::onSpeakResponsesToggled);
     connect(m_chatView, &WebChatView::olderMessagesRequested, this,
             [this]() { loadOlderMessages(m_currentSession); });
+    // Links in chat messages open in the default web browser (http/https
+    // only); while hovering a link its URL is shown in the status bar.
+    connect(m_chatView, &WebChatView::linkActivated, this, [](const QString &url) {
+        const QUrl parsed(url);
+        if (parsed.isValid() &&
+            (parsed.scheme() == QLatin1String("http") || parsed.scheme() == QLatin1String("https")))
+            QDesktopServices::openUrl(parsed);
+    });
+    connect(m_chatView, &WebChatView::linkHovered, this, [this](const QString &url) {
+        if (url.isEmpty())
+            statusBar()->clearMessage();
+        else
+            statusBar()->showMessage(url);
+    });
     connect(m_sendButton, &QPushButton::clicked, this, [this]() {
         if (m_composer->isEmpty())
             return;

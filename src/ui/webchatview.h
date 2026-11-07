@@ -14,16 +14,22 @@ namespace ocapi {
 class ChatSession;
 
 // Bridge object exposed to the chat page's JavaScript: the page reports
-// scroll-to-top ("load older" detection) and asks for clipboard copies of
-// message content (QWebEngine cannot write the clipboard from qrc pages).
+// scroll-to-top ("load older" detection), asks for clipboard copies of
+// message content (QWebEngine cannot write the clipboard from qrc pages),
+// requests opening links in the system browser and reports hovered link
+// URLs for the host's status bar.
 class WebChatBridge : public QObject {
     Q_OBJECT
 public:
     explicit WebChatBridge(QObject *parent = nullptr) : QObject(parent) {}
 signals:
     void scrolledToTop();
+    void linkActivated(const QString &url);
+    void linkHovered(const QString &url); // empty when the pointer leaves the link
 public slots:
     void notifyScrolledToTop() { emit scrolledToTop(); }
+    void openUrl(const QString &url) { emit linkActivated(url); }
+    void hoverLink(const QString &url) { emit linkHovered(url); }
     static void copyToClipboard(const QString &text) {
         QGuiApplication::clipboard()->setText(text);
     }
@@ -44,6 +50,9 @@ public:
 
 signals:
     void olderMessagesRequested();
+    // A link in a chat message was clicked / hovered (empty url = left).
+    void linkActivated(const QString &url);
+    void linkHovered(const QString &url);
 
 private:
     void callJs(const QString &expr);

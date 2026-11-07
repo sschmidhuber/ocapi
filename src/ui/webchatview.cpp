@@ -109,6 +109,8 @@ WebChatView::WebChatView(QWidget *parent) : QWebEngineView(parent) {
     m_channel = new QWebChannel(this);
     m_channel->registerObject(QStringLiteral("qtBridge"), m_bridge);
     connect(m_bridge, &WebChatBridge::scrolledToTop, this, &WebChatView::olderMessagesRequested);
+    connect(m_bridge, &WebChatBridge::linkActivated, this, &WebChatView::linkActivated);
+    connect(m_bridge, &WebChatBridge::linkHovered, this, &WebChatView::linkHovered);
     page()->setWebChannel(m_channel);
 
     settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessFileUrls, true);

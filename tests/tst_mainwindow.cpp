@@ -418,6 +418,9 @@ void TestMainWindow::editMessageTruncatesHistoryOnSend() {
     auto &registry = window.registryForTest();
     auto &ollama = registry.add(QStringLiteral("Ollama"), BackendKind::Ollama);
     registry.save();
+    // Fresh chat: earlier tests of this process share the temp database, so
+    // the initial session may already contain messages.
+    window.startNewChat();
     ChatSession *session = window.currentSession();
     QVERIFY(session);
     session->setBackendId(ollama.id.toString());

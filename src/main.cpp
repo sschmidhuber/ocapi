@@ -104,7 +104,12 @@ int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("ocapi"));
     QApplication::setOrganizationName(QStringLiteral("sschmidhuber"));
-    QApplication::setApplicationDisplayName(QStringLiteral("ocapi"));
+    // The display name is what Qt appends to the window title when the title
+    // does not already end with it (QPlatformWindow); keep it in sync with
+    // the title "Ocapi" so the title bar shows just "Ocapi", not
+    // "Ocapi -- ocapi". The application name stays lowercase: it determines
+    // the config/data paths (ocapi.conf, ocapi.sqlite).
+    QApplication::setApplicationDisplayName(QStringLiteral("Ocapi"));
     QApplication::setWindowIcon(QIcon(QStringLiteral(":/resources/icons/ocapi.svg")));
 
     applyDesktopStyle(app);

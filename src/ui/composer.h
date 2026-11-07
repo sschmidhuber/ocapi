@@ -93,20 +93,31 @@ public:
     // Rebinds the dictate shortcut (e.g. after the user changed it in the
     // settings) and updates the mic button tooltip accordingly.
     void setDictateSequence(const QKeySequence &sequence);
-    // Rebinds the prompt-template trigger shortcut (composer-local, so it
-    // only fires while the input has focus; configurable in the settings).
+    // Rebinds the prompt-template trigger (composer-local, configurable in
+    // the settings; default "/"). Detected in eventFilter: text edits accept
+    // the shortcut override for printable keys, so a QShortcut never fires.
     void setPromptTriggerSequence(const QKeySequence &sequence);
     // Inserts a prompt template at the cursor: text plus attachments.
     void insertTemplate(const QString &text, const QVector<ImageAttachment> &images,
                         const QVector<FileAttachment> &files);
+    // Replaces the typed trigger text ("/re" etc.) with the template.
+    void applyPromptTemplate(const QString &text, const QVector<ImageAttachment> &images,
+                             const QVector<FileAttachment> &files);
+    [[nodiscard]] bool promptMenuActive() const { return m_promptActive; }
 
 signals:
     void sendRequested(const QString &text, const QVector<ocapi::ImageAttachment> &images,
                        const QVector<ocapi::FileAttachment> &files);
     void attachmentsChanged();
     void dictationRequested();
-    // The prompt-template trigger shortcut fired in the input.
+    // The prompt-template trigger was typed (menu opens).
     void promptTemplateRequested();
+    // Text after the trigger changed while the menu is open (live filter).
+    void promptFilterChanged(const QString &filter);
+    // Enter while the menu is open: confirm the top entry.
+    void promptMenuConfirmed();
+    // Escape while the menu is open, or the trigger text was removed.
+    void promptMenuClosed();
 
 public slots:
     void setDictationActive(bool active);
@@ -123,13 +134,20 @@ private:
     void removeAttachment(const QUuid &id);
     void removeDocument(const QUuid &id);
     void refreshAttachmentStrip();
+    void onTextChanged();
+    void closePromptMenu();
+    // Typed length of the trigger (1 for a printable single key like "/",
+    // 0 for modifier combos like Ctrl+Space which insert nothing).
+    [[nodiscard]] int promptTriggerTextLength() const;
     QToolButton *removeButton(QWidget *parent, const QUuid &id, bool isDocument);
 
     MessageTextEdit *m_textEdit = nullptr;
     QToolButton *m_attachButton = nullptr;
     QToolButton *m_micButton = nullptr;
     QShortcut *m_dictateShortcut = nullptr;
-    QShortcut *m_promptTriggerShortcut = nullptr;
+    QKeySequence m_promptTrigger{QStringLiteral("/")};
+    bool m_promptActive = false;
+    int m_promptTriggerPos = -1;
     bool m_dictationActive = false;
     bool m_dictationAvailable = true;
     int m_dictationStart = 0;

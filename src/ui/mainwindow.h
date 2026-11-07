@@ -37,6 +37,7 @@ class ChatSession;
 class WebChatView;
 class Composer;
 class IBackend;
+class QListWidget;
 class Sidebar;
 
 // One in-flight model turn per chat: chats run in parallel, so the backend
@@ -96,6 +97,7 @@ public:
     void startNewChat() { onNewChat(); }
     [[nodiscard]] BackendRegistry &registryForTest() { return m_registry; }
     [[nodiscard]] ShortcutRegistry &shortcutsForTest() { return m_shortcuts; }
+    [[nodiscard]] PromptTemplateRegistry &promptTemplatesForTest() { return m_promptTemplates; }
     void requestDeleteSessionsForTest(const QList<QUuid> &ids) { onSessionDeleteRequested(ids); }
     void markUnreadForTest(const QUuid &id) { m_unreadSessions.insert(id); }
     // Drives the streaming UI state of the current chat directly.
@@ -123,8 +125,13 @@ private slots:
     // history from that message on and resends, Cancel aborts.
     void startEditMessage(const QString &idString);
     void cancelEditMessage();
-    // Shows the prompt-template autocompletion above the composer.
+    // Prompt-template autocompletion popup above the composer (non-modal,
+    // the composer keeps focus and keeps filtering while typing).
     void showPromptTemplateMenu();
+    void onPromptFilterChanged(const QString &filter);
+    void confirmPromptMenu(int row = -1);
+    void closePromptMenu();
+    [[nodiscard]] QWidget *promptMenuForTest() const { return m_promptMenu; }
     // Deletes the given chats; asks for confirmation when there are several.
     // Running and unread chats are never deleted.
     void onSessionDeleteRequested(const QList<QUuid> &ids);
@@ -291,6 +298,9 @@ private:
     UiSettings m_uiSettings;
     // Prompt templates (Settings > General > Prompt Templates).
     PromptTemplateRegistry m_promptTemplates;
+    // Autocompletion popup (frameless top-level above the composer).
+    QWidget *m_promptMenu = nullptr;
+    QListWidget *m_promptMenuList = nullptr;
 
     Sidebar *m_sidebar = nullptr;
     WebChatView *m_chatView = nullptr;

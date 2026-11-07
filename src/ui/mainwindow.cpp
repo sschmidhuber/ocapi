@@ -15,11 +15,13 @@
 #include <QDebug>
 #include <QDesktopServices>
 #include <QDir>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QJsonDocument>
 #include <QKeySequence>
 #include <QLabel>
+#include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSet>
@@ -417,6 +419,15 @@ void MainWindow::setupConnections() {
     m_composer->setPromptTriggerSequence(m_shortcuts.sequence(QStringLiteral("promptTemplates")));
     connect(m_composer, &Composer::promptTemplateRequested, this,
             &MainWindow::showPromptTemplateMenu);
+    connect(m_composer, &Composer::promptFilterChanged, this, &MainWindow::onPromptFilterChanged);
+    connect(m_composer, &Composer::promptMenuConfirmed, this, [this]() { confirmPromptMenu(); });
+    connect(m_composer, &Composer::promptMenuClosed, this, &MainWindow::closePromptMenu);
+    // Close the popup when the focus leaves composer and popup.
+    connect(qApp, &QApplication::focusChanged, this, [this](QWidget *now) {
+        if (m_promptMenu && m_promptMenu->isVisible() && now != m_composer &&
+            !m_promptMenu->isAncestorOf(now))
+            closePromptMenu();
+    });
     connect(&m_shortcuts, &ShortcutRegistry::changed, this, &MainWindow::reapplyShortcuts);
     m_chatView->setShowThroughput(m_uiSettings.showThroughput());
     connect(&m_uiSettings, &UiSettings::changed, this,
@@ -856,25 +867,74 @@ void MainWindow::loadPromptTemplates() {
 }
 
 void MainWindow::showPromptTemplateMenu() {
-    // Autocompletion above the composer: one action per template (QMenu does
-    // keyboard type-ahead filtering); selecting one inserts text+attachments.
-    QMenu menu(m_composer);
-    const auto &templates = m_promptTemplates.templates();
-    if (templates.isEmpty()) {
-        auto *hint = menu.addAction(tr("No prompt templates yet"));
-        hint->setEnabled(false);
+    // Non-modal autocompletion popup above the composer: the composer keeps
+    // the keyboard focus, so typing on filters the list live ("/re" shows
+    // only "Recherche"); Enter confirms the top entry.
+    if (!m_promptMenu) {
+        m_promptMenu = new QFrame(this, Qt::Window | Qt::FramelessWindowHint);
+        m_promptMenu->setObjectName(QStringLiteral("promptTemplateMenu"));
+        m_promptMenu->setStyleSheet(
+            QStringLiteral("QFrame#promptTemplateMenu { border: 1px solid palette(mid); "
+                           "border-radius: 4px; background: palette(base); }"));
+        auto *menuLayout = new QVBoxLayout(m_promptMenu);
+        menuLayout->setContentsMargins(2, 2, 2, 2);
+        m_promptMenuList = new QListWidget(m_promptMenu);
+        m_promptMenuList->setFocusPolicy(Qt::NoFocus);
+        menuLayout->addWidget(m_promptMenuList);
+        connect(m_promptMenuList, &QListWidget::itemClicked, this,
+                [this](QListWidgetItem *item) { confirmPromptMenu(m_promptMenuList->row(item)); });
     }
-    for (const auto &t : templates) {
-        auto *action = menu.addAction(t.name);
-        action->setData(t.id);
-        action->setToolTip(t.text.left(200));
+    m_promptMenuList->clear();
+    for (const auto &t : m_promptTemplates.templates()) {
+        auto *item = new QListWidgetItem(t.name, m_promptMenuList);
+        item->setData(Qt::UserRole, t.id.toString(QUuid::WithoutBraces));
+        item->setToolTip(t.text.left(200));
     }
-    const QPoint pos = m_composer->mapToGlobal(QPoint(0, 0));
-    if (QAction *selected = menu.exec(QPoint(pos.x(), pos.y() - menu.sizeHint().height()))) {
-        const QUuid id = selected->data().toUuid();
-        if (const PromptTemplate *t = m_promptTemplates.find(id))
-            m_composer->insertTemplate(t->text, t->images, t->files);
+    m_promptMenu->setFixedWidth(320);
+    m_promptMenuList->setFixedHeight(std::min(m_promptMenuList->count(), 8) * 24 + 8);
+    m_promptMenu->adjustSize();
+    const QPoint topLeft = m_composer->mapToGlobal(QPoint(0, 0));
+    m_promptMenu->move(topLeft.x(), topLeft.y() - m_promptMenu->height() - 4);
+    m_promptMenu->show();
+    m_promptMenu->raise();
+    onPromptFilterChanged(QString());
+    m_composer->focusInput();
+}
+
+void MainWindow::onPromptFilterChanged(const QString &filter) {
+    if (!m_promptMenu || !m_promptMenu->isVisible())
+        return;
+    int firstVisible = -1;
+    for (int i = 0; i < m_promptMenuList->count(); ++i) {
+        auto *item = m_promptMenuList->item(i);
+        const bool matches = filter.isEmpty() || item->text().contains(filter, Qt::CaseInsensitive);
+        item->setHidden(!matches);
+        if (matches && firstVisible < 0)
+            firstVisible = i;
     }
+    if (firstVisible >= 0)
+        m_promptMenuList->setCurrentRow(firstVisible);
+}
+
+void MainWindow::confirmPromptMenu(int row) {
+    if (!m_promptMenu || !m_promptMenu->isVisible())
+        return;
+    if (row < 0)
+        row = m_promptMenuList->currentRow();
+    if (row < 0)
+        row = 0; // Enter always confirms the top entry
+    auto *item = m_promptMenuList->item(row);
+    if (!item || item->isHidden())
+        return;
+    const QUuid id(item->data(Qt::UserRole).toString());
+    if (const PromptTemplate *t = m_promptTemplates.find(id))
+        m_composer->applyPromptTemplate(t->text, t->images, t->files);
+    closePromptMenu();
+}
+
+void MainWindow::closePromptMenu() {
+    if (m_promptMenu)
+        m_promptMenu->hide();
 }
 
 void MainWindow::loadUiSettings() {

@@ -48,6 +48,7 @@ private slots:
     void selectedGroupExpandsToItsChats();
     void deletableSelectionExcludesRunningAndUnread();
     void deleteKeyEmitsDeletableSelection();
+    void selectSessionClearsMultiSelection();
 };
 
 void TestSidebar::firstBuildExpandsOnlyToday() {
@@ -368,6 +369,31 @@ void TestSidebar::deleteKeyEmitsDeletableSelection() {
     QVERIFY(!ids.contains(running->id()));
     QVERIFY(ids.contains(plain0->id()));
     QVERIFY(ids.contains(plain1->id()));
+}
+
+// Regression: switching the chat programmatically (e.g. via the Ctrl+Tab
+// chat-cycling shortcuts) must leave exactly one selected item, even after
+// a multi-selection — with ExtendedSelection setCurrentItem() alone does
+// not clear the previous selection.
+void TestSidebar::selectSessionClearsMultiSelection() {
+    const QDateTime now = QDateTime::currentDateTime();
+    auto s0 = makeSession(QStringLiteral("chat 0"), now);
+    auto s1 = makeSession(QStringLiteral("chat 1"), now);
+    auto s2 = makeSession(QStringLiteral("chat 2"), now);
+    const QVector<ChatSession *> sessions{s0.get(), s1.get(), s2.get()};
+
+    Sidebar sidebar;
+    auto *tree = sidebar.findChild<QTreeWidget *>();
+    QVERIFY(tree);
+    sidebar.setSessions(sessions);
+
+    tree->selectAll();
+    // 3 chats plus the group header.
+    QCOMPARE(tree->selectedItems().size(), 4);
+
+    sidebar.selectSession(s1->id());
+    QCOMPARE(tree->selectedItems().size(), 1);
+    QCOMPARE(sidebar.currentSessionId(), s1->id());
 }
 
 // Sidebar is a QWidget, so the test needs a QApplication; force the

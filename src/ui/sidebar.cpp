@@ -119,8 +119,12 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent), m_tree(new QTreeWidget(this
             return;
         // Right-clicking an item outside the selection selects only that
         // item; right-clicking a selected item keeps the multi-selection.
-        if (!item->isSelected())
+        // (setCurrentItem alone does not clear the selection in
+        // ExtendedSelection mode.)
+        if (!item->isSelected()) {
+            m_tree->clearSelection();
             m_tree->setCurrentItem(item);
+        }
         QMenu menu(this);
         auto *deleteAction = menu.addAction(tr("Delete chat"));
         const QList<QUuid> deletable = deletableSelectedSessionIds();
@@ -180,6 +184,10 @@ void Sidebar::selectSession(const QUuid &id) {
         for (int j = 0; j < group->childCount(); ++j) {
             auto *item = group->child(j);
             if (QUuid(item->data(0, kSessionIdRole).toString()) == id) {
+                // With ExtendedSelection setCurrentItem() does not clear the
+                // previous selection (unlike SingleSelection), so clear it
+                // explicitly: switching chats must show exactly one selected.
+                m_tree->clearSelection();
                 m_tree->setCurrentItem(item);
                 return;
             }

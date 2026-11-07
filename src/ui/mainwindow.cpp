@@ -892,7 +892,7 @@ void MainWindow::showPromptTemplateMenu() {
         item->setToolTip(t.text.left(200));
     }
     m_promptMenu->setFixedWidth(320);
-    m_promptMenuList->setFixedHeight(std::min(m_promptMenuList->count(), 8) * 24 + 8);
+    m_promptMenuList->setFixedHeight((std::min(m_promptMenuList->count(), 8) * 24) + 8);
     m_promptMenu->adjustSize();
     const QPoint topLeft = m_composer->mapToGlobal(QPoint(0, 0));
     m_promptMenu->move(topLeft.x(), topLeft.y() - m_promptMenu->height() - 4);
@@ -910,7 +910,7 @@ void MainWindow::onPromptFilterChanged(const QString &filter) {
         auto *item = m_promptMenuList->item(i);
         const bool matches = filter.isEmpty() || item->text().contains(filter, Qt::CaseInsensitive);
         item->setHidden(!matches);
-        if (matches && firstVisible < 0)
+        if (matches && firstVisible == -1)
             firstVisible = i;
     }
     if (firstVisible >= 0)

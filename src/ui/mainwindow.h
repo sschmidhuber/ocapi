@@ -98,6 +98,7 @@ public:
     [[nodiscard]] BackendRegistry &registryForTest() { return m_registry; }
     [[nodiscard]] ShortcutRegistry &shortcutsForTest() { return m_shortcuts; }
     [[nodiscard]] PromptTemplateRegistry &promptTemplatesForTest() { return m_promptTemplates; }
+    [[nodiscard]] QWidget *promptMenuForTest() const { return m_promptMenu; }
     void requestDeleteSessionsForTest(const QList<QUuid> &ids) { onSessionDeleteRequested(ids); }
     void markUnreadForTest(const QUuid &id) { m_unreadSessions.insert(id); }
     // Drives the streaming UI state of the current chat directly.
@@ -131,7 +132,6 @@ private slots:
     void onPromptFilterChanged(const QString &filter);
     void confirmPromptMenu(int row = -1);
     void closePromptMenu();
-    [[nodiscard]] QWidget *promptMenuForTest() const { return m_promptMenu; }
     // Deletes the given chats; asks for confirmation when there are several.
     // Running and unread chats are never deleted.
     void onSessionDeleteRequested(const QList<QUuid> &ids);

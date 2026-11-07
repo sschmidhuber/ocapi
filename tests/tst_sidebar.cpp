@@ -388,7 +388,8 @@ void TestSidebar::selectSessionClearsMultiSelection() {
     sidebar.setSessions(sessions);
 
     tree->selectAll();
-    QCOMPARE(tree->selectedItems().size(), 3);
+    // 3 chats plus the group header.
+    QCOMPARE(tree->selectedItems().size(), 4);
 
     sidebar.selectSession(s1->id());
     QCOMPARE(tree->selectedItems().size(), 1);

@@ -40,6 +40,9 @@ namespace ocapi {
 namespace {
 
 constexpr int kMessagesPerPage = 50;
+// Minimum height of the chat history area when the composer splitter is
+// dragged; the composer column minimum is UiSettings::kMinComposerHeight.
+constexpr int kMinChatHeight = 120;
 
 } // namespace
 
@@ -259,6 +262,7 @@ void MainWindow::showEvent(QShowEvent *event) {
     // can start typing immediately.
     if (m_composer)
         m_composer->focusInput();
+    applyComposerHeight();
 }
 
 void MainWindow::setupUi() {
@@ -313,18 +317,17 @@ void MainWindow::setupUi() {
     chatMargin->setContentsMargins(kPanelMargin, kPanelMargin, kPanelMargin, 0);
     chatMargin->setSpacing(kPanelMargin);
     chatMargin->addWidget(m_chatView);
-    auto *chatMarginHost = new QWidget(rightPanel);
-    chatMarginHost->setLayout(chatMargin);
-    rightLayout->addWidget(chatMarginHost, 1);
-
     m_emptyLabel =
         new QLabel(tr("Select a chat or start a new one.\n\n"
                       "Set up a backend via \"Settings… → Model backends\" to get started."),
                    rightPanel);
     m_emptyLabel->setAlignment(Qt::AlignCenter);
     m_emptyLabel->setStyleSheet(QStringLiteral("color: gray;"));
-    rightLayout->addWidget(m_emptyLabel);
+    chatMargin->addWidget(m_emptyLabel);
     m_emptyLabel->hide();
+    auto *chatMarginHost = new QWidget(rightPanel);
+    chatMarginHost->setLayout(chatMargin);
+    chatMarginHost->setMinimumHeight(kMinChatHeight);
 
     auto *composerColumn = new QWidget(rightPanel);
     auto *composerColumnLayout = new QVBoxLayout(composerColumn);
@@ -332,7 +335,6 @@ void MainWindow::setupUi() {
                                              kPanelMargin);
     composerColumnLayout->setSpacing(4);
     m_composer = new Composer(composerColumn);
-    m_composer->setMaximumHeight(160);
     composerColumnLayout->addWidget(m_composer);
 
     // Row below the input: model picker, audio and file input buttons,
@@ -371,7 +373,18 @@ void MainWindow::setupUi() {
     footerLayout->addWidget(m_sendButton);
     footerLayout->addWidget(m_stopButton);
     composerColumnLayout->addWidget(footerRow);
-    rightLayout->addWidget(composerColumn);
+    composerColumn->setMinimumHeight(kMinComposerHeight);
+    m_composerColumn = composerColumn;
+
+    // The chat area and the composer share a vertical splitter, so the
+    // composer height is resizable with the mouse (persisted in the UI
+    // settings); attachment thumbnails grow the composer column on top of
+    // the persisted base height, shrinking the chat area.
+    m_rightSplitter = new QSplitter(Qt::Vertical, rightPanel);
+    m_rightSplitter->setChildrenCollapsible(false);
+    m_rightSplitter->addWidget(chatMarginHost);
+    m_rightSplitter->addWidget(composerColumn);
+    rightLayout->addWidget(m_rightSplitter, 1);
 
     splitter->addWidget(m_sidebar);
     splitter->addWidget(rightPanel);
@@ -395,6 +408,10 @@ void MainWindow::setupConnections() {
     connect(&m_uiSettings, &UiSettings::changed, this,
             [this]() { m_chatView->setShowThroughput(m_uiSettings.showThroughput()); });
     connect(m_settingsButton, &QToolButton::clicked, this, [this] { openSettings(QString()); });
+    connect(m_rightSplitter, &QSplitter::splitterMoved, this, &MainWindow::onComposerSplitterMoved);
+    // Attachments grow the composer column (chat area shrinks) while the
+    // text input keeps its height.
+    connect(m_composer, &Composer::attachmentsChanged, this, [this]() { applyComposerHeight(); });
     connect(m_sidebar, &Sidebar::sessionSelected, this, &MainWindow::onSessionSelected);
     connect(m_sidebar, &Sidebar::sessionDeleteRequested, this,
             &MainWindow::onSessionDeleteRequested);
@@ -668,6 +685,27 @@ void MainWindow::deleteSession(const QUuid &id) {
         onSessionSelected(m_sessions.first()->id());
     else
         updateEmptyState();
+}
+
+void MainWindow::applyComposerHeight() {
+    if (!m_rightSplitter || m_rightSplitter->height() <= 0)
+        return;
+    const int total = m_rightSplitter->height();
+    const int strip = m_composer ? m_composer->attachmentStripHeight() : 0;
+    const int base = std::clamp(m_uiSettings.composerHeight(), UiSettings::kMinComposerHeight,
+                                UiSettings::kMaxComposerHeight);
+    const int maxComposer = std::max(UiSettings::kMinComposerHeight, total - kMinChatHeight);
+    const int composer = std::clamp(base + strip, UiSettings::kMinComposerHeight, maxComposer);
+    m_rightSplitter->setSizes({total - composer, composer});
+}
+
+void MainWindow::onComposerSplitterMoved(int /*pos*/, int /*index*/) {
+    // Persist the base composer height (the composer column minus the
+    // attachment strip, so adding files does not change the stored value).
+    if (!m_rightSplitter || !m_composer)
+        return;
+    const int column = m_rightSplitter->sizes().value(1);
+    m_uiSettings.setComposerHeight(column - m_composer->attachmentStripHeight());
 }
 
 void MainWindow::createWindowShortcuts() {

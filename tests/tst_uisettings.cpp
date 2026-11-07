@@ -16,6 +16,7 @@ private slots:
     void setShowThroughputEmitsChanged();
     void saveLoadRoundtrip();
     void setSameValueDoesNotEmit();
+    void composerHeightClampedAndPersisted();
 };
 
 void TestUiSettings::defaultsToHiddenThroughput() {
@@ -73,6 +74,34 @@ void TestUiSettings::setSameValueDoesNotEmit() {
     QSignalSpy spy(&settings, &UiSettings::changed);
     settings.setShowThroughput(false); // already the default
     QCOMPARE(spy.count(), 0);
+}
+
+// The composer height is clamped to the allowed range and persisted.
+void TestUiSettings::composerHeightClampedAndPersisted() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("ocapi.conf"));
+
+    UiSettings settings;
+    {
+        QSettings file(path, QSettings::IniFormat);
+        settings.load(file);
+    }
+    QCOMPARE(settings.composerHeight(), 96); // default
+
+    settings.setComposerHeight(10); // below the minimum -> clamped
+    QCOMPARE(settings.composerHeight(), UiSettings::kMinComposerHeight);
+    settings.setComposerHeight(10000); // above the maximum -> clamped
+    QCOMPARE(settings.composerHeight(), UiSettings::kMaxComposerHeight);
+    settings.setComposerHeight(140);
+    QCOMPARE(settings.composerHeight(), 140);
+
+    UiSettings loaded;
+    {
+        QSettings file(path, QSettings::IniFormat);
+        loaded.load(file);
+    }
+    QCOMPARE(loaded.composerHeight(), 140);
 }
 
 int main(int argc, char *argv[]) {

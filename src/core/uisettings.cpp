@@ -1,10 +1,13 @@
 #include "core/uisettings.h"
 
+#include <algorithm>
+
 namespace ocapi {
 
 namespace {
 
 constexpr auto kShowThroughputKey = "ui/showThroughput";
+constexpr auto kComposerHeightKey = "ui/composerHeight";
 
 } // namespace
 
@@ -18,8 +21,20 @@ void UiSettings::setShowThroughput(bool enabled) {
     emit changed();
 }
 
+void UiSettings::setComposerHeight(int height) {
+    const int clamped = std::clamp(height, kMinComposerHeight, kMaxComposerHeight);
+    if (m_composerHeight == clamped)
+        return;
+    m_composerHeight = clamped;
+    save();
+    emit changed();
+}
+
 void UiSettings::load(QSettings &settings) {
     m_showThroughput = settings.value(QString::fromLatin1(kShowThroughputKey), false).toBool();
+    m_composerHeight = std::clamp(
+        settings.value(QString::fromLatin1(kComposerHeightKey), m_composerHeight).toInt(),
+        kMinComposerHeight, kMaxComposerHeight);
     // Persist through a fresh QSettings created from the path/format: the
     // caller's object is frequently stack-local (MainWindow opens one per
     // load), so keeping a pointer to it would dangle on save().
@@ -30,6 +45,7 @@ void UiSettings::load(QSettings &settings) {
 
 void UiSettings::save(QSettings &settings) const {
     settings.setValue(QString::fromLatin1(kShowThroughputKey), m_showThroughput);
+    settings.setValue(QString::fromLatin1(kComposerHeightKey), m_composerHeight);
 }
 
 void UiSettings::save() const {

@@ -28,9 +28,12 @@ namespace ocapi {
 namespace {
 
 constexpr int kMaxAttachmentsPerMessage = 8;
-constexpr int kDocumentChipHeight = 80;
 constexpr int kDocumentThumbSize = 64;
 constexpr int kDocumentChipPadding = 6;
+// Attachment chip: thumbnail on top, file name below it; the thumbnail keeps
+// its fixed size, the chip grows vertically to fit the name line.
+constexpr int kAttachmentChipWidth = kDocumentThumbSize + 2 * kDocumentChipPadding;
+constexpr int kAttachmentChipHeight = kDocumentThumbSize + 22;
 
 const QStringList &imageSuffixes() {
     static const QStringList allowed = {
@@ -434,73 +437,66 @@ void Composer::refreshAttachmentStrip() {
             item->widget()->deleteLater();
         delete item;
     }
+    // One chip per attachment: thumbnail on top (fixed size), file name
+    // below it, remove button in the name row.
+    auto addChip = [this](const QString &sourcePath, const QString &toolTip,
+                          const QImage &thumbImage, const QString &placeholder,
+                          const QString &fileName, const QUuid &id, bool isDocument) {
+        auto *chip = new AttachmentChip(sourcePath, toolTip, m_attachmentStrip);
+        chip->setFixedSize(kAttachmentChipWidth, kAttachmentChipHeight);
+        auto *chipLayout = new QVBoxLayout(chip);
+        chipLayout->setContentsMargins(kDocumentChipPadding, 2, kDocumentChipPadding, 2);
+        chipLayout->setSpacing(2);
+
+        auto *thumb = new QLabel(chip);
+        thumb->setFixedSize(kDocumentThumbSize, kDocumentThumbSize);
+        thumb->setAlignment(Qt::AlignCenter);
+        thumb->setAttribute(Qt::WA_TransparentForMouseEvents);
+        if (!thumbImage.isNull()) {
+            thumb->setPixmap(QPixmap::fromImage(thumbImage)
+                                 .scaled(kDocumentThumbSize, kDocumentThumbSize,
+                                         Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        } else {
+            thumb->setText(placeholder);
+        }
+        chipLayout->addWidget(thumb, 0, Qt::AlignHCenter);
+
+        auto *bottomRow = new QHBoxLayout();
+        bottomRow->setContentsMargins(0, 0, 0, 0);
+        bottomRow->setSpacing(2);
+        auto *label = new QLabel(fileName, chip);
+        label->setToolTip(fileName);
+        label->setTextElideMode(Qt::ElideMiddle);
+        label->setMaximumWidth(kDocumentThumbSize);
+        label->setAttribute(Qt::WA_TransparentForMouseEvents);
+        bottomRow->addWidget(label, 1);
+        bottomRow->addWidget(removeButton(chip, id, isDocument));
+        chipLayout->addLayout(bottomRow);
+
+        m_attachmentLayout->insertWidget(m_attachmentLayout->count() - 1, chip);
+    };
     for (const auto &attachment : m_attachments) {
         const QString tooltip = attachment.resized
-                                    ? tr("%1 (resized to %2×%3)\nClick to open")
+                                    ? tr("%1 (resized to %2\u00d7%3)\nClick to open")
                                           .arg(attachment.fileName)
                                           .arg(attachment.width)
                                           .arg(attachment.height)
                                     : tr("%1\nClick to open").arg(attachment.fileName);
-        auto *chip = new AttachmentChip(attachment.sourcePath, tooltip, m_attachmentStrip);
-        chip->setFixedHeight(kDocumentChipHeight);
-        auto *chipLayout = new QHBoxLayout(chip);
-        chipLayout->setContentsMargins(kDocumentChipPadding, 0, kDocumentChipPadding, 0);
-        chipLayout->setSpacing(kDocumentChipPadding);
-
-        auto *thumb = new QLabel(chip);
-        thumb->setFixedSize(kDocumentThumbSize, kDocumentThumbSize);
-        thumb->setAlignment(Qt::AlignCenter);
-        thumb->setAttribute(Qt::WA_TransparentForMouseEvents);
-        const QImage image = attachment.decode();
-        if (!image.isNull()) {
-            thumb->setPixmap(
-                QPixmap::fromImage(image).scaled(kDocumentThumbSize, kDocumentThumbSize,
-                                                 Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        } else {
-            thumb->setText(QStringLiteral("[image]"));
-        }
-        chipLayout->addWidget(thumb);
-
-        auto *label = new QLabel(attachment.fileName, chip);
-        label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        label->setAttribute(Qt::WA_TransparentForMouseEvents);
-        chipLayout->addWidget(label, 1);
-
-        chipLayout->addWidget(removeButton(chip, attachment.id, false));
-        m_attachmentLayout->insertWidget(m_attachmentLayout->count() - 1, chip);
+        addChip(attachment.sourcePath, tooltip, attachment.decode(), QStringLiteral("[image]"),
+                attachment.fileName, attachment.id, false);
     }
     for (const auto &file : m_documents) {
-        auto *chip = new AttachmentChip(file.sourcePath, tr("%1\nClick to open").arg(file.fileName),
-                                        m_attachmentStrip);
-        chip->setFixedHeight(kDocumentChipHeight);
-        auto *chipLayout = new QHBoxLayout(chip);
-        chipLayout->setContentsMargins(kDocumentChipPadding, 0, kDocumentChipPadding, 0);
-        chipLayout->setSpacing(kDocumentChipPadding);
-
-        auto *thumb = new QLabel(chip);
-        thumb->setFixedSize(kDocumentThumbSize, kDocumentThumbSize);
-        thumb->setAlignment(Qt::AlignCenter);
-        thumb->setAttribute(Qt::WA_TransparentForMouseEvents);
-        const QImage image = file.decodeThumbnail();
-        if (!image.isNull()) {
-            thumb->setPixmap(
-                QPixmap::fromImage(image).scaled(kDocumentThumbSize, kDocumentThumbSize,
-                                                 Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        } else {
-            thumb->setText(QStringLiteral("?"));
-        }
-        chipLayout->addWidget(thumb);
-
-        auto *label = new QLabel(file.fileName, chip);
-        label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        label->setAttribute(Qt::WA_TransparentForMouseEvents);
-        chipLayout->addWidget(label, 1);
-
-        chipLayout->addWidget(removeButton(chip, file.id, true));
-        m_attachmentLayout->insertWidget(m_attachmentLayout->count() - 1, chip);
+        addChip(file.sourcePath, tr("%1\nClick to open").arg(file.fileName), file.decodeThumbnail(),
+                QStringLiteral("?"), file.fileName, file.id, true);
     }
     m_attachmentStrip->setVisible(!m_attachments.isEmpty() || !m_documents.isEmpty());
     emit attachmentsChanged();
+}
+
+int Composer::attachmentStripHeight() const {
+    if (!m_attachmentStrip->isVisible())
+        return 0;
+    return m_attachmentStrip->sizeHint().height();
 }
 
 } // namespace ocapi

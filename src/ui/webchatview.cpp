@@ -76,6 +76,33 @@ QString elementOrderToJs(const Message &m) {
     return QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact));
 }
 
+// The message's attachments as a JSON object, passed to the page as a JS
+// literal: {images: [{fileName, mimeType, data(base64)}, ...],
+//           files: [{fileName, thumbnail(base64 PNG, may be empty)}, ...]}.
+// Rendered below the text of user messages.
+QString attachmentsToJs(const Message &m) {
+    QJsonArray images;
+    for (const auto &img : m.images) {
+        images.append(QJsonObject{
+            {QStringLiteral("fileName"), img.fileName},
+            {QStringLiteral("mimeType"), img.mimeType},
+            {QStringLiteral("data"), QString::fromLatin1(img.data.toBase64())},
+        });
+    }
+    QJsonArray files;
+    for (const auto &file : m.files) {
+        files.append(QJsonObject{
+            {QStringLiteral("fileName"), file.fileName},
+            {QStringLiteral("thumbnail"), QString::fromLatin1(file.thumbnail.toBase64())},
+        });
+    }
+    return QString::fromUtf8(QJsonDocument(QJsonObject{
+                                               {QStringLiteral("images"), images},
+                                               {QStringLiteral("files"), files},
+                                           })
+                                 .toJson(QJsonDocument::Compact));
+}
+
 // Env-gated tracing of the chat element rendering: set OCAPI_DEBUG_CHAT to
 // see on stderr, for every message pushed to the web view, the element
 // sequence (thinking phases vs. tool calls) the page is told to render.
@@ -164,14 +191,14 @@ void WebChatView::prependMessages(const QVector<Message> &messages) {
 
 void WebChatView::onMessageAdded(const Message &message) {
     logChatElements(message);
-    callJs(QStringLiteral("setMessage(%1, %2, %3, %4, %5, %6, %7, %8, %9)")
+    callJs(QStringLiteral("setMessage(%1, %2, %3, %4, %5, %6, %7, %8, %9, %10)")
                .arg(jsString(message.id.toString(QUuid::WithoutBraces)),
                     jsString(message.roleName()), jsString(message.content),
                     message.streaming ? QStringLiteral("true") : QStringLiteral("false"),
                     reasoningToJs(message),
                     message.reasoningStreaming ? QStringLiteral("true") : QStringLiteral("false"),
                     toolCallsToJs(message.toolCalls), elementOrderToJs(message),
-                    QString::number(message.tokensPerSecond)));
+                    QString::number(message.tokensPerSecond), attachmentsToJs(message)));
 }
 
 void WebChatView::setShowThroughput(bool enabled) {

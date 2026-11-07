@@ -20,6 +20,14 @@ public:
     [[nodiscard]] bool showThroughput() const { return m_showThroughput; }
     void setShowThroughput(bool enabled);
 
+    // Height of the composer's text input in px (the composer area is
+    // resizable with the mouse; the value is persisted here). Attachment
+    // thumbnails add their own height on top of this base height.
+    static constexpr int kMinComposerHeight = 48;
+    static constexpr int kMaxComposerHeight = 480;
+    [[nodiscard]] int composerHeight() const { return m_composerHeight; }
+    void setComposerHeight(int height);
+
     void load(QSettings &settings);
     void save(QSettings &settings) const;
     void save() const;
@@ -29,6 +37,7 @@ signals:
 
 private:
     bool m_showThroughput = false;
+    int m_composerHeight = 96;
     QString m_persistPath;
     QSettings::Format m_persistFormat = QSettings::IniFormat;
 };

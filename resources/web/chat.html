@@ -238,6 +238,42 @@
         align-items: center;
         justify-content: center;
       }
+      /* Attachments below the text of user messages, analogous to the
+     composer's attachment strip: thumbnail with the file name below it. */
+      .msg .attachments {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 6px;
+      }
+      .msg .att {
+        width: 76px;
+      }
+      .msg .att .att-thumb {
+        display: block;
+        width: 64px;
+        height: 64px;
+        object-fit: cover;
+        margin: 0 auto;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--code-bg);
+      }
+      .msg .att .att-thumb.ph {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--muted);
+      }
+      .msg .att .att-name {
+        margin-top: 2px;
+        font-size: 11px;
+        color: var(--muted);
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
       .msg .actions .throughput {
         color: var(--muted);
         font-size: 12px;
@@ -607,6 +643,53 @@
         showThroughput = enabled;
       }
 
+      // Renders a message's attachments below its text (user messages),
+      // analogous to the composer's attachment strip: 64px thumbnail with
+      // the file name below it.
+      function renderAttachments(el, attachments) {
+        let box = el.querySelector('.attachments');
+        const images = (attachments && attachments.images) || [];
+        const files = (attachments && attachments.files) || [];
+        if (!images.length && !files.length) {
+          if (box) box.remove();
+          return;
+        }
+        if (!box) {
+          box = document.createElement('div');
+          box.className = 'attachments';
+          const actions = el.querySelector('.actions');
+          el.insertBefore(box, actions); // below the body, above the actions
+        }
+        box.innerHTML = '';
+        const chip = function (thumbSrc, placeholder, fileName) {
+          const att = document.createElement('div');
+          att.className = 'att';
+          att.title = fileName;
+          const thumb = document.createElement(thumbSrc ? 'img' : 'div');
+          thumb.className = 'att-thumb' + (thumbSrc ? '' : ' ph');
+          if (thumbSrc) thumb.src = thumbSrc;
+          else thumb.textContent = placeholder;
+          const name = document.createElement('div');
+          name.className = 'att-name';
+          name.textContent = fileName;
+          att.appendChild(thumb);
+          att.appendChild(name);
+          return att;
+        };
+        for (const img of images)
+          box.appendChild(
+            chip(
+              'data:' + (img.mimeType || 'image/png') + ';base64,' + img.data,
+              '?',
+              img.fileName || 'image',
+            ),
+          );
+        for (const f of files) {
+          const src = f.thumbnail ? 'data:image/png;base64,' + f.thumbnail : null;
+          box.appendChild(chip(src, '?', f.fileName || 'file'));
+        }
+      }
+
       function setMessage(
         id,
         role,
@@ -617,6 +700,7 @@
         toolCalls,
         elementOrder,
         tokensPerSecond,
+        attachments,
       ) {
         let el = document.getElementById('msg-' + id);
         const isNewElement = !el;
@@ -687,6 +771,7 @@
           // rendering so injected markup cannot execute; markdown itself
           // (links, code, emphasis) still renders.
           body.innerHTML = content ? renderMarkdown(escapeHtml(content)) : '';
+          renderAttachments(el, attachments || {});
         } else {
           // Empty content (e.g. a message that only requested tool calls) must
           // not render an empty <p>, which would add a blank line between the

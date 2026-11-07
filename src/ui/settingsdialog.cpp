@@ -7,12 +7,14 @@
 #include "core/sttregistry.h"
 #include "core/systemprompt.h"
 #include "core/ttsregistry.h"
+#include "core/uisettings.h"
 #include "ui/backendpage.h"
 #include "ui/mcppage.h"
 #include "ui/shortcutpage.h"
 #include "ui/sttpage.h"
 #include "ui/systempromptpage.h"
 #include "ui/ttspage.h"
+#include "ui/userinterfacepage.h"
 
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
@@ -28,7 +30,8 @@ namespace ocapi {
 SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mcpRegistry,
                                McpManager *mcpManager, SttRegistry *sttRegistry,
                                TtsRegistry *ttsRegistry, SystemPrompt *systemPrompt,
-                               ShortcutRegistry *shortcutRegistry, QWidget *parent)
+                               ShortcutRegistry *shortcutRegistry, UiSettings *uiSettings,
+                               QWidget *parent)
     : QDialog(parent) {
     setWindowTitle(tr("Settings"));
     resize(880, 580);
@@ -44,6 +47,8 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
                 QStringLiteral(":/resources/icons/general.svg"));
     addTab(tr("System Prompt"), QStringLiteral("systemprompt"),
            new SystemPromptPage(systemPrompt, m_stack));
+    addTab(tr("User Interface"), QStringLiteral("userinterface"),
+           new UserInterfacePage(uiSettings, m_stack));
 
     addCategory(tr("Models"), QStringLiteral("models"),
                 QStringLiteral(":/resources/icons/ai_chip.svg"));

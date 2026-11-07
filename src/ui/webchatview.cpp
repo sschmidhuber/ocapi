@@ -119,6 +119,10 @@ WebChatView::WebChatView(QWidget *parent) : QWebEngineView(parent) {
         if (!ok)
             return;
         m_ready = true;
+        // Apply the throughput flag that may have been set before the page
+        // was ready (callJs() is a no-op until then).
+        callJs(QStringLiteral("setShowThroughput(%1)")
+                   .arg(m_showThroughput ? QStringLiteral("true") : QStringLiteral("false")));
         if (m_session) {
             for (const auto &message : m_session->messages())
                 onMessageAdded(message);
@@ -158,13 +162,25 @@ void WebChatView::prependMessages(const QVector<Message> &messages) {
 
 void WebChatView::onMessageAdded(const Message &message) {
     logChatElements(message);
-    callJs(QStringLiteral("setMessage(%1, %2, %3, %4, %5, %6, %7, %8)")
+    callJs(QStringLiteral("setMessage(%1, %2, %3, %4, %5, %6, %7, %8, %9)")
                .arg(jsString(message.id.toString(QUuid::WithoutBraces)),
                     jsString(message.roleName()), jsString(message.content),
                     message.streaming ? QStringLiteral("true") : QStringLiteral("false"),
                     reasoningToJs(message),
                     message.reasoningStreaming ? QStringLiteral("true") : QStringLiteral("false"),
-                    toolCallsToJs(message.toolCalls), elementOrderToJs(message)));
+                    toolCallsToJs(message.toolCalls), elementOrderToJs(message),
+                    QString::number(message.tokensPerSecond)));
+}
+
+void WebChatView::setShowThroughput(bool enabled) {
+    if (m_showThroughput == enabled)
+        return;
+    m_showThroughput = enabled;
+    callJs(QStringLiteral("setShowThroughput(%1)")
+               .arg(enabled ? QStringLiteral("true") : QStringLiteral("false")));
+    // Re-render so the new flag applies to all messages already shown.
+    if (m_session)
+        setSession(m_session);
 }
 
 void WebChatView::onMessageUpdated(const Message &message) {

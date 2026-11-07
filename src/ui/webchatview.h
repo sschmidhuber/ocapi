@@ -38,6 +38,9 @@ public:
 
     void setSession(ChatSession *session);
     void prependMessages(const QVector<Message> &messages);
+    // Whether assistant messages show their output token throughput (t/s)
+    // next to the copy button; re-renders the current session on change.
+    void setShowThroughput(bool enabled);
 
 signals:
     void olderMessagesRequested();
@@ -54,6 +57,7 @@ private:
     QWebChannel *m_channel = nullptr;
     WebChatBridge *m_bridge = nullptr;
     bool m_ready = false;
+    bool m_showThroughput = false;
 };
 
 } // namespace ocapi

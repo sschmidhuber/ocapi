@@ -12,6 +12,9 @@
     "QWebChannel": "readonly"
   },
   "rules": {
-    "no-unused-vars": ["error", { "varsIgnorePattern": "^(setMessage|clearLog|setTheme)$" }]
+    "no-unused-vars": [
+      "error",
+      { "varsIgnorePattern": "^(setMessage|clearLog|setTheme|setShowThroughput)$" }
+    ]
   }
 }

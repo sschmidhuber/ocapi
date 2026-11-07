@@ -236,6 +236,11 @@
         align-items: center;
         justify-content: center;
       }
+      .msg .actions .throughput {
+        color: var(--muted);
+        font-size: 12px;
+        user-select: none;
+      }
       .msg .actions .copy-btn:hover {
         color: var(--fg);
         border-color: var(--muted);
@@ -583,6 +588,13 @@
       // toolCalls = array of {id, name, arguments, status, result} in call order;
       // elementOrder = ["thinking:<i>", "tool:<i>", ..., "text", ...] tokens in
       // display order; "text" marks where the answer sits among the elements.
+      // Global UI flags set from the C++ side (Settings > General > User
+      // Interface); setShowThroughput() is called on page load and on change.
+      var showThroughput = false;
+      function setShowThroughput(enabled) {
+        showThroughput = enabled;
+      }
+
       function setMessage(
         id,
         role,
@@ -592,6 +604,7 @@
         reasoningStreaming,
         toolCalls,
         elementOrder,
+        tokensPerSecond,
       ) {
         let el = document.getElementById('msg-' + id);
         if (!el) {
@@ -621,6 +634,12 @@
             actions.appendChild(btn);
             // Hide the copy button while the answer is still streaming.
             btn.style.display = 'none';
+            // Throughput (t/s) sits right next to the copy button; hidden
+            // until the toggle is on and a throughput value is known.
+            const throughput = document.createElement('span');
+            throughput.className = 'throughput';
+            throughput.style.display = 'none';
+            actions.appendChild(throughput);
           }
           // An assistant message without answer text (e.g. a round that only
           // requested tool calls) must not appear as an empty element in the
@@ -665,6 +684,20 @@
         if (role === 'assistant' && !streaming && content) {
           const copyBtn = el.querySelector('.copy-btn');
           if (copyBtn) copyBtn.style.display = '';
+        }
+        // Output token throughput next to the copy button, e.g. "32 t/s"
+        // with tooltip "32 output token/s"; only when the toggle is on and
+        // the message has a known throughput (set when its stream finished).
+        const throughputEl = role === 'assistant' ? el.querySelector('.throughput') : null;
+        if (throughputEl) {
+          if (showThroughput && typeof tokensPerSecond === 'number' && tokensPerSecond > 0) {
+            const rounded = Math.round(tokensPerSecond);
+            throughputEl.textContent = rounded + ' t/s';
+            throughputEl.title = rounded + ' output token/s';
+            throughputEl.style.display = '';
+          } else {
+            throughputEl.style.display = 'none';
+          }
         }
         if (role === 'assistant') {
           renderAssistantElements(

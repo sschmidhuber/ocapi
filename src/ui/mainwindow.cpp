@@ -215,7 +215,7 @@ struct StreamContext {
 };
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_mcpRegistry) {
-    setWindowTitle(tr("ocapi"));
+    setWindowTitle(tr("Ocapi"));
     resize(1100, 720);
 
     if (!openDatabase())

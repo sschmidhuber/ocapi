@@ -198,26 +198,35 @@ class OcapiE2E(unittest.TestCase):
         )
 
     def test_07_change_shortcut(self):
-        # Open Settings and select the Shortcuts category; the table lists
-        # the actions with their default shortcuts.
+        # Open Settings. The category list cannot be driven by clicking its
+        # items (they expose no Press action), so switch to the "Shortcuts"
+        # category with keyboard navigation: the list starts on "General"
+        # (row 0), three Down presses reach "Shortcuts" (row 3). The AT-SPI
+        # tree also contains the hidden pages, so visibility is asserted via
+        # the "showing" state, not mere presence.
         self.find_by_name("Settings").click()
-        self.wait_for("//dialog[@name='Settings']//list_item[@name='Shortcuts']").click()
-        self.wait_for("//dialog[@name='Settings']//table_cell[@name='New chat']")
-        self.wait_for("//dialog[@name='Settings']//table_cell[@name='Ctrl+N']")
+        categories = self.wait_for("//dialog[@name='Settings']//list")
+        categories.send_keys("\ue015\ue015\ue015")  # Down x3
+        showing_cell = "//dialog[@name='Settings']//table_cell[contains(@states, 'showing')]"
+        self.wait_for(f"{showing_cell}[@name='New chat']")
+        self.wait_for(f"{showing_cell}[@name='Ctrl+N']")
 
-        # Select the "New chat" row and capture a new shortcut. The driver
-        # synthesizes real key events for special keys; End (\ue010) is one
-        # of the mappable ones, and modifier chords are not supported.
-        # Button lookups stay tag-agnostic: newer at-spi exposes push buttons
-        # with the role name "button", not "push button".
-        self.find_by_xpath("//dialog[@name='Settings']//table_cell[@name='New chat']").click()
+        # Select the first row ("New chat") via the table's keyboard focus,
+        # then capture a new shortcut. The driver synthesizes real key events
+        # for special keys; End (\ue010) is one of the mappable ones, and
+        # modifier chords are not supported. Button lookups stay
+        # tag-agnostic: newer at-spi exposes push buttons with the role name
+        # "button", not "push button".
+        table = self.wait_for("//dialog[@name='Settings']//table[contains(@states, 'showing')]")
+        table.send_keys("\ue015")  # Down: selects row 0
         self.wait_for("//dialog[@name='Settings']//*[contains(@name, 'Edit Shortcut')]").click()
+        self.wait_for("//dialog[@name='Set Shortcut']")
         key_edit = self.wait_for("//dialog[@name='Set Shortcut']//text")
         key_edit.send_keys("\ue010")
         self.wait_for("//dialog[@name='Set Shortcut']//*[@name='OK']").click()
 
         # The table shows the new shortcut for "New chat" right away.
-        self.wait_for("//dialog[@name='Settings']//table_cell[@name='End']")
+        self.wait_for(f"{showing_cell}[@name='End']")
 
         # The override is persisted to ocapi.conf (group "shortcuts").
         self.wait_for("//dialog[@name='Settings']//*[@name='Close']").click()

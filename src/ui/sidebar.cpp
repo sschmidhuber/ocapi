@@ -206,16 +206,14 @@ QList<QUuid> Sidebar::selectedSessionIds() const {
             ids.insert(QUuid(item->data(0, kSessionIdRole).toString()));
         }
     }
-    return QList<QUuid>(ids.begin(), ids.end());
+    return {ids.begin(), ids.end()};
 }
 
 QList<QUuid> Sidebar::deletableSelectedSessionIds() const {
     QList<QUuid> ids = selectedSessionIds();
-    ids.erase(std::remove_if(ids.begin(), ids.end(),
-                             [this](const QUuid &id) {
-                                 return m_running.contains(id) || m_unread.contains(id);
-                             }),
-              ids.end());
+    const auto removed = std::ranges::remove_if(
+        ids, [this](const QUuid &id) { return m_running.contains(id) || m_unread.contains(id); });
+    ids.erase(removed.begin(), removed.end());
     return ids;
 }
 

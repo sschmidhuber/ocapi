@@ -298,7 +298,7 @@ void TestSidebar::selectedGroupExpandsToItsChats() {
 
     auto *todayGroup = groupItem(tree, now);
     QVERIFY(todayGroup);
-    tree->setItemSelected(todayGroup, true);
+    todayGroup->setSelected(true);
 
     const QList<QUuid> ids = sidebar.selectedSessionIds();
     QCOMPARE(ids.size(), 2);
@@ -334,7 +334,7 @@ void TestSidebar::deletableSelectionExcludesRunningAndUnread() {
     for (int i = 0; i < group->childCount(); ++i) {
         auto *item = group->child(i);
         if (QUuid(item->data(0, Qt::UserRole).toString()) == running->id())
-            tree->setItemSelected(item, true);
+            item->setSelected(true);
     }
     QVERIFY(sidebar.deletableSelectedSessionIds().isEmpty());
 }
@@ -363,7 +363,7 @@ void TestSidebar::deleteKeyEmitsDeletableSelection() {
     QSignalSpy spy(&sidebar, &Sidebar::sessionDeleteRequested);
     QTest::keyClick(tree, Qt::Key_Delete);
     QCOMPARE(spy.count(), 1);
-    const QList<QUuid> ids = spy.takeFirst().at(0).value<QList<QUuid>>();
+    const auto ids = spy.takeFirst().at(0).value<QList<QUuid>>();
     QCOMPARE(ids.size(), 2);
     QVERIFY(!ids.contains(running->id()));
     QVERIFY(ids.contains(plain0->id()));

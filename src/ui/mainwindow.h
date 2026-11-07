@@ -149,6 +149,8 @@ private:
     // Re-creates the window shortcuts and the composer's dictate shortcut
     // from the current registry state and refreshes the tooltips.
     void reapplyShortcuts();
+    // Chat-view signals: older-messages paging, link open/hover, file open.
+    void setupChatViewConnections();
     // Wires the composer splitter (drag to resize, persist) and the
     // attachment-driven growth of the composer column.
     void setupComposerSplitter();

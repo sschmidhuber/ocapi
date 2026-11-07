@@ -466,36 +466,7 @@ void MainWindow::setupConnections() {
         statusBar()->showMessage(tr("Text-to-speech failed: %1").arg(message), 10000);
     });
     connect(m_speakButton, &QPushButton::clicked, this, &MainWindow::onSpeakResponsesToggled);
-    connect(m_chatView, &WebChatView::olderMessagesRequested, this,
-            [this]() { loadOlderMessages(m_currentSession); });
-    // Links in chat messages open in the default web browser (http/https
-    // only); while hovering a link its URL is shown in the status bar.
-    connect(m_chatView, &WebChatView::linkActivated, this, [](const QString &url) {
-        const QUrl parsed(url);
-        if (parsed.isValid() &&
-            (parsed.scheme() == QLatin1String("http") || parsed.scheme() == QLatin1String("https")))
-            QDesktopServices::openUrl(parsed);
-    });
-    connect(m_chatView, &WebChatView::linkHovered, this, [this](const QString &url) {
-        if (url.isEmpty())
-            statusBar()->clearMessage();
-        else
-            statusBar()->showMessage(url);
-    });
-    // Clicking a file element in a user message opens the file with the
-    // system's default application (non-modal error if that fails).
-    connect(m_chatView, &WebChatView::attachmentOpenRequested, this, [this](const QString &path) {
-        if (path.isEmpty())
-            return;
-        QString error;
-        if (!AttachmentOpener::open(path, &error)) {
-            auto *box = new QMessageBox(QMessageBox::Warning, tr("Could not open attachment"),
-                                        error, QMessageBox::Ok, this);
-            box->setAttribute(Qt::WA_DeleteOnClose);
-            box->setModal(false);
-            box->show();
-        }
-    });
+    setupChatViewConnections();
     connect(m_sendButton, &QPushButton::clicked, this, [this]() {
         if (m_composer->isEmpty())
             return;
@@ -702,6 +673,39 @@ void MainWindow::deleteSession(const QUuid &id) {
         onSessionSelected(m_sessions.first()->id());
     else
         updateEmptyState();
+}
+
+void MainWindow::setupChatViewConnections() {
+    connect(m_chatView, &WebChatView::olderMessagesRequested, this,
+            [this]() { loadOlderMessages(m_currentSession); });
+    // Links in chat messages open in the default web browser (http/https
+    // only); while hovering a link its URL is shown in the status bar.
+    connect(m_chatView, &WebChatView::linkActivated, this, [](const QString &url) {
+        const QUrl parsed(url);
+        if (parsed.isValid() &&
+            (parsed.scheme() == QLatin1String("http") || parsed.scheme() == QLatin1String("https")))
+            QDesktopServices::openUrl(parsed);
+    });
+    connect(m_chatView, &WebChatView::linkHovered, this, [this](const QString &url) {
+        if (url.isEmpty())
+            statusBar()->clearMessage();
+        else
+            statusBar()->showMessage(url);
+    });
+    // Clicking a file element in a user message opens the file with the
+    // system's default application (non-modal error if that fails).
+    connect(m_chatView, &WebChatView::attachmentOpenRequested, this, [this](const QString &path) {
+        if (path.isEmpty())
+            return;
+        QString error;
+        if (!AttachmentOpener::open(path, &error)) {
+            auto *box = new QMessageBox(QMessageBox::Warning, tr("Could not open attachment"),
+                                        error, QMessageBox::Ok, this);
+            box->setAttribute(Qt::WA_DeleteOnClose);
+            box->setModal(false);
+            box->show();
+        }
+    });
 }
 
 void MainWindow::setupComposerSplitter() {

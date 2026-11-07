@@ -97,17 +97,17 @@ const PromptTemplate *PromptTemplateRegistry::find(const QUuid &id) const {
     return nullptr;
 }
 
-PromptTemplate &PromptTemplateRegistry::add(PromptTemplate template) {
-    m_templates.append(std::move(template));
+PromptTemplate &PromptTemplateRegistry::add(PromptTemplate tpl) {
+    m_templates.append(std::move(tpl));
     save();
     emit changed();
     return m_templates.last();
 }
 
-void PromptTemplateRegistry::update(const PromptTemplate &template) {
+void PromptTemplateRegistry::update(const PromptTemplate &tpl) {
     for (auto &t : m_templates) {
-        if (t.id == template.id) {
-            t = template;
+        if (t.id == tpl.id) {
+            t = tpl;
             save();
             emit changed();
             return;

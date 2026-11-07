@@ -37,9 +37,9 @@ public:
     [[nodiscard]] const QVector<PromptTemplate> &templates() const { return m_templates; }
     [[nodiscard]] const PromptTemplate *find(const QUuid &id) const;
     // Adds a new template (id must be fresh); returns the stored template.
-    PromptTemplate &add(PromptTemplate template);
+    PromptTemplate &add(PromptTemplate tpl);
     // Replaces the template with the same id.
-    void update(const PromptTemplate &template);
+    void update(const PromptTemplate &tpl);
     void remove(const QUuid &id);
 
     void load(QSettings &settings);

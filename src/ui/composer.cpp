@@ -367,41 +367,47 @@ void Composer::setDictationActive(bool active) {
     }
 }
 
+// Key handling for the prompt-template menu. The trigger itself is detected
+// here because text edits accept the shortcut override for printable keys, so
+// a QShortcut would never fire; single printable triggers are matched via the
+// produced text (layout-independent: '/' is Shift+7 on German layouts), key
+// combos via key|modifiers. Returns true when the key was consumed.
+bool Composer::handlePromptMenuKey(QKeyEvent *keyEvent) {
+    bool isTrigger = false;
+    if (!m_promptTrigger.isEmpty()) {
+        if (m_promptTrigger.count() == 1)
+            isTrigger = keyEvent->text() == m_promptTrigger.toString();
+        else
+            isTrigger = QKeySequence(keyEvent->key() | static_cast<int>(keyEvent->modifiers())) ==
+                        m_promptTrigger;
+    }
+    if (!m_promptActive && isTrigger) {
+        m_promptActive = true;
+        m_promptTriggerPos = m_textEdit->textCursor().position();
+        emit promptTemplateRequested();
+        return false; // let the trigger character be inserted normally
+    }
+    if (!m_promptActive)
+        return false;
+    if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
+        if (!(keyEvent->modifiers() & Qt::ShiftModifier)) {
+            emit promptMenuConfirmed();
+            return true;
+        }
+        return false;
+    }
+    if (keyEvent->key() == Qt::Key_Escape) {
+        closePromptMenu();
+        return true;
+    }
+    return false;
+}
+
 bool Composer::eventFilter(QObject *watched, QEvent *event) {
     if (watched == m_textEdit && event->type() == QEvent::KeyPress) {
         auto *keyEvent = dynamic_cast<QKeyEvent *>(event);
-        // The prompt-template trigger: detected here because text edits
-        // accept the shortcut override for printable keys, so a QShortcut
-        // would never fire. Match single printable triggers via the produced
-        // text (layout-independent: '/' is Shift+7 on German layouts), key
-        // combos via key|modifiers. The trigger character itself is inserted
-        // normally; the menu filters on the text typed after it.
-        bool isTrigger = false;
-        if (!m_promptTrigger.isEmpty()) {
-            if (m_promptTrigger.count() == 1)
-                isTrigger = keyEvent->text() == m_promptTrigger.toString();
-            else
-                isTrigger =
-                    QKeySequence(keyEvent->key() | static_cast<int>(keyEvent->modifiers())) ==
-                    m_promptTrigger;
-        }
-        if (!m_promptActive && isTrigger) {
-            m_promptActive = true;
-            m_promptTriggerPos = m_textEdit->textCursor().position();
-            emit promptTemplateRequested();
-            return false;
-        }
-        if (m_promptActive) {
-            if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
-                if (!(keyEvent->modifiers() & Qt::ShiftModifier)) {
-                    emit promptMenuConfirmed();
-                    return true;
-                }
-            } else if (keyEvent->key() == Qt::Key_Escape) {
-                closePromptMenu();
-                return true;
-            }
-        }
+        if (handlePromptMenuKey(keyEvent))
+            return true;
         if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
             if (keyEvent->modifiers() & Qt::ShiftModifier)
                 return false;

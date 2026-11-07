@@ -17,15 +17,22 @@ using namespace ocapi;
 
 namespace {
 
-// Number of chat entries in the sidebar tree (group headers not counted).
-int chatItemCount(MainWindow &window) {
+// Whether the sidebar tree still lists the session with the given id. (All
+// MainWindow instances of the test process share one temp database, so
+// counting items would include sessions of earlier tests; assert on the
+// specific ids instead.)
+bool sidebarHasSession(MainWindow &window, const QUuid &id) {
     auto *tree = window.findChild<QTreeWidget *>();
     if (!tree)
-        return -1;
-    int count = 0;
-    for (int i = 0; i < tree->topLevelItemCount(); ++i)
-        count += tree->topLevelItem(i)->childCount();
-    return count;
+        return false;
+    for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+        auto *group = tree->topLevelItem(i);
+        for (int j = 0; j < group->childCount(); ++j) {
+            if (QUuid(group->child(j)->data(0, Qt::UserRole).toString()) == id)
+                return true;
+        }
+    }
+    return false;
 }
 
 // Clicks the given button of the modal confirmation dialog that
@@ -284,10 +291,12 @@ void TestMainWindow::deleteSingleChatWithoutConfirmation() {
     const QUuid initial = window.currentSession()->id();
     window.startNewChat();
     const QUuid second = window.currentSession()->id();
-    QCOMPARE(chatItemCount(window), 2);
+    QVERIFY(sidebarHasSession(window, initial));
+    QVERIFY(sidebarHasSession(window, second));
 
     window.requestDeleteSessionsForTest({second});
-    QCOMPARE(chatItemCount(window), 1);
+    QVERIFY(!sidebarHasSession(window, second));
+    QVERIFY(sidebarHasSession(window, initial));
     QVERIFY(window.currentSession());
     QCOMPARE(window.currentSession()->id(), initial);
 }
@@ -302,12 +311,15 @@ void TestMainWindow::deleteMultipleChatsAsksAndDeletesOnYes() {
     const QUuid s1 = window.currentSession()->id();
     window.startNewChat();
     const QUuid s2 = window.currentSession()->id();
-    QCOMPARE(chatItemCount(window), 3);
+    QVERIFY(sidebarHasSession(window, s0));
+    QVERIFY(sidebarHasSession(window, s1));
+    QVERIFY(sidebarHasSession(window, s2));
 
     clickModalButton(QMessageBox::Yes);
     window.requestDeleteSessionsForTest({s0, s1, s2});
-    // All chats deleted; a fresh session is created automatically.
-    QCOMPARE(chatItemCount(window), 1);
+    QVERIFY(!sidebarHasSession(window, s0));
+    QVERIFY(!sidebarHasSession(window, s1));
+    QVERIFY(!sidebarHasSession(window, s2));
     QVERIFY(window.currentSession());
     QVERIFY(window.currentSession()->id() != s0);
     QVERIFY(window.currentSession()->id() != s1);
@@ -321,11 +333,11 @@ void TestMainWindow::deleteMultipleChatsKeepsAllOnNo() {
     const QUuid s0 = window.currentSession()->id();
     window.startNewChat();
     const QUuid s1 = window.currentSession()->id();
-    QCOMPARE(chatItemCount(window), 2);
 
     clickModalButton(QMessageBox::No);
     window.requestDeleteSessionsForTest({s0, s1});
-    QCOMPARE(chatItemCount(window), 2);
+    QVERIFY(sidebarHasSession(window, s0));
+    QVERIFY(sidebarHasSession(window, s1));
 }
 
 // Unread chats are never deleted: the unread one is filtered out before the
@@ -338,10 +350,10 @@ void TestMainWindow::unreadChatIsNotDeleted() {
     window.startNewChat();
     const QUuid unread = window.currentSession()->id();
     window.markUnreadForTest(unread);
-    QCOMPARE(chatItemCount(window), 2);
 
     window.requestDeleteSessionsForTest({read, unread});
-    QCOMPARE(chatItemCount(window), 1);
+    QVERIFY(!sidebarHasSession(window, read));
+    QVERIFY(sidebarHasSession(window, unread));
     QVERIFY(window.currentSession());
     QCOMPARE(window.currentSession()->id(), unread);
 }

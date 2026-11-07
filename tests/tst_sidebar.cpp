@@ -4,6 +4,7 @@
 
 #include <QApplication>
 #include <QPushButton>
+#include <QSignalSpy>
 #include <QTreeWidget>
 #include <QtTest>
 
@@ -43,6 +44,10 @@ private slots:
     void emptySessionsClearTree();
     void sidebarHasNoToolbarButtons();
     void indicatorsBadgeRunningAndUnreadChats();
+    void multiSelectionViaCtrlAndShiftClick();
+    void selectedGroupExpandsToItsChats();
+    void deletableSelectionExcludesRunningAndUnread();
+    void deleteKeyEmitsDeletableSelection();
 };
 
 void TestSidebar::firstBuildExpandsOnlyToday() {
@@ -230,6 +235,139 @@ void TestSidebar::indicatorsBadgeRunningAndUnreadChats() {
     QVERIFY(group);
     for (int i = 0; i < group->childCount(); ++i)
         QVERIFY(group->child(i)->icon(0).isNull());
+}
+
+// Ctrl+click adds to the selection, Shift+click selects a range, and a
+// group header can be added with Ctrl+click as well.
+void TestSidebar::multiSelectionViaCtrlAndShiftClick() {
+    const QDateTime now = QDateTime::currentDateTime();
+    auto s0 = makeSession(QStringLiteral("chat 0"), now);
+    auto s1 = makeSession(QStringLiteral("chat 1"), now);
+    auto s2 = makeSession(QStringLiteral("chat 2"), now);
+    const QVector<ChatSession *> sessions{s0.get(), s1.get(), s2.get()};
+
+    Sidebar sidebar;
+    sidebar.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&sidebar));
+    auto *tree = sidebar.findChild<QTreeWidget *>();
+    QVERIFY(tree);
+    QCOMPARE(tree->selectionMode(), QAbstractItemView::ExtendedSelection);
+    sidebar.setSessions(sessions);
+
+    auto *group = groupItem(tree, now);
+    QVERIFY(group);
+    QCOMPARE(group->childCount(), 3);
+    auto *i0 = group->child(0);
+    auto *i1 = group->child(1);
+    auto *i2 = group->child(2);
+
+    // Plain click selects only the clicked chat.
+    QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::NoModifier,
+                      tree->visualItemRect(i0).center());
+    QCOMPARE(tree->selectedItems().size(), 1);
+
+    // Shift+click selects the whole range from the anchor to the clicked item.
+    QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::ShiftModifier,
+                      tree->visualItemRect(i2).center());
+    QCOMPARE(tree->selectedItems().size(), 3);
+
+    // Ctrl+click toggles a single item off again.
+    QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::ControlModifier,
+                      tree->visualItemRect(i1).center());
+    QCOMPARE(tree->selectedItems().size(), 2);
+
+    // Ctrl+click on the group header adds all of its chats to the selection.
+    QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::ControlModifier,
+                      tree->visualItemRect(group).center());
+    QVERIFY(group->isSelected());
+    QCOMPARE(sidebar.selectedSessionIds().size(), 3);
+}
+
+// Selecting a top-level group item yields all chats of that group.
+void TestSidebar::selectedGroupExpandsToItsChats() {
+    const QDateTime now = QDateTime::currentDateTime();
+    auto t0 = makeSession(QStringLiteral("today 0"), now);
+    auto t1 = makeSession(QStringLiteral("today 1"), now);
+    auto y0 = makeSession(QStringLiteral("yesterday 0"), now.addDays(-1));
+    const QVector<ChatSession *> sessions{t0.get(), t1.get(), y0.get()};
+
+    Sidebar sidebar;
+    auto *tree = sidebar.findChild<QTreeWidget *>();
+    QVERIFY(tree);
+    sidebar.setSessions(sessions);
+
+    auto *todayGroup = groupItem(tree, now);
+    QVERIFY(todayGroup);
+    todayGroup->setSelected(true);
+
+    const QList<QUuid> ids = sidebar.selectedSessionIds();
+    QCOMPARE(ids.size(), 2);
+    QVERIFY(ids.contains(t0->id()));
+    QVERIFY(ids.contains(t1->id()));
+    QVERIFY(!ids.contains(y0->id()));
+}
+
+// Only chats that are neither running nor unread may be deleted.
+void TestSidebar::deletableSelectionExcludesRunningAndUnread() {
+    const QDateTime now = QDateTime::currentDateTime();
+    auto running = makeSession(QStringLiteral("running chat"), now);
+    auto unread = makeSession(QStringLiteral("unread chat"), now);
+    auto plain = makeSession(QStringLiteral("plain chat"), now);
+    const QVector<ChatSession *> sessions{running.get(), unread.get(), plain.get()};
+
+    Sidebar sidebar;
+    auto *tree = sidebar.findChild<QTreeWidget *>();
+    QVERIFY(tree);
+    sidebar.setSessions(sessions);
+    sidebar.setIndicators({running->id()}, {unread->id()});
+
+    tree->selectAll();
+    QCOMPARE(sidebar.selectedSessionIds().size(), 3);
+    const QList<QUuid> deletable = sidebar.deletableSelectedSessionIds();
+    QCOMPARE(deletable.size(), 1);
+    QCOMPARE(deletable.first(), plain->id());
+
+    // Selecting only the running chat leaves nothing deletable.
+    tree->clearSelection();
+    auto *group = groupItem(tree, now);
+    QVERIFY(group);
+    for (int i = 0; i < group->childCount(); ++i) {
+        auto *item = group->child(i);
+        if (QUuid(item->data(0, Qt::UserRole).toString()) == running->id())
+            item->setSelected(true);
+    }
+    QVERIFY(sidebar.deletableSelectedSessionIds().isEmpty());
+}
+
+// The Delete key emits the deletable selected chats (running/unread are
+// filtered out).
+void TestSidebar::deleteKeyEmitsDeletableSelection() {
+    const QDateTime now = QDateTime::currentDateTime();
+    auto running = makeSession(QStringLiteral("running chat"), now);
+    auto plain0 = makeSession(QStringLiteral("plain 0"), now);
+    auto plain1 = makeSession(QStringLiteral("plain 1"), now);
+    const QVector<ChatSession *> sessions{running.get(), plain0.get(), plain1.get()};
+
+    Sidebar sidebar;
+    sidebar.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&sidebar));
+    auto *tree = sidebar.findChild<QTreeWidget *>();
+    QVERIFY(tree);
+    sidebar.setSessions(sessions);
+    sidebar.setIndicators({running->id()}, {});
+
+    tree->selectAll();
+    tree->setFocus();
+    QVERIFY(QApplication::focusWidget() == tree);
+
+    QSignalSpy spy(&sidebar, &Sidebar::sessionDeleteRequested);
+    QTest::keyClick(tree, Qt::Key_Delete);
+    QCOMPARE(spy.count(), 1);
+    const auto ids = spy.takeFirst().at(0).value<QList<QUuid>>();
+    QCOMPARE(ids.size(), 2);
+    QVERIFY(!ids.contains(running->id()));
+    QVERIFY(ids.contains(plain0->id()));
+    QVERIFY(ids.contains(plain1->id()));
 }
 
 // Sidebar is a QWidget, so the test needs a QApplication; force the

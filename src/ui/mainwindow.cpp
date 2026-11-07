@@ -922,8 +922,7 @@ void MainWindow::confirmPromptMenu(int row) {
         return;
     if (row < 0)
         row = m_promptMenuList->currentRow();
-    if (row < 0)
-        row = 0; // Enter always confirms the top entry
+    row = std::max(row, 0); // Enter always confirms the top entry
     auto *item = m_promptMenuList->item(row);
     if (!item || item->isHidden())
         return;

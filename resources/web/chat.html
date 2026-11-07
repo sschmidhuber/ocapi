@@ -811,6 +811,22 @@
           autoScroll = true;
           scrollToBottom();
         });
+        // Links in chat messages open in the default web browser (via the
+        // qtBridge), never navigate the web view itself; while hovering a
+        // link, its URL is reported so the host can show it in its status
+        // bar (empty string when the pointer leaves the link).
+        const log = document.getElementById('log');
+        log.addEventListener('click', function (ev) {
+          const a = ev.target.closest('a');
+          if (!a) return;
+          ev.preventDefault();
+          if (window.qtBridge) window.qtBridge.openUrl(a.href);
+        });
+        log.addEventListener('mouseover', function (ev) {
+          if (!window.qtBridge) return;
+          const a = ev.target.closest('a');
+          window.qtBridge.hoverLink(a ? a.href : '');
+        });
       });
 
       function setTheme(dark) {

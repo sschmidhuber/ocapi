@@ -662,6 +662,18 @@
           box.className = 'attachments';
           const actions = el.querySelector('.actions');
           el.insertBefore(box, actions); // below the body, above the actions
+          // Wheel over the row scrolls it horizontally (the page itself
+          // must not scroll while the pointer is over the attachments).
+          box.addEventListener(
+            'wheel',
+            function (ev) {
+              if (box.scrollWidth > box.clientWidth && Math.abs(ev.deltaY) > Math.abs(ev.deltaX)) {
+                ev.preventDefault();
+                box.scrollLeft += ev.deltaY;
+              }
+            },
+            { passive: false },
+          );
         }
         box.innerHTML = '';
         const chip = function (thumbSrc, placeholder, fileName, sourcePath) {

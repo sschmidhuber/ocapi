@@ -19,6 +19,7 @@
 #include <QPixmap>
 #include <QScrollArea>
 #include <QShortcut>
+#include <QStyle>
 #include <QTextCursor>
 #include <QToolButton>
 #include <QUrl>
@@ -43,7 +44,7 @@ constexpr int kAttachmentChipHeight = kDocumentThumbSize + 22;
 // horizontal scrollbar, so chips stay fully visible (thumbnail + name) when
 // it appears.
 constexpr int kAttachmentStripBaseHeight = kAttachmentChipHeight + 4;
-constexpr int kScrollBarAllowance = 18;
+constexpr int kScrollBarAllowance = 18; // fallback when the style reports 0
 
 const QStringList &imageSuffixes() {
     static const QStringList allowed = {
@@ -185,7 +186,10 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     m_attachmentStrip->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_attachmentStrip->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_attachmentStrip->setFrameShape(QFrame::NoFrame);
-    m_stripHeight = kAttachmentStripBaseHeight + kScrollBarAllowance;
+    // Reserve the style's real scrollbar extent so chips (thumbnail + name)
+    // stay fully visible when the horizontal scrollbar appears.
+    const int sbExtent = style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, this);
+    m_stripHeight = kAttachmentStripBaseHeight + (sbExtent > 0 ? sbExtent : kScrollBarAllowance);
     m_attachmentStrip->setFixedHeight(m_stripHeight);
     auto *stripContent = new QWidget(m_attachmentStrip);
     m_attachmentLayout = new QHBoxLayout(stripContent);

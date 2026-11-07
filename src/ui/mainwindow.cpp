@@ -479,6 +479,8 @@ void MainWindow::setupConnections() {
     });
     // Clicking a file element in a user message opens the file with the
     // system's default application (non-modal error if that fails).
+    connect(m_chatView, &WebChatView::urlsDropped, m_composer, &Composer::addDroppedUrls);
+    connect(m_chatView, &WebChatView::imageDropped, m_composer, &Composer::addDroppedImage);
     connect(m_chatView, &WebChatView::attachmentOpenRequested, this, [this](const QString &path) {
         if (path.isEmpty())
             return;

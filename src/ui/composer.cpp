@@ -3,6 +3,8 @@
 #include "core/attachmentopener.h"
 #include "core/filepreview.h"
 
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
@@ -28,7 +30,7 @@ namespace ocapi {
 
 namespace {
 
-constexpr int kMaxAttachmentsPerMessage = 8;
+constexpr int kMaxAttachmentsPerMessage = 50;
 constexpr int kDocumentThumbSize = 128;
 constexpr int kDocumentChipPadding = 6;
 // Attachment chip: thumbnail on top, file name below it; the thumbnail keeps
@@ -165,6 +167,9 @@ void MessageTextEdit::insertFromMimeData(const QMimeData *source) {
 }
 
 Composer::Composer(QWidget *parent) : QWidget(parent) {
+    // Drops are accepted on the whole composer (text edit, attachment strip,
+    // buttons), not only on the text edit; a highlight marks the drop target.
+    setAcceptDrops(true);
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
@@ -174,7 +179,7 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     // chat area shrinks exactly once when the first file is added.
     m_attachmentStrip = new QScrollArea(this);
     m_attachmentStrip->setWidgetResizable(true);
-    m_attachmentStrip->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_attachmentStrip->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_attachmentStrip->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_attachmentStrip->setFrameShape(QFrame::NoFrame);
     m_attachmentStrip->setFixedHeight(kAttachmentStripHeight);
@@ -396,6 +401,68 @@ void Composer::clearAttachments() {
     m_attachments.clear();
     m_documents.clear();
     refreshAttachmentStrip();
+}
+
+void Composer::addDroppedImage(const QImage &image) {
+    QString error;
+    auto attachment = ImagePreprocessor::processImage(image, QStringLiteral("image/png"),
+                                                      tr("pasted-image.png"), &error);
+    if (attachment)
+        addAttachment(*attachment);
+    else
+        QMessageBox::warning(this, tr("Image error"), error);
+}
+
+void Composer::addDroppedUrls(const QList<QUrl> &urls) {
+    for (const QUrl &url : urls) {
+        if (!url.isLocalFile())
+            continue;
+        if (isImageFile(url)) {
+            QString error;
+            auto attachment = ImagePreprocessor::processFile(url.toLocalFile(), &error);
+            if (attachment)
+                addAttachment(*attachment);
+            else
+                QMessageBox::warning(this, tr("Image error"), error);
+        } else {
+            addDocument(url.toLocalFile());
+        }
+    }
+}
+
+void Composer::dragEnterEvent(QDragEnterEvent *event) {
+    const QMimeData *mime = event->mimeData();
+    const bool droppable =
+        mime->hasImage() ||
+        std::ranges::any_of(mime->urls(), [](const QUrl &url) { return url.isLocalFile(); });
+    if (droppable) {
+        event->acceptProposedAction();
+        setStyleSheet(QStringLiteral("Composer { border: 2px dashed palette(highlight); "
+                                     "border-radius: 6px; }"));
+    } else {
+        event->ignore();
+    }
+}
+
+void Composer::dragLeaveEvent(QDragLeaveEvent *event) {
+    setStyleSheet(QString());
+    QWidget::dragLeaveEvent(event);
+}
+
+void Composer::dropEvent(QDropEvent *event) {
+    setStyleSheet(QString());
+    const QMimeData *mime = event->mimeData();
+    if (mime->hasImage()) {
+        addDroppedImage(qvariant_cast<QImage>(mime->imageData()));
+        event->acceptProposedAction();
+        return;
+    }
+    if (mime->hasUrls()) {
+        addDroppedUrls(mime->urls());
+        event->acceptProposedAction();
+        return;
+    }
+    event->ignore();
 }
 
 void Composer::addAttachment(const ImageAttachment &attachment) {

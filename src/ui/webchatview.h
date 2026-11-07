@@ -4,10 +4,15 @@
 
 #include <QClipboard>
 #include <QGuiApplication>
+#include <QList>
+#include <QUrl>
 #include <QVector>
 #include <QWebEngineView>
 
 class QContextMenuEvent;
+class QDragEnterEvent;
+class QDropEvent;
+class QImage;
 class QWebChannel;
 
 namespace ocapi {
@@ -57,12 +62,18 @@ signals:
     void linkHovered(const QString &url);
     // A file element in a chat message was clicked (open in default app).
     void attachmentOpenRequested(const QString &path);
+    // Files/images dragged onto the chat view (forwarded to the composer).
+    void urlsDropped(const QList<QUrl> &urls);
+    void imageDropped(const QImage &image);
 
 private:
     void callJs(const QString &expr);
     void onMessageAdded(const Message &message);
     void onMessageUpdated(const Message &message);
     void contextMenuEvent(QContextMenuEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragLeaveEvent(QDragLeaveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
     void savePageAs();
     void showPageSource();
 

@@ -242,9 +242,11 @@
      composer's attachment strip: thumbnail with the file name below it. */
       .msg .attachments {
         display: flex;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        overflow-x: auto;
         gap: 8px;
         margin-top: 6px;
+        padding-bottom: 2px;
       }
       .msg .att {
         width: 140px;

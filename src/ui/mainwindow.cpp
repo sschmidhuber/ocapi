@@ -1167,7 +1167,7 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
         // A turn is still running: the composer stays editable while
         // streaming, so queue the follow-up and send it when the current
         // turn finishes.
-        m_pendingMessages.append({text, images, files});
+        m_pendingMessages.append({.text = text, .images = images, .files = files});
         m_composer->clearText();
         m_composer->clearAttachments();
         statusBar()->showMessage(tr("Queued — will be sent when the current response finishes."),

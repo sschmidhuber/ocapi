@@ -216,11 +216,11 @@ QJsonValue McpClient::sendRequest(const QString &method, const QJsonObject &para
     const QJsonObject message = jsonRpcRequest(method, params, id);
     if (m_initialized || method == QLatin1String("initialize")) {
         sendMessage(message);
-        m_pending.insert(id.toString(), PendingCall{method, id.toString()});
+        m_pending.insert(id.toString(), PendingCall{.method = method, .requestId = id.toString()});
     } else {
         // Queue calls made before the handshake completes.
-        m_callQueue.enqueue(PendingCall{method, id.toString()});
-        m_pending.insert(id.toString(), PendingCall{method, id.toString()});
+        m_callQueue.enqueue(PendingCall{.method = method, .requestId = id.toString()});
+        m_pending.insert(id.toString(), PendingCall{.method = method, .requestId = id.toString()});
         // The message itself is sent once initialization finished; keep the
         // payload around by stashing it on the pending entry.
         m_pending[id.toString()].method = method;

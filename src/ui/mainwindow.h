@@ -96,15 +96,8 @@ public:
     void requestDeleteSessionsForTest(const QList<QUuid> &ids) { onSessionDeleteRequested(ids); }
     void markUnreadForTest(const QUuid &id) { m_unreadSessions.insert(id); }
     // Drives the streaming UI state of the current chat directly.
-    void simulateStreamStartForTest() {
-        StreamContext *context = ensureContextForTest(m_currentSession);
-        context->streaming = true;
-        updateStreamingUi();
-    }
-    void simulateStreamFinishForTest() {
-        if (StreamContext *context = contextFor(m_currentSession))
-            finalizeContext(context, tr("Ready"));
-    }
+    void simulateStreamStartForTest();
+    void simulateStreamFinishForTest();
     // Simulates the backend requesting MCP tool calls on the current session.
     void simulateToolCallsForTest(const QVector<ToolCall> &calls) {
         if (!m_currentSession)

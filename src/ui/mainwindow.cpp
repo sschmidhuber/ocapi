@@ -679,6 +679,17 @@ void MainWindow::createWindowShortcuts() {
     m_windowShortcuts.append(previousChatShortcut);
 }
 
+void MainWindow::simulateStreamStartForTest() {
+    StreamContext *context = ensureContextForTest(m_currentSession);
+    context->streaming = true;
+    updateStreamingUi();
+}
+
+void MainWindow::simulateStreamFinishForTest() {
+    if (StreamContext *context = contextFor(m_currentSession))
+        finalizeContext(context, tr("Ready"));
+}
+
 void MainWindow::reapplyShortcuts() {
     qDeleteAll(m_windowShortcuts);
     m_windowShortcuts.clear();

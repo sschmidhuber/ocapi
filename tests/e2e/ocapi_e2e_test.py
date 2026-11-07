@@ -198,7 +198,7 @@ class OcapiE2E(unittest.TestCase):
         # endpoint. Unlike element.send_keys() this needs no action interface
         # on a focused element, so it works for the settings category list
         # (whose accessible exposes no actions). The driver maps selenium
-        # special keys to keysyms; "\ue015" is Down, "\ue010" is End.
+        # special keys to keysyms; "\ue015" is Down, "\ue004" is Tab.
         body = json.dumps({"keycode": key}).encode()
         request = urllib.request.Request(
             f"http://127.0.0.1:4723/session/{self.driver.session_id}/appium/device/press_keycode",
@@ -231,17 +231,20 @@ class OcapiE2E(unittest.TestCase):
 
         # The first row ("New chat") is preselected; capture a new shortcut
         # for it. The driver synthesizes real key events for special keys;
-        # End (\ue010) is one of the mappable ones, modifier chords are not
-        # supported. Button lookups stay tag-agnostic: newer at-spi exposes
-        # push buttons with the role name "button", not "push button".
+        # Tab (\ue004) is one of the mappable ones, modifier chords are not
+        # supported. Tab is used because text widgets accept the shortcut
+        # override for cursor keys (End, arrows), so those would never fire
+        # the window shortcut while the composer has focus. Button lookups
+        # stay tag-agnostic: newer at-spi exposes push buttons with the role
+        # name "button", not "push button".
         self.wait_for("//dialog[@name='Settings']//*[contains(@name, 'Edit Shortcut')]").click()
         self.wait_for("//dialog[@name='Set Shortcut']")
         key_edit = self.wait_for("//dialog[@name='Set Shortcut']//text")
-        key_edit.send_keys("\ue010")
+        key_edit.send_keys("\ue004")
         self.wait_for("//dialog[@name='Set Shortcut']//*[@name='OK']").click()
 
         # The table shows the new shortcut for "New chat" right away.
-        self.wait_for(f"{showing_cell}[@name='End']")
+        self.wait_for(f"{showing_cell}[@name='Tab']")
 
         # The override is persisted to ocapi.conf (group "shortcuts").
         self.wait_for("//dialog[@name='Settings']//*[@name='Close']").click()
@@ -250,9 +253,9 @@ class OcapiE2E(unittest.TestCase):
         with open(conf_path, encoding="utf-8") as conf_file:
             conf = conf_file.read()
         self.assertIn("[shortcuts]", conf)
-        self.assertRegex(conf, r"(?m)^newChat=End$")
+        self.assertRegex(conf, r"(?m)^newChat=Tab$")
 
-        # The new shortcut is live without a restart: pressing End now starts
+        # The new shortcut is live without a restart: pressing Tab now starts
         # a new chat (another "New chat" entry appears in the sidebar tree).
         before = self._count_new_chat_items()
 
@@ -262,7 +265,7 @@ class OcapiE2E(unittest.TestCase):
                 > before
             )
 
-        self._press_key("\ue010")  # End: triggers the rebound "New chat"
+        self._press_key("\ue004")  # Tab: triggers the rebound "New chat"
         WebDriverWait(
             self.driver, 10, ignored_exceptions=(NoSuchElementException, WebDriverException)
         ).until(new_chat_appeared)

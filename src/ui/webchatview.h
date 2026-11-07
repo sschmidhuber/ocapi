@@ -32,11 +32,13 @@ signals:
     void linkActivated(const QString &url);
     void linkHovered(const QString &url); // empty when the pointer leaves the link
     void attachmentOpenRequested(const QString &path);
+    void messageEditRequested(const QString &id);
 public slots:
     void notifyScrolledToTop() { emit scrolledToTop(); }
     void openUrl(const QString &url) { emit linkActivated(url); }
     void hoverLink(const QString &url) { emit linkHovered(url); }
     void openAttachment(const QString &path) { emit attachmentOpenRequested(path); }
+    void editMessage(const QString &id) { emit messageEditRequested(id); }
     static void copyToClipboard(const QString &text) {
         QGuiApplication::clipboard()->setText(text);
     }
@@ -62,6 +64,8 @@ signals:
     void linkHovered(const QString &url);
     // A file element in a chat message was clicked (open in default app).
     void attachmentOpenRequested(const QString &path);
+    // The edit button of a user message was clicked.
+    void messageEditRequested(const QString &id);
     // Files/images dragged onto the chat view (forwarded to the composer).
     void urlsDropped(const QList<QUrl> &urls);
     void imageDropped(const QImage &image);

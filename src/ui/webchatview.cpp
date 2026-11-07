@@ -148,6 +148,8 @@ WebChatView::WebChatView(QWidget *parent) : QWebEngineView(parent) {
     connect(m_bridge, &WebChatBridge::linkHovered, this, &WebChatView::linkHovered);
     connect(m_bridge, &WebChatBridge::attachmentOpenRequested, this,
             &WebChatView::attachmentOpenRequested);
+    connect(m_bridge, &WebChatBridge::messageEditRequested, this,
+            &WebChatView::messageEditRequested);
     page()->setWebChannel(m_channel);
 
     settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessFileUrls, true);
@@ -230,6 +232,10 @@ void WebChatView::setSession(ChatSession *session) {
         return;
     connect(m_session, &ChatSession::messageAdded, this, &WebChatView::onMessageAdded);
     connect(m_session, &ChatSession::messageUpdated, this, &WebChatView::onMessageUpdated);
+    connect(m_session, &ChatSession::messagesTruncated, this, [this](const QUuid &fromId) {
+        callJs(
+            QStringLiteral("removeMessagesFrom('%1')").arg(fromId.toString(QUuid::WithoutBraces)));
+    });
     for (const auto &message : m_session->messages())
         onMessageAdded(message);
 }

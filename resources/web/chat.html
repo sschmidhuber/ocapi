@@ -282,6 +282,26 @@
         font-size: 12px;
         user-select: none;
       }
+      .msg .actions .edit-btn {
+        color: var(--muted);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 2px;
+        cursor: pointer;
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .msg .actions .edit-btn:hover {
+        color: var(--fg);
+      }
+      .msg .actions .edit-btn svg.icon {
+        width: 14px;
+        height: 14px;
+      }
       .msg .actions .copy-btn:hover {
         color: var(--fg);
         border-color: var(--muted);
@@ -749,6 +769,22 @@
             actions.appendChild(btn);
             // Hide the copy button while the answer is still streaming.
             btn.style.display = 'none';
+            if (role === 'user') {
+              // Breeze document-edit-symbolic: edit loads the message into
+              // the composer (text + attachments).
+              const editBtn = document.createElement('button');
+              editBtn.className = 'edit-btn';
+              editBtn.title = 'Edit message';
+              editBtn.setAttribute('aria-label', 'Edit message');
+              editBtn.innerHTML =
+                '<svg class="icon" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="m14.996094 3-11.992188 11.992188h-.003906v4.00781h1 2 1.00781v-.003906l11.992188-11.992188-.001953-.001953.001953-.001953-4-4-.001953.001953-.001953-.001953m-1.998047 3.412109 2.589844 2.589844-7.587891 7.587891v-1.589844h-1-1v-1-.589844l6.998047-6.998047m-7.998047 7.998047v1.589844h1 1v1 .589844l-.410156.410156h-1.589844l-1-1v-1.589844 1-1"/></svg>';
+              editBtn.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                if (window.qtBridge) window.qtBridge.editMessage(id);
+              });
+              actions.appendChild(editBtn);
+              editBtn.style.display = 'none';
+            }
             // Throughput (t/s) sits right next to the copy button; hidden
             // until the toggle is on and a throughput value is known.
             // Assistant messages only.
@@ -802,9 +838,19 @@
         // and the message actually has answer content; a message that only
         // requested tool calls (empty body) must not get a button below the
         // tool-call row.
-        if ((role === 'assistant' || role === 'user') && !streaming && content) {
+        const hasAttachments =
+          attachments &&
+          ((attachments.images && attachments.images.length) ||
+            (attachments.files && attachments.files.length));
+        if (
+          (role === 'assistant' || role === 'user') &&
+          !streaming &&
+          (content || hasAttachments)
+        ) {
           const copyBtn = el.querySelector('.copy-btn');
           if (copyBtn) copyBtn.style.display = '';
+          const editBtn = el.querySelector('.edit-btn');
+          if (editBtn && role === 'user') editBtn.style.display = '';
         }
         // Output token throughput next to the copy button, e.g. "32 t/s"
         // with tooltip "32 output token/s"; only when the toggle is on and
@@ -847,6 +893,19 @@
           followContent(streaming);
         } else {
           updateJumpButton();
+        }
+      }
+
+      // Removes the message with the given id and all later messages from the
+      // log (used after a user message was edited and resent).
+      function removeMessagesFrom(id) {
+        const start = document.getElementById('msg-' + id);
+        if (!start) return;
+        let node = start;
+        while (node) {
+          const next = node.nextSibling;
+          if (node.id && node.id.startsWith('msg-')) node.remove();
+          node = next;
         }
       }
 

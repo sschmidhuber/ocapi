@@ -71,6 +71,7 @@ private slots:
     void unreadChatIsNotDeleted();
     void statusBarShowsReadyAfterStreamFinishes();
     void followUpQueuedWhileStreaming();
+    void editMessageTruncatesHistoryOnSend();
 
 private:
     QTemporaryDir m_home;
@@ -407,6 +408,37 @@ void TestMainWindow::followUpQueuedWhileStreaming() {
             sawFollowUp = true;
     }
     QVERIFY(sawFollowUp);
+}
+
+// Editing a user message and pressing Send removes the edited message and
+// everything after it from the history, then sends the edited text.
+void TestMainWindow::editMessageTruncatesHistoryOnSend() {
+    MainWindow window;
+    window.show();
+    auto &registry = window.registryForTest();
+    auto &ollama = registry.add(QStringLiteral("Ollama"), BackendKind::Ollama);
+    registry.save();
+    ChatSession *session = window.currentSession();
+    QVERIFY(session);
+    session->setBackendId(ollama.id.toString());
+    session->setModel(QStringLiteral("mock-model"));
+
+    auto &userMsg = session->appendMessage(Role::User, QStringLiteral("original question"));
+    session->appendMessage(Role::Assistant, QStringLiteral("old answer"));
+    session->appendMessage(Role::User, QStringLiteral("follow up"));
+    QCOMPARE(session->messages().size(), 3);
+
+    // Clicking the edit button loads the message into the composer.
+    window.startEditMessageForTest(userMsg.id);
+    QVERIFY(window.isEditingMessageForTest());
+
+    // Send the edited version: the old tail is gone, the new user message is
+    // the only one left.
+    window.sendTextForTest(QStringLiteral("edited question"));
+    QVERIFY(!window.isEditingMessageForTest());
+    QCOMPARE(session->messages().size(), 1);
+    QCOMPARE(session->messages().first().role, Role::User);
+    QCOMPARE(session->messages().first().content, QStringLiteral("edited question"));
 }
 
 int main(int argc, char *argv[]) {

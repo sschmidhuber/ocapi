@@ -55,6 +55,10 @@ public:
     [[nodiscard]] QString text() const;
     [[nodiscard]] QString composedText() const;
     void clearText();
+    // Loads a message into the composer for editing (text + attachments).
+    void setText(const QString &text);
+    void setAttachments(const QVector<ImageAttachment> &images,
+                        const QVector<FileAttachment> &files);
     // Live dictation display: shows already-spoken words while recording.
     void setDictatedText(const QString &text);
     // Commits the final transcription: replaces the dictated prefix with the

@@ -22,6 +22,7 @@ private slots:
     void updateMessageClearsError();
     void updateMessageIgnoresUnknownId();
     void failMessageSetsErrorAndStopsStreaming();
+    void truncateFromRemovesMessageAndTail();
     void failMessageIgnoresUnknownId();
     void setTitleEmitsOnlyOnChange();
     void clearRemovesAllMessages();
@@ -372,6 +373,32 @@ void TestChatSession::setTimestampsAcceptValidValues() {
     session.setLastActivityAt(QDateTime());
     QCOMPARE(session.createdAt(), created);
     QCOMPARE(session.lastActivityAt(), activity);
+}
+
+// truncateFrom (message editing): removes the message with the id and
+// everything after it, returns the removed ids and emits messagesTruncated.
+void TestChatSession::truncateFromRemovesMessageAndTail() {
+    ChatSession session(QStringLiteral("chat"), QStringLiteral("backend"));
+    session.appendMessage(Role::User, QStringLiteral("first"));
+    session.appendMessage(Role::Assistant, QStringLiteral("answer"));
+    auto &m2 = session.appendMessage(Role::User, QStringLiteral("second"));
+    auto &m3 = session.appendMessage(Role::Assistant, QStringLiteral("answer2"));
+    QCOMPARE(session.messages().size(), 4);
+
+    QSignalSpy truncated(&session, &ChatSession::messagesTruncated);
+    const QStringList removed = session.truncateFrom(m2.id);
+    QCOMPARE(session.messages().size(), 2);
+    QCOMPARE(session.messages().at(0).content, QStringLiteral("first"));
+    QCOMPARE(session.messages().at(1).content, QStringLiteral("answer"));
+    QCOMPARE(removed.size(), 2);
+    QVERIFY(removed.contains(m2.id.toString(QUuid::WithoutBraces)));
+    QVERIFY(removed.contains(m3.id.toString(QUuid::WithoutBraces)));
+    QCOMPARE(truncated.count(), 1);
+    QCOMPARE(truncated.takeFirst().at(0).toUuid(), m2.id);
+
+    // Unknown id: nothing happens.
+    QCOMPARE(session.truncateFrom(QUuid::createUuid()).size(), 0);
+    QCOMPARE(session.messages().size(), 2);
 }
 
 QTEST_GUILESS_MAIN(TestChatSession)

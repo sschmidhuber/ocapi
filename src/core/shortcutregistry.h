@@ -10,11 +10,14 @@ class QSettings;
 namespace ocapi {
 
 // One configurable keyboard shortcut: a stable id, the user-visible action
-// description and the default key sequence.
+// description and the default key sequence. windowScope=false marks
+// shortcuts that only fire inside a specific widget (e.g. the composer's
+// prompt-template trigger), not on the whole window.
 struct ShortcutAction {
     QString id;
     QString description;
     QKeySequence defaultSequence;
+    bool windowScope = true;
 };
 
 // Registry of the app's keyboard shortcuts. The catalog of actions is fixed;

@@ -1,6 +1,7 @@
 #include "core/backendregistry.h"
 #include "core/mcpmanager.h"
 #include "core/mcpregistry.h"
+#include "core/prompttemplateregistry.h"
 #include "core/shortcutregistry.h"
 #include "core/sttregistry.h"
 #include "core/systemprompt.h"
@@ -58,8 +59,9 @@ SettingsDialog *TestSettingsDialog::makeDialog() {
     SystemPrompt systemPrompt;
     ShortcutRegistry shortcutRegistry;
     UiSettings uiSettings;
+    PromptTemplateRegistry promptTemplates;
     return new SettingsDialog(&backends, &mcpRegistry, &mcpManager, &sttRegistry, &ttsRegistry,
-                              &systemPrompt, &shortcutRegistry, &uiSettings);
+                              &systemPrompt, &shortcutRegistry, &uiSettings, &promptTemplates);
 }
 
 void TestSettingsDialog::categoriesAreTopLevelItems() {
@@ -89,9 +91,10 @@ void TestSettingsDialog::pagesAreTabsOfTheirCategory() {
     QVERIFY(toolsTabs);
     QVERIFY(shortcutsTabs);
 
-    QCOMPARE(generalTabs->count(), 2);
+    QCOMPARE(generalTabs->count(), 3);
     QCOMPARE(generalTabs->tabText(0), QStringLiteral("System Prompt"));
-    QCOMPARE(generalTabs->tabText(1), QStringLiteral("User Interface"));
+    QCOMPARE(generalTabs->tabText(1), QStringLiteral("Prompt Templates"));
+    QCOMPARE(generalTabs->tabText(2), QStringLiteral("User Interface"));
 
     QCOMPARE(modelsTabs->count(), 3);
     QCOMPARE(modelsTabs->tabText(0), QStringLiteral("LLM"));
@@ -144,9 +147,13 @@ void TestSettingsDialog::selectPageSelectsCategoryAndTab() {
     QCOMPARE(list->currentRow(), 0);
     QCOMPARE(generalTabs->currentIndex(), 0);
 
-    dialog->selectPage(QStringLiteral("general/userinterface"));
+    dialog->selectPage(QStringLiteral("general/prompttemplates"));
     QCOMPARE(list->currentRow(), 0);
     QCOMPARE(generalTabs->currentIndex(), 1);
+
+    dialog->selectPage(QStringLiteral("general/userinterface"));
+    QCOMPARE(list->currentRow(), 0);
+    QCOMPARE(generalTabs->currentIndex(), 2);
 
     dialog->selectPage(QStringLiteral("models/llm"));
     QCOMPARE(list->currentRow(), 1);

@@ -11,15 +11,18 @@
 #include "ui/sidebar.h"
 #include "ui/webchatview.h"
 
+#include <QApplication>
 #include <QDateTime>
 #include <QDebug>
 #include <QDesktopServices>
 #include <QDir>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QJsonDocument>
 #include <QKeySequence>
 #include <QLabel>
+#include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSet>
@@ -233,6 +236,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     loadLastModels();
     loadShortcuts();
     loadUiSettings();
+    loadPromptTemplates();
 
     setupUi();
     setupConnections();
@@ -413,6 +417,18 @@ void MainWindow::setupConnections() {
     connect(m_newChatButton, &QToolButton::clicked, this, &MainWindow::onNewChat);
     createWindowShortcuts();
     m_composer->setDictateSequence(m_shortcuts.sequence(QStringLiteral("dictate")));
+    m_composer->setPromptTriggerSequence(m_shortcuts.sequence(QStringLiteral("promptTemplates")));
+    connect(m_composer, &Composer::promptTemplateRequested, this,
+            &MainWindow::showPromptTemplateMenu);
+    connect(m_composer, &Composer::promptFilterChanged, this, &MainWindow::onPromptFilterChanged);
+    connect(m_composer, &Composer::promptMenuConfirmed, this, [this]() { confirmPromptMenu(); });
+    connect(m_composer, &Composer::promptMenuClosed, this, &MainWindow::closePromptMenu);
+    // Close the popup when the focus leaves composer and popup.
+    connect(qApp, &QApplication::focusChanged, this, [this](QWidget *now) {
+        if (m_promptMenu && m_promptMenu->isVisible() && now != m_composer && now != m_promptMenu &&
+            !m_promptMenu->isAncestorOf(now))
+            closePromptMenu();
+    });
     connect(&m_shortcuts, &ShortcutRegistry::changed, this, &MainWindow::reapplyShortcuts);
     m_chatView->setShowThroughput(m_uiSettings.showThroughput());
     connect(&m_uiSettings, &UiSettings::changed, this,
@@ -750,7 +766,9 @@ void MainWindow::onComposerSplitterMoved(int /*pos*/, int /*index*/) {
 void MainWindow::createWindowShortcuts() {
     // The sequences come from the shortcut registry so the user can rebind
     // them in the settings; reapplyShortcuts() re-creates the shortcuts when
-    // the registry changes. The sidebar shortcut shows/hides the chat
+    // the registry changes. Actions with windowScope=false (e.g. the
+    // composer's prompt-template trigger) are bound to their widget instead.
+    // The sidebar shortcut shows/hides the chat
     // history, like the classic file-manager panels; the tab shortcuts cycle
     // through the chats in the sidebar's order (newest activity first),
     // wrapping around at the ends.
@@ -793,13 +811,17 @@ void MainWindow::reapplyShortcuts() {
     const QKeySequence newChatSequence = m_shortcuts.sequence(QStringLiteral("newChat"));
     m_newChatButton->setToolTip(
         tr("Start a new chat (%1)").arg(newChatSequence.toString(QKeySequence::NativeText)));
-    if (m_composer)
+    if (m_composer) {
         m_composer->setDictateSequence(m_shortcuts.sequence(QStringLiteral("dictate")));
+        m_composer->setPromptTriggerSequence(
+            m_shortcuts.sequence(QStringLiteral("promptTemplates")));
+    }
 }
 
 void MainWindow::openSettings(const QString &pageId) {
     SettingsDialog dialog(&m_registry, &m_mcpRegistry, &m_mcpManager, &m_sttRegistry,
-                          &m_ttsRegistry, &m_systemPrompt, &m_shortcuts, &m_uiSettings, this);
+                          &m_ttsRegistry, &m_systemPrompt, &m_shortcuts, &m_uiSettings,
+                          &m_promptTemplates, this);
     if (!pageId.isEmpty())
         dialog.selectPage(pageId);
     dialog.exec();
@@ -836,6 +858,87 @@ void MainWindow::loadShortcuts() {
     QDir().mkpath(configDir);
     QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
     m_shortcuts.load(settings);
+}
+
+void MainWindow::loadPromptTemplates() {
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir().mkpath(configDir);
+    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    m_promptTemplates.load(settings);
+}
+
+void MainWindow::showPromptTemplateMenu() {
+    // Non-modal autocompletion popup above the composer: the composer keeps
+    // the keyboard focus, so typing on filters the list live ("/re" shows
+    // only "Recherche"); Enter confirms the top entry.
+    if (!m_promptMenu) {
+        m_promptMenu = new QFrame(this, Qt::Window | Qt::FramelessWindowHint);
+        // Show without activating: the composer keeps focus and keyboard,
+        // and the window-level shortcuts keep working while the menu is open.
+        m_promptMenu->setAttribute(Qt::WA_ShowWithoutActivating);
+        m_promptMenu->setFocusPolicy(Qt::NoFocus);
+        m_promptMenu->setObjectName(QStringLiteral("promptTemplateMenu"));
+        m_promptMenu->setStyleSheet(
+            QStringLiteral("QFrame#promptTemplateMenu { border: 1px solid palette(mid); "
+                           "border-radius: 4px; background: palette(base); }"));
+        auto *menuLayout = new QVBoxLayout(m_promptMenu);
+        menuLayout->setContentsMargins(2, 2, 2, 2);
+        m_promptMenuList = new QListWidget(m_promptMenu);
+        m_promptMenuList->setFocusPolicy(Qt::NoFocus);
+        menuLayout->addWidget(m_promptMenuList);
+        connect(m_promptMenuList, &QListWidget::itemClicked, this,
+                [this](QListWidgetItem *item) { confirmPromptMenu(m_promptMenuList->row(item)); });
+    }
+    m_promptMenuList->clear();
+    for (const auto &t : m_promptTemplates.templates()) {
+        auto *item = new QListWidgetItem(t.name, m_promptMenuList);
+        item->setData(Qt::UserRole, t.id.toString(QUuid::WithoutBraces));
+        item->setToolTip(t.text.left(200));
+    }
+    m_promptMenu->setFixedWidth(320);
+    m_promptMenuList->setFixedHeight((std::min(m_promptMenuList->count(), 8) * 24) + 8);
+    m_promptMenu->adjustSize();
+    const QPoint topLeft = m_composer->mapToGlobal(QPoint(0, 0));
+    m_promptMenu->move(topLeft.x(), topLeft.y() - m_promptMenu->height() - 4);
+    m_promptMenu->show();
+    m_promptMenu->raise();
+    onPromptFilterChanged(QString());
+    m_composer->focusInput();
+}
+
+void MainWindow::onPromptFilterChanged(const QString &filter) {
+    if (!m_promptMenu || !m_promptMenu->isVisible())
+        return;
+    int firstVisible = -1;
+    for (int i = 0; i < m_promptMenuList->count(); ++i) {
+        auto *item = m_promptMenuList->item(i);
+        const bool matches = filter.isEmpty() || item->text().contains(filter, Qt::CaseInsensitive);
+        item->setHidden(!matches);
+        if (matches && firstVisible == -1)
+            firstVisible = i;
+    }
+    if (firstVisible >= 0)
+        m_promptMenuList->setCurrentRow(firstVisible);
+}
+
+void MainWindow::confirmPromptMenu(int row) {
+    if (!m_promptMenu || !m_promptMenu->isVisible())
+        return;
+    if (row < 0)
+        row = m_promptMenuList->currentRow();
+    row = std::max(row, 0); // Enter always confirms the top entry
+    auto *item = m_promptMenuList->item(row);
+    if (!item || item->isHidden())
+        return;
+    const QUuid id(item->data(Qt::UserRole).toString());
+    if (const PromptTemplate *t = m_promptTemplates.find(id))
+        m_composer->applyPromptTemplate(t->text, t->images, t->files);
+    closePromptMenu();
+}
+
+void MainWindow::closePromptMenu() {
+    if (m_promptMenu)
+        m_promptMenu->hide();
 }
 
 void MainWindow::loadUiSettings() {

@@ -263,6 +263,78 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
         if (m_dictationAvailable && !m_busy)
             emit dictationRequested();
     });
+    // Live filter while the prompt-template menu is open.
+    connect(m_textEdit, &QPlainTextEdit::textChanged, this, [this]() { onTextChanged(); });
+}
+
+void Composer::setPromptTriggerSequence(const QKeySequence &sequence) {
+    m_promptTrigger = sequence.isEmpty() ? QKeySequence(QStringLiteral("/")) : sequence;
+    if (m_promptActive)
+        closePromptMenu();
+}
+
+int Composer::promptTriggerTextLength() const {
+    // A printable single key (e.g. "/") is inserted as one character;
+    // modifier combos (Ctrl+Space) insert nothing.
+    if (m_promptTrigger.count() == 1 &&
+        (m_promptTrigger[0].toCombined() & ~static_cast<quint32>(Qt::KeyboardModifierMask)) != 0)
+        return 1;
+    return 0;
+}
+
+void Composer::onTextChanged() {
+    if (!m_promptActive)
+        return;
+    const QString text = m_textEdit->toPlainText();
+    const int cursor = m_textEdit->textCursor().position();
+    const int triggerLen = promptTriggerTextLength();
+    const QString triggerText = m_promptTrigger.toString(QKeySequence::PortableText);
+    const bool valid = cursor >= m_promptTriggerPos &&
+                       (triggerLen == 0 || text.mid(m_promptTriggerPos, triggerLen) == triggerText);
+    if (!valid) {
+        closePromptMenu();
+        return;
+    }
+    const int filterStart = m_promptTriggerPos + triggerLen;
+    emit promptFilterChanged(text.mid(filterStart, cursor - filterStart));
+}
+
+void Composer::closePromptMenu() {
+    if (!m_promptActive)
+        return;
+    m_promptActive = false;
+    m_promptTriggerPos = -1;
+    emit promptMenuClosed();
+}
+
+void Composer::applyPromptTemplate(const QString &text, const QVector<ImageAttachment> &images,
+                                   const QVector<FileAttachment> &files) {
+    // Remove the typed trigger + filter text ("/re"), then insert the template.
+    QTextCursor cursor = m_textEdit->textCursor();
+    const int end = cursor.position();
+    cursor.setPosition(m_promptTriggerPos >= 0 ? m_promptTriggerPos : end);
+    cursor.setPosition(end, QTextCursor::KeepAnchor);
+    cursor.removeSelectedText();
+    closePromptMenu();
+    insertTemplate(text, images, files);
+}
+
+void Composer::insertTemplate(const QString &text, const QVector<ImageAttachment> &images,
+                              const QVector<FileAttachment> &files) {
+    if (!text.isEmpty())
+        m_textEdit->insertPlainText(text);
+    for (const auto &image : images) {
+        if (m_attachments.size() + m_documents.size() >= kMaxAttachmentsPerMessage)
+            break;
+        m_attachments.append(image);
+    }
+    for (const auto &file : files) {
+        if (m_attachments.size() + m_documents.size() >= kMaxAttachmentsPerMessage)
+            break;
+        m_documents.append(file);
+    }
+    refreshAttachmentStrip();
+    m_textEdit->setFocus();
 }
 
 void Composer::setDictateSequence(const QKeySequence &sequence) {
@@ -295,9 +367,47 @@ void Composer::setDictationActive(bool active) {
     }
 }
 
+// Key handling for the prompt-template menu. The trigger itself is detected
+// here because text edits accept the shortcut override for printable keys, so
+// a QShortcut would never fire; single printable triggers are matched via the
+// produced text (layout-independent: '/' is Shift+7 on German layouts), key
+// combos via key|modifiers. Returns true when the key was consumed.
+bool Composer::handlePromptMenuKey(QKeyEvent *keyEvent) {
+    bool isTrigger = false;
+    if (!m_promptTrigger.isEmpty()) {
+        if (m_promptTrigger.count() == 1)
+            isTrigger = keyEvent->text() == m_promptTrigger.toString();
+        else
+            isTrigger = QKeySequence(keyEvent->key() | static_cast<int>(keyEvent->modifiers())) ==
+                        m_promptTrigger;
+    }
+    if (!m_promptActive && isTrigger) {
+        m_promptActive = true;
+        m_promptTriggerPos = m_textEdit->textCursor().position();
+        emit promptTemplateRequested();
+        return false; // let the trigger character be inserted normally
+    }
+    if (!m_promptActive)
+        return false;
+    if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
+        if (!(keyEvent->modifiers() & Qt::ShiftModifier)) {
+            emit promptMenuConfirmed();
+            return true;
+        }
+        return false;
+    }
+    if (keyEvent->key() == Qt::Key_Escape) {
+        closePromptMenu();
+        return true;
+    }
+    return false;
+}
+
 bool Composer::eventFilter(QObject *watched, QEvent *event) {
     if (watched == m_textEdit && event->type() == QEvent::KeyPress) {
         auto *keyEvent = dynamic_cast<QKeyEvent *>(event);
+        if (handlePromptMenuKey(keyEvent))
+            return true;
         if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
             if (keyEvent->modifiers() & Qt::ShiftModifier)
                 return false;

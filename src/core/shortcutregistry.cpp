@@ -37,6 +37,10 @@ QVector<ShortcutAction> ShortcutRegistry::actions() {
         {.id = QStringLiteral("dictate"),
          .description = tr("Dictate message"),
          .defaultSequence = QKeySequence(QStringLiteral("Ctrl+."))},
+        {.id = QStringLiteral("promptTemplates"),
+         .description = tr("Insert prompt template"),
+         .defaultSequence = QKeySequence(QStringLiteral("/")),
+         .windowScope = false},
     };
 }
 

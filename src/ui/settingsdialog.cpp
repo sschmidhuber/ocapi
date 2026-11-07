@@ -3,6 +3,7 @@
 #include "core/backendregistry.h"
 #include "core/mcpmanager.h"
 #include "core/mcpregistry.h"
+#include "core/prompttemplateregistry.h"
 #include "core/shortcutregistry.h"
 #include "core/sttregistry.h"
 #include "core/systemprompt.h"
@@ -10,6 +11,7 @@
 #include "core/uisettings.h"
 #include "ui/backendpage.h"
 #include "ui/mcppage.h"
+#include "ui/prompttemplatespage.h"
 #include "ui/shortcutpage.h"
 #include "ui/sttpage.h"
 #include "ui/systempromptpage.h"
@@ -31,7 +33,7 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
                                McpManager *mcpManager, SttRegistry *sttRegistry,
                                TtsRegistry *ttsRegistry, SystemPrompt *systemPrompt,
                                ShortcutRegistry *shortcutRegistry, UiSettings *uiSettings,
-                               QWidget *parent)
+                               PromptTemplateRegistry *promptTemplates, QWidget *parent)
     : QDialog(parent) {
     setWindowTitle(tr("Settings"));
     resize(880, 580);
@@ -47,6 +49,8 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
                 QStringLiteral(":/resources/icons/general.svg"));
     addTab(tr("System Prompt"), QStringLiteral("systemprompt"),
            new SystemPromptPage(systemPrompt, m_stack));
+    addTab(tr("Prompt Templates"), QStringLiteral("prompttemplates"),
+           new PromptTemplatesPage(promptTemplates, m_stack));
     addTab(tr("User Interface"), QStringLiteral("userinterface"),
            new UserInterfacePage(uiSettings, m_stack));
 

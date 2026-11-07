@@ -5,6 +5,7 @@
 #include "core/mcpmanager.h"
 #include "core/mcpregistry.h"
 #include "core/message.h"
+#include "core/prompttemplateregistry.h"
 #include "core/shortcutregistry.h"
 #include "core/sttregistry.h"
 #include "core/systemprompt.h"
@@ -19,6 +20,7 @@
 #include <QHash>
 #include <QLabel>
 #include <QList>
+#include <QListWidget>
 #include <QMainWindow>
 #include <QMenu>
 #include <QPushButton>
@@ -95,6 +97,8 @@ public:
     void startNewChat() { onNewChat(); }
     [[nodiscard]] BackendRegistry &registryForTest() { return m_registry; }
     [[nodiscard]] ShortcutRegistry &shortcutsForTest() { return m_shortcuts; }
+    [[nodiscard]] PromptTemplateRegistry &promptTemplatesForTest() { return m_promptTemplates; }
+    [[nodiscard]] QWidget *promptMenuForTest() const { return m_promptMenu; }
     void requestDeleteSessionsForTest(const QList<QUuid> &ids) { onSessionDeleteRequested(ids); }
     void markUnreadForTest(const QUuid &id) { m_unreadSessions.insert(id); }
     // Drives the streaming UI state of the current chat directly.
@@ -122,6 +126,12 @@ private slots:
     // history from that message on and resends, Cancel aborts.
     void startEditMessage(const QString &idString);
     void cancelEditMessage();
+    // Prompt-template autocompletion popup above the composer (non-modal,
+    // the composer keeps focus and keeps filtering while typing).
+    void showPromptTemplateMenu();
+    void onPromptFilterChanged(const QString &filter);
+    void confirmPromptMenu(int row = -1);
+    void closePromptMenu();
     // Deletes the given chats; asks for confirmation when there are several.
     // Running and unread chats are never deleted.
     void onSessionDeleteRequested(const QList<QUuid> &ids);
@@ -191,6 +201,7 @@ private:
     void loadLastModels();
     void loadShortcuts();
     void loadUiSettings();
+    void loadPromptTemplates();
     void configureVoiceInput();
     void loadTtsSettingsFromDatabase();
     void configureTts();
@@ -285,6 +296,11 @@ private:
     QList<QShortcut *> m_windowShortcuts;
     // General UI settings (Settings > General > User Interface).
     UiSettings m_uiSettings;
+    // Prompt templates (Settings > General > Prompt Templates).
+    PromptTemplateRegistry m_promptTemplates;
+    // Autocompletion popup (frameless top-level above the composer).
+    QWidget *m_promptMenu = nullptr;
+    QListWidget *m_promptMenuList = nullptr;
 
     Sidebar *m_sidebar = nullptr;
     WebChatView *m_chatView = nullptr;

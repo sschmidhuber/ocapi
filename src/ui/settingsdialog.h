@@ -12,6 +12,7 @@ namespace ocapi {
 class BackendRegistry;
 class McpManager;
 class McpRegistry;
+class PromptTemplateRegistry;
 class ShortcutRegistry;
 class SttRegistry;
 class SystemPrompt;
@@ -29,7 +30,8 @@ public:
     SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mcpRegistry,
                    McpManager *mcpManager, SttRegistry *sttRegistry, TtsRegistry *ttsRegistry,
                    SystemPrompt *systemPrompt, ShortcutRegistry *shortcutRegistry,
-                   UiSettings *uiSettings, QWidget *parent = nullptr);
+                   UiSettings *uiSettings, PromptTemplateRegistry *promptTemplates,
+                   QWidget *parent = nullptr);
     ~SettingsDialog() override;
 
     // Selects the category ("models", "tools") and, if the category has

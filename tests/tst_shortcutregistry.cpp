@@ -24,7 +24,7 @@ private slots:
 
 void TestShortcutRegistry::catalogContainsAllActions() {
     const auto actions = ShortcutRegistry::actions();
-    QCOMPARE(static_cast<int>(actions.size()), 5);
+    QCOMPARE(static_cast<int>(actions.size()), 6);
     QStringList ids;
     for (const auto &action : actions) {
         ids.append(action.id);
@@ -36,6 +36,19 @@ void TestShortcutRegistry::catalogContainsAllActions() {
     QVERIFY(ids.contains(QStringLiteral("nextChat")));
     QVERIFY(ids.contains(QStringLiteral("previousChat")));
     QVERIFY(ids.contains(QStringLiteral("dictate")));
+    QVERIFY(ids.contains(QStringLiteral("promptTemplates")));
+    // The prompt-template trigger is composer-local, not a window shortcut.
+    ShortcutAction trigger;
+    bool found = false;
+    for (const auto &a : actions) {
+        if (a.id == QStringLiteral("promptTemplates")) {
+            trigger = a;
+            found = true;
+        }
+    }
+    QVERIFY(found);
+    QCOMPARE(trigger.defaultSequence, QKeySequence(QStringLiteral("/")));
+    QVERIFY(!trigger.windowScope);
 }
 
 void TestShortcutRegistry::defaultsAreReturnedWithoutOverrides() {

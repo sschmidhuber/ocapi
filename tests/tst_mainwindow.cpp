@@ -1,11 +1,14 @@
 #include "core/backendconfig.h"
 #include "core/backendregistry.h"
 #include "core/chatsession.h"
+#include "ui/composer.h"
 #include "ui/mainwindow.h"
 #include "ui/sidebar.h"
 
 #include <QApplication>
+#include <QListWidget>
 #include <QMessageBox>
+#include <QPlainTextEdit>
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QTemporaryDir>
@@ -72,6 +75,8 @@ private slots:
     void statusBarShowsReadyAfterStreamFinishes();
     void followUpQueuedWhileStreaming();
     void editMessageTruncatesHistoryOnSend();
+    void composerInsertTemplateAppendsTextAndAttachments();
+    void promptMenuFiltersAndEnterConfirms();
 
 private:
     QTemporaryDir m_home;
@@ -453,6 +458,68 @@ void TestMainWindow::editMessageTruncatesHistoryOnSend() {
         }
     }
     QCOMPARE(userMessages, 1);
+}
+
+// insertTemplate (prompt-template autocompletion): inserts the template text
+// at the cursor and appends its attachments.
+void TestMainWindow::composerInsertTemplateAppendsTextAndAttachments() {
+    MainWindow window;
+    window.show();
+    auto *composer = window.findChild<Composer *>();
+    QVERIFY(composer);
+    composer->setText(QStringLiteral("Hello "));
+    ImageAttachment image;
+    image.fileName = QStringLiteral("chart.png");
+    image.mimeType = QStringLiteral("image/png");
+    image.data = QByteArray("fakepng");
+    composer->insertTemplate(QStringLiteral("Summarize this:"), {image}, {});
+    QVERIFY(composer->text().contains(QStringLiteral("Summarize this:")));
+    QCOMPARE(composer->attachments().size(), 1);
+    QCOMPARE(composer->attachments().first().fileName, QStringLiteral("chart.png"));
+}
+
+// The prompt-template trigger: typing "/" opens the menu, typing on filters
+// it ("/re" shows only "Recherche"), Enter confirms the top entry and replaces
+// the typed trigger text with the template.
+void TestMainWindow::promptMenuFiltersAndEnterConfirms() {
+    MainWindow window;
+    window.show();
+    auto &reg = window.promptTemplatesForTest();
+    PromptTemplate a;
+    a.name = QStringLiteral("Analyse");
+    a.text = QStringLiteral("Analysiere:");
+    reg.add(a);
+    PromptTemplate r;
+    r.name = QStringLiteral("Recherche");
+    r.text = QStringLiteral("Recherchiere:");
+    reg.add(r);
+
+    auto *composer = window.findChild<Composer *>();
+    QVERIFY(composer);
+    auto *edit = composer->findChild<QPlainTextEdit *>();
+    QVERIFY(edit);
+    edit->setFocus();
+
+    QTest::keyClicks(edit, QStringLiteral("/re"));
+    auto *menu = window.promptMenuForTest();
+    QVERIFY(menu);
+    QVERIFY(menu->isVisible());
+    auto *list = menu->findChild<QListWidget *>();
+    QVERIFY(list);
+    int visible = 0;
+    QString visibleName;
+    for (int i = 0; i < list->count(); ++i) {
+        if (!list->item(i)->isHidden()) {
+            ++visible;
+            visibleName = list->item(i)->text();
+        }
+    }
+    QCOMPARE(visible, 1);
+    QCOMPARE(visibleName, QStringLiteral("Recherche"));
+
+    QTest::keyClick(edit, Qt::Key_Return);
+    QCOMPARE(composer->text(), QStringLiteral("Recherchiere:"));
+    QVERIFY(!menu->isVisible());
 }
 
 int main(int argc, char *argv[]) {

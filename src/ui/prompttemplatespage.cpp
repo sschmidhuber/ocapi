@@ -188,6 +188,7 @@ void PromptTemplatesPage::onSave() {
     t.text = text;
     t.images = m_pendingImages;
     t.files = m_pendingFiles;
+    const QUuid savedId = t.id;
     if (m_editingId.isNull() || !m_registry->find(m_editingId))
         m_registry->add(std::move(t));
     else
@@ -195,7 +196,7 @@ void PromptTemplatesPage::onSave() {
     reloadList();
     // Select the saved template.
     for (int i = 0; i < m_list->count(); ++i) {
-        if (QUuid(m_list->item(i)->data(Qt::UserRole).toString()) == t.id) {
+        if (QUuid(m_list->item(i)->data(Qt::UserRole).toString()) == savedId) {
             m_list->setCurrentItem(m_list->item(i));
             break;
         }

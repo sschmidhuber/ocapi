@@ -38,14 +38,17 @@ void TestShortcutRegistry::catalogContainsAllActions() {
     QVERIFY(ids.contains(QStringLiteral("dictate")));
     QVERIFY(ids.contains(QStringLiteral("promptTemplates")));
     // The prompt-template trigger is composer-local, not a window shortcut.
-    const ShortcutAction *trigger = nullptr;
+    ShortcutAction trigger;
+    bool found = false;
     for (const auto &a : actions) {
-        if (a.id == QStringLiteral("promptTemplates"))
-            trigger = &a;
+        if (a.id == QStringLiteral("promptTemplates")) {
+            trigger = a;
+            found = true;
+        }
     }
-    QVERIFY(trigger);
-    QCOMPARE(trigger->defaultSequence, QKeySequence(QStringLiteral("/")));
-    QVERIFY(!trigger->windowScope);
+    QVERIFY(found);
+    QCOMPARE(trigger.defaultSequence, QKeySequence(QStringLiteral("/")));
+    QVERIFY(!trigger.windowScope);
 }
 
 void TestShortcutRegistry::defaultsAreReturnedWithoutOverrides() {

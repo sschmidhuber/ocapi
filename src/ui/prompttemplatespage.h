@@ -26,7 +26,6 @@ public:
     explicit PromptTemplatesPage(PromptTemplateRegistry *registry, QWidget *parent = nullptr);
 
 private slots:
-    void onSelectionChanged();
     void onNew();
     void onSave();
     void onDelete();

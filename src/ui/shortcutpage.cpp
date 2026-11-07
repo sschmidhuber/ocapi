@@ -71,6 +71,9 @@ void ShortcutPage::rebuildTable() {
         shortcutItem->setFlags(shortcutItem->flags() & ~Qt::ItemIsEditable);
         m_table->setItem(row, 1, shortcutItem);
     }
+    // Preselect the first row so "Edit Shortcut..." works right away.
+    if (m_table->rowCount() > 0)
+        m_table->selectRow(0);
     applyFilter();
 }
 

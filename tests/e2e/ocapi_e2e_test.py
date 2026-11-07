@@ -30,8 +30,10 @@
 # therefore verified through the widgets it populates instead of the
 # model picker's popup menu.
 
+import json
 import os
 import unittest
+import urllib.request
 
 from appium import webdriver
 from appium.options.common.base import AppiumOptions
@@ -191,6 +193,21 @@ class OcapiE2E(unittest.TestCase):
 
         self.wait_for(f"//*[contains(@name, '{DOUBLE_TOOL_REPLY_TEXT}')]", timeout=60)
 
+    def _press_key(self, key):
+        # Sends one global key event through the WebDriver's press_keycode
+        # endpoint. Unlike element.send_keys() this needs no action interface
+        # on a focused element, so it works for the settings category list
+        # (whose accessible exposes no actions). The driver maps selenium
+        # special keys to keysyms; "\ue015" is Down, "\ue010" is End.
+        body = json.dumps({"keycode": key}).encode()
+        request = urllib.request.Request(
+            f"http://127.0.0.1:4723/session/{self.driver.session_id}/appium/device/press_keycode",
+            data=body,
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:
+            response.read()
+
     def _count_new_chat_items(self):
         # Sidebar entries of chats still titled "New chat" (tree items).
         return len(
@@ -199,26 +216,24 @@ class OcapiE2E(unittest.TestCase):
 
     def test_07_change_shortcut(self):
         # Open Settings. The category list cannot be driven by clicking its
-        # items (they expose no Press action), so switch to the "Shortcuts"
-        # category with keyboard navigation: the list starts on "General"
-        # (row 0), three Down presses reach "Shortcuts" (row 3). The AT-SPI
-        # tree also contains the hidden pages, so visibility is asserted via
-        # the "showing" state, not mere presence.
+        # items or by element.send_keys (no action interface on the list), so
+        # switch to the "Shortcuts" category with global Down key events: the
+        # list starts on "General" (row 0), three Down presses reach
+        # "Shortcuts" (row 3). The AT-SPI tree also contains the hidden pages,
+        # so visibility is asserted via the "showing" state, not mere
+        # presence.
         self.find_by_name("Settings").click()
-        categories = self.wait_for("//dialog[@name='Settings']//list")
-        categories.send_keys("\ue015\ue015\ue015")  # Down x3
+        self.wait_for("//dialog[@name='Settings']")
+        self._press_key("\ue015\ue015\ue015")  # Down x3
         showing_cell = "//dialog[@name='Settings']//table_cell[contains(@states, 'showing')]"
         self.wait_for(f"{showing_cell}[@name='New chat']")
         self.wait_for(f"{showing_cell}[@name='Ctrl+N']")
 
-        # Select the first row ("New chat") via the table's keyboard focus,
-        # then capture a new shortcut. The driver synthesizes real key events
-        # for special keys; End (\ue010) is one of the mappable ones, and
-        # modifier chords are not supported. Button lookups stay
-        # tag-agnostic: newer at-spi exposes push buttons with the role name
-        # "button", not "push button".
-        table = self.wait_for("//dialog[@name='Settings']//table[contains(@states, 'showing')]")
-        table.send_keys("\ue015")  # Down: selects row 0
+        # The first row ("New chat") is preselected; capture a new shortcut
+        # for it. The driver synthesizes real key events for special keys;
+        # End (\ue010) is one of the mappable ones, modifier chords are not
+        # supported. Button lookups stay tag-agnostic: newer at-spi exposes
+        # push buttons with the role name "button", not "push button".
         self.wait_for("//dialog[@name='Settings']//*[contains(@name, 'Edit Shortcut')]").click()
         self.wait_for("//dialog[@name='Set Shortcut']")
         key_edit = self.wait_for("//dialog[@name='Set Shortcut']//text")
@@ -247,8 +262,7 @@ class OcapiE2E(unittest.TestCase):
                 > before
             )
 
-        composer = self.find_by_name("Message input")
-        composer.send_keys("\ue010")
+        self._press_key("\ue010")  # End: triggers the rebound "New chat"
         WebDriverWait(
             self.driver, 10, ignored_exceptions=(NoSuchElementException, WebDriverException)
         ).until(new_chat_appeared)

@@ -387,6 +387,11 @@ void MainWindow::setupUi() {
     m_rightSplitter->addWidget(composerColumn);
     rightLayout->addWidget(m_rightSplitter, 1);
 
+    // Dropping files/images onto the chat view forwards them to the
+    // composer's attachment strip.
+    connect(m_chatView, &WebChatView::urlsDropped, m_composer, &Composer::addDroppedUrls);
+    connect(m_chatView, &WebChatView::imageDropped, m_composer, &Composer::addDroppedImage);
+
     splitter->addWidget(m_sidebar);
     splitter->addWidget(rightPanel);
     splitter->setStretchFactor(1, 1);
@@ -479,8 +484,6 @@ void MainWindow::setupConnections() {
     });
     // Clicking a file element in a user message opens the file with the
     // system's default application (non-modal error if that fails).
-    connect(m_chatView, &WebChatView::urlsDropped, m_composer, &Composer::addDroppedUrls);
-    connect(m_chatView, &WebChatView::imageDropped, m_composer, &Composer::addDroppedImage);
     connect(m_chatView, &WebChatView::attachmentOpenRequested, this, [this](const QString &path) {
         if (path.isEmpty())
             return;

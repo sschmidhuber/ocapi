@@ -86,6 +86,7 @@ QString attachmentsToJs(const Message &m) {
         images.append(QJsonObject{
             {QStringLiteral("fileName"), img.fileName},
             {QStringLiteral("mimeType"), img.mimeType},
+            {QStringLiteral("sourcePath"), img.sourcePath},
             {QStringLiteral("data"), QString::fromLatin1(img.data.toBase64())},
         });
     }
@@ -93,6 +94,7 @@ QString attachmentsToJs(const Message &m) {
     for (const auto &file : m.files) {
         files.append(QJsonObject{
             {QStringLiteral("fileName"), file.fileName},
+            {QStringLiteral("sourcePath"), file.sourcePath},
             {QStringLiteral("thumbnail"), QString::fromLatin1(file.thumbnail.toBase64())},
         });
     }
@@ -138,6 +140,8 @@ WebChatView::WebChatView(QWidget *parent) : QWebEngineView(parent) {
     connect(m_bridge, &WebChatBridge::scrolledToTop, this, &WebChatView::olderMessagesRequested);
     connect(m_bridge, &WebChatBridge::linkActivated, this, &WebChatView::linkActivated);
     connect(m_bridge, &WebChatBridge::linkHovered, this, &WebChatView::linkHovered);
+    connect(m_bridge, &WebChatBridge::attachmentOpenRequested, this,
+            &WebChatView::attachmentOpenRequested);
     page()->setWebChannel(m_channel);
 
     settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessFileUrls, true);

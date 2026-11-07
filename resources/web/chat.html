@@ -247,12 +247,12 @@
         margin-top: 6px;
       }
       .msg .att {
-        width: 76px;
+        width: 140px;
       }
       .msg .att .att-thumb {
         display: block;
-        width: 64px;
-        height: 64px;
+        width: 128px;
+        height: 128px;
         object-fit: cover;
         margin: 0 auto;
         border: 1px solid var(--border);
@@ -661,10 +661,12 @@
           el.insertBefore(box, actions); // below the body, above the actions
         }
         box.innerHTML = '';
-        const chip = function (thumbSrc, placeholder, fileName) {
+        const chip = function (thumbSrc, placeholder, fileName, sourcePath) {
           const att = document.createElement('div');
           att.className = 'att';
-          att.title = fileName;
+          att.title = fileName; // full file name as tooltip
+          att.dataset.path = sourcePath || '';
+          att.style.cursor = sourcePath ? 'pointer' : 'default';
           const thumb = document.createElement(thumbSrc ? 'img' : 'div');
           thumb.className = 'att-thumb' + (thumbSrc ? '' : ' ph');
           if (thumbSrc) thumb.src = thumbSrc;
@@ -682,11 +684,12 @@
               'data:' + (img.mimeType || 'image/png') + ';base64,' + img.data,
               '?',
               img.fileName || 'image',
+              img.sourcePath,
             ),
           );
         for (const f of files) {
           const src = f.thumbnail ? 'data:image/png;base64,' + f.thumbnail : null;
-          box.appendChild(chip(src, '?', f.fileName || 'file'));
+          box.appendChild(chip(src, '?', f.fileName || 'file', f.sourcePath));
         }
       }
 
@@ -920,6 +923,14 @@
         // bar (empty string when the pointer leaves the link).
         const log = document.getElementById('log');
         log.addEventListener('click', function (ev) {
+          // File elements in user messages open the file in the default app.
+          const att = ev.target.closest('.att');
+          if (att) {
+            ev.preventDefault();
+            if (window.qtBridge && att.dataset.path)
+              window.qtBridge.openAttachment(att.dataset.path);
+            return;
+          }
           const a = ev.target.closest('a');
           if (!a) return;
           ev.preventDefault();

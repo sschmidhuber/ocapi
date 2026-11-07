@@ -13,6 +13,7 @@
 
 class QHBoxLayout;
 class QMimeData;
+class QScrollArea;
 class QShortcut;
 
 class QToolButton;
@@ -108,7 +109,7 @@ private:
     bool m_dictationAvailable = true;
     int m_dictationStart = 0;
     int m_dictatedLength = 0;
-    QWidget *m_attachmentStrip = nullptr;
+    QScrollArea *m_attachmentStrip = nullptr;
     QHBoxLayout *m_attachmentLayout = nullptr;
     QVector<ImageAttachment> m_attachments;
     QVector<FileAttachment> m_documents; // non-image files with thumbnails

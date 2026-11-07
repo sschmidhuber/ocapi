@@ -2,6 +2,7 @@
 
 #include "backends/backendfactory.h"
 #include "backends/ibackend.h"
+#include "core/attachmentopener.h"
 #include "core/chatsession.h"
 #include "core/tooldebug.h"
 #include "storage/chatdatabase.h"
@@ -411,7 +412,10 @@ void MainWindow::setupConnections() {
     connect(m_rightSplitter, &QSplitter::splitterMoved, this, &MainWindow::onComposerSplitterMoved);
     // Attachments grow the composer column (chat area shrinks) while the
     // text input keeps its height.
-    connect(m_composer, &Composer::attachmentsChanged, this, [this]() { applyComposerHeight(); });
+    connect(m_composer, &Composer::attachmentsChanged, this, [this]() {
+        // Defer until the layouts have settled, so the strip height is final.
+        QTimer::singleShot(0, this, [this]() { applyComposerHeight(); });
+    });
     connect(m_sidebar, &Sidebar::sessionSelected, this, &MainWindow::onSessionSelected);
     connect(m_sidebar, &Sidebar::sessionDeleteRequested, this,
             &MainWindow::onSessionDeleteRequested);
@@ -478,6 +482,20 @@ void MainWindow::setupConnections() {
             statusBar()->clearMessage();
         else
             statusBar()->showMessage(url);
+    });
+    // Clicking a file element in a user message opens the file with the
+    // system's default application (non-modal error if that fails).
+    connect(m_chatView, &WebChatView::attachmentOpenRequested, this, [this](const QString &path) {
+        if (path.isEmpty())
+            return;
+        QString error;
+        if (!AttachmentOpener::open(path, &error)) {
+            auto *box = new QMessageBox(QMessageBox::Warning, tr("Could not open attachment"),
+                                        error, QMessageBox::Ok, this);
+            box->setAttribute(Qt::WA_DeleteOnClose);
+            box->setModal(false);
+            box->show();
+        }
     });
     connect(m_sendButton, &QPushButton::clicked, this, [this]() {
         if (m_composer->isEmpty())

@@ -15,6 +15,7 @@
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPixmap>
+#include <QScrollArea>
 #include <QShortcut>
 #include <QTextCursor>
 #include <QToolButton>
@@ -28,12 +29,16 @@ namespace ocapi {
 namespace {
 
 constexpr int kMaxAttachmentsPerMessage = 8;
-constexpr int kDocumentThumbSize = 64;
+constexpr int kDocumentThumbSize = 128;
 constexpr int kDocumentChipPadding = 6;
 // Attachment chip: thumbnail on top, file name below it; the thumbnail keeps
 // its fixed size, the chip grows vertically to fit the name line.
 constexpr int kAttachmentChipWidth = kDocumentThumbSize + (2 * kDocumentChipPadding);
 constexpr int kAttachmentChipHeight = kDocumentThumbSize + 22;
+// The strip lives in a fixed-height scroll area, so its height never changes
+// with the number of attachments (the text input must not shrink when a
+// second file is added).
+constexpr int kAttachmentStripHeight = kAttachmentChipHeight + 4;
 
 const QStringList &imageSuffixes() {
     static const QStringList allowed = {
@@ -164,11 +169,21 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
 
-    m_attachmentStrip = new QWidget(this);
-    m_attachmentLayout = new QHBoxLayout(m_attachmentStrip);
+    // Fixed-height horizontal scroll area: adding more attachments never
+    // changes the strip height, so the text input keeps its size and the
+    // chat area shrinks exactly once when the first file is added.
+    m_attachmentStrip = new QScrollArea(this);
+    m_attachmentStrip->setWidgetResizable(true);
+    m_attachmentStrip->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_attachmentStrip->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_attachmentStrip->setFrameShape(QFrame::NoFrame);
+    m_attachmentStrip->setFixedHeight(kAttachmentStripHeight);
+    auto *stripContent = new QWidget(m_attachmentStrip);
+    m_attachmentLayout = new QHBoxLayout(stripContent);
     m_attachmentLayout->setContentsMargins(4, 2, 4, 2);
     m_attachmentLayout->setSpacing(4);
     m_attachmentLayout->addStretch(1);
+    m_attachmentStrip->setWidget(stripContent);
     m_attachmentStrip->hide();
     layout->addWidget(m_attachmentStrip);
 
@@ -442,7 +457,7 @@ void Composer::refreshAttachmentStrip() {
     auto addChip = [this](const QString &sourcePath, const QString &toolTip,
                           const QImage &thumbImage, const QString &placeholder,
                           const QString &fileName, const QUuid &id, bool isDocument) {
-        auto *chip = new AttachmentChip(sourcePath, toolTip, m_attachmentStrip);
+        auto *chip = new AttachmentChip(sourcePath, toolTip, m_attachmentStrip->widget());
         chip->setFixedSize(kAttachmentChipWidth, kAttachmentChipHeight);
         auto *chipLayout = new QVBoxLayout(chip);
         chipLayout->setContentsMargins(kDocumentChipPadding, 2, kDocumentChipPadding, 2);
@@ -495,9 +510,9 @@ void Composer::refreshAttachmentStrip() {
 }
 
 int Composer::attachmentStripHeight() const {
-    if (!m_attachmentStrip->isVisible())
+    if (m_attachments.isEmpty() && m_documents.isEmpty())
         return 0;
-    return m_attachmentStrip->sizeHint().height();
+    return kAttachmentStripHeight;
 }
 
 } // namespace ocapi

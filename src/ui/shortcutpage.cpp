@@ -150,8 +150,8 @@ bool ShortcutPage::captureAndApply(int row) {
 
     const QKeySequence sequence = edit->keySequence();
     // A bare modifier (Ctrl, Shift, ...) is not a usable shortcut.
-    if (sequence.count() == 1 && (static_cast<quint32>(sequence[0]) &
-                                  ~static_cast<quint32>(Qt::KeyboardModifierMask)) == 0) {
+    if (sequence.count() == 1 &&
+        (sequence[0].toCombined() & ~static_cast<quint32>(Qt::KeyboardModifierMask)) == 0) {
         QMessageBox::warning(this, tr("Invalid Shortcut"),
                              tr("A modifier key alone cannot be used as a shortcut."));
         return false;

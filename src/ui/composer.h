@@ -17,6 +17,7 @@ class QDragEnterEvent;
 class QDragLeaveEvent;
 class QDropEvent;
 class QHBoxLayout;
+class QKeyEvent;
 class QMimeData;
 class QScrollArea;
 class QShortcut;
@@ -136,6 +137,9 @@ private:
     void refreshAttachmentStrip();
     void onTextChanged();
     void closePromptMenu();
+    // Key handling while the prompt-template menu is open (trigger, Enter,
+    // Escape); returns true when the key was consumed.
+    bool handlePromptMenuKey(QKeyEvent *keyEvent);
     // Typed length of the trigger (1 for a printable single key like "/",
     // 0 for modifier combos like Ctrl+Space which insert nothing).
     [[nodiscard]] int promptTriggerTextLength() const;

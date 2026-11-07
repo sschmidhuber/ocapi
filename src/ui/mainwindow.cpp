@@ -349,6 +349,9 @@ void MainWindow::setupUi() {
     m_sendButton = new QPushButton(tr("Send"), footerRow);
     m_stopButton = new QPushButton(tr("Stop"), footerRow);
     m_stopButton->setVisible(false);
+    // Shown only while a user message is being edited.
+    m_cancelEditButton = new QPushButton(tr("Cancel"), footerRow);
+    m_cancelEditButton->setVisible(false);
     // Icon button styled like the Dictate (mic) button next to it.
     m_speakButton = new QToolButton(footerRow);
     const QIcon speakerIcon(QString::fromUtf8(":/resources/icons/audio-symbolic.svg"));
@@ -371,6 +374,7 @@ void MainWindow::setupUi() {
     footerLayout->addWidget(m_composer->micButton());
     footerLayout->addWidget(m_composer->attachButton());
     footerLayout->addWidget(m_speakButton);
+    footerLayout->addWidget(m_cancelEditButton);
     footerLayout->addWidget(m_sendButton);
     footerLayout->addWidget(m_stopButton);
     composerColumnLayout->addWidget(footerRow);
@@ -473,6 +477,8 @@ void MainWindow::setupConnections() {
         onSend(m_composer->composedText(), m_composer->attachments(), m_composer->documents());
     });
     connect(m_stopButton, &QPushButton::clicked, this, &MainWindow::onStop);
+    connect(m_cancelEditButton, &QPushButton::clicked, this, &MainWindow::cancelEditMessage);
+    connect(m_chatView, &WebChatView::messageEditRequested, this, &MainWindow::startEditMessage);
     connect(m_modelPicker, &ModelPickerButton::backendSelected, this, [this](const QString &id) {
         if (m_currentSession && !id.isEmpty()) {
             m_currentSession->setBackendId(id);
@@ -578,6 +584,8 @@ void MainWindow::createSession(const QString &backendId, const QString &model) {
 }
 
 void MainWindow::onSessionSelected(const QUuid &id) {
+    if (!m_editingMessageId.isNull())
+        cancelEditMessage();
     // Switching chats never interrupts a running turn: the context of the
     // previous chat keeps streaming in the background.
     m_currentSession = nullptr;
@@ -1243,6 +1251,17 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
                                  5000);
         return;
     }
+    if (!m_editingMessageId.isNull()) {
+        // Resending an edited user message: drop it and everything after it
+        // from the history (and the database), then send the edited version
+        // with the remaining history.
+        const QStringList removedIds = m_currentSession->truncateFrom(m_editingMessageId);
+        if (m_database.isOpen())
+            m_database.deleteMessagesFrom(m_currentSession->id().toString(QUuid::WithoutBraces),
+                                          removedIds);
+        m_editingMessageId = QUuid();
+        m_cancelEditButton->setVisible(false);
+    }
 
     const QString backendId = m_currentSession->backendId();
     auto *config = m_registry.find(backendId);
@@ -1313,6 +1332,33 @@ void MainWindow::onSend(const QString &text, const QVector<ImageAttachment> &ima
         if (assistant.role == Role::Assistant)
             context->streamedMessageId = assistant.id;
     }
+}
+
+void MainWindow::startEditMessage(const QString &idString) {
+    if (!m_currentSession)
+        return;
+    const QUuid id(idString);
+    const Message *message = nullptr;
+    for (const auto &candidate : m_currentSession->messages()) {
+        if (candidate.id == id) {
+            message = &candidate;
+            break;
+        }
+    }
+    if (!message || message->role != Role::User)
+        return;
+    m_editingMessageId = id;
+    m_composer->setText(message->content);
+    m_composer->setAttachments(message->images, message->files);
+    m_cancelEditButton->setVisible(true);
+    m_composer->focusInput();
+}
+
+void MainWindow::cancelEditMessage() {
+    m_editingMessageId = QUuid();
+    m_composer->clearText();
+    m_composer->clearAttachments();
+    m_cancelEditButton->setVisible(false);
 }
 
 void MainWindow::onStop() {

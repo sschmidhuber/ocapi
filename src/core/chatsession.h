@@ -61,11 +61,16 @@ public:
     void setThroughput(const QUuid &id, double tokensPerSecond);
     void failMessage(const QUuid &id, const QString &error);
     void clear();
+    // Removes the message with the given id and everything after it (used
+    // when a user message is edited and resent); returns the removed
+    // message ids and emits messagesTruncated(fromId).
+    QStringList truncateFrom(const QUuid &id);
 
 signals:
     void titleChanged(const QString &title);
     void messageAdded(const ocapi::Message &message);
     void messageUpdated(const ocapi::Message &message);
+    void messagesTruncated(const QUuid &fromId);
 
 private:
     QUuid m_id = QUuid::createUuid();

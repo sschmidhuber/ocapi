@@ -101,6 +101,10 @@ public:
     void simulateStreamStartForTest();
     void simulateStreamFinishForTest();
     void sendTextForTest(const QString &text) { onSend(text, {}, {}); }
+    void startEditMessageForTest(const QUuid &id) {
+        startEditMessage(id.toString(QUuid::WithoutBraces));
+    }
+    [[nodiscard]] bool isEditingMessageForTest() const { return !m_editingMessageId.isNull(); }
     // Simulates the backend requesting MCP tool calls on the current session.
     void simulateToolCallsForTest(const QVector<ToolCall> &calls) {
         if (!m_currentSession)
@@ -114,6 +118,10 @@ protected:
 private slots:
     void onNewChat();
     void onSessionSelected(const QUuid &id);
+    // Editing a user message: loads it into the composer; Send truncates the
+    // history from that message on and resends, Cancel aborts.
+    void startEditMessage(const QString &idString);
+    void cancelEditMessage();
     // Deletes the given chats; asks for confirmation when there are several.
     // Running and unread chats are never deleted.
     void onSessionDeleteRequested(const QList<QUuid> &ids);
@@ -290,6 +298,9 @@ private:
     ModelPickerButton *m_modelPicker = nullptr;
     QPushButton *m_sendButton = nullptr;
     QPushButton *m_stopButton = nullptr;
+    QPushButton *m_cancelEditButton = nullptr;
+    // The user message currently being edited (null uuid when not editing).
+    QUuid m_editingMessageId;
     QToolButton *m_speakButton = nullptr;
     QLabel *m_statusLabel = nullptr;
     QLabel *m_emptyLabel = nullptr;

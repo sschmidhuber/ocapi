@@ -74,6 +74,9 @@ public:
     bool insertSession(const ChatSession &session);
     bool updateSession(const ChatSession &session);
     bool deleteSession(const QString &sessionId);
+    // Deletes the given messages of a session (attachments first); used when
+    // a user message is edited and the tail of the history is resent.
+    bool deleteMessagesFrom(const QString &sessionId, const QStringList &messageIds);
     bool insertMessage(const QString &sessionId, const QString &messageId, const QString &role,
                        const QString &content, const QDateTime &timestamp,
                        const QVector<ImageAttachment> &images = {},

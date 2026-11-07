@@ -187,6 +187,24 @@ void ChatSession::setThroughput(const QUuid &id, double tokensPerSecond) {
     }
 }
 
+QStringList ChatSession::truncateFrom(const QUuid &id) {
+    QStringList removed;
+    int index = -1;
+    for (int i = 0; i < m_messages.size(); ++i) {
+        if (m_messages.at(i).id == id) {
+            index = i;
+            break;
+        }
+    }
+    if (index < 0)
+        return removed;
+    for (int i = index; i < m_messages.size(); ++i)
+        removed.append(m_messages.at(i).id.toString(QUuid::WithoutBraces));
+    m_messages.erase(m_messages.begin() + index, m_messages.end());
+    emit messagesTruncated(id);
+    return removed;
+}
+
 void ChatSession::failMessage(const QUuid &id, const QString &error) {
     for (auto &message : m_messages) {
         if (message.id == id) {

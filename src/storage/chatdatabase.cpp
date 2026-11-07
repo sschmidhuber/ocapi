@@ -407,6 +407,29 @@ bool ChatDatabase::deleteSession(const QString &sessionId) {
     return execute(QStringLiteral("DELETE FROM sessions WHERE id = ?"), {sessionId});
 }
 
+bool ChatDatabase::deleteMessagesFrom(const QString &sessionId, const QStringList &messageIds) {
+    if (messageIds.isEmpty())
+        return true;
+    QString placeholders;
+    for (int i = 0; i < messageIds.size(); ++i)
+        placeholders += (i > 0 ? QStringLiteral(",?") : QStringLiteral("?"));
+    const QString where = QStringLiteral("session_id = ? AND id IN (%1)").arg(placeholders);
+    QVariantList bindings;
+    bindings << sessionId;
+    for (const auto &id : messageIds)
+        bindings << id;
+    // Attachments reference the messages; delete them first.
+    execute(QStringLiteral("DELETE FROM message_images WHERE message_id IN "
+                           "(SELECT id FROM messages WHERE %1)")
+                .arg(where),
+            bindings);
+    execute(QStringLiteral("DELETE FROM message_files WHERE message_id IN "
+                           "(SELECT id FROM messages WHERE %1)")
+                .arg(where),
+            bindings);
+    return execute(QStringLiteral("DELETE FROM messages WHERE %1").arg(where), bindings);
+}
+
 int ChatDatabase::messageCount(const QString &sessionId) const {
     QSqlQuery query(m_database);
     query.prepare(QStringLiteral("SELECT COUNT(*) FROM messages WHERE session_id = ?"));

@@ -401,6 +401,17 @@ void Composer::addDocument(const QString &path) {
     refreshAttachmentStrip();
 }
 
+void Composer::setText(const QString &text) {
+    m_textEdit->setPlainText(text);
+}
+
+void Composer::setAttachments(const QVector<ImageAttachment> &images,
+                              const QVector<FileAttachment> &files) {
+    m_attachments = images;
+    m_documents = files;
+    refreshAttachmentStrip();
+}
+
 QString Composer::composedText() const {
     return m_textEdit->toPlainText();
 }

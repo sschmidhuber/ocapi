@@ -14,7 +14,7 @@
   "rules": {
     "no-unused-vars": [
       "error",
-      { "varsIgnorePattern": "^(setMessage|clearLog|setTheme|setShowThroughput)$" }
+      { "varsIgnorePattern": "^(setMessage|clearLog|setTheme|setShowThroughput|removeMessagesFrom)$" }
     ]
   }
 }

@@ -71,6 +71,7 @@ private slots:
     void unreadChatIsNotDeleted();
     void statusBarShowsReadyAfterStreamFinishes();
     void followUpQueuedWhileStreaming();
+    void editMessageTruncatesHistoryOnSend();
 
 private:
     QTemporaryDir m_home;
@@ -407,6 +408,51 @@ void TestMainWindow::followUpQueuedWhileStreaming() {
             sawFollowUp = true;
     }
     QVERIFY(sawFollowUp);
+}
+
+// Editing a user message and pressing Send removes the edited message and
+// everything after it from the history, then sends the edited text.
+void TestMainWindow::editMessageTruncatesHistoryOnSend() {
+    MainWindow window;
+    window.show();
+    auto &registry = window.registryForTest();
+    auto &ollama = registry.add(QStringLiteral("Ollama"), BackendKind::Ollama);
+    registry.save();
+    // Fresh chat: earlier tests of this process share the temp database, so
+    // the initial session may already contain messages.
+    window.startNewChat();
+    ChatSession *session = window.currentSession();
+    QVERIFY(session);
+    session->setBackendId(ollama.id.toString());
+    session->setModel(QStringLiteral("mock-model"));
+
+    // Store the id by value: the messages vector reallocates on append.
+    const QUuid userMsgId =
+        session->appendMessage(Role::User, QStringLiteral("original question")).id;
+    session->appendMessage(Role::Assistant, QStringLiteral("old answer"));
+    session->appendMessage(Role::User, QStringLiteral("follow up"));
+    QCOMPARE(session->messages().size(), 3);
+
+    // Clicking the edit button loads the message into the composer.
+    window.startEditMessageForTest(userMsgId);
+    QVERIFY(window.isEditingMessageForTest());
+
+    // Send the edited version: the old tail is gone (the remaining messages
+    // are at most the system prompt, the new user message and the backend's
+    // empty assistant placeholder).
+    window.sendTextForTest(QStringLiteral("edited question"));
+    QVERIFY(!window.isEditingMessageForTest());
+    int userMessages = 0;
+    for (const auto &message : session->messages()) {
+        QVERIFY(!message.content.contains(QStringLiteral("old answer")));
+        QVERIFY(!message.content.contains(QStringLiteral("follow up")));
+        QVERIFY(!message.content.contains(QStringLiteral("original question")));
+        if (message.role == Role::User) {
+            ++userMessages;
+            QCOMPARE(message.content, QStringLiteral("edited question"));
+        }
+    }
+    QCOMPARE(userMessages, 1);
 }
 
 int main(int argc, char *argv[]) {

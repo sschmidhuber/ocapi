@@ -5,6 +5,7 @@
 #include "core/mcpmanager.h"
 #include "core/mcpregistry.h"
 #include "core/message.h"
+#include "core/shortcutregistry.h"
 #include "core/sttregistry.h"
 #include "core/systemprompt.h"
 #include "core/ttsplayer.h"
@@ -16,10 +17,12 @@
 
 #include <QHash>
 #include <QLabel>
+#include <QList>
 #include <QMainWindow>
 #include <QMenu>
 #include <QPushButton>
 #include <QSet>
+#include <QShortcut>
 #include <QToolBar>
 #include <QToolButton>
 #include <QVector>
@@ -89,6 +92,7 @@ public:
     [[nodiscard]] ChatSession *currentSession() const { return m_currentSession; }
     void startNewChat() { onNewChat(); }
     [[nodiscard]] BackendRegistry &registryForTest() { return m_registry; }
+    [[nodiscard]] ShortcutRegistry &shortcutsForTest() { return m_shortcuts; }
     // Simulates the backend requesting MCP tool calls on the current session.
     void simulateToolCallsForTest(const QVector<ToolCall> &calls) {
         if (!m_currentSession)
@@ -127,6 +131,12 @@ private slots:
 private:
     void setupUi();
     void setupConnections();
+    // Creates the window-level QShortcut objects from the sequences in the
+    // shortcut registry; reapplyShortcuts() re-creates them after changes.
+    void createWindowShortcuts();
+    // Re-creates the window shortcuts and the composer's dictate shortcut
+    // from the current registry state and refreshes the tooltips.
+    void reapplyShortcuts();
     void connectContext(StreamContext *context);
     void onTokenReceived(StreamContext *context, const QUuid &messageId, const QString &text);
     void onReasoningReceived(StreamContext *context, const QUuid &messageId, const QString &text);
@@ -149,6 +159,7 @@ private:
     void loadSttSettingsFromDatabase();
     void loadSystemPrompt();
     void loadLastModels();
+    void loadShortcuts();
     void configureVoiceInput();
     void loadTtsSettingsFromDatabase();
     void configureTts();
@@ -229,6 +240,10 @@ private:
     // Last model selected per backend id, loaded from/saved to ocapi.conf.
     QHash<QString, QString> m_lastModels;
     QString m_dictatedText;
+    // Configurable keyboard shortcuts (loaded from ocapi.conf) and the
+    // QShortcut objects currently bound to them.
+    ShortcutRegistry m_shortcuts;
+    QList<QShortcut *> m_windowShortcuts;
 
     Sidebar *m_sidebar = nullptr;
     WebChatView *m_chatView = nullptr;

@@ -64,6 +64,8 @@ set(OCAPI_CORE_SOURCES
     core/voiceinput.cpp
     core/backendregistry.h
     core/backendregistry.cpp
+    core/shortcutregistry.h
+    core/shortcutregistry.cpp
     core/mcpprotocol.h
     core/mcpserverconfig.h
     core/mcpserverconfig.cpp
@@ -147,6 +149,8 @@ set(OCAPI_UI_SOURCES
     ui/ttspage.cpp
     ui/settingsdialog.h
     ui/settingsdialog.cpp
+    ui/shortcutpage.h
+    ui/shortcutpage.cpp
 )
 
 qt_add_executable(ocapi
@@ -173,6 +177,7 @@ qt_add_resources(ocapi "ocapi_resources"
         ../resources/icons/tools.svg
         ../resources/icons/general.svg
         ../resources/icons/audio-symbolic.svg
+        ../resources/icons/keyboard.svg
         ../resources/web/chat.html
         ../resources/web/marked.min.js
         ../resources/web/katex.min.js

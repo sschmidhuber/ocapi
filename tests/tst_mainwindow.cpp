@@ -22,6 +22,7 @@ private slots:
     void newChatKeepsCurrentBackendAndModel();
     void toolCallFailureAppendsToolMessageWithoutCrashing();
     void keyboardShortcuts();
+    void reboundShortcutFiresImmediately();
     void newChatFocusesInput();
     void f9TogglesSidebar();
     void ctrlTabCyclesChats();
@@ -125,6 +126,26 @@ void TestMainWindow::keyboardShortcuts() {
     QWidget *focusWidget = window.focusWidget();
     QVERIFY(focusWidget);
     QTest::keyClick(focusWidget, Qt::Key_N, Qt::ControlModifier);
+    QVERIFY(window.currentSession());
+    QVERIFY(window.currentSession() != before);
+}
+
+// Rebinding a shortcut in the registry must re-create the window's
+// QShortcut immediately: after rebinding "New chat" to Ctrl+Shift+N, that
+// combo starts a new chat without a restart.
+void TestMainWindow::reboundShortcutFiresImmediately() {
+    MainWindow window;
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    ChatSession *before = window.currentSession();
+    QVERIFY(before);
+    window.shortcutsForTest().setSequence(QStringLiteral("newChat"),
+                                          QKeySequence(QStringLiteral("Ctrl+Shift+N")));
+
+    QWidget *focusWidget = window.focusWidget();
+    QVERIFY(focusWidget);
+    QTest::keyClick(focusWidget, Qt::Key_N, Qt::ControlModifier | Qt::ShiftModifier);
     QVERIFY(window.currentSession());
     QVERIFY(window.currentSession() != before);
 }

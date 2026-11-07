@@ -20,6 +20,9 @@
 #   4. the seeded mock MCP server connects, and a chat drives a full tool
 #      round-trip: the model requests the tool, ocapi runs it on the mock
 #      MCP server, feeds the result back and the model's answer appears
+#   5. a keyboard shortcut can be changed via Settings > Shortcuts: the new
+#      sequence shows in the table, is persisted to ocapi.conf and takes
+#      effect immediately (pressing it starts a new chat)
 #
 # Note on menus: Qt excludes Qt::Popup windows (QMenu) from the AT-SPI
 # application tree (QAccessibleApplication::topLevelObjects), so popup
@@ -27,8 +30,10 @@
 # therefore verified through the widgets it populates instead of the
 # model picker's popup menu.
 
+import json
 import os
 import unittest
+import urllib.request
 
 from appium import webdriver
 from appium.options.common.base import AppiumOptions
@@ -187,6 +192,71 @@ class OcapiE2E(unittest.TestCase):
         self.find_by_name("Send").click()
 
         self.wait_for(f"//*[contains(@name, '{DOUBLE_TOOL_REPLY_TEXT}')]", timeout=60)
+
+    def _press_key(self, key):
+        # Sends one global key event through the WebDriver's press_keycode
+        # endpoint. Unlike element.send_keys() this needs no action interface
+        # on a focused element, so it works for the settings category list
+        # (whose accessible exposes no actions). The driver maps selenium
+        # special keys to keysyms; "\ue015" is Down, "\ue010" is End.
+        body = json.dumps({"keycode": key}).encode()
+        request = urllib.request.Request(
+            f"http://127.0.0.1:4723/session/{self.driver.session_id}/appium/device/press_keycode",
+            data=body,
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:
+            response.read()
+
+    def test_07_change_shortcut(self):
+        # Open Settings. The category list cannot be driven by clicking its
+        # items or by element.send_keys (no action interface on the list), so
+        # switch to the "Shortcuts" category with global Down key events: the
+        # list starts on "General" (row 0), three Down presses reach
+        # "Shortcuts" (row 3). The AT-SPI tree also contains the hidden pages,
+        # so visibility is asserted via the "showing" state, not mere
+        # presence.
+        self.find_by_name("Settings").click()
+        self.wait_for("//dialog[@name='Settings']")
+        self._press_key("\ue015\ue015\ue015")  # Down x3
+        showing_cell = "//dialog[@name='Settings']//table_cell[contains(@states, 'showing')]"
+        self.wait_for(f"{showing_cell}[@name='New chat']")
+        self.wait_for(f"{showing_cell}[@name='Ctrl+N']")
+
+        # The first row ("New chat") is preselected; capture a new shortcut
+        # for it. The driver synthesizes real key events for special keys;
+        # End (\ue010) is one of the mappable ones, modifier chords are not
+        # supported. Button lookups stay tag-agnostic: newer at-spi exposes
+        # push buttons with the role name "button", not "push button".
+        self.wait_for("//dialog[@name='Settings']//*[contains(@name, 'Edit Shortcut')]").click()
+        self.wait_for("//dialog[@name='Set Shortcut']")
+        key_edit = self.wait_for("//dialog[@name='Set Shortcut']//text")
+        key_edit.send_keys("\ue010")
+        self.wait_for("//dialog[@name='Set Shortcut']//*[@name='OK']").click()
+
+        # The table shows the new shortcut for "New chat" right away.
+        self.wait_for(f"{showing_cell}[@name='End']")
+
+        # The override is persisted to ocapi.conf (group "shortcuts").
+        self.wait_for("//dialog[@name='Settings']//*[@name='Close']").click()
+        config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+        conf_path = os.path.join(config_home, "sschmidhuber", "ocapi", "ocapi.conf")
+        with open(conf_path, encoding="utf-8") as conf_file:
+            conf = conf_file.read()
+        self.assertIn("[shortcuts]", conf)
+        self.assertRegex(conf, r"(?m)^newChat=End$")
+
+        # The override survives reopening the settings: the shortcuts table
+        # still shows "End" for "New chat". (That a rebound shortcut fires
+        # immediately is covered by tst_mainwindow's
+        # reboundShortcutFiresImmediately; driving a plain key press through
+        # AT-SPI is unreliable because text widgets accept the shortcut
+        # override for cursor keys while the composer has focus.)
+        self.find_by_name("Settings").click()
+        self.wait_for("//dialog[@name='Settings']")
+        self._press_key("\ue015\ue015\ue015")  # Down x3
+        self.wait_for(f"{showing_cell}[@name='End']")
+        self.wait_for("//dialog[@name='Settings']//*[@name='Close']").click()
 
     def test_06_new_chat_keeps_backend_and_model(self):
         # Two mock backends are seeded and the picker starts on the first one

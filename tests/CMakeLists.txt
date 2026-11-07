@@ -30,6 +30,7 @@ set(OCAPI_TESTS
     tst_sttstreamclient
     tst_ttsconfig
     tst_ttsregistry
+    tst_shortcutregistry
     tst_sentencesplitter
     tst_audioformat
     tst_ttsclient
@@ -64,6 +65,7 @@ add_executable(tst_settingsdialog tst_settingsdialog.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/settingsdialog.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/backendpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/mcppage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/shortcutpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/sttpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/systempromptpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/ttspage.cpp)
@@ -82,6 +84,7 @@ add_executable(tst_mainwindow tst_mainwindow.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/sidebar.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/backendpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/mcppage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/shortcutpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/sttpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/systempromptpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/ttspage.cpp
@@ -98,9 +101,12 @@ set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icons/tools.svg
     PROPERTIES QT_RESOURCE_ALIAS "resources/icons/tools.svg")
 set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icons/general.svg
     PROPERTIES QT_RESOURCE_ALIAS "resources/icons/general.svg")
+set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icons/keyboard.svg
+    PROPERTIES QT_RESOURCE_ALIAS "resources/icons/keyboard.svg")
 qt_add_resources(tst_settingsdialog "ocapi_resources"
     PREFIX "/"
     FILES
         ${CMAKE_SOURCE_DIR}/resources/icons/ai_chip.svg
         ${CMAKE_SOURCE_DIR}/resources/icons/tools.svg
-        ${CMAKE_SOURCE_DIR}/resources/icons/general.svg)
+        ${CMAKE_SOURCE_DIR}/resources/icons/general.svg
+        ${CMAKE_SOURCE_DIR}/resources/icons/keyboard.svg)

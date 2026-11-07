@@ -11,6 +11,7 @@
 #include "ui/sidebar.h"
 #include "ui/webchatview.h"
 
+#include <QApplication>
 #include <QDateTime>
 #include <QDebug>
 #include <QDesktopServices>

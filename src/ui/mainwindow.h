@@ -20,6 +20,7 @@
 #include <QHash>
 #include <QLabel>
 #include <QList>
+#include <QListWidget>
 #include <QMainWindow>
 #include <QMenu>
 #include <QPushButton>
@@ -37,7 +38,6 @@ class ChatSession;
 class WebChatView;
 class Composer;
 class IBackend;
-class QListWidget;
 class Sidebar;
 
 // One in-flight model turn per chat: chats run in parallel, so the backend

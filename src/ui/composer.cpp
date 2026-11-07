@@ -39,8 +39,11 @@ constexpr int kAttachmentChipWidth = kDocumentThumbSize + (2 * kDocumentChipPadd
 constexpr int kAttachmentChipHeight = kDocumentThumbSize + 22;
 // The strip lives in a fixed-height scroll area, so its height never changes
 // with the number of attachments (the text input must not shrink when a
-// second file is added).
-constexpr int kAttachmentStripHeight = kAttachmentChipHeight + 4;
+// second file is added). The fixed height additionally reserves room for the
+// horizontal scrollbar, so chips stay fully visible (thumbnail + name) when
+// it appears.
+constexpr int kAttachmentStripBaseHeight = kAttachmentChipHeight + 4;
+constexpr int kScrollBarAllowance = 18;
 
 const QStringList &imageSuffixes() {
     static const QStringList allowed = {
@@ -182,7 +185,8 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     m_attachmentStrip->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_attachmentStrip->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_attachmentStrip->setFrameShape(QFrame::NoFrame);
-    m_attachmentStrip->setFixedHeight(kAttachmentStripHeight);
+    m_stripHeight = kAttachmentStripBaseHeight + kScrollBarAllowance;
+    m_attachmentStrip->setFixedHeight(m_stripHeight);
     auto *stripContent = new QWidget(m_attachmentStrip);
     m_attachmentLayout = new QHBoxLayout(stripContent);
     m_attachmentLayout->setContentsMargins(4, 2, 4, 2);
@@ -579,7 +583,7 @@ void Composer::refreshAttachmentStrip() {
 int Composer::attachmentStripHeight() const {
     if (m_attachments.isEmpty() && m_documents.isEmpty())
         return 0;
-    return kAttachmentStripHeight;
+    return m_stripHeight;
 }
 
 } // namespace ocapi

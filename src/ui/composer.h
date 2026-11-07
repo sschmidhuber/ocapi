@@ -122,6 +122,7 @@ private:
     int m_dictationStart = 0;
     int m_dictatedLength = 0;
     QScrollArea *m_attachmentStrip = nullptr;
+    int m_stripHeight = 0; // fixed strip height incl. scrollbar allowance
     QHBoxLayout *m_attachmentLayout = nullptr;
     QVector<ImageAttachment> m_attachments;
     QVector<FileAttachment> m_documents; // non-image files with thumbnails

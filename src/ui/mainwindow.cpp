@@ -227,6 +227,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     loadSystemPrompt();
     loadLastModels();
     loadShortcuts();
+    loadUiSettings();
 
     setupUi();
     setupConnections();
@@ -389,6 +390,9 @@ void MainWindow::setupConnections() {
     createWindowShortcuts();
     m_composer->setDictateSequence(m_shortcuts.sequence(QStringLiteral("dictate")));
     connect(&m_shortcuts, &ShortcutRegistry::changed, this, &MainWindow::reapplyShortcuts);
+    m_chatView->setShowThroughput(m_uiSettings.showThroughput());
+    connect(&m_uiSettings, &UiSettings::changed, this,
+            [this]() { m_chatView->setShowThroughput(m_uiSettings.showThroughput()); });
     connect(m_settingsButton, &QToolButton::clicked, this, [this] { openSettings(QString()); });
     connect(m_sidebar, &Sidebar::sessionSelected, this, &MainWindow::onSessionSelected);
     connect(m_sidebar, &Sidebar::sessionDeleteRequested, this,
@@ -703,7 +707,7 @@ void MainWindow::reapplyShortcuts() {
 
 void MainWindow::openSettings(const QString &pageId) {
     SettingsDialog dialog(&m_registry, &m_mcpRegistry, &m_mcpManager, &m_sttRegistry,
-                          &m_ttsRegistry, &m_systemPrompt, &m_shortcuts, this);
+                          &m_ttsRegistry, &m_systemPrompt, &m_shortcuts, &m_uiSettings, this);
     if (!pageId.isEmpty())
         dialog.selectPage(pageId);
     dialog.exec();
@@ -740,6 +744,13 @@ void MainWindow::loadShortcuts() {
     QDir().mkpath(configDir);
     QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
     m_shortcuts.load(settings);
+}
+
+void MainWindow::loadUiSettings() {
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir().mkpath(configDir);
+    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    m_uiSettings.load(settings);
 }
 
 void MainWindow::loadLastModels() {

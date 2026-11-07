@@ -34,6 +34,11 @@ the Linux accessibility API, never through pixel comparison.
    takes effect immediately (pressing the new key starts a new chat). The
    driver synthesizes real key events for special keys only (no modifier
    chords), so the test binds a plain special key ("End").
+7. **Throughput toggle** — *Settings → General → User Interface* (the dialog
+   opens on "General"; the tab button exposes a Press action) enables
+   "Show throughput (t/s)". The change persists to `ocapi.conf` (`[ui]`
+   group) and the finished assistant message immediately shows its output
+   throughput ("N t/s") next to the copy button.
 
 Popup menus (Settings… → Model backends, the model picker menu) cannot be driven with this stack:
 Qt excludes `Qt::Popup` windows such as `QMenu` from the AT-SPI

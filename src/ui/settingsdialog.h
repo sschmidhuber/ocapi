@@ -16,6 +16,7 @@ class ShortcutRegistry;
 class SttRegistry;
 class SystemPrompt;
 class TtsRegistry;
+class UiSettings;
 
 // Settings dialog following the structure of KDE's KCM configuration
 // dialogs: the top-level categories (for example "Models", "Tools" or
@@ -28,7 +29,7 @@ public:
     SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mcpRegistry,
                    McpManager *mcpManager, SttRegistry *sttRegistry, TtsRegistry *ttsRegistry,
                    SystemPrompt *systemPrompt, ShortcutRegistry *shortcutRegistry,
-                   QWidget *parent = nullptr);
+                   UiSettings *uiSettings, QWidget *parent = nullptr);
     ~SettingsDialog() override;
 
     // Selects the category ("models", "tools") and, if the category has

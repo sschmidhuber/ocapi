@@ -5,6 +5,7 @@
 #include "core/sttregistry.h"
 #include "core/systemprompt.h"
 #include "core/ttsregistry.h"
+#include "core/uisettings.h"
 #include "ui/settingsdialog.h"
 
 #include <QApplication>
@@ -56,8 +57,9 @@ SettingsDialog *TestSettingsDialog::makeDialog() {
     TtsRegistry ttsRegistry;
     SystemPrompt systemPrompt;
     ShortcutRegistry shortcutRegistry;
+    UiSettings uiSettings;
     return new SettingsDialog(&backends, &mcpRegistry, &mcpManager, &sttRegistry, &ttsRegistry,
-                              &systemPrompt, &shortcutRegistry);
+                              &systemPrompt, &shortcutRegistry, &uiSettings);
 }
 
 void TestSettingsDialog::categoriesAreTopLevelItems() {
@@ -87,8 +89,9 @@ void TestSettingsDialog::pagesAreTabsOfTheirCategory() {
     QVERIFY(toolsTabs);
     QVERIFY(shortcutsTabs);
 
-    QCOMPARE(generalTabs->count(), 1);
+    QCOMPARE(generalTabs->count(), 2);
     QCOMPARE(generalTabs->tabText(0), QStringLiteral("System Prompt"));
+    QCOMPARE(generalTabs->tabText(1), QStringLiteral("User Interface"));
 
     QCOMPARE(modelsTabs->count(), 3);
     QCOMPARE(modelsTabs->tabText(0), QStringLiteral("LLM"));
@@ -140,6 +143,10 @@ void TestSettingsDialog::selectPageSelectsCategoryAndTab() {
     dialog->selectPage(QStringLiteral("general/systemprompt"));
     QCOMPARE(list->currentRow(), 0);
     QCOMPARE(generalTabs->currentIndex(), 0);
+
+    dialog->selectPage(QStringLiteral("general/userinterface"));
+    QCOMPARE(list->currentRow(), 0);
+    QCOMPARE(generalTabs->currentIndex(), 1);
 
     dialog->selectPage(QStringLiteral("models/llm"));
     QCOMPARE(list->currentRow(), 1);

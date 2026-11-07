@@ -10,6 +10,7 @@
 #include "core/systemprompt.h"
 #include "core/ttsplayer.h"
 #include "core/ttsregistry.h"
+#include "core/uisettings.h"
 #include "core/voiceinput.h"
 #include "storage/chatdatabase.h"
 #include <QDateTime>
@@ -168,6 +169,7 @@ private:
     void loadSystemPrompt();
     void loadLastModels();
     void loadShortcuts();
+    void loadUiSettings();
     void configureVoiceInput();
     void loadTtsSettingsFromDatabase();
     void configureTts();
@@ -252,6 +254,8 @@ private:
     // QShortcut objects currently bound to them.
     ShortcutRegistry m_shortcuts;
     QList<QShortcut *> m_windowShortcuts;
+    // General UI settings (Settings > General > User Interface).
+    UiSettings m_uiSettings;
 
     Sidebar *m_sidebar = nullptr;
     WebChatView *m_chatView = nullptr;

@@ -48,6 +48,8 @@ set(OCAPI_CORE_SOURCES
     core/ttsconfig.cpp
     core/ttsregistry.h
     core/ttsregistry.cpp
+    core/uisettings.h
+    core/uisettings.cpp
     core/sentencesplitter.h
     core/sentencesplitter.cpp
     core/tooldebug.h
@@ -151,6 +153,8 @@ set(OCAPI_UI_SOURCES
     ui/settingsdialog.cpp
     ui/shortcutpage.h
     ui/shortcutpage.cpp
+    ui/userinterfacepage.h
+    ui/userinterfacepage.cpp
 )
 
 qt_add_executable(ocapi

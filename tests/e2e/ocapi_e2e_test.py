@@ -23,6 +23,10 @@
 #   5. a keyboard shortcut can be changed via Settings > Shortcuts: the new
 #      sequence shows in the table, is persisted to ocapi.conf and takes
 #      effect immediately (pressing it starts a new chat)
+#   6. the "Show throughput (t/s)" toggle under Settings > General > User
+#      Interface persists to ocapi.conf and makes the finished assistant
+#      message show its output token throughput ("N t/s") next to the copy
+#      button
 #
 # Note on menus: Qt excludes Qt::Popup windows (QMenu) from the AT-SPI
 # application tree (QAccessibleApplication::topLevelObjects), so popup
@@ -276,6 +280,45 @@ class OcapiE2E(unittest.TestCase):
         new_picker = self.wait_for("//*[contains(@name, 'Mock backend')]", timeout=10)
         self.assertEqual(new_picker.text, selected)
         self.assertIn("mock-model", new_picker.text)
+
+    def test_08_toggle_throughput(self):
+        # Send a message first so the current (empty) chat gets a finished
+        # assistant answer whose output throughput was recorded.
+        composer = self.find_by_name("Message input")
+        composer.send_keys("Hello mock!")
+        self.find_by_name("Send").click()
+        self.wait_for(f"//*[contains(@name, '{REPLY_TEXT}')]", timeout=30)
+
+        # The toggle is off by default: no throughput label is shown.
+        self.assertEqual(
+            len(self.driver.find_elements(by=AppiumBy.XPATH, value="//*[contains(@name, 't/s')]")),
+            0,
+        )
+
+        # Settings opens on the "General" category (row 0); switch to the
+        # "User Interface" tab (tab buttons expose a Press action) and turn
+        # the toggle on (check boxes expose Toggle/Press).
+        self.find_by_name("Settings").click()
+        self.wait_for("//dialog[@name='Settings']")
+        self.wait_for("//dialog[@name='Settings']//page_tab[@name='User Interface']").click()
+        checkbox = self.wait_for(
+            "//dialog[@name='Settings']//check_box[@name='Show throughput (t/s)'"
+            " and contains(@states, 'showing')]"
+        )
+        checkbox.click()
+        self.wait_for("//dialog[@name='Settings']//*[@name='Close']").click()
+
+        # The toggle is persisted to ocapi.conf (group "ui").
+        config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+        conf_path = os.path.join(config_home, "sschmidhuber", "ocapi", "ocapi.conf")
+        with open(conf_path, encoding="utf-8") as conf_file:
+            conf = conf_file.read()
+        self.assertIn("[ui]", conf)
+        self.assertRegex(conf, r"(?m)^showThroughput=true$")
+
+        # The finished assistant message now shows its throughput ("N t/s")
+        # next to the copy button.
+        self.wait_for("//*[contains(@name, 't/s')]")
 
 
 if __name__ == "__main__":

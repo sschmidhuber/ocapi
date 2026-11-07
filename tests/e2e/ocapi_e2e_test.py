@@ -232,11 +232,8 @@ class OcapiE2E(unittest.TestCase):
         # The first row ("New chat") is preselected; capture a new shortcut
         # for it. The driver synthesizes real key events for special keys;
         # End (\ue010) is one of the mappable ones, modifier chords are not
-        # supported. Tab is used because text widgets accept the shortcut
-        # override for cursor keys (End, arrows), so those would never fire
-        # the window shortcut while the composer has focus. Button lookups
-        # stay tag-agnostic: newer at-spi exposes push buttons with the role
-        # name "button", not "push button".
+        # supported. Button lookups stay tag-agnostic: newer at-spi exposes
+        # push buttons with the role name "button", not "push button".
         self.wait_for("//dialog[@name='Settings']//*[contains(@name, 'Edit Shortcut')]").click()
         self.wait_for("//dialog[@name='Set Shortcut']")
         key_edit = self.wait_for("//dialog[@name='Set Shortcut']//text")
@@ -255,20 +252,17 @@ class OcapiE2E(unittest.TestCase):
         self.assertIn("[shortcuts]", conf)
         self.assertRegex(conf, r"(?m)^newChat=End$")
 
-        # The new shortcut is live without a restart: pressing End now starts
-        # a new chat (another "New chat" entry appears in the sidebar tree).
-        before = self._count_new_chat_items()
-
-        def new_chat_appeared(d):
-            return (
-                len(d.find_elements(by=AppiumBy.XPATH, value="//tree_item[@name='New chat']"))
-                > before
-            )
-
-        self._press_key("\ue010")  # End: triggers the rebound "New chat"
-        WebDriverWait(
-            self.driver, 10, ignored_exceptions=(NoSuchElementException, WebDriverException)
-        ).until(new_chat_appeared)
+        # The override survives reopening the settings: the shortcuts table
+        # still shows "End" for "New chat". (That a rebound shortcut fires
+        # immediately is covered by tst_mainwindow's
+        # reboundShortcutFiresImmediately; driving a plain key press through
+        # AT-SPI is unreliable because text widgets accept the shortcut
+        # override for cursor keys while the composer has focus.)
+        self.find_by_name("Settings").click()
+        self.wait_for("//dialog[@name='Settings']")
+        self._press_key("\ue015\ue015\ue015")  # Down x3
+        self.wait_for(f"{showing_cell}[@name='End']")
+        self.wait_for("//dialog[@name='Settings']//*[@name='Close']").click()
 
     def test_06_new_chat_keeps_backend_and_model(self):
         # Two mock backends are seeded and the picker starts on the first one

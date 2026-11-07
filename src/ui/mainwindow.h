@@ -92,6 +92,7 @@ public:
     [[nodiscard]] ChatSession *currentSession() const { return m_currentSession; }
     void startNewChat() { onNewChat(); }
     [[nodiscard]] BackendRegistry &registryForTest() { return m_registry; }
+    [[nodiscard]] ShortcutRegistry &shortcutsForTest() { return m_shortcuts; }
     // Simulates the backend requesting MCP tool calls on the current session.
     void simulateToolCallsForTest(const QVector<ToolCall> &calls) {
         if (!m_currentSession)

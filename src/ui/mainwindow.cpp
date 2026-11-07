@@ -425,7 +425,7 @@ void MainWindow::setupConnections() {
     connect(m_composer, &Composer::promptMenuClosed, this, &MainWindow::closePromptMenu);
     // Close the popup when the focus leaves composer and popup.
     connect(qApp, &QApplication::focusChanged, this, [this](QWidget *now) {
-        if (m_promptMenu && m_promptMenu->isVisible() && now != m_composer &&
+        if (m_promptMenu && m_promptMenu->isVisible() && now != m_composer && now != m_promptMenu &&
             !m_promptMenu->isAncestorOf(now))
             closePromptMenu();
     });
@@ -873,6 +873,10 @@ void MainWindow::showPromptTemplateMenu() {
     // only "Recherche"); Enter confirms the top entry.
     if (!m_promptMenu) {
         m_promptMenu = new QFrame(this, Qt::Window | Qt::FramelessWindowHint);
+        // Show without activating: the composer keeps focus and keyboard,
+        // and the window-level shortcuts keep working while the menu is open.
+        m_promptMenu->setAttribute(Qt::WA_ShowWithoutActivating);
+        m_promptMenu->setFocusPolicy(Qt::NoFocus);
         m_promptMenu->setObjectName(QStringLiteral("promptTemplateMenu"));
         m_promptMenu->setStyleSheet(
             QStringLiteral("QFrame#promptTemplateMenu { border: 1px solid palette(mid); "

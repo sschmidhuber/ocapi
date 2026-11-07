@@ -370,12 +370,22 @@ void Composer::setDictationActive(bool active) {
 bool Composer::eventFilter(QObject *watched, QEvent *event) {
     if (watched == m_textEdit && event->type() == QEvent::KeyPress) {
         auto *keyEvent = dynamic_cast<QKeyEvent *>(event);
-        const QKeySequence pressed(keyEvent->key() | static_cast<int>(keyEvent->modifiers()));
         // The prompt-template trigger: detected here because text edits
         // accept the shortcut override for printable keys, so a QShortcut
-        // would never fire. The trigger character itself is inserted
+        // would never fire. Match single printable triggers via the produced
+        // text (layout-independent: '/' is Shift+7 on German layouts), key
+        // combos via key|modifiers. The trigger character itself is inserted
         // normally; the menu filters on the text typed after it.
-        if (!m_promptActive && !m_promptTrigger.isEmpty() && pressed == m_promptTrigger) {
+        bool isTrigger = false;
+        if (!m_promptTrigger.isEmpty()) {
+            if (m_promptTrigger.count() == 1)
+                isTrigger = keyEvent->text() == m_promptTrigger.toString();
+            else
+                isTrigger =
+                    QKeySequence(keyEvent->key() | static_cast<int>(keyEvent->modifiers())) ==
+                    m_promptTrigger;
+        }
+        if (!m_promptActive && isTrigger) {
             m_promptActive = true;
             m_promptTriggerPos = m_textEdit->textCursor().position();
             emit promptTemplateRequested();

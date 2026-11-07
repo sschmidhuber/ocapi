@@ -285,11 +285,11 @@ void Composer::setSendEnabled(bool enabled) {
 
 void Composer::setBusy(bool busy) {
     m_busy = busy;
-    m_textEdit->setReadOnly(busy);
-    m_attachButton->setEnabled(!busy);
-    m_micButton->setEnabled(!busy);
+    // The input stays editable while a response streams, so the user can
+    // already type a follow-up question; it is queued by the main window and
+    // sent when the current turn finishes.
     m_textEdit->setPlaceholderText(
-        busy ? tr("Waiting for response…")
+        busy ? tr("Type a follow-up… (sent when the response finishes)")
              : tr("Type a message…  (Enter to send, Shift+Enter for a new line)"));
 }
 

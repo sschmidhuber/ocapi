@@ -111,6 +111,7 @@
       .thinking {
         color: var(--muted);
         margin: 0;
+        font-size: 13px;
       }
       .thinking summary {
         cursor: pointer;
@@ -155,6 +156,7 @@
       }
       .toolcall {
         color: var(--muted);
+        font-size: 13px;
       }
       .toolcall summary {
         cursor: pointer;
@@ -341,6 +343,14 @@
         }
       }
 
+      function escapeHtml(s) {
+        return s
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
       function renderMarkdown(text) {
         const stash = [];
         function stashToken(s) {
@@ -456,7 +466,9 @@
       }
 
       function updateToolCallElement(d, call) {
-        d.querySelector('.tc-name').textContent = call.name;
+        // Display "server: tool"; the internal name uses "server__tool"
+        // (split on the first "__", the server name itself may contain it).
+        d.querySelector('.tc-name').textContent = call.name.replace('__', ': ');
         d.querySelector('.tc-params').textContent = JSON.stringify(call.arguments || {}, null, 2);
         d.querySelector('.spinner').style.display = call.status === 'running' ? '' : 'none';
         const resultWrap = d.querySelector('.tc-result-wrap');
@@ -618,9 +630,9 @@
           // prompt is sent to the model but never shown as a bubble.
           if (role === 'tool' || role === 'system') el.style.display = 'none';
           el.innerHTML = '<div class="body"></div>';
-          // The copy button exists only under the assistant's answer and copies
-          // only that answer's content (el.dataset.raw of this message).
-          if (role === 'assistant') {
+          // The copy button under user and assistant messages copies that
+          // message's raw content (el.dataset.raw of this message).
+          if (role === 'assistant' || role === 'user') {
             const actions = document.createElement('div');
             actions.className = 'actions';
             const btn = document.createElement('button');
@@ -637,10 +649,13 @@
             btn.style.display = 'none';
             // Throughput (t/s) sits right next to the copy button; hidden
             // until the toggle is on and a throughput value is known.
-            const throughput = document.createElement('span');
-            throughput.className = 'throughput';
-            throughput.style.display = 'none';
-            actions.appendChild(throughput);
+            // Assistant messages only.
+            if (role === 'assistant') {
+              const throughput = document.createElement('span');
+              throughput.className = 'throughput';
+              throughput.style.display = 'none';
+              actions.appendChild(throughput);
+            }
           }
           // An assistant message without answer text (e.g. a round that only
           // requested tool calls) must not appear as an empty element in the
@@ -668,7 +683,10 @@
         el.dataset.raw = content;
         const body = el.querySelector('.body');
         if (role === 'user') {
-          body.textContent = content;
+          // User content is untrusted: escape raw HTML before markdown
+          // rendering so injected markup cannot execute; markdown itself
+          // (links, code, emphasis) still renders.
+          body.innerHTML = content ? renderMarkdown(escapeHtml(content)) : '';
         } else {
           // Empty content (e.g. a message that only requested tool calls) must
           // not render an empty <p>, which would add a blank line between the
@@ -681,7 +699,7 @@
         // and the message actually has answer content; a message that only
         // requested tool calls (empty body) must not get a button below the
         // tool-call row.
-        if (role === 'assistant' && !streaming && content) {
+        if ((role === 'assistant' || role === 'user') && !streaming && content) {
           const copyBtn = el.querySelector('.copy-btn');
           if (copyBtn) copyBtn.style.display = '';
         }

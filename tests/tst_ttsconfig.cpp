@@ -158,8 +158,14 @@ void TestTtsConfig::availableVoicesPerKind() {
         TtsServiceConfig::availableVoices(TtsServiceKind::Groq).contains(QStringLiteral("alloy")));
     QVERIFY(TtsServiceConfig::availableVoices(TtsServiceKind::OpenAiTts)
                 .contains(QStringLiteral("nova")));
+    // Mistral offers its Voxtral preset voices in the dropdown; the default
+    // voice must be among them.
+    const QStringList mistralVoices = TtsServiceConfig::availableVoices(TtsServiceKind::Mistral);
+    QVERIFY(!mistralVoices.isEmpty());
+    QVERIFY(mistralVoices.contains(TtsServiceConfig::defaultVoice(TtsServiceKind::Mistral)));
+    QVERIFY(mistralVoices.contains(QStringLiteral("gb_jane_neutral")));
+    QVERIFY(mistralVoices.contains(QStringLiteral("voice_478")));
     // Voice is a free-form ID for these services, not a preset list.
-    QVERIFY(TtsServiceConfig::availableVoices(TtsServiceKind::Mistral).isEmpty());
     QVERIFY(TtsServiceConfig::availableVoices(TtsServiceKind::ElevenLabs).isEmpty());
     QVERIFY(TtsServiceConfig::availableVoices(TtsServiceKind::Piper).isEmpty());
 }

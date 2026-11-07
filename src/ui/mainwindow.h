@@ -99,6 +99,7 @@ public:
     // Drives the streaming UI state of the current chat directly.
     void simulateStreamStartForTest();
     void simulateStreamFinishForTest();
+    void sendTextForTest(const QString &text) { onSend(text, {}, {}); }
     // Simulates the backend requesting MCP tool calls on the current session.
     void simulateToolCallsForTest(const QVector<ToolCall> &calls) {
         if (!m_currentSession)
@@ -121,6 +122,8 @@ private slots:
     void openSettings(const QString &pageId = {});
     void onSend(const QString &text, const QVector<ImageAttachment> &images = {},
                 const QVector<FileAttachment> &files = {});
+    // Sends the next queued follow-up message if no turn is running.
+    void sendPendingIfIdle();
     void onStop();
     void onBackendChanged();
     void onModelSelected(const QString &backendId, const QString &model);
@@ -250,6 +253,14 @@ private:
     // Last model selected per backend id, loaded from/saved to ocapi.conf.
     QHash<QString, QString> m_lastModels;
     QString m_dictatedText;
+    // Messages typed while a turn was still running; sent in order once the
+    // current turn finishes (the composer stays editable while streaming).
+    struct PendingMessage {
+        QString text;
+        QVector<ImageAttachment> images;
+        QVector<FileAttachment> files;
+    };
+    QVector<PendingMessage> m_pendingMessages;
     // Configurable keyboard shortcuts (loaded from ocapi.conf) and the
     // QShortcut objects currently bound to them.
     ShortcutRegistry m_shortcuts;

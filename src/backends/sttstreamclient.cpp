@@ -92,6 +92,10 @@ bool SttStreamClient::start(int sampleRate) {
     m_failed = false;
     m_finalEmitted = false;
     m_sessionCreated = false;
+    // Mistral: buffer audio until the session settings were applied (see
+    // m_audioBuffered in the header).
+    m_audioBuffered = m_config.kind == SttServiceKind::MistralRealtime;
+    m_pendingAudio.clear();
 
     m_socket = new QWebSocket(QString(), QWebSocketProtocol::VersionLatest, this);
     connect(m_socket, &QWebSocket::textMessageReceived, this,
@@ -130,6 +134,16 @@ void SttStreamClient::onConnected() {
 void SttStreamClient::sendAudio(const QByteArray &pcm) {
     if (!m_socket || m_socket->state() != QAbstractSocket::ConnectedState)
         return;
+    if (m_audioBuffered) {
+        // Buffer until the session settings were applied; flushed in the
+        // session.created handler right after the session.update.
+        m_pendingAudio.append(pcm);
+        return;
+    }
+    sendAudioAppend(pcm);
+}
+
+void SttStreamClient::sendAudioAppend(const QByteArray &pcm) {
     // OpenAI's realtime endpoint buffers via input_audio_buffer.append;
     // Mistral's realtime protocol appends via input_audio.append.
     const QString appendType = m_config.kind == SttServiceKind::OpenAiRealtime
@@ -161,6 +175,8 @@ void SttStreamClient::stop() {
 }
 
 void SttStreamClient::abort() {
+    m_pendingAudio.clear();
+    m_audioBuffered = false;
     if (!m_socket)
         return;
     m_closing = true;
@@ -192,6 +208,14 @@ void SttStreamClient::onTextMessageReceived(const QString &message) {
             m_socket->state() == QAbstractSocket::ConnectedState) {
             debugLog("send: " + sessionUpdateJson(m_sampleRate));
             m_socket->sendTextMessage(QString::fromUtf8(sessionUpdateJson(m_sampleRate)));
+            // The websocket preserves message order, so the session update
+            // reaches the server before any buffered audio: its fields are
+            // set before audio starts and Mistral accepts them.
+            m_audioBuffered = false;
+            if (!m_pendingAudio.isEmpty()) {
+                sendAudioAppend(m_pendingAudio);
+                m_pendingAudio.clear();
+            }
         }
         return;
     }

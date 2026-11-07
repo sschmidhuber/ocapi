@@ -23,10 +23,11 @@ public:
         : QObject(parent), m_server(QStringLiteral("fake-stt"), QWebSocketServer::NonSecureMode) {
         connect(&m_server, &QWebSocketServer::newConnection, this, [this]() {
             auto *socket = m_server.nextPendingConnection();
+            m_pendingSocket = socket;
             // The Mistral realtime endpoint greets with session.created;
             // the settings update is only accepted afterwards.
-            socket->sendTextMessage(
-                QStringLiteral("{\"type\":\"session.created\",\"session\":{}}"));
+            if (!m_delayGreeting)
+                greet(socket);
             connect(socket, &QWebSocket::textMessageReceived, this,
                     [this, socket](const QString &message) {
                         m_received.push_back(message);
@@ -44,12 +45,22 @@ public:
 
     void setResponses(const QStringList &responses) { m_responses = responses; }
     [[nodiscard]] QStringList receivedMessages() const { return m_received; }
+    void setDelayGreeting(bool delay) { m_delayGreeting = delay; }
+    void greetNow() {
+        if (m_pendingSocket)
+            greet(m_pendingSocket);
+    }
     void reset() {
         m_responses.clear();
         m_received.clear();
+        m_delayGreeting = false;
+        m_pendingSocket = nullptr;
     }
 
 private:
+    void greet(QWebSocket *socket) {
+        socket->sendTextMessage(QStringLiteral("{\"type\":\"session.created\",\"session\":{}}"));
+    }
     void sendResponse(QWebSocket *socket) {
         if (m_responses.isEmpty())
             return;
@@ -59,6 +70,8 @@ private:
     QWebSocketServer m_server;
     QStringList m_responses;
     QStringList m_received;
+    bool m_delayGreeting = false;
+    QWebSocket *m_pendingSocket = nullptr;
 };
 
 SttServiceConfig mistralStreamConfig(quint16 port) {
@@ -79,6 +92,7 @@ class TestSttStreamClient : public QObject {
 private slots:
     void init();
     void mistralSessionUpdateAndAudio();
+    void mistralAudioBufferedUntilSessionCreated();
     void mistralDeltasAndDone();
     void openAiSessionUpdateShape();
 
@@ -121,6 +135,40 @@ void TestSttStreamClient::mistralSessionUpdateAndAudio() {
         QJsonDocument::fromJson(m_server.receivedMessages().at(1).toUtf8()).object();
     QCOMPARE(second.value("type").toString(), QStringLiteral("input_audio.append"));
     QVERIFY(!second.value("audio").toString().isEmpty());
+}
+
+// Regression: Mistral rejects session-field changes after the first audio
+// chunk ("Session fields other than context_bias cannot be changed after
+// audio has started"), so audio sent before session.created must be
+// buffered and only flushed after the session.update — never before it.
+void TestSttStreamClient::mistralAudioBufferedUntilSessionCreated() {
+    QVERIFY(m_server.start());
+    m_server.setDelayGreeting(true);
+    SttStreamClient client(mistralStreamConfig(m_server.port()));
+    QSignalSpy failed(&client, &SttStreamClient::error);
+    client.start(16000);
+    QTest::qWait(500); // connected, but the greeting has not arrived yet
+
+    client.sendAudio(QByteArray(320, 0));
+    QTest::qWait(300);
+    // No audio may have been sent before the session update.
+    for (const auto &message : m_server.receivedMessages())
+        QVERIFY(!message.contains(QLatin1String("input_audio.append")));
+
+    m_server.greetNow();
+    QTest::qWait(500);
+    const QStringList messages = m_server.receivedMessages();
+    QVERIFY(messages.size() >= 2);
+    QCOMPARE(QJsonDocument::fromJson(messages.at(0).toUtf8()).object().value("type").toString(),
+             QStringLiteral("session.update"));
+    QCOMPARE(QJsonDocument::fromJson(messages.at(1).toUtf8()).object().value("type").toString(),
+             QStringLiteral("input_audio.append"));
+    QVERIFY(!QJsonDocument::fromJson(messages.at(1).toUtf8())
+                 .object()
+                 .value("audio")
+                 .toString()
+                 .isEmpty());
+    QCOMPARE(failed.count(), 0);
 }
 
 void TestSttStreamClient::mistralDeltasAndDone() {

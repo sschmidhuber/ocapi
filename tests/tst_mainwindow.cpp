@@ -70,6 +70,7 @@ private slots:
     void deleteMultipleChatsKeepsAllOnNo();
     void unreadChatIsNotDeleted();
     void statusBarShowsReadyAfterStreamFinishes();
+    void followUpQueuedWhileStreaming();
 
 private:
     QTemporaryDir m_home;
@@ -377,6 +378,35 @@ void TestMainWindow::statusBarShowsReadyAfterStreamFinishes() {
     // Let the deferred context deletion (singleShot(0)) run.
     QTest::qWait(20);
     QCOMPARE(statusBar->currentMessage(), QStringLiteral("Ready"));
+}
+
+// While a turn streams, the composer stays editable and a typed follow-up is
+// queued; it is sent automatically once the current turn finishes.
+void TestMainWindow::followUpQueuedWhileStreaming() {
+    MainWindow window;
+    window.show();
+    auto &registry = window.registryForTest();
+    auto &ollama = registry.add(QStringLiteral("Ollama"), BackendKind::Ollama);
+    registry.save();
+    ChatSession *session = window.currentSession();
+    QVERIFY(session);
+    session->setBackendId(ollama.id.toString());
+    session->setModel(QStringLiteral("mock-model"));
+
+    window.simulateStreamStartForTest();
+    // Sending while the turn runs must queue the message, not send it.
+    window.sendTextForTest(QStringLiteral("follow up question"));
+    QVERIFY(session->messages().isEmpty());
+
+    window.simulateStreamFinishForTest();
+    // The deferred context deletion flushes the queue.
+    QTest::qWait(100);
+    bool sawFollowUp = false;
+    for (const auto &message : session->messages()) {
+        if (message.role == Role::User && message.content == QStringLiteral("follow up question"))
+            sawFollowUp = true;
+    }
+    QVERIFY(sawFollowUp);
 }
 
 int main(int argc, char *argv[]) {

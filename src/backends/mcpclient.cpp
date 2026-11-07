@@ -1,6 +1,7 @@
 #include "backends/mcpclient.h"
 
 #include "backends/sseparser.h"
+#include "core/tooldebug.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -125,6 +126,23 @@ void McpClient::startStdio() {
     m_process->setProgram(m_config.command);
     m_process->setArguments(m_config.arguments);
     connect(m_process, &QProcess::readyReadStandardOutput, this, &McpClient::onProcessReadyRead);
+    // Log lines of stdio MCP servers to the console when OCAPI_DEBUG_TOOLS
+    // is set (they usually carry the server's own log output on stderr).
+    connect(m_process, &QProcess::readyReadStandardError, this, [this]() {
+        if (!m_process || !toolDebug::enabled())
+            return;
+        m_stderrBuffer.append(m_process->readAllStandardError());
+        while (true) {
+            const qsizetype newline = m_stderrBuffer.indexOf('\n');
+            if (newline < 0)
+                break;
+            const QByteArray line = m_stderrBuffer.left(newline).trimmed();
+            m_stderrBuffer.remove(0, newline + 1);
+            if (!line.isEmpty())
+                toolDebug::log(
+                    QStringLiteral("[mcp %1] %2").arg(m_config.name, QString::fromUtf8(line)));
+        }
+    });
     connect(m_process, &QProcess::errorOccurred, this, &McpClient::onProcessErrorOccurred);
     connect(m_process, &QProcess::finished, this, &McpClient::onProcessFinished);
     m_process->start();

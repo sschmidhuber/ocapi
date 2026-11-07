@@ -208,12 +208,6 @@ class OcapiE2E(unittest.TestCase):
         with urllib.request.urlopen(request, timeout=10) as response:
             response.read()
 
-    def _count_new_chat_items(self):
-        # Sidebar entries of chats still titled "New chat" (tree items).
-        return len(
-            self.driver.find_elements(by=AppiumBy.XPATH, value="//tree_item[@name='New chat']")
-        )
-
     def test_07_change_shortcut(self):
         # Open Settings. The category list cannot be driven by clicking its
         # items or by element.send_keys (no action interface on the list), so

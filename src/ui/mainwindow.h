@@ -95,6 +95,9 @@ public:
     [[nodiscard]] ShortcutRegistry &shortcutsForTest() { return m_shortcuts; }
     void requestDeleteSessionsForTest(const QList<QUuid> &ids) { onSessionDeleteRequested(ids); }
     void markUnreadForTest(const QUuid &id) { m_unreadSessions.insert(id); }
+    // Drives the streaming UI state of the current chat directly.
+    void simulateStreamStartForTest();
+    void simulateStreamFinishForTest();
     // Simulates the backend requesting MCP tool calls on the current session.
     void simulateToolCallsForTest(const QVector<ToolCall> &calls) {
         if (!m_currentSession)

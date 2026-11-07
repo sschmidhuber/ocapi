@@ -679,6 +679,17 @@ void MainWindow::createWindowShortcuts() {
     m_windowShortcuts.append(previousChatShortcut);
 }
 
+void MainWindow::simulateStreamStartForTest() {
+    StreamContext *context = ensureContextForTest(m_currentSession);
+    context->streaming = true;
+    updateStreamingUi();
+}
+
+void MainWindow::simulateStreamFinishForTest() {
+    if (StreamContext *context = contextFor(m_currentSession))
+        finalizeContext(context, tr("Ready"));
+}
+
 void MainWindow::reapplyShortcuts() {
     qDeleteAll(m_windowShortcuts);
     m_windowShortcuts.clear();
@@ -1405,11 +1416,15 @@ void MainWindow::cancelContext(ChatSession *session) {
 
 void MainWindow::updateStreamingUi() {
     const StreamContext *context = contextFor(m_currentSession);
-    const bool busy = context != nullptr;
+    // A context whose turn already finished (streaming == false, no tool
+    // round running) only waits for its deferred deletion; the chat is not
+    // busy anymore, so it must not show "Generating…" — finalizeContext()
+    // already put the final status ("Ready"/error) into the status bar.
+    const bool busy = context && (context->streaming || context->runningTools);
     m_composer->setBusy(busy);
     m_sendButton->setVisible(!busy);
     m_stopButton->setVisible(busy);
-    if (context)
+    if (busy)
         statusBar()->showMessage(context->runningTools ? tr("Running MCP tools\u2026")
                                                        : tr("Generating\u2026"));
     m_sidebar->setIndicators(runningSessionIds(), m_unreadSessions);

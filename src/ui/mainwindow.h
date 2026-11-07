@@ -24,6 +24,7 @@
 #include <QPushButton>
 #include <QSet>
 #include <QShortcut>
+#include <QSplitter>
 #include <QToolBar>
 #include <QToolButton>
 #include <QVector>
@@ -35,7 +36,6 @@ class ChatSession;
 class WebChatView;
 class Composer;
 class IBackend;
-class QSplitter;
 class Sidebar;
 
 // One in-flight model turn per chat: chats run in parallel, so the backend

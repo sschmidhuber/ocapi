@@ -32,7 +32,7 @@ constexpr int kDocumentThumbSize = 64;
 constexpr int kDocumentChipPadding = 6;
 // Attachment chip: thumbnail on top, file name below it; the thumbnail keeps
 // its fixed size, the chip grows vertically to fit the name line.
-constexpr int kAttachmentChipWidth = kDocumentThumbSize + 2 * kDocumentChipPadding;
+constexpr int kAttachmentChipWidth = kDocumentThumbSize + (2 * kDocumentChipPadding);
 constexpr int kAttachmentChipHeight = kDocumentThumbSize + 22;
 
 const QStringList &imageSuffixes() {
@@ -464,9 +464,10 @@ void Composer::refreshAttachmentStrip() {
         auto *bottomRow = new QHBoxLayout();
         bottomRow->setContentsMargins(0, 0, 0, 0);
         bottomRow->setSpacing(2);
-        auto *label = new QLabel(fileName, chip);
+        auto *label = new QLabel(chip);
         label->setToolTip(fileName);
-        label->setTextElideMode(Qt::ElideMiddle);
+        label->setText(
+            label->fontMetrics().elidedText(fileName, Qt::ElideMiddle, kDocumentThumbSize));
         label->setMaximumWidth(kDocumentThumbSize);
         label->setAttribute(Qt::WA_TransparentForMouseEvents);
         bottomRow->addWidget(label, 1);

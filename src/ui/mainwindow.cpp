@@ -373,7 +373,7 @@ void MainWindow::setupUi() {
     footerLayout->addWidget(m_sendButton);
     footerLayout->addWidget(m_stopButton);
     composerColumnLayout->addWidget(footerRow);
-    composerColumn->setMinimumHeight(kMinComposerHeight);
+    composerColumn->setMinimumHeight(UiSettings::kMinComposerHeight);
     m_composerColumn = composerColumn;
 
     // The chat area and the composer share a vertical splitter, so the

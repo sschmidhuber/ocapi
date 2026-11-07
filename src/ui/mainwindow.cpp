@@ -233,6 +233,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     loadLastModels();
     loadShortcuts();
     loadUiSettings();
+    loadPromptTemplates();
 
     setupUi();
     setupConnections();
@@ -413,6 +414,9 @@ void MainWindow::setupConnections() {
     connect(m_newChatButton, &QToolButton::clicked, this, &MainWindow::onNewChat);
     createWindowShortcuts();
     m_composer->setDictateSequence(m_shortcuts.sequence(QStringLiteral("dictate")));
+    m_composer->setPromptTriggerSequence(m_shortcuts.sequence(QStringLiteral("promptTemplates")));
+    connect(m_composer, &Composer::promptTemplateRequested, this,
+            &MainWindow::showPromptTemplateMenu);
     connect(&m_shortcuts, &ShortcutRegistry::changed, this, &MainWindow::reapplyShortcuts);
     m_chatView->setShowThroughput(m_uiSettings.showThroughput());
     connect(&m_uiSettings, &UiSettings::changed, this,
@@ -750,7 +754,9 @@ void MainWindow::onComposerSplitterMoved(int /*pos*/, int /*index*/) {
 void MainWindow::createWindowShortcuts() {
     // The sequences come from the shortcut registry so the user can rebind
     // them in the settings; reapplyShortcuts() re-creates the shortcuts when
-    // the registry changes. The sidebar shortcut shows/hides the chat
+    // the registry changes. Actions with windowScope=false (e.g. the
+    // composer's prompt-template trigger) are bound to their widget instead.
+    // The sidebar shortcut shows/hides the chat
     // history, like the classic file-manager panels; the tab shortcuts cycle
     // through the chats in the sidebar's order (newest activity first),
     // wrapping around at the ends.
@@ -793,13 +799,17 @@ void MainWindow::reapplyShortcuts() {
     const QKeySequence newChatSequence = m_shortcuts.sequence(QStringLiteral("newChat"));
     m_newChatButton->setToolTip(
         tr("Start a new chat (%1)").arg(newChatSequence.toString(QKeySequence::NativeText)));
-    if (m_composer)
+    if (m_composer) {
         m_composer->setDictateSequence(m_shortcuts.sequence(QStringLiteral("dictate")));
+        m_composer->setPromptTriggerSequence(
+            m_shortcuts.sequence(QStringLiteral("promptTemplates")));
+    }
 }
 
 void MainWindow::openSettings(const QString &pageId) {
     SettingsDialog dialog(&m_registry, &m_mcpRegistry, &m_mcpManager, &m_sttRegistry,
-                          &m_ttsRegistry, &m_systemPrompt, &m_shortcuts, &m_uiSettings, this);
+                          &m_ttsRegistry, &m_systemPrompt, &m_shortcuts, &m_uiSettings,
+                          &m_promptTemplates, this);
     if (!pageId.isEmpty())
         dialog.selectPage(pageId);
     dialog.exec();
@@ -836,6 +846,35 @@ void MainWindow::loadShortcuts() {
     QDir().mkpath(configDir);
     QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
     m_shortcuts.load(settings);
+}
+
+void MainWindow::loadPromptTemplates() {
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    QDir().mkpath(configDir);
+    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    m_promptTemplates.load(settings);
+}
+
+void MainWindow::showPromptTemplateMenu() {
+    // Autocompletion above the composer: one action per template (QMenu does
+    // keyboard type-ahead filtering); selecting one inserts text+attachments.
+    QMenu menu(m_composer);
+    const auto &templates = m_promptTemplates.templates();
+    if (templates.isEmpty()) {
+        auto *hint = menu.addAction(tr("No prompt templates yet"));
+        hint->setEnabled(false);
+    }
+    for (const auto &t : templates) {
+        auto *action = menu.addAction(t.name);
+        action->setData(t.id);
+        action->setToolTip(t.text.left(200));
+    }
+    const QPoint pos = m_composer->mapToGlobal(QPoint(0, 0));
+    if (QAction *selected = menu.exec(QPoint(pos.x(), pos.y() - menu.sizeHint().height()))) {
+        const QUuid id = selected->data().toUuid();
+        if (const PromptTemplate *t = m_promptTemplates.find(id))
+            m_composer->insertTemplate(t->text, t->images, t->files);
+    }
 }
 
 void MainWindow::loadUiSettings() {

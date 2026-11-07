@@ -1,6 +1,7 @@
 #include "core/backendconfig.h"
 #include "core/backendregistry.h"
 #include "core/chatsession.h"
+#include "ui/composer.h"
 #include "ui/mainwindow.h"
 #include "ui/sidebar.h"
 
@@ -72,6 +73,7 @@ private slots:
     void statusBarShowsReadyAfterStreamFinishes();
     void followUpQueuedWhileStreaming();
     void editMessageTruncatesHistoryOnSend();
+    void composerInsertTemplateAppendsTextAndAttachments();
 
 private:
     QTemporaryDir m_home;
@@ -453,6 +455,24 @@ void TestMainWindow::editMessageTruncatesHistoryOnSend() {
         }
     }
     QCOMPARE(userMessages, 1);
+}
+
+// insertTemplate (prompt-template autocompletion): inserts the template text
+// at the cursor and appends its attachments.
+void TestMainWindow::composerInsertTemplateAppendsTextAndAttachments() {
+    MainWindow window;
+    window.show();
+    auto *composer = window.findChild<Composer *>();
+    QVERIFY(composer);
+    composer->setText(QStringLiteral("Hello "));
+    ImageAttachment image;
+    image.fileName = QStringLiteral("chart.png");
+    image.mimeType = QStringLiteral("image/png");
+    image.data = QByteArray("fakepng");
+    composer->insertTemplate(QStringLiteral("Summarize this:"), {image}, {});
+    QVERIFY(composer->text().contains(QStringLiteral("Summarize this:")));
+    QCOMPARE(composer->attachments().size(), 1);
+    QCOMPARE(composer->attachments().first().fileName, QStringLiteral("chart.png"));
 }
 
 int main(int argc, char *argv[]) {

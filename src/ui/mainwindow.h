@@ -5,6 +5,7 @@
 #include "core/mcpmanager.h"
 #include "core/mcpregistry.h"
 #include "core/message.h"
+#include "core/prompttemplateregistry.h"
 #include "core/shortcutregistry.h"
 #include "core/sttregistry.h"
 #include "core/systemprompt.h"
@@ -122,6 +123,8 @@ private slots:
     // history from that message on and resends, Cancel aborts.
     void startEditMessage(const QString &idString);
     void cancelEditMessage();
+    // Shows the prompt-template autocompletion above the composer.
+    void showPromptTemplateMenu();
     // Deletes the given chats; asks for confirmation when there are several.
     // Running and unread chats are never deleted.
     void onSessionDeleteRequested(const QList<QUuid> &ids);
@@ -191,6 +194,7 @@ private:
     void loadLastModels();
     void loadShortcuts();
     void loadUiSettings();
+    void loadPromptTemplates();
     void configureVoiceInput();
     void loadTtsSettingsFromDatabase();
     void configureTts();
@@ -285,6 +289,8 @@ private:
     QList<QShortcut *> m_windowShortcuts;
     // General UI settings (Settings > General > User Interface).
     UiSettings m_uiSettings;
+    // Prompt templates (Settings > General > Prompt Templates).
+    PromptTemplateRegistry m_promptTemplates;
 
     Sidebar *m_sidebar = nullptr;
     WebChatView *m_chatView = nullptr;

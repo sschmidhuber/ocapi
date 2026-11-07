@@ -263,6 +263,35 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
         if (m_dictationAvailable && !m_busy)
             emit dictationRequested();
     });
+    // Composer-local trigger for the prompt-template autocompletion
+    // (default "/"); its sequence is configurable in the settings.
+    m_promptTriggerShortcut = new QShortcut(QKeySequence(QStringLiteral("/")), m_textEdit);
+    m_promptTriggerShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(m_promptTriggerShortcut, &QShortcut::activated, this,
+            [this]() { emit promptTemplateRequested(); });
+}
+
+void Composer::setPromptTriggerSequence(const QKeySequence &sequence) {
+    if (m_promptTriggerShortcut)
+        m_promptTriggerShortcut->setKey(sequence);
+}
+
+void Composer::insertTemplate(const QString &text, const QVector<ImageAttachment> &images,
+                              const QVector<FileAttachment> &files) {
+    if (!text.isEmpty())
+        m_textEdit->insertPlainText(text);
+    for (const auto &image : images) {
+        if (m_attachments.size() + m_documents.size() >= kMaxAttachmentsPerMessage)
+            break;
+        m_attachments.append(image);
+    }
+    for (const auto &file : files) {
+        if (m_attachments.size() + m_documents.size() >= kMaxAttachmentsPerMessage)
+            break;
+        m_documents.append(file);
+    }
+    refreshAttachmentStrip();
+    m_textEdit->setFocus();
 }
 
 void Composer::setDictateSequence(const QKeySequence &sequence) {

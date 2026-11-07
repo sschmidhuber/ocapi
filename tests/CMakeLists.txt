@@ -32,6 +32,7 @@ set(OCAPI_TESTS
     tst_ttsregistry
     tst_shortcutregistry
     tst_uisettings
+    tst_prompttemplateregistry
     tst_sentencesplitter
     tst_audioformat
     tst_ttsclient
@@ -70,7 +71,8 @@ add_executable(tst_settingsdialog tst_settingsdialog.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/sttpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/systempromptpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/ttspage.cpp
-    ${CMAKE_SOURCE_DIR}/src/ui/userinterfacepage.cpp)
+    ${CMAKE_SOURCE_DIR}/src/ui/userinterfacepage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/prompttemplatespage.cpp)
 target_include_directories(tst_settingsdialog PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(tst_settingsdialog PRIVATE ocapi-core Qt6::Test Qt6::Widgets)
 add_test(NAME tst_settingsdialog COMMAND tst_settingsdialog)
@@ -91,6 +93,7 @@ add_executable(tst_mainwindow tst_mainwindow.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/systempromptpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/ttspage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/userinterfacepage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/prompttemplatespage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/settingsdialog.cpp)
 target_include_directories(tst_mainwindow PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(tst_mainwindow PRIVATE ocapi-core Qt6::Test Qt6::Widgets Qt6::WebEngineWidgets Qt6::WebChannel)

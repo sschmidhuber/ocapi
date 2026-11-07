@@ -93,12 +93,20 @@ public:
     // Rebinds the dictate shortcut (e.g. after the user changed it in the
     // settings) and updates the mic button tooltip accordingly.
     void setDictateSequence(const QKeySequence &sequence);
+    // Rebinds the prompt-template trigger shortcut (composer-local, so it
+    // only fires while the input has focus; configurable in the settings).
+    void setPromptTriggerSequence(const QKeySequence &sequence);
+    // Inserts a prompt template at the cursor: text plus attachments.
+    void insertTemplate(const QString &text, const QVector<ImageAttachment> &images,
+                        const QVector<FileAttachment> &files);
 
 signals:
     void sendRequested(const QString &text, const QVector<ocapi::ImageAttachment> &images,
                        const QVector<ocapi::FileAttachment> &files);
     void attachmentsChanged();
     void dictationRequested();
+    // The prompt-template trigger shortcut fired in the input.
+    void promptTemplateRequested();
 
 public slots:
     void setDictationActive(bool active);
@@ -121,6 +129,7 @@ private:
     QToolButton *m_attachButton = nullptr;
     QToolButton *m_micButton = nullptr;
     QShortcut *m_dictateShortcut = nullptr;
+    QShortcut *m_promptTriggerShortcut = nullptr;
     bool m_dictationActive = false;
     bool m_dictationAvailable = true;
     int m_dictationStart = 0;

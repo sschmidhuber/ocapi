@@ -73,6 +73,8 @@ set(OCAPI_CORE_SOURCES
     core/mcpserverconfig.cpp
     core/mcpregistry.h
     core/mcpregistry.cpp
+    core/prompttemplateregistry.h
+    core/prompttemplateregistry.cpp
     core/mcpmanager.h
     core/mcpmanager.cpp
     storage/chatdatabase.h
@@ -155,6 +157,8 @@ set(OCAPI_UI_SOURCES
     ui/shortcutpage.cpp
     ui/userinterfacepage.h
     ui/userinterfacepage.cpp
+    ui/prompttemplatespage.h
+    ui/prompttemplatespage.cpp
 )
 
 qt_add_executable(ocapi

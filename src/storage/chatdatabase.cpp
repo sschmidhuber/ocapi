@@ -25,6 +25,16 @@ int nextConnectionCounter() {
     return counter.fetchAndAddRelaxed(1);
 }
 
+QString inPlaceholders(qsizetype count) {
+    QString placeholders;
+    for (qsizetype i = 0; i < count; ++i) {
+        if (i > 0)
+            placeholders += QLatin1Char(',');
+        placeholders += QLatin1Char('?');
+    }
+    return placeholders;
+}
+
 void createTables(QSqlDatabase &database) {
     QSqlQuery query(database);
     query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS backends ("
@@ -597,29 +607,58 @@ void ChatDatabase::loadAttachmentsFor(QVector<StoredMessage> &messages) const {
     QHash<QString, StoredMessage *> byId;
     for (auto &message : messages)
         byId.insert(message.id, &message);
+    QStringList ids;
+    ids.reserve(messages.size());
+    for (const auto &message : messages)
+        ids.append(message.id);
+    constexpr qsizetype kIdChunkSize = 500;
+    for (qsizetype offset = 0; offset < ids.size(); offset += kIdChunkSize) {
+        const QStringList chunk = ids.mid(offset, kIdChunkSize);
+        if (!loadImageAttachmentsFor(chunk, byId) || !loadFileAttachmentsFor(chunk, byId))
+            return;
+    }
+}
+
+bool ChatDatabase::loadImageAttachmentsFor(const QStringList &messageIds,
+                                           const QHash<QString, StoredMessage *> &byId) const {
     QSqlQuery query(m_database);
-    if (!query.exec(QStringLiteral("SELECT message_id, id, mime_type, file_name, source_path, "
-                                   "width, height, resized, data FROM message_images "
-                                   "ORDER BY position ASC"))) {
+    query.prepare(QStringLiteral("SELECT message_id, id, mime_type, file_name, source_path, "
+                                 "width, height, resized, data FROM message_images "
+                                 "WHERE message_id IN (%1) ORDER BY position ASC")
+                      .arg(inPlaceholders(messageIds.size())));
+    for (const auto &id : messageIds)
+        query.addBindValue(id);
+    if (!query.exec()) {
         m_lastError = query.lastError().text();
-        return;
+        return false;
     }
     while (query.next()) {
         const auto it = byId.constFind(query.value(0).toString());
         if (it != byId.constEnd())
             it.value()->images.push_back(imageFrom(query));
     }
-    if (!query.exec(QStringLiteral("SELECT message_id, id, file_name, mime_type, source_path, "
-                                   "thumbnail, extracted_text FROM message_files "
-                                   "ORDER BY position ASC"))) {
+    return true;
+}
+
+bool ChatDatabase::loadFileAttachmentsFor(const QStringList &messageIds,
+                                          const QHash<QString, StoredMessage *> &byId) const {
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("SELECT message_id, id, file_name, mime_type, source_path, "
+                                 "thumbnail, extracted_text FROM message_files "
+                                 "WHERE message_id IN (%1) ORDER BY position ASC")
+                      .arg(inPlaceholders(messageIds.size())));
+    for (const auto &id : messageIds)
+        query.addBindValue(id);
+    if (!query.exec()) {
         m_lastError = query.lastError().text();
-        return;
+        return false;
     }
     while (query.next()) {
         const auto it = byId.constFind(query.value(0).toString());
         if (it != byId.constEnd())
             it.value()->files.push_back(fileFrom(query));
     }
+    return true;
 }
 
 bool ChatDatabase::insertMessage(const QString &sessionId, const QString &messageId,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDateTime>
+#include <QHash>
 #include <QSqlDatabase>
 #include <QString>
 #include <QStringList>
@@ -139,6 +140,10 @@ private:
     bool insertImage(const QString &messageId, const ImageAttachment &image);
     bool insertFile(const QString &messageId, const FileAttachment &file);
     void loadAttachmentsFor(QVector<StoredMessage> &messages) const;
+    bool loadImageAttachmentsFor(const QStringList &messageIds,
+                                 const QHash<QString, StoredMessage *> &byId) const;
+    bool loadFileAttachmentsFor(const QStringList &messageIds,
+                                const QHash<QString, StoredMessage *> &byId) const;
 
     QString m_connectionName;
     QSqlDatabase m_database;

@@ -39,11 +39,11 @@ namespace ocapi::debugSanitize {
     return text.left(maxChars) + QStringLiteral("…[truncated, %1 chars total]").arg(text.size());
 }
 
-[[nodiscard]] inline QByteArray redact(QByteArray data) {
+[[nodiscard]] inline QByteArray redact(const QByteArray &data) {
     return redact(QString::fromUtf8(data)).toUtf8();
 }
 
-[[nodiscard]] inline QByteArray clip(QByteArray data, int maxBytes) {
+[[nodiscard]] inline QByteArray clip(const QByteArray &data, int maxBytes) {
     return clip(QString::fromUtf8(data), maxBytes).toUtf8();
 }
 

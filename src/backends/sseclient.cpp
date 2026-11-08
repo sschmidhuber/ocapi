@@ -21,7 +21,7 @@ namespace {
 // URLs/headers/JSON) are redacted and entries are truncated, but the log
 // still contains conversation content and is capped at kMaxLogBytes, so
 // only run it on your own traffic and do not share the file blindly.
-constexpr qint64 kMaxLogBytes = 5 * 1024 * 1024;
+constexpr qint64 kMaxLogBytes = 5LL * 1024 * 1024;
 
 bool sseDebugEnabled() {
     static const bool enabled = qEnvironmentVariableIsSet("OCAPI_DEBUG_SSE");
@@ -50,8 +50,8 @@ void sseDebug(const QByteArray &line) {
     QFile &file = sseDebugFile();
     if (!file.isOpen())
         return;
-    static bool capNotified = false;
     if (file.size() >= kMaxLogBytes) {
+        static bool capNotified = false;
         if (!capNotified) {
             capNotified = true;
             file.write("\n--- log size cap reached, further entries skipped ---\n");
@@ -111,7 +111,7 @@ void SseClient::onReadyRead() {
         std::optional<SseEvent> parsed;
         if (m_framing == Framing::Ndjson) {
             if (!rawEvent.trimmed().isEmpty())
-                parsed = SseEvent{"message", rawEvent.trimmed()};
+                parsed = SseEvent{.event = "message", .data = rawEvent.trimmed()};
         } else {
             parsed = parseSseEventBlock(rawEvent);
         }

@@ -33,17 +33,17 @@ modules:
   # poppler-cpp and tesseract are not part of org.kde.Sdk; build them so
   # PDF/OCR attachment text extraction works inside the sandbox.
   # Source pins are taken from the Flathub org.kde.skanpage/org.kde.okular
-  # manifests; leptonica is fetched via the GitHub archive endpoint
-  # (codeload) because the release-asset download fails with 504 and
-  # leptonica.org does not serve TLS. The codeload tarball sha256 is
-  # pinned by MSYS2.
+  # manifests; leptonica is fetched directly from codeload.github.com
+  # because the release-asset download fails with 504, leptonica.org does
+  # not serve TLS, and the github.com archive redirect stalls. The
+  # codeload tarball sha256 is pinned by MSYS2.
   - name: leptonica
     buildsystem: autotools
     config-opts:
       - --disable-static
     sources:
       - type: archive
-        url: https://github.com/DanBloomberg/leptonica/archive/refs/tags/1.87.0.tar.gz
+        url: https://codeload.github.com/DanBloomberg/leptonica/tar.gz/refs/tags/1.87.0
         sha256: fa2b40c5caea96d1bb93a97486262aed8731b69ce25a84a6bf5d25323e33f631
 
   - name: tesseract
@@ -52,7 +52,7 @@ modules:
       - --disable-static
     sources:
       - type: archive
-        url: https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.3.tar.gz
+        url: https://codeload.github.com/tesseract-ocr/tesseract/tar.gz/refs/tags/5.5.3
         sha256: 9218e62793116d42a9f6d14cd9348518b27f382096eea3d0f2d1a24616bb5884
       - type: file
         url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/eng.traineddata

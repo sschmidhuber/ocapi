@@ -110,10 +110,28 @@ Depends: $DEPS
 Homepage: https://github.com/sschmidhuber/ocapi
 Description: A desktop chat client for local and cloud LLM inference backends
  ocapi talks to local inference servers (Ollama, llama.cpp, vLLM) and cloud
- APIs (OpenAI, Anthropic, Google Gemini, Mistral AI, and any
- OpenAI-compatible endpoint), locally or on remote machines. It streams
- responses over Server-Sent Events, supports file attachments and integrates
- MCP (Model Context Protocol) servers.
+ APIs (OpenAI, Anthropic, Google Gemini, Mistral AI, OpenRouter, and any
+ OpenAI-compatible endpoint), locally or on remote machines.
+ .
+ Features:
+ * Streaming chat over Server-Sent Events with live token throughput (t/s)
+ * Reasoning models: thinking phases shown as collapsible elements in the chat
+ * MCP (Model Context Protocol) integration: connect HTTP/SSE or stdio
+   servers and use their tools, resources and prompts, with per-tool
+   permissions (off / ask / allow); tool calls and results are shown
+   inline in the chat
+ * File attachments: images, PDFs, office documents, archives, e-mails
+   and text files, with thumbnail previews and automatic text extraction
+   (Poppler, Tesseract OCR, libarchive; optional at build time)
+ * Speech-to-text dictation with live transcription while you speak
+ * Text-to-speech: assistant responses can be read aloud, synthesized
+   sentence-by-sentence while the response streams in
+ * Prompt templates, insertable via slash commands in the composer
+ * Chat history grouped by date in the sidebar; everything stored locally
+   in an SQLite database in the XDG data directory; messages can be
+   edited and resent
+ * KDE Plasma look & feel, works on GNOME and other desktops; follows
+   freedesktop standards (XDG desktop entry)
 EOF
 
 cp "$REPO_ROOT/LICENSE" "$DEBIAN/copyright"

@@ -64,6 +64,10 @@ public:
 
     [[nodiscard]] bool open(const QString &filePath);
     [[nodiscard]] bool isOpen() const { return m_database.isOpen(); }
+    // The file this connection was opened on; lets long-lived components
+    // persist by reopening a fresh connection from the path instead of
+    // retaining a pointer to this object (which they could outlive).
+    [[nodiscard]] QString filePath() const { return m_database.databaseName(); }
     void close();
     [[nodiscard]] QString lastError() const { return m_lastError; }
 

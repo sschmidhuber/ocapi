@@ -2,6 +2,7 @@
 #include "backends/contentparts.h"
 #include "backends/sseclient.h"
 #include "core/chatsession.h"
+#include "core/debuglog.h"
 
 #include <QDebug>
 #include <QJsonArray>
@@ -230,7 +231,8 @@ void OpenAiApiBackend::onStreamEvent(const QByteArray &data) {
         // Malformed events would otherwise be dropped silently, hiding stream
         // corruption from the user (e.g. the first tokens of a reply).
         qWarning() << "OpenAI-compatible stream: JSON parse error at offset" << parseError.offset
-                   << ":" << parseError.errorString() << "in" << data;
+                   << ":" << parseError.errorString() << "in"
+                   << debugSanitize::clip(debugSanitize::redact(data), 500);
         return;
     }
     const auto object = doc.object();

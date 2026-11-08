@@ -54,6 +54,7 @@ set(OCAPI_CORE_SOURCES
     core/sentencesplitter.cpp
     core/tooldebug.h
     core/tooldebug.cpp
+    core/debuglog.h
     core/audioformat.h
     core/audioformat.cpp
     core/ttsplayer.h

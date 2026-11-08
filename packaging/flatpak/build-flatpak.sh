@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Build an installable Flatpak bundle for ocapi.
 #
-# Requirements: flatpak, flatpak-builder, and the freedesktop git remote:
-#   flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+# Requirements: flatpak and flatpak-builder. The script adds the flathub
+# remote if missing and installs the required KDE Platform/Sdk runtime
+# and the Qt WebEngine base app (one-time download) when not installed.
 #
 # Usage:
 #   packaging/flatpak/build-flatpak.sh [version] [output-directory]
@@ -26,16 +27,39 @@ MANIFEST="$REPO_ROOT/packaging/flatpak/dev.sschmidhuber.ocapi.yml"
 VERSION="${1:-$(date -u +%Y.%m.%d)}"
 OUT_DIR="${2:-$REPO_ROOT/dist}"
 APP_ID="dev.sschmidhuber.ocapi"
+RUNTIME_VERSION="$(sed -n 's/^runtime-version:[[:space:]]*"\?\([^"]*\)"\?/\1/p' "$MANIFEST")"
 
-BUILD_DIR="$(mktemp -d /tmp/ocapi-flatpak-build.XXXXXX)"
-REPO_DIR="$(mktemp -d /tmp/ocapi-flatpak-repo.XXXXXX)"
-trap 'rm -rf "$BUILD_DIR" "$REPO_DIR"' EXIT
+echo ">> Ensuring flathub remote"
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+if ! flatpak info "org.kde.Sdk//${RUNTIME_VERSION}" >/dev/null 2>&1; then
+    echo ">> Installing org.kde.Platform//${RUNTIME_VERSION} and org.kde.Sdk//${RUNTIME_VERSION} (one-time download)"
+    flatpak install -y flathub "org.kde.Platform//${RUNTIME_VERSION}" "org.kde.Sdk//${RUNTIME_VERSION}"
+fi
+
+# Qt WebEngine is not part of org.kde.Sdk; the manifest's base app must
+# be installed as well or flatpak-builder fails with "Unable to find app".
+BASE_ID="$(sed -n 's/^base:[[:space:]]*"\?\([^"]*\)"\?/\1/p' "$MANIFEST")"
+BASE_VERSION="$(sed -n 's/^base-version:[[:space:]]*"\?\([^"]*\)"\?/\1/p' "$MANIFEST")"
+if [ -n "$BASE_ID" ] && ! flatpak info "${BASE_ID}//${BASE_VERSION}" >/dev/null 2>&1; then
+    echo ">> Installing ${BASE_ID}//${BASE_VERSION} (one-time download)"
+    flatpak install -y flathub "${BASE_ID}//${BASE_VERSION}"
+fi
+
+# flatpak-builder requires its state dir and the build dir on the same
+# filesystem (e.g. /tmp is often a separate tmpfs), so keep all
+# temporary directories inside the repo.
+WORK_DIR="$(mktemp -d "$REPO_ROOT/.flatpak-work.XXXXXX")"
+BUILD_DIR="$WORK_DIR/build"
+REPO_DIR="$WORK_DIR/repo"
+STATE_DIR="$WORK_DIR/state"
+trap 'rm -rf "$WORK_DIR"' EXIT
 
 mkdir -p "$OUT_DIR"
 OUT_FILE="$OUT_DIR/$APP_ID-$VERSION.flatpak"
 
 echo ">> Building $APP_ID $VERSION"
-flatpak-builder --force-clean --repo="$REPO_DIR" "$BUILD_DIR" "$MANIFEST"
+flatpak-builder --force-clean --state-dir="$STATE_DIR" --repo="$REPO_DIR" "$BUILD_DIR" "$MANIFEST"
 
 echo ">> Creating bundle $OUT_FILE"
 flatpak build-bundle "$REPO_DIR" "$OUT_FILE" "$APP_ID" --runtime="$APP_ID" 2>/dev/null \

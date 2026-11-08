@@ -21,6 +21,8 @@ private slots:
     void enabledFiltersDisabledBackends();
     void databaseRoundTripPreservesAllFields();
     void removePersistsToDatabase();
+    void saveAfterDatabaseObjectDestroyed();
+    void saveWithoutLoadIsNoOp();
 };
 
 void TestBackendRegistry::addAppendsBackendWithDefaults() {
@@ -154,6 +156,40 @@ void TestBackendRegistry::removePersistsToDatabase() {
     BackendRegistry reloaded;
     reloaded.load(database);
     QVERIFY(reloaded.backends().isEmpty());
+}
+
+void TestBackendRegistry::saveAfterDatabaseObjectDestroyed() {
+    // Regression (#68): the registry used to keep a ChatDatabase* to the
+    // caller's database; saving after that object was destroyed dereferenced
+    // a dangling pointer. It now persists by reopening the stored file path.
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = dir.filePath(QStringLiteral("ocapi.sqlite"));
+    BackendRegistry registry;
+    {
+        ChatDatabase database;
+        QVERIFY(database.open(path));
+        registry.load(database);
+    }
+    auto &config = registry.add(QStringLiteral("after destroy"), BackendKind::Ollama);
+    registry.save();
+
+    ChatDatabase database;
+    QVERIFY(database.open(path));
+    BackendRegistry reloaded;
+    reloaded.load(database);
+    QCOMPARE(reloaded.backends().size(), 1);
+    QCOMPARE(reloaded.backends().constFirst().id, config.id);
+    QCOMPARE(reloaded.backends().constFirst().name, QStringLiteral("after destroy"));
+}
+
+void TestBackendRegistry::saveWithoutLoadIsNoOp() {
+    // Without a loaded database path there is nothing to persist to; save()
+    // and add() must not crash or create anything.
+    BackendRegistry registry;
+    registry.save();
+    registry.add(QStringLiteral("no db"), BackendKind::OpenAi);
+    QCOMPARE(registry.backends().size(), 1);
 }
 
 QTEST_GUILESS_MAIN(TestBackendRegistry)

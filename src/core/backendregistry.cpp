@@ -12,14 +12,17 @@ void BackendRegistry::load(ChatDatabase &database) {
 }
 
 void BackendRegistry::attachDatabase(ChatDatabase *database) {
-    m_database = database;
+    m_databasePath = database ? database->filePath() : QString();
 }
 
 void BackendRegistry::save() const {
-    if (!m_database)
+    if (m_databasePath.isEmpty())
+        return;
+    ChatDatabase database;
+    if (!database.open(m_databasePath))
         return;
     for (const auto &config : m_backends)
-        m_database->insertBackend(config);
+        database.insertBackend(config);
 }
 
 BackendConfig &BackendRegistry::add(const QString &name, BackendKind kind) {
@@ -36,8 +39,7 @@ BackendConfig &BackendRegistry::add(const QString &name, BackendKind kind) {
 bool BackendRegistry::remove(const QUuid &id) {
     for (auto it = m_backends.begin(); it != m_backends.end(); ++it) {
         if (it->id == id) {
-            if (m_database)
-                m_database->deleteBackend(id.toString(QUuid::WithoutBraces));
+            deleteFromDatabase(id);
             m_backends.erase(it);
             emit changed();
             return true;
@@ -47,8 +49,21 @@ bool BackendRegistry::remove(const QUuid &id) {
 }
 
 void BackendRegistry::persistToDatabase(const BackendConfig &config) const {
-    if (m_database)
-        m_database->insertBackend(config);
+    if (m_databasePath.isEmpty())
+        return;
+    ChatDatabase database;
+    if (!database.open(m_databasePath))
+        return;
+    database.insertBackend(config);
+}
+
+void BackendRegistry::deleteFromDatabase(const QUuid &id) const {
+    if (m_databasePath.isEmpty())
+        return;
+    ChatDatabase database;
+    if (!database.open(m_databasePath))
+        return;
+    database.deleteBackend(id.toString(QUuid::WithoutBraces));
 }
 
 BackendConfig *BackendRegistry::find(const QUuid &id) {

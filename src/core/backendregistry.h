@@ -2,12 +2,17 @@
 
 #include "core/backendconfig.h"
 #include <QObject>
+#include <QString>
 #include <QVector>
 
 namespace ocapi {
 
 class ChatDatabase;
 
+// Persists through a short-lived ChatDatabase reopened from the stored file
+// path (same idiom as SttRegistry/TtsRegistry reopening QSettings by path):
+// retaining a ChatDatabase* would dangle if this registry outlives the
+// caller's database object (#68).
 class BackendRegistry : public QObject {
     Q_OBJECT
 public:
@@ -28,9 +33,10 @@ signals:
 
 private:
     void persistToDatabase(const BackendConfig &config) const;
+    void deleteFromDatabase(const QUuid &id) const;
 
     QVector<BackendConfig> m_backends;
-    ChatDatabase *m_database = nullptr;
+    QString m_databasePath;
 };
 
 } // namespace ocapi

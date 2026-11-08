@@ -11,6 +11,7 @@
 #include <QJsonObject>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QThreadPool>
 #include <QVariant>
 
 namespace ocapi {
@@ -131,6 +132,8 @@ bool ChatDatabase::open(const QString &filePath) {
     }
     QSqlQuery pragma(m_database);
     pragma.exec(QStringLiteral("PRAGMA foreign_keys = ON"));
+    pragma.exec(QStringLiteral("PRAGMA journal_mode = WAL"));
+    pragma.exec(QStringLiteral("PRAGMA synchronous = NORMAL"));
     createTables(m_database);
     // Schema evolution for older databases; each helper ignores the expected
     // "duplicate column name" error so a healthy, up-to-date database does not
@@ -177,6 +180,25 @@ void ChatDatabase::close() {
     QSqlDatabase::removeDatabase(name);
 }
 
+void ChatDatabase::persistStreamResultAsync(const QString &filePath, const StreamResult &result) {
+    QThreadPool::globalInstance()->start([filePath, result]() {
+        ChatDatabase db;
+        if (!db.open(filePath))
+            return;
+        if (!result.error.isEmpty()) {
+            db.failMessage(result.messageId, result.error);
+            return;
+        }
+        db.updateMessage(result.messageId, result.content, false);
+        if (!result.reasoningSegments.isEmpty())
+            db.setReasoning(result.messageId, result.reasoningSegments);
+        if (!result.elementOrder.isEmpty())
+            db.setElementOrder(result.messageId, result.elementOrder);
+        if (result.tokensPerSecond > 0.0)
+            db.setThroughput(result.messageId, result.tokensPerSecond);
+    });
+}
+
 bool ChatDatabase::executeRaw(const QString &query) {
     QSqlQuery statement(m_database);
     if (!statement.exec(query)) {
@@ -184,6 +206,15 @@ bool ChatDatabase::executeRaw(const QString &query) {
         return false;
     }
     return true;
+}
+
+QVariant ChatDatabase::queryScalar(const QString &query) const {
+    QSqlQuery statement(m_database);
+    if (!statement.exec(query) || !statement.next()) {
+        m_lastError = statement.lastError().text();
+        return {};
+    }
+    return statement.value(0);
 }
 
 bool ChatDatabase::execute(const QString &query, const QVariantList &bindings) {

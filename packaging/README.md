@@ -66,9 +66,12 @@ run (one-time download), so no manual setup is needed beyond `flatpak`
 and `flatpak-builder` themselves.
 
 The manifest (`flatpak/dev.sschmidhuber.ocapi.yml`) builds from the git
-checkout. It uses the KDE Platform/Sdk 6.10 runtime (Qt 6.10). The
-optional poppler/tesseract/libarchive integrations are not bundled; the
-app works without them (attachment text extraction is disabled).
+checkout. It uses the KDE Platform/Sdk 6.10 runtime (Qt 6.10); Qt
+WebEngine is not part of org.kde.Sdk, so the app additionally uses
+`io.qt.qtwebengine.BaseApp//6.10`, which flatpak-builder downloads
+automatically from Flathub. The optional poppler/tesseract/libarchive
+integrations are not bundled; the app works without them (attachment
+text extraction is disabled).
 
 ### RPM
 

@@ -9,10 +9,16 @@
 # poppler/tesseract/libarchive integrations are left out of the sandbox
 # on purpose (the app works without them, they only enable attachment
 # text extraction).
+#
+# Qt WebEngine is not part of org.kde.Sdk, so the app uses the
+# io.qt.qtwebengine.BaseApp (branch matching the runtime's Qt version)
+# which provides Qt6WebEngine and Chromium sandboxing support.
 id: dev.sschmidhuber.ocapi
 runtime: org.kde.Platform
 runtime-version: "6.10"
 sdk: org.kde.Sdk
+base: io.qt.qtwebengine.BaseApp
+base-version: "6.10"
 command: ocapi
 
 finish-args:

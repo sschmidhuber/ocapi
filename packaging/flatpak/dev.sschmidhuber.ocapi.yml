@@ -170,6 +170,12 @@ modules:
       - -DENABLE_GLIB=OFF
       - -DENABLE_QT5=OFF
       - -DENABLE_QT6=OFF
+      # optional features not needed for poppler-cpp and not shipped by
+      # org.kde.Sdk (unknown -D flags are only a CMake warning)
+      - -DENABLE_BOOST=OFF
+      - -DENABLE_LIBCURL=OFF
+      - -DENABLE_NSS3=OFF
+      - -DENABLE_GPGME=OFF
     sources:
       - type: archive
         url: https://poppler.freedesktop.org/poppler-26.10.0.tar.xz

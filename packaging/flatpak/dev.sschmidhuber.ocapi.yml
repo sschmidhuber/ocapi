@@ -5,10 +5,9 @@
 #
 # The manifest builds ocapi from the git checkout that contains it (the
 # script passes the source directory). The KDE Platform/Sdk 6.10 runtime
-# provides Qt 6.10 (Widgets, Network, Sql); the optional
-# poppler/tesseract/libarchive integrations are left out of the sandbox
-# on purpose (the app works without them, they only enable attachment
-# text extraction).
+# provides Qt 6.10 (Widgets, Network, Sql) and libarchive. Attachment
+# text extraction is enabled by bundling poppler-cpp and tesseract as
+# modules below (the SDK alone does not ship them).
 #
 # Qt WebEngine is not part of org.kde.Sdk, so the app uses the
 # io.qt.qtwebengine.BaseApp (branch matching the runtime's Qt version)
@@ -31,6 +30,53 @@ finish-args:
   - --filesystem=xdg-data/sschmidhuber:create
 
 modules:
+  # poppler-cpp and tesseract are not part of org.kde.Sdk; build them so
+  # PDF/OCR attachment text extraction works inside the sandbox.
+  # Source pins are taken from the Flathub org.kde.skanpage/org.kde.okular
+  # manifests.
+  - name: leptonica
+    buildsystem: autotools
+    config-opts:
+      - --disable-static
+    sources:
+      - type: archive
+        url: https://github.com/DanBloomberg/leptonica/releases/download/1.87.0/leptonica-1.87.0.tar.gz
+        sha256: c73363397f96eb1295602bf44d708a994ad42046c791bf03ea0505d829bdb6a7
+
+  - name: tesseract
+    buildsystem: autotools
+    config-opts:
+      - --disable-static
+    sources:
+      - type: archive
+        url: https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.3.tar.gz
+        sha256: 9218e62793116d42a9f6d14cd9348518b27f382096eea3d0f2d1a24616bb5884
+      - type: file
+        url: https://github.com/tesseract-ocr/tessdata_best/raw/4.1.0/eng.traineddata
+        sha256: 8280aed0782fe27257a68ea10fe7ef324ca0f8d85bd2fd145d1c2b560bcb66ba
+        dest: traineddata
+    post-install:
+      - install -p -D -m 0644 traineddata/eng.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+
+  - name: poppler
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_GTK_TESTS=OFF
+      - -DBUILD_QT5_TESTS=OFF
+      - -DBUILD_QT6_TESTS=OFF
+      - -DBUILD_CPP_TESTS=OFF
+      - -DENABLE_UTILS=OFF
+      - -DENABLE_CPP=ON
+      - -DENABLE_GLIB=OFF
+      - -DENABLE_QT5=OFF
+      - -DENABLE_QT6=OFF
+    sources:
+      - type: archive
+        url: https://poppler.freedesktop.org/poppler-26.10.0.tar.xz
+        sha256: 6792cb7c69205007ad87d2e936cecc5b3a31fac29ab54ffc3175fdb6b2a6ce35
+
   - name: ocapi
     buildsystem: cmake-ninja
     config-opts:

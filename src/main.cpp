@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
     // "Ocapi -- ocapi". The application name stays lowercase: it determines
     // the config/data paths (ocapi.conf, ocapi.sqlite).
     QApplication::setApplicationDisplayName(QStringLiteral("Ocapi"));
-    QApplication::setWindowIcon(QIcon(QStringLiteral(":/resources/icons/ocapi.svg")));
+    QApplication::setWindowIcon(QIcon(QStringLiteral(":/resources/icons/ocapi.png")));
 
     applyDesktopStyle(app);
 

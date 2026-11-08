@@ -53,7 +53,7 @@ Server-Sent Events, supports file attachments and integrates MCP
 %license LICENSE
 %{_bindir}/ocapi
 %{_datadir}/applications/dev.sschmidhuber.ocapi.desktop
-%{_datadir}/icons/hicolor/scalable/apps/ocapi.svg
+%{_datadir}/icons/hicolor/512x512/apps/ocapi.png
 %{_datadir}/metainfo/dev.sschmidhuber.ocapi.appdata.xml
 
 %changelog

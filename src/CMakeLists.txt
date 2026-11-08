@@ -172,7 +172,7 @@ target_link_libraries(ocapi PRIVATE ocapi-core Qt6::Widgets Qt6::WebEngineWidget
 qt_add_resources(ocapi "ocapi_resources"
     PREFIX "/"
     FILES
-        ../resources/icons/ocapi.svg
+        ../resources/icons/ocapi.png
         ../resources/icons/microphone.svg
         ../resources/icons/folder-new-symbolic.svg
         ../resources/icons/edit-copy-symbolic.svg

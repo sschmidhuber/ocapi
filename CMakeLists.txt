@@ -38,8 +38,8 @@ include(GNUInstallDirs)
 install(TARGETS ocapi RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES data/dev.sschmidhuber.ocapi.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
-install(FILES resources/icons/ocapi.svg
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+install(FILES resources/icons/ocapi.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/512x512/apps)
 install(FILES packaging/linux/dev.sschmidhuber.ocapi.appdata.xml
     DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 

@@ -250,7 +250,7 @@ src/
   ui/                      main window, sidebar, chat view/delegate, composer, backend and
                            MCP server dialogs
 tests/                     Qt Test unit tests
-resources/icons/ocapi.svg  application icon
+resources/icons/ocapi.png  application icon
 data/                      XDG desktop entry
 ```
 

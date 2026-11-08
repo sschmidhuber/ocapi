@@ -3,7 +3,7 @@
 #
 # Requirements: flatpak and flatpak-builder. The script adds the flathub
 # remote if missing and installs the required KDE Platform/Sdk runtime
-# (one-time download) when it is not installed yet.
+# and the Qt WebEngine base app (one-time download) when not installed.
 #
 # Usage:
 #   packaging/flatpak/build-flatpak.sh [version] [output-directory]
@@ -35,6 +35,15 @@ flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flat
 if ! flatpak info "org.kde.Sdk//${RUNTIME_VERSION}" >/dev/null 2>&1; then
     echo ">> Installing org.kde.Platform//${RUNTIME_VERSION} and org.kde.Sdk//${RUNTIME_VERSION} (one-time download)"
     flatpak install -y flathub "org.kde.Platform//${RUNTIME_VERSION}" "org.kde.Sdk//${RUNTIME_VERSION}"
+fi
+
+# Qt WebEngine is not part of org.kde.Sdk; the manifest's base app must
+# be installed as well or flatpak-builder fails with "Unable to find app".
+BASE_ID="$(sed -n 's/^base:[[:space:]]*"\?\([^"]*\)"\?/\1/p' "$MANIFEST")"
+BASE_VERSION="$(sed -n 's/^base-version:[[:space:]]*"\?\([^"]*\)"\?/\1/p' "$MANIFEST")"
+if [ -n "$BASE_ID" ] && ! flatpak info "${BASE_ID}//${BASE_VERSION}" >/dev/null 2>&1; then
+    echo ">> Installing ${BASE_ID}//${BASE_VERSION} (one-time download)"
+    flatpak install -y flathub "${BASE_ID}//${BASE_VERSION}"
 fi
 
 # flatpak-builder requires its state dir and the build dir on the same

@@ -2,7 +2,7 @@
 
 #include "storage/chatdatabase.h"
 
-namespace ocapi {
+namespace okapi {
 
 BackendRegistry::BackendRegistry(QObject *parent) : QObject(parent) {}
 
@@ -83,4 +83,4 @@ QVector<BackendConfig> BackendRegistry::enabled() const {
     return result;
 }
 
-} // namespace ocapi
+} // namespace okapi

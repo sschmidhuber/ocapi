@@ -14,7 +14,7 @@ class QPushButton;
 class QSpinBox;
 class QTimer;
 
-namespace ocapi {
+namespace okapi {
 
 class BackendRegistry;
 class IBackend;
@@ -66,4 +66,4 @@ private:
     bool m_updatingForm = false;
 };
 
-} // namespace ocapi
+} // namespace okapi

@@ -2,7 +2,7 @@
 
 #include <QHash>
 
-namespace ocapi {
+namespace okapi {
 
 QString BackendConfig::kindName(BackendKind kind) {
     switch (kind) {
@@ -176,4 +176,4 @@ const QVector<BackendKind> &BackendConfig::allKinds() {
     return kinds;
 }
 
-} // namespace ocapi
+} // namespace okapi

@@ -10,7 +10,7 @@
 #include <QNetworkRequest>
 #include <QUrl>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -187,4 +187,4 @@ void AnthropicBackend::cancel() {
         m_stream->cancel();
 }
 
-} // namespace ocapi
+} // namespace okapi

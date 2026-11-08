@@ -2,7 +2,7 @@
 
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestAttachmentOpener : public QObject {
     Q_OBJECT
@@ -20,12 +20,12 @@ void TestAttachmentOpener::openRejectsEmptyPath() {
 }
 
 void TestAttachmentOpener::openRejectsMissingFile() {
-    QVERIFY(!AttachmentOpener::open(QStringLiteral("/nonexistent/ocapi-test-file.bin")));
+    QVERIFY(!AttachmentOpener::open(QStringLiteral("/nonexistent/okapi-test-file.bin")));
 }
 
 void TestAttachmentOpener::openRejectsMissingFileWithError() {
     QString error;
-    QVERIFY(!AttachmentOpener::open(QStringLiteral("/nonexistent/ocapi-test-file.bin"), &error));
+    QVERIFY(!AttachmentOpener::open(QStringLiteral("/nonexistent/okapi-test-file.bin"), &error));
     QVERIFY(!error.isEmpty());
 }
 

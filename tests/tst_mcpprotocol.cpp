@@ -3,7 +3,7 @@
 #include <QJsonDocument>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestMcpProtocol : public QObject {
     Q_OBJECT
@@ -160,7 +160,7 @@ void TestMcpProtocol::initializeParamsContainProtocolVersionAndClientInfo() {
     QCOMPARE(params.value(QStringLiteral("protocolVersion")).toString(),
              QString::fromLatin1(kMcpProtocolVersion));
     const QJsonObject clientInfo = params.value(QStringLiteral("clientInfo")).toObject();
-    QCOMPARE(clientInfo.value(QStringLiteral("name")).toString(), QStringLiteral("ocapi"));
+    QCOMPARE(clientInfo.value(QStringLiteral("name")).toString(), QStringLiteral("okapi"));
     QVERIFY(params.contains(QStringLiteral("capabilities")));
 }
 

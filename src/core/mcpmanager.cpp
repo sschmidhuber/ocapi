@@ -9,7 +9,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -319,4 +319,4 @@ void McpManager::appendToolResultMessage(ChatSession *session, const ToolCall &c
     emit toolResultReady(call.name, text, isError);
 }
 
-} // namespace ocapi
+} // namespace okapi

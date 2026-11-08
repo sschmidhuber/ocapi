@@ -4,7 +4,7 @@
 #include <QSignalSpy>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 namespace {
 

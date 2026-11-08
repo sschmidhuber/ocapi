@@ -5,7 +5,7 @@
 
 class QSettings;
 
-namespace ocapi {
+namespace okapi {
 
 // Stores the user-configurable system prompt template and substitutes the
 // dynamic fields {{date}}, {{time}}, {{language}} and {{os}} in it.
@@ -30,4 +30,4 @@ private:
     QString m_text;
 };
 
-} // namespace ocapi
+} // namespace okapi

@@ -4,7 +4,7 @@
 #include <QList>
 #include <optional>
 
-namespace ocapi {
+namespace okapi {
 
 struct SseEvent {
     QByteArray event;
@@ -26,4 +26,4 @@ struct SseEvent {
 // carries no data (e.g. comment-only / heartbeat blocks).
 [[nodiscard]] std::optional<SseEvent> parseSseEventBlock(const QByteArray &rawEvent);
 
-} // namespace ocapi
+} // namespace okapi

@@ -31,7 +31,7 @@ QByteArray unwrapAudioDataEnvelope(const QByteArray &body) {
 
 } // namespace
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -177,7 +177,7 @@ void TtsClient::sendNext() {
 
         const int sequence = request.sequence;
         if (sttDebug::ttsEnabled())
-            sttDebug::log(QStringLiteral("[ocapi TTS] request #%1: %2 (%3)")
+            sttDebug::log(QStringLiteral("[okapi TTS] request #%1: %2 (%3)")
                               .arg(QString::number(sequence), reply->url().toString(),
                                    request.text.left(120)));
         connect(reply, &QNetworkReply::finished, this,
@@ -200,7 +200,7 @@ void TtsClient::onReplyFinished(QNetworkReply *reply, int sequence) {
         const QByteArray body = reply->readAll();
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (sttDebug::ttsEnabled())
-            sttDebug::log(QStringLiteral("[ocapi TTS] error #%1: %2 (status %3, body: %4)")
+            sttDebug::log(QStringLiteral("[okapi TTS] error #%1: %2 (status %3, body: %4)")
                               .arg(QString::number(sequence), reply->errorString())
                               .arg(status)
                               .arg(QString::fromUtf8(body.left(300))));
@@ -224,7 +224,7 @@ void TtsClient::onReplyFinished(QNetworkReply *reply, int sequence) {
             audio = unwrapAudioDataEnvelope(audio);
         const auto kind = AudioFormat::detect(audio);
         if (sttDebug::ttsEnabled())
-            sttDebug::log(QStringLiteral("[ocapi TTS] response #%1: %2 bytes, format %3")
+            sttDebug::log(QStringLiteral("[okapi TTS] response #%1: %2 bytes, format %3")
                               .arg(QString::number(sequence), QString::number(audio.size()),
                                    QString::number(static_cast<int>(kind))));
         if (audio.isEmpty() || kind == AudioFormat::Kind::Unknown) {
@@ -249,4 +249,4 @@ void TtsClient::flushCompleted() {
     }
 }
 
-} // namespace ocapi
+} // namespace okapi

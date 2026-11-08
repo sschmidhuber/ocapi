@@ -2,7 +2,7 @@
 
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestMcpServerConfig : public QObject {
     Q_OBJECT

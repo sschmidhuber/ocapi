@@ -5,7 +5,7 @@
 class QPlainTextEdit;
 class QPushButton;
 
-namespace ocapi {
+namespace okapi {
 
 class SystemPrompt;
 
@@ -35,4 +35,4 @@ private:
     QPushButton *m_resetButton = nullptr;
 };
 
-} // namespace ocapi
+} // namespace okapi

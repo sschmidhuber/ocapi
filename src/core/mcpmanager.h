@@ -11,7 +11,7 @@
 
 class QJsonArray;
 
-namespace ocapi {
+namespace okapi {
 
 class ChatSession;
 class McpClient;
@@ -103,4 +103,4 @@ private:
     bool m_reloading = false;
 };
 
-} // namespace ocapi
+} // namespace okapi

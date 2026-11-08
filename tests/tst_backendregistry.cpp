@@ -5,7 +5,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestBackendRegistry : public QObject {
     Q_OBJECT
@@ -109,7 +109,7 @@ void TestBackendRegistry::databaseRoundTripPreservesAllFields() {
     QVERIFY(dir.isValid());
     {
         ChatDatabase database;
-        QVERIFY(database.open(dir.filePath(QStringLiteral("ocapi.sqlite"))));
+        QVERIFY(database.open(dir.filePath(QStringLiteral("okapi.sqlite"))));
         BackendRegistry registry;
         registry.attachDatabase(&database);
         auto &a = registry.add(QStringLiteral("Ollama local"), BackendKind::Ollama);
@@ -123,7 +123,7 @@ void TestBackendRegistry::databaseRoundTripPreservesAllFields() {
     }
     {
         ChatDatabase database;
-        QVERIFY(database.open(dir.filePath(QStringLiteral("ocapi.sqlite"))));
+        QVERIFY(database.open(dir.filePath(QStringLiteral("okapi.sqlite"))));
         BackendRegistry registry;
         registry.load(database);
         QCOMPARE(registry.backends().size(), 2);
@@ -148,7 +148,7 @@ void TestBackendRegistry::removePersistsToDatabase() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     ChatDatabase database;
-    QVERIFY(database.open(dir.filePath(QStringLiteral("ocapi.sqlite"))));
+    QVERIFY(database.open(dir.filePath(QStringLiteral("okapi.sqlite"))));
     BackendRegistry registry;
     registry.attachDatabase(&database);
     auto &config = registry.add(QStringLiteral("temp"), BackendKind::Vllm);
@@ -164,7 +164,7 @@ void TestBackendRegistry::saveAfterDatabaseObjectDestroyed() {
     // a dangling pointer. It now persists by reopening the stored file path.
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const QString path = dir.filePath(QStringLiteral("ocapi.sqlite"));
+    const QString path = dir.filePath(QStringLiteral("okapi.sqlite"));
     BackendRegistry registry;
     {
         ChatDatabase database;

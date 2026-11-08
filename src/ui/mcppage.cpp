@@ -18,7 +18,7 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
-namespace ocapi {
+namespace okapi {
 
 McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     : QWidget(parent), m_registry(registry), m_manager(manager) {
@@ -413,4 +413,4 @@ void McpPage::saveFormIntoConfig(McpServerConfig &config) {
     config.enabled = m_enabledBox->isChecked();
 }
 
-} // namespace ocapi
+} // namespace okapi

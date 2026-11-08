@@ -1,4 +1,4 @@
-# Build an MSIX package for ocapi.
+# Build an MSIX package for okapi.
 #
 # Requirements (Windows 10/11, run in an elevated or developer-mode shell):
 #   - Visual Studio with the "C++ CMake tools for Windows" component, or a
@@ -11,7 +11,7 @@
 # Usage (PowerShell):
 #   packaging\windows\build-msix.ps1 [-Version 0.1.0] [-QtDir C:\Qt\6.8.2\msvc2022_64]
 #
-# Produces: dist\ocapi-<Version>-x64.msix
+# Produces: dist\okapi-<Version>-x64.msix
 #
 # The MSIX is NOT signed. Installing an unsigned MSIX requires developer
 # mode (Settings > Privacy & security > For developers > Developer mode) or
@@ -31,10 +31,10 @@ if (-not $Version) { $Version = (Get-Date).ToUniversalTime().ToString("yyyy.MM.d
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Resolve-Path "$PSScriptRoot\..\.."
-$BuildDir = Join-Path $env:TEMP "ocapi-msix-build"
-$PackageDir = Join-Path $env:TEMP "ocapi-msix-pkg"
+$BuildDir = Join-Path $env:TEMP "okapi-msix-build"
+$PackageDir = Join-Path $env:TEMP "okapi-msix-pkg"
 $Manifest = Join-Path $PSScriptRoot "Package.appxmanifest"
-$MsixFile = Join-Path $OutDir "ocapi-$Version-x64.msix"
+$MsixFile = Join-Path $OutDir "okapi-$Version-x64.msix"
 
 foreach ($tool in @("cmake", "ninja", "makeappx")) {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
@@ -50,13 +50,13 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 Remove-Item -Recurse -Force $BuildDir, $PackageDir -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $BuildDir, $PackageDir | Out-Null
 
-Write-Host ">> Configuring ocapi $Version"
+Write-Host ">> Configuring okapi $Version"
 $cmakeArgs = @(
     "-S", $RepoRoot,
     "-B", $BuildDir,
     "-G", "Ninja",
     "-DCMAKE_BUILD_TYPE=Release",
-    "-DOCAPI_BUILD_TESTS=OFF"
+    "-DOKAPI_BUILD_TESTS=OFF"
 )
 if ($QtDir) { $cmakeArgs += "-DCMAKE_PREFIX_PATH=$QtDir" }
 & cmake @cmakeArgs
@@ -72,15 +72,15 @@ if (-not $windeployqt) {
     if ($QtDir) { $windeployqt = Get-Item (Join-Path $QtDir "bin\windeployqt.exe") -ErrorAction SilentlyContinue }
 }
 if (-not $windeployqt) { Write-Error "windeployqt not found; pass -QtDir pointing at your Qt installation" }
-$AppExe = Join-Path $BuildDir "src\Release\ocapi.exe"
-if (-not (Test-Path $AppExe)) { $AppExe = Join-Path $BuildDir "src\ocapi.exe" }
-if (-not (Test-Path $AppExe)) { Write-Error "ocapi.exe not found after build" }
+$AppExe = Join-Path $BuildDir "src\Release\okapi.exe"
+if (-not (Test-Path $AppExe)) { $AppExe = Join-Path $BuildDir "src\okapi.exe" }
+if (-not (Test-Path $AppExe)) { Write-Error "okapi.exe not found after build" }
 & $windeployqt.Source --release --no-translations --dir $PackageDir $AppExe
 if ($LASTEXITCODE -ne 0) { Write-Error "windeployqt failed" }
 
 Write-Host ">> Staging package layout"
 Copy-Item $AppExe -Destination $PackageDir
-Copy-Item (Join-Path $RepoRoot "resources\icons\ocapi.ico") -Destination (Join-Path $PackageDir "ocapi.ico")
+Copy-Item (Join-Path $RepoRoot "resources\icons\okapi.ico") -Destination (Join-Path $PackageDir "okapi.ico")
 $AssetsDir = Join-Path $PackageDir "Assets"
 New-Item -ItemType Directory -Force -Path $AssetsDir | Out-Null
 # Store logos: reuse the .ico for all required asset slots.

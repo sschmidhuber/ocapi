@@ -32,7 +32,7 @@
 #include <QVector>
 #include <memory>
 
-namespace ocapi {
+namespace okapi {
 
 class ChatSession;
 class WebChatView;
@@ -188,7 +188,7 @@ private:
     // Previously detected models for one backend (plus the persisted
     // last-selected model, which is kept even when the backend is offline).
     [[nodiscard]] QStringList knownModelsForBackend(const BackendConfig &config) const;
-    // Last model the user picked for a backend; persisted in ocapi.conf so
+    // Last model the user picked for a backend; persisted in okapi.conf so
     // the selection survives restarts. Empty when never selected.
     [[nodiscard]] QString lastModelForBackend(const QString &backendId) const;
     void saveLastModelForBackend(const QString &backendId, const QString &model);
@@ -279,7 +279,7 @@ private:
     bool m_loadingOlder = false;
     // Models detected per backend id (survives session switches).
     QHash<QString, QStringList> m_detectedModels;
-    // Last model selected per backend id, loaded from/saved to ocapi.conf.
+    // Last model selected per backend id, loaded from/saved to okapi.conf.
     QHash<QString, QString> m_lastModels;
     QString m_dictatedText;
     // Messages typed while a turn was still running; sent in order once the
@@ -290,7 +290,7 @@ private:
         QVector<FileAttachment> files;
     };
     QVector<PendingMessage> m_pendingMessages;
-    // Configurable keyboard shortcuts (loaded from ocapi.conf) and the
+    // Configurable keyboard shortcuts (loaded from okapi.conf) and the
     // QShortcut objects currently bound to them.
     ShortcutRegistry m_shortcuts;
     QList<QShortcut *> m_windowShortcuts;
@@ -323,4 +323,4 @@ private:
     QLabel *m_mcpStatusLabel = nullptr;
 };
 
-} // namespace ocapi
+} // namespace okapi

@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cstring>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -139,4 +139,4 @@ QByteArray AudioFormat::toInt16Pcm(const void *samples, qsizetype frameCount, in
     return out;
 }
 
-} // namespace ocapi
+} // namespace okapi

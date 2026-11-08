@@ -3,7 +3,7 @@
 
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestDebugLog : public QObject {
     Q_OBJECT

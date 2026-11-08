@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build an installable Flatpak bundle for ocapi.
+# Build an installable Flatpak bundle for okapi.
 #
 # Requirements: flatpak and flatpak-builder. The script adds the flathub
 # remote if missing and installs the required KDE Platform/Sdk runtime
@@ -13,20 +13,20 @@
 #
 # If no version is given, a date-based version (YYYY.MM.DD) is used.
 #
-# Produces: <output-directory>/dev.sschmidhuber.ocapi-<version>.flatpak
+# Produces: <output-directory>/dev.sschmidhuber.okapi-<version>.flatpak
 #
 # The resulting .flatpak is a single-file bundle that can be installed
-# with:  flatpak install dev.sschmidhuber.ocapi-<version>.flatpak
+# with:  flatpak install dev.sschmidhuber.okapi-<version>.flatpak
 # Distribution of the bundle is unsigned by default; signing a Flatpak
 # bundle for a repository requires a GPG key registered with the remote,
 # which is out of scope for a self-built bundle.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-MANIFEST="$REPO_ROOT/packaging/flatpak/dev.sschmidhuber.ocapi.yml"
+MANIFEST="$REPO_ROOT/packaging/flatpak/dev.sschmidhuber.okapi.yml"
 VERSION="${1:-$(date -u +%Y.%m.%d)}"
 OUT_DIR="${2:-$REPO_ROOT/dist}"
-APP_ID="dev.sschmidhuber.ocapi"
+APP_ID="dev.sschmidhuber.okapi"
 RUNTIME_VERSION="$(sed -n 's/^runtime-version:[[:space:]]*"\?\([^"]*\)"\?/\1/p' "$MANIFEST")"
 
 echo ">> Ensuring flathub remote"

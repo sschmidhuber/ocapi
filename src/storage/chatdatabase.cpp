@@ -14,11 +14,11 @@
 #include <QThreadPool>
 #include <QVariant>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
-constexpr auto kConnectionName = "ocapi_chat";
+constexpr auto kConnectionName = "okapi_chat";
 
 int nextConnectionCounter() {
     static QAtomicInt counter = 0;
@@ -848,4 +848,4 @@ QString ChatDatabase::sessionModel(const QString &sessionId) const {
     return query.value(0).toString();
 }
 
-} // namespace ocapi
+} // namespace okapi

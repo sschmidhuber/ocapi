@@ -6,7 +6,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestShortcutRegistry : public QObject {
     Q_OBJECT
@@ -112,7 +112,7 @@ void TestShortcutRegistry::conflictIsDetected() {
 void TestShortcutRegistry::saveLoadRoundtrip() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const QString path = dir.filePath(QStringLiteral("ocapi.conf"));
+    const QString path = dir.filePath(QStringLiteral("okapi.conf"));
 
     ShortcutRegistry registry;
     registry.setSequence(QStringLiteral("newChat"), QKeySequence(QStringLiteral("Ctrl+Shift+N")));

@@ -6,7 +6,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestMcpRegistry : public QObject {
     Q_OBJECT
@@ -92,7 +92,7 @@ void TestMcpRegistry::setPermissionForToolPersistsAndEmits() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     ChatDatabase database;
-    QVERIFY(database.open(dir.filePath(QStringLiteral("ocapi.sqlite"))));
+    QVERIFY(database.open(dir.filePath(QStringLiteral("okapi.sqlite"))));
     McpRegistry registry;
     registry.attachDatabase(&database);
     auto &config = registry.add(QStringLiteral("srv"), McpTransport::StreamableHttp);
@@ -113,7 +113,7 @@ void TestMcpRegistry::databaseRoundTripPreservesAllFields() {
     QVERIFY(dir.isValid());
     {
         ChatDatabase database;
-        QVERIFY(database.open(dir.filePath(QStringLiteral("ocapi.sqlite"))));
+        QVERIFY(database.open(dir.filePath(QStringLiteral("okapi.sqlite"))));
         McpRegistry registry;
         registry.attachDatabase(&database);
         auto &a = registry.add(QStringLiteral("Filesystem"), McpTransport::Stdio);
@@ -131,7 +131,7 @@ void TestMcpRegistry::databaseRoundTripPreservesAllFields() {
     }
     {
         ChatDatabase database;
-        QVERIFY(database.open(dir.filePath(QStringLiteral("ocapi.sqlite"))));
+        QVERIFY(database.open(dir.filePath(QStringLiteral("okapi.sqlite"))));
         McpRegistry registry;
         registry.load(database);
         QCOMPARE(registry.servers().size(), 2);
@@ -171,7 +171,7 @@ void TestMcpRegistry::removePersistsToDatabase() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     ChatDatabase database;
-    QVERIFY(database.open(dir.filePath(QStringLiteral("ocapi.sqlite"))));
+    QVERIFY(database.open(dir.filePath(QStringLiteral("okapi.sqlite"))));
     McpRegistry registry;
     registry.attachDatabase(&database);
     auto &config = registry.add(QStringLiteral("temp"), McpTransport::Stdio);

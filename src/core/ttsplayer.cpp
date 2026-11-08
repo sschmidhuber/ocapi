@@ -14,7 +14,7 @@
 
 #include <cstring>
 
-namespace ocapi {
+namespace okapi {
 
 TtsPlayer::TtsPlayer(QObject *parent) : QObject(parent) {
     // Feeds queued PCM to the sink in small slices as buffer space frees up.
@@ -391,4 +391,4 @@ void TtsPlayer::teardownSink() {
     m_devices = nullptr;
 }
 
-} // namespace ocapi
+} // namespace okapi

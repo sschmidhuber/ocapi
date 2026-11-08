@@ -7,7 +7,7 @@
 
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestBackendFactory : public QObject {
     Q_OBJECT
@@ -23,18 +23,18 @@ void TestBackendFactory::createsCorrectBackendTypeForEachKind() {
         const char *typeName;
     };
     const QList<Case> cases{
-        {BackendKind::Ollama, "ocapi::OllamaBackend"},
-        {BackendKind::LlamaCpp, "ocapi::OpenAiApiBackend"},
-        {BackendKind::Vllm, "ocapi::OpenAiApiBackend"},
-        {BackendKind::OpenAi, "ocapi::OpenAiApiBackend"},
-        {BackendKind::Mistral, "ocapi::OpenAiApiBackend"},
-        {BackendKind::Zai, "ocapi::OpenAiApiBackend"},
-        {BackendKind::Qwen, "ocapi::OpenAiApiBackend"},
-        {BackendKind::DeepSeek, "ocapi::OpenAiApiBackend"},
-        {BackendKind::Groq, "ocapi::OpenAiApiBackend"},
-        {BackendKind::OpenRouter, "ocapi::OpenAiApiBackend"},
-        {BackendKind::Anthropic, "ocapi::AnthropicBackend"},
-        {BackendKind::Gemini, "ocapi::GeminiBackend"},
+        {BackendKind::Ollama, "okapi::OllamaBackend"},
+        {BackendKind::LlamaCpp, "okapi::OpenAiApiBackend"},
+        {BackendKind::Vllm, "okapi::OpenAiApiBackend"},
+        {BackendKind::OpenAi, "okapi::OpenAiApiBackend"},
+        {BackendKind::Mistral, "okapi::OpenAiApiBackend"},
+        {BackendKind::Zai, "okapi::OpenAiApiBackend"},
+        {BackendKind::Qwen, "okapi::OpenAiApiBackend"},
+        {BackendKind::DeepSeek, "okapi::OpenAiApiBackend"},
+        {BackendKind::Groq, "okapi::OpenAiApiBackend"},
+        {BackendKind::OpenRouter, "okapi::OpenAiApiBackend"},
+        {BackendKind::Anthropic, "okapi::AnthropicBackend"},
+        {BackendKind::Gemini, "okapi::GeminiBackend"},
     };
 
     for (const auto &c : cases) {

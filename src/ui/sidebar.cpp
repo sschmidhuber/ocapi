@@ -19,7 +19,7 @@
 #include <algorithm>
 #include <functional>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -298,4 +298,4 @@ QIcon Sidebar::unreadDotIcon() const {
     }));
 }
 
-} // namespace ocapi
+} // namespace okapi

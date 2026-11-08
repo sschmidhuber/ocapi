@@ -10,7 +10,7 @@
 class QNetworkAccessManager;
 class QNetworkReply;
 
-namespace ocapi {
+namespace okapi {
 
 class SseClient;
 
@@ -50,4 +50,4 @@ private:
     bool m_hasToolCalls = false;
 };
 
-} // namespace ocapi
+} // namespace okapi

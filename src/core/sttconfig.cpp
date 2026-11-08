@@ -4,7 +4,7 @@
 
 #include <algorithm>
 
-namespace ocapi {
+namespace okapi {
 
 QString SttServiceConfig::kindName(SttServiceKind kind) {
     switch (kind) {
@@ -233,4 +233,4 @@ SttServiceConfig SttServiceConfig::fromJson(const QJsonObject &object) {
     return config;
 }
 
-} // namespace ocapi
+} // namespace okapi

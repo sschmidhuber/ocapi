@@ -20,7 +20,7 @@ else()
     message(WARNING "libarchive not found: MS Office support disabled")
 endif()
 
-set(OCAPI_CORE_SOURCES
+set(OKAPI_CORE_SOURCES
     core/message.h
     core/imagemessage.h
     core/imagemessage.cpp
@@ -106,30 +106,30 @@ set(OCAPI_CORE_SOURCES
     backends/ttsclient.cpp
 )
 
-add_library(ocapi-core STATIC ${OCAPI_CORE_SOURCES})
-target_include_directories(ocapi-core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(ocapi-core PUBLIC Qt6::Core Qt6::Network Qt6::Sql Qt6::Gui Qt6::Multimedia Qt6::WebSockets)
+add_library(okapi-core STATIC ${OKAPI_CORE_SOURCES})
+target_include_directories(okapi-core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(okapi-core PUBLIC Qt6::Core Qt6::Network Qt6::Sql Qt6::Gui Qt6::Multimedia Qt6::WebSockets)
 
 if(POPPLER_CPP_FOUND)
-    target_compile_definitions(ocapi-core PUBLIC OCAPI_HAVE_POPPLER=1)
-    target_include_directories(ocapi-core PUBLIC ${POPPLER_CPP_INCLUDE_DIRS})
-    target_link_directories(ocapi-core PUBLIC ${POPPLER_CPP_LIBRARY_DIRS})
-    target_link_libraries(ocapi-core PUBLIC ${POPPLER_CPP_LIBRARIES})
+    target_compile_definitions(okapi-core PUBLIC OKAPI_HAVE_POPPLER=1)
+    target_include_directories(okapi-core PUBLIC ${POPPLER_CPP_INCLUDE_DIRS})
+    target_link_directories(okapi-core PUBLIC ${POPPLER_CPP_LIBRARY_DIRS})
+    target_link_libraries(okapi-core PUBLIC ${POPPLER_CPP_LIBRARIES})
 endif()
 if(TESSERACT_FOUND)
-    target_compile_definitions(ocapi-core PUBLIC OCAPI_HAVE_TESSERACT=1)
-    target_include_directories(ocapi-core PUBLIC ${TESSERACT_INCLUDE_DIRS})
-    target_link_directories(ocapi-core PUBLIC ${TESSERACT_LIBRARY_DIRS})
-    target_link_libraries(ocapi-core PUBLIC ${TESSERACT_LIBRARIES})
+    target_compile_definitions(okapi-core PUBLIC OKAPI_HAVE_TESSERACT=1)
+    target_include_directories(okapi-core PUBLIC ${TESSERACT_INCLUDE_DIRS})
+    target_link_directories(okapi-core PUBLIC ${TESSERACT_LIBRARY_DIRS})
+    target_link_libraries(okapi-core PUBLIC ${TESSERACT_LIBRARIES})
 endif()
 if(LIBARCHIVE_FOUND)
-    target_compile_definitions(ocapi-core PUBLIC OCAPI_HAVE_LIBARCHIVE=1)
-    target_include_directories(ocapi-core PUBLIC ${LIBARCHIVE_INCLUDE_DIRS})
-    target_link_directories(ocapi-core PUBLIC ${LIBARCHIVE_LIBRARY_DIRS})
-    target_link_libraries(ocapi-core PUBLIC ${LIBARCHIVE_LIBRARIES})
+    target_compile_definitions(okapi-core PUBLIC OKAPI_HAVE_LIBARCHIVE=1)
+    target_include_directories(okapi-core PUBLIC ${LIBARCHIVE_INCLUDE_DIRS})
+    target_link_directories(okapi-core PUBLIC ${LIBARCHIVE_LIBRARY_DIRS})
+    target_link_libraries(okapi-core PUBLIC ${LIBARCHIVE_LIBRARIES})
 endif()
 
-set(OCAPI_UI_SOURCES
+set(OKAPI_UI_SOURCES
     ui/mainwindow.h
     ui/mainwindow.cpp
     ui/chatview.h
@@ -162,17 +162,17 @@ set(OCAPI_UI_SOURCES
     ui/prompttemplatespage.cpp
 )
 
-qt_add_executable(ocapi
+qt_add_executable(okapi
     main.cpp
-    ${OCAPI_UI_SOURCES}
+    ${OKAPI_UI_SOURCES}
 )
 
-target_link_libraries(ocapi PRIVATE ocapi-core Qt6::Widgets Qt6::WebEngineWidgets Qt6::WebChannel)
+target_link_libraries(okapi PRIVATE okapi-core Qt6::Widgets Qt6::WebEngineWidgets Qt6::WebChannel)
 
-qt_add_resources(ocapi "ocapi_resources"
+qt_add_resources(okapi "okapi_resources"
     PREFIX "/"
     FILES
-        ../resources/icons/ocapi.png
+        ../resources/icons/okapi.png
         ../resources/icons/microphone.svg
         ../resources/icons/folder-new-symbolic.svg
         ../resources/icons/edit-copy-symbolic.svg
@@ -196,7 +196,7 @@ qt_add_resources(ocapi "ocapi_resources"
         ../resources/web/highlight-github.css
 )
 
-qt_add_resources(ocapi "ocapi_katex_fonts"
+qt_add_resources(okapi "okapi_katex_fonts"
     PREFIX "/resources/web"
     FILES
         ../resources/web/katex-fonts/KaTeX_AMS-Regular.woff2

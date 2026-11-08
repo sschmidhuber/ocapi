@@ -5,7 +5,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestTtsRegistry : public QObject {
     Q_OBJECT

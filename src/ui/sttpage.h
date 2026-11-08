@@ -12,7 +12,7 @@ class QLineEdit;
 class QListWidget;
 class QPushButton;
 
-namespace ocapi {
+namespace okapi {
 
 class BackendRegistry;
 class SttRegistry;
@@ -65,4 +65,4 @@ private:
     bool m_hasSelection = false;
 };
 
-} // namespace ocapi
+} // namespace okapi

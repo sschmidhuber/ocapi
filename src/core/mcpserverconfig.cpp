@@ -1,6 +1,6 @@
 #include "core/mcpserverconfig.h"
 
-namespace ocapi {
+namespace okapi {
 
 QString McpServerConfig::transportName(McpTransport transport) {
     switch (transport) {
@@ -86,4 +86,4 @@ const QVector<McpPermission> &McpServerConfig::allPermissions() {
     return permissions;
 }
 
-} // namespace ocapi
+} // namespace okapi

@@ -3,7 +3,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestMcpServerDatabase : public QObject {
     Q_OBJECT
@@ -27,7 +27,7 @@ private:
 void TestMcpServerDatabase::init() {
     m_database.close();
     static int counter = 0;
-    m_filePath = m_tempDir.filePath(QStringLiteral("ocapi-mcp-%1.sqlite").arg(counter++));
+    m_filePath = m_tempDir.filePath(QStringLiteral("okapi-mcp-%1.sqlite").arg(counter++));
     QVERIFY(m_tempDir.isValid());
     QVERIFY2(db().open(m_filePath), db().lastError().toUtf8().constData());
 }

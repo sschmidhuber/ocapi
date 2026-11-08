@@ -12,7 +12,7 @@
 #include <QScrollBar>
 #include <QSet>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -371,6 +371,6 @@ void ChatView::copyMessage(const QModelIndex &index) {
     QGuiApplication::clipboard()->setText(text);
 }
 
-} // namespace ocapi
+} // namespace okapi
 
 #include "chatview.moc"

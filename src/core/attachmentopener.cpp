@@ -4,7 +4,7 @@
 #include <QFileInfo>
 #include <QUrl>
 
-namespace ocapi {
+namespace okapi {
 
 bool AttachmentOpener::open(const QString &path, QString *error) {
     if (path.isEmpty() || !QFileInfo::exists(path)) {
@@ -22,4 +22,4 @@ bool AttachmentOpener::open(const QString &path, QString *error) {
     return false;
 }
 
-} // namespace ocapi
+} // namespace okapi

@@ -4,7 +4,7 @@
 #include <QSettings>
 #include <QSysInfo>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 constexpr auto kSettingsKey = "systemPrompt/text";
@@ -39,4 +39,4 @@ void SystemPrompt::save(QSettings &settings) const {
     settings.setValue(QLatin1String(kSettingsKey), m_text);
 }
 
-} // namespace ocapi
+} // namespace okapi

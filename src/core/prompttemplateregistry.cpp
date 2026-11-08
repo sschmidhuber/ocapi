@@ -4,7 +4,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -156,4 +156,4 @@ void PromptTemplateRegistry::save() const {
     save(settings);
 }
 
-} // namespace ocapi
+} // namespace okapi

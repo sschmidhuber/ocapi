@@ -11,7 +11,7 @@
 #include <QNetworkRequest>
 #include <QUrl>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -188,15 +188,15 @@ void OllamaBackend::onStreamEvent(const QByteArray &data) {
     const QJsonValue content = message.value(QStringLiteral("content"));
     reasoningToken = message.value(QStringLiteral("thinking")).toString();
     if (reasoningToken.isEmpty())
-        reasoningToken = ocapiContentThinking(content);
+        reasoningToken = okapiContentThinking(content);
     if (!reasoningToken.isEmpty()) {
         m_accumulatedReasoning.append(reasoningToken);
         emit reasoningReceived(m_currentMessageId, m_accumulatedReasoning);
     }
 
     // Reasoning-capable models can stream "content" as an array of typed
-    // parts (thinking/text); ocapiContentText() keeps only the visible text.
-    const QString token = ocapiContentText(content);
+    // parts (thinking/text); okapiContentText() keeps only the visible text.
+    const QString token = okapiContentText(content);
     if (!token.isEmpty()) {
         m_accumulated.append(token);
         emit tokenReceived(m_currentMessageId, m_accumulated);
@@ -222,4 +222,4 @@ void OllamaBackend::setAvailableTools(const QJsonArray &tools) {
     m_availableTools = tools;
 }
 
-} // namespace ocapi
+} // namespace okapi

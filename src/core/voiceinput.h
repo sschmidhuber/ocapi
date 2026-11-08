@@ -7,7 +7,7 @@
 #include <QObject>
 #include <QString>
 
-namespace ocapi {
+namespace okapi {
 
 class AudioRecorder;
 class SttClient;
@@ -55,4 +55,4 @@ private:
     bool m_active = false;
 };
 
-} // namespace ocapi
+} // namespace okapi

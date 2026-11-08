@@ -9,7 +9,7 @@
 #include <QVector>
 #include <optional>
 
-namespace ocapi {
+namespace okapi {
 
 struct ImageAttachment {
     QUuid id = QUuid::createUuid();
@@ -53,7 +53,7 @@ private:
     [[nodiscard]] static QByteArray encode(const QImage &image, QString *mimeType);
 };
 
-} // namespace ocapi
+} // namespace okapi
 
-Q_DECLARE_METATYPE(ocapi::ImageAttachment)
-Q_DECLARE_METATYPE(QVector<ocapi::ImageAttachment>)
+Q_DECLARE_METATYPE(okapi::ImageAttachment)
+Q_DECLARE_METATYPE(QVector<okapi::ImageAttachment>)

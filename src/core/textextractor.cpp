@@ -13,26 +13,26 @@
 #include <cstring>
 #include <memory>
 
-#if OCAPI_HAVE_POPPLER
+#if OKAPI_HAVE_POPPLER
 #include "poppler/cpp/poppler-document.h"
 #include "poppler/cpp/poppler-global.h"
 #include "poppler/cpp/poppler-page-renderer.h"
 #include "poppler/cpp/poppler-page.h"
 #endif
 
-#if OCAPI_HAVE_TESSERACT
+#if OKAPI_HAVE_TESSERACT
 #include <leptonica/allheaders.h>
 #include <tesseract/baseapi.h>
 #endif
 
-#if OCAPI_HAVE_LIBARCHIVE
+#if OKAPI_HAVE_LIBARCHIVE
 #include <archive.h>
 #include <archive_entry.h>
 #endif
 
-namespace ocapi {
+namespace okapi {
 
-#if OCAPI_HAVE_POPPLER
+#if OKAPI_HAVE_POPPLER
 namespace {
 
 QString toQString(const poppler::ustring &text) {
@@ -89,7 +89,7 @@ QImage renderPageScaled(const poppler::page *page, int maxEdge) {
 #endif
 
 bool TextExtractor::hasPoppler() {
-#if OCAPI_HAVE_POPPLER
+#if OKAPI_HAVE_POPPLER
     return true;
 #else
     return false;
@@ -97,7 +97,7 @@ bool TextExtractor::hasPoppler() {
 }
 
 bool TextExtractor::hasTesseract() {
-#if OCAPI_HAVE_TESSERACT
+#if OKAPI_HAVE_TESSERACT
     return true;
 #else
     return false;
@@ -105,7 +105,7 @@ bool TextExtractor::hasTesseract() {
 }
 
 bool TextExtractor::hasLibArchive() {
-#if OCAPI_HAVE_LIBARCHIVE
+#if OKAPI_HAVE_LIBARCHIVE
     return true;
 #else
     return false;
@@ -137,7 +137,7 @@ QStringList TextExtractor::supportedMimeTypes() {
 }
 
 QString TextExtractor::extractFromPdf(const QString &path, QString *error) {
-#if OCAPI_HAVE_POPPLER
+#if OKAPI_HAVE_POPPLER
     if (!QFileInfo::exists(path)) {
         if (error)
             *error = QObject::tr("File does not exist: %1").arg(path);
@@ -164,7 +164,7 @@ QString TextExtractor::extractFromPdf(const QString &path, QString *error) {
         QString pageText = toQString(page->text()).trimmed();
         if (pageText.isEmpty()) {
             // Scanned page without embedded text: render and OCR it.
-#if OCAPI_HAVE_TESSERACT
+#if OKAPI_HAVE_TESSERACT
             const QImage rendered = renderPage(page.get());
             if (!rendered.isNull()) {
                 QString ocrError;
@@ -189,7 +189,7 @@ QString TextExtractor::extractFromPdf(const QString &path, QString *error) {
 }
 
 QImage TextExtractor::renderFirstPdfPage(const QString &path, int maxEdge) {
-#if OCAPI_HAVE_POPPLER
+#if OKAPI_HAVE_POPPLER
     if (!QFileInfo::exists(path) || maxEdge <= 0)
         return {};
     std::unique_ptr<poppler::document> doc(poppler::document::load_from_file(path.toStdString()));
@@ -207,7 +207,7 @@ QImage TextExtractor::renderFirstPdfPage(const QString &path, int maxEdge) {
 }
 
 QString TextExtractor::extractFromImage(const QImage &image, QString *error) {
-#if OCAPI_HAVE_TESSERACT
+#if OKAPI_HAVE_TESSERACT
     if (image.isNull()) {
         if (error)
             *error = QObject::tr("Cannot extract text from an empty image.");
@@ -295,7 +295,7 @@ bool TextExtractor::isTextFile(const QString &path) {
     return validUtf8 && static_cast<double>(printable) / total >= kMinPrintableRatio;
 }
 
-#if OCAPI_HAVE_LIBARCHIVE
+#if OKAPI_HAVE_LIBARCHIVE
 namespace {
 
 // Text in office payload XML: OOXML stores it in dedicated run elements
@@ -434,13 +434,13 @@ static QString emailMessageToText(const QByteArray &raw) {
     const bool isHtml =
         headerValue("Content-Type").contains(QLatin1String("text/html"), Qt::CaseInsensitive);
     const QString bodyText =
-        isHtml ? ocapi::TextExtractor::htmlToText(body) : QString::fromUtf8(body);
+        isHtml ? okapi::TextExtractor::htmlToText(body) : QString::fromUtf8(body);
     out += bodyText;
     return out;
 }
 
 QString TextExtractor::extractFromOffice(const QString &path, QString *error) {
-#if OCAPI_HAVE_LIBARCHIVE
+#if OKAPI_HAVE_LIBARCHIVE
     if (!QFileInfo::exists(path)) {
         if (error)
             *error = QObject::tr("File does not exist: %1").arg(path);
@@ -554,7 +554,7 @@ QString TextExtractor::extractFromEmail(const QString &path, QString *error) {
     return extracted;
 }
 
-#if OCAPI_HAVE_LIBARCHIVE
+#if OKAPI_HAVE_LIBARCHIVE
 QString TextExtractor::extractFromArchive(const QString &path, QString *error) {
     archive *arch = archive_read_new();
     if (!arch) {
@@ -703,4 +703,4 @@ QString TextExtractor::extractFromFile(const QString &path, QString *error) {
     return {};
 }
 
-} // namespace ocapi
+} // namespace okapi

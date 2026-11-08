@@ -9,7 +9,7 @@
 #include <QImageWriter>
 #include <QUuid>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -214,4 +214,4 @@ ImagePreprocessor::fromBase64(const QString &id, const QString &mimeType, const 
     return attachment;
 }
 
-} // namespace ocapi
+} // namespace okapi

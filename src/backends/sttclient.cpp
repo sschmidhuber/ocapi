@@ -9,7 +9,7 @@
 #include <QNetworkRequest>
 #include <QUrl>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -76,7 +76,7 @@ void SttClient::transcribeChunk(const QByteArray &wav, bool emitReady) {
     multiPart->setParent(reply);
 
     if (sttDebug::sttEnabled())
-        sttDebug::log(QStringLiteral("[ocapi STT] http request: %1 (%2 bytes audio, model %3)")
+        sttDebug::log(QStringLiteral("[okapi STT] http request: %1 (%2 bytes audio, model %3)")
                           .arg(transcriptionUrl(m_config).toString(), QString::number(wav.size()),
                                m_config.effectiveModel()));
 
@@ -89,7 +89,7 @@ void SttClient::transcribeChunk(const QByteArray &wav, bool emitReady) {
         if (reply->error() != QNetworkReply::NoError) {
             if (sttDebug::sttEnabled())
                 sttDebug::log(
-                    QStringLiteral("[ocapi STT] http error: %1 (status %2, body: %3)")
+                    QStringLiteral("[okapi STT] http error: %1 (status %2, body: %3)")
                         .arg(reply->errorString())
                         .arg(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt())
                         .arg(QString::fromUtf8(payload.left(500))));
@@ -99,7 +99,7 @@ void SttClient::transcribeChunk(const QByteArray &wav, bool emitReady) {
             }
         } else {
             if (sttDebug::sttEnabled())
-                sttDebug::log(QStringLiteral("[ocapi STT] http response: %1")
+                sttDebug::log(QStringLiteral("[okapi STT] http response: %1")
                                   .arg(QString::fromUtf8(payload.left(500))));
             const QJsonDocument document = QJsonDocument::fromJson(payload);
             const QString text =
@@ -139,4 +139,4 @@ void SttClient::maybeFlush() {
     }
 }
 
-} // namespace ocapi
+} // namespace okapi

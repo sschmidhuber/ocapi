@@ -4,7 +4,7 @@
 
 class QCheckBox;
 
-namespace ocapi {
+namespace okapi {
 
 class UiSettings;
 
@@ -22,4 +22,4 @@ private:
     QCheckBox *m_showThroughputBox = nullptr;
 };
 
-} // namespace ocapi
+} // namespace okapi

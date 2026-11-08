@@ -3,7 +3,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -128,4 +128,4 @@ void TtsRegistry::setActiveServiceId(const QString &id) {
     emit changed();
 }
 
-} // namespace ocapi
+} // namespace okapi

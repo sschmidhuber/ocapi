@@ -8,7 +8,7 @@
 #include <QUuid>
 #include <QVector>
 
-namespace ocapi {
+namespace okapi {
 
 // One prompt template: a name shown in the composer's autocompletion, a
 // mandatory prompt text and optional file attachments. Inserted into the
@@ -55,4 +55,4 @@ private:
     QSettings::Format m_persistFormat = QSettings::IniFormat;
 };
 
-} // namespace ocapi
+} // namespace okapi

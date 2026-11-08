@@ -6,7 +6,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestSystemPrompt : public QObject {
     Q_OBJECT
@@ -56,7 +56,7 @@ void TestSystemPrompt::substituteIsCaseInsensitive() {
 void TestSystemPrompt::loadSaveRoundtrip() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const QString path = dir.path() + QStringLiteral("/ocapi.conf");
+    const QString path = dir.path() + QStringLiteral("/okapi.conf");
     {
         QSettings settings(path, QSettings::IniFormat);
         SystemPrompt prompt;
@@ -74,7 +74,7 @@ void TestSystemPrompt::loadSaveRoundtrip() {
 void TestSystemPrompt::loadFallsBackToDefault() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    QSettings settings(dir.path() + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    QSettings settings(dir.path() + QStringLiteral("/okapi.conf"), QSettings::IniFormat);
     SystemPrompt prompt;
     prompt.load(settings);
     QCOMPARE(prompt.text(), SystemPrompt::defaultTemplate());

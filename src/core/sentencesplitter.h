@@ -3,7 +3,7 @@
 #include <QString>
 #include <QStringList>
 
-namespace ocapi {
+namespace okapi {
 
 // Splits streamed assistant text into speakable sentences. Markdown and HTML
 // markup (code spans/blocks, emphasis, headings, link URLs, tags) is stripped
@@ -59,4 +59,4 @@ private:
     int m_pendingFence = 0;         // backticks seen at line start (fence candidate)
 };
 
-} // namespace ocapi
+} // namespace okapi

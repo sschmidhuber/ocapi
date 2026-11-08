@@ -15,21 +15,21 @@
 
 namespace {
 
-// When running the end-to-end tests (OCAPI_E2E_MOCK_BACKEND=1), pre-seed a
+// When running the end-to-end tests (OKAPI_E2E_MOCK_BACKEND=1), pre-seed a
 // backend pointing at the mock server from tests/e2e/mock_ollama.py so the
 // tests do not depend on menu-driven backend configuration.
 void seedE2eMockBackend() {
-    const QByteArray port = qgetenv("OCAPI_E2E_MOCK_PORT");
+    const QByteArray port = qgetenv("OKAPI_E2E_MOCK_PORT");
     const QString url = QStringLiteral("http://127.0.0.1:") +
                         (port.isEmpty() ? QStringLiteral("11434") : QString::fromLatin1(port));
 
     const QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     if (!QDir().mkpath(dataDir))
         return;
-    ocapi::ChatDatabase database;
-    if (!database.open(dataDir + QStringLiteral("/ocapi.sqlite")))
+    okapi::ChatDatabase database;
+    if (!database.open(dataDir + QStringLiteral("/okapi.sqlite")))
         return;
-    ocapi::BackendRegistry registry;
+    okapi::BackendRegistry registry;
     registry.load(database);
     // Seed two backends on the same mock server, so the model picker has
     // two providers and the "new chat keeps backend+model" E2E test can
@@ -40,7 +40,7 @@ void seedE2eMockBackend() {
             firstId = config.id.toString(QUuid::WithoutBraces);
     }
     if (firstId.isEmpty()) {
-        auto &config = registry.add(QStringLiteral("Mock backend"), ocapi::BackendKind::Ollama);
+        auto &config = registry.add(QStringLiteral("Mock backend"), okapi::BackendKind::Ollama);
         config.baseUrl = url;
         config.enabled = true;
         firstId = config.id.toString(QUuid::WithoutBraces);
@@ -52,7 +52,7 @@ void seedE2eMockBackend() {
             secondExists = true;
     }
     if (!secondExists) {
-        auto &second = registry.add(QStringLiteral("Mock backend 2"), ocapi::BackendKind::Ollama);
+        auto &second = registry.add(QStringLiteral("Mock backend 2"), okapi::BackendKind::Ollama);
         second.baseUrl = secondUrl;
         second.enabled = true;
     }
@@ -63,28 +63,28 @@ void seedE2eMockBackend() {
     // persist it as the first backend's last model selection.
     const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     QDir().mkpath(configDir);
-    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    QSettings settings(configDir + QStringLiteral("/okapi.conf"), QSettings::IniFormat);
     settings.setValue(QStringLiteral("models/last/%1").arg(firstId), QStringLiteral("mock-model"));
 
-    // With OCAPI_E2E_MOCK_MCP=1, also seed an MCP server pointing at the
+    // With OKAPI_E2E_MOCK_MCP=1, also seed an MCP server pointing at the
     // mock server from tests/e2e/mock_mcp.py. Its tools are allowed without
     // a confirmation dialog so the chat flow can run unattended.
-    if (!qEnvironmentVariableIsSet("OCAPI_E2E_MOCK_MCP"))
+    if (!qEnvironmentVariableIsSet("OKAPI_E2E_MOCK_MCP"))
         return;
-    const QByteArray mcpPort = qgetenv("OCAPI_E2E_MOCK_MCP_PORT");
+    const QByteArray mcpPort = qgetenv("OKAPI_E2E_MOCK_MCP_PORT");
     const QString mcpUrl =
         QStringLiteral("http://127.0.0.1:") +
         (mcpPort.isEmpty() ? QStringLiteral("11435") : QString::fromLatin1(mcpPort));
-    ocapi::McpRegistry mcpRegistry;
+    okapi::McpRegistry mcpRegistry;
     mcpRegistry.load(database);
     for (const auto &server : mcpRegistry.servers()) {
         if (server.url == mcpUrl)
             return;
     }
-    ocapi::McpServerConfig &server =
-        mcpRegistry.add(QStringLiteral("Mock MCP"), ocapi::McpTransport::StreamableHttp);
+    okapi::McpServerConfig &server =
+        mcpRegistry.add(QStringLiteral("Mock MCP"), okapi::McpTransport::StreamableHttp);
     server.url = mcpUrl;
-    server.defaultPermission = ocapi::McpPermission::Allow;
+    server.defaultPermission = okapi::McpPermission::Allow;
     server.enabled = true;
     mcpRegistry.save();
 }
@@ -102,22 +102,22 @@ void applyDesktopStyle(QApplication &app) {
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
-    QApplication::setApplicationName(QStringLiteral("ocapi"));
+    QApplication::setApplicationName(QStringLiteral("okapi"));
     QApplication::setOrganizationName(QStringLiteral("sschmidhuber"));
     // The display name is what Qt appends to the window title when the title
     // does not already end with it (QPlatformWindow); keep it in sync with
-    // the title "Ocapi" so the title bar shows just "Ocapi", not
-    // "Ocapi -- ocapi". The application name stays lowercase: it determines
-    // the config/data paths (ocapi.conf, ocapi.sqlite).
-    QApplication::setApplicationDisplayName(QStringLiteral("Ocapi"));
-    QApplication::setWindowIcon(QIcon(QStringLiteral(":/resources/icons/ocapi.png")));
+    // the title "Okapi" so the title bar shows just "Okapi", not
+    // "Okapi -- okapi". The application name stays lowercase: it determines
+    // the config/data paths (okapi.conf, okapi.sqlite).
+    QApplication::setApplicationDisplayName(QStringLiteral("Okapi"));
+    QApplication::setWindowIcon(QIcon(QStringLiteral(":/resources/icons/okapi.png")));
 
     applyDesktopStyle(app);
 
-    if (qEnvironmentVariableIsSet("OCAPI_E2E_MOCK_BACKEND"))
+    if (qEnvironmentVariableIsSet("OKAPI_E2E_MOCK_BACKEND"))
         seedE2eMockBackend();
 
-    ocapi::MainWindow window;
+    okapi::MainWindow window;
     window.show();
 
     return QApplication::exec();

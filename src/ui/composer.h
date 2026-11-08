@@ -24,7 +24,7 @@ class QShortcut;
 
 class QToolButton;
 
-namespace ocapi {
+namespace okapi {
 
 class MessageTextEdit : public QPlainTextEdit {
     Q_OBJECT
@@ -33,7 +33,7 @@ public:
     explicit MessageTextEdit(QWidget *parent = nullptr);
 
 signals:
-    void imagePasted(const ocapi::ImageAttachment &attachment);
+    void imagePasted(const okapi::ImageAttachment &attachment);
     void imagePasteFailed(const QString &error);
     void documentDropped(const QString &path);
 
@@ -107,8 +107,8 @@ public:
     [[nodiscard]] bool promptMenuActive() const { return m_promptActive; }
 
 signals:
-    void sendRequested(const QString &text, const QVector<ocapi::ImageAttachment> &images,
-                       const QVector<ocapi::FileAttachment> &files);
+    void sendRequested(const QString &text, const QVector<okapi::ImageAttachment> &images,
+                       const QVector<okapi::FileAttachment> &files);
     void attachmentsChanged();
     void dictationRequested();
     // The prompt-template trigger was typed (menu opens).
@@ -164,4 +164,4 @@ private:
     bool m_busy = false;
 };
 
-} // namespace ocapi
+} // namespace okapi

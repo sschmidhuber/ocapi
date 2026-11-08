@@ -9,7 +9,7 @@
 #include <QTcpSocket>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 namespace {
 

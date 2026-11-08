@@ -6,7 +6,7 @@ class QLineEdit;
 class QPushButton;
 class QTableWidget;
 
-namespace ocapi {
+namespace okapi {
 
 class ShortcutRegistry;
 
@@ -45,4 +45,4 @@ private:
     QPushButton *m_resetButton = nullptr;
 };
 
-} // namespace ocapi
+} // namespace okapi

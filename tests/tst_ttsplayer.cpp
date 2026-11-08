@@ -11,7 +11,7 @@
 #include <QTcpSocket>
 #include <QTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 namespace {
 

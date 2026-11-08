@@ -16,7 +16,7 @@
 #include <QSplitter>
 #include <QVBoxLayout>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -241,4 +241,4 @@ void PromptTemplatesPage::onRemoveAttachment() {
     }
 }
 
-} // namespace ocapi
+} // namespace okapi

@@ -19,7 +19,7 @@
 
 #include <memory>
 
-using namespace ocapi;
+using namespace okapi;
 namespace {
 
 QListWidget *categoriesList(const SettingsDialog &dialog) {

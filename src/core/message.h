@@ -10,7 +10,7 @@
 #include <QUuid>
 #include <QVector>
 
-namespace ocapi {
+namespace okapi {
 
 enum class Role {
     System,
@@ -42,12 +42,12 @@ struct ToolCall {
     }
 };
 
-} // namespace ocapi
+} // namespace okapi
 
-Q_DECLARE_METATYPE(ocapi::ToolCall)
-Q_DECLARE_METATYPE(QVector<ocapi::ToolCall>)
+Q_DECLARE_METATYPE(okapi::ToolCall)
+Q_DECLARE_METATYPE(QVector<okapi::ToolCall>)
 
-namespace ocapi {
+namespace okapi {
 
 // A non-image file attached to a chat message (PDF, office document,
 // archive, e-mail, plain text, ...). The thumbnail is a small PNG preview
@@ -64,12 +64,12 @@ struct FileAttachment {
     [[nodiscard]] QImage decodeThumbnail() const { return QImage::fromData(thumbnail); }
 };
 
-} // namespace ocapi
+} // namespace okapi
 
-Q_DECLARE_METATYPE(ocapi::FileAttachment)
-Q_DECLARE_METATYPE(QVector<ocapi::FileAttachment>)
+Q_DECLARE_METATYPE(okapi::FileAttachment)
+Q_DECLARE_METATYPE(QVector<okapi::FileAttachment>)
 
-namespace ocapi {
+namespace okapi {
 
 struct Message {
     QUuid id = QUuid::createUuid();
@@ -143,4 +143,4 @@ struct Message {
     }
 };
 
-} // namespace ocapi
+} // namespace okapi

@@ -8,7 +8,7 @@
 #include <QUuid>
 #include <QVector>
 
-namespace ocapi {
+namespace okapi {
 
 class ChatSession : public QObject {
     Q_OBJECT
@@ -68,8 +68,8 @@ public:
 
 signals:
     void titleChanged(const QString &title);
-    void messageAdded(const ocapi::Message &message);
-    void messageUpdated(const ocapi::Message &message);
+    void messageAdded(const okapi::Message &message);
+    void messageUpdated(const okapi::Message &message);
     void messagesTruncated(const QUuid &fromId);
 
 private:
@@ -82,4 +82,4 @@ private:
     QDateTime m_lastActivityAt = m_createdAt;
 };
 
-} // namespace ocapi
+} // namespace okapi

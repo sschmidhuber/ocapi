@@ -6,7 +6,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestUiSettings : public QObject {
     Q_OBJECT
@@ -29,7 +29,7 @@ void TestUiSettings::setShowThroughputEmitsChanged() {
     QVERIFY(dir.isValid());
     UiSettings settings;
     {
-        QSettings file(dir.filePath(QStringLiteral("ocapi.conf")), QSettings::IniFormat);
+        QSettings file(dir.filePath(QStringLiteral("okapi.conf")), QSettings::IniFormat);
         settings.load(file);
     }
     QSignalSpy spy(&settings, &UiSettings::changed);
@@ -44,7 +44,7 @@ void TestUiSettings::setShowThroughputEmitsChanged() {
 void TestUiSettings::saveLoadRoundtrip() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const QString path = dir.filePath(QStringLiteral("ocapi.conf"));
+    const QString path = dir.filePath(QStringLiteral("okapi.conf"));
 
     UiSettings settings;
     {
@@ -80,7 +80,7 @@ void TestUiSettings::setSameValueDoesNotEmit() {
 void TestUiSettings::composerHeightClampedAndPersisted() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const QString path = dir.filePath(QStringLiteral("ocapi.conf"));
+    const QString path = dir.filePath(QStringLiteral("okapi.conf"));
 
     UiSettings settings;
     {

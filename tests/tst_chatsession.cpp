@@ -4,7 +4,7 @@
 #include <QSignalSpy>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestChatSession : public QObject {
     Q_OBJECT
@@ -61,7 +61,7 @@ void TestChatSession::appendMessageAddsMessageAndEmitsSignal() {
     QCOMPARE(message.role, Role::User);
     QCOMPARE(message.content, QStringLiteral("hello"));
     QCOMPARE(addedSpy.count(), 1);
-    const auto emitted = addedSpy.takeFirst().at(0).value<ocapi::Message>();
+    const auto emitted = addedSpy.takeFirst().at(0).value<okapi::Message>();
     QCOMPARE(emitted.id, message.id);
 }
 

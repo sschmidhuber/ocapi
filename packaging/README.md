@@ -1,6 +1,6 @@
 # Packaging
 
-Scripts and manifests to produce installable packages for ocapi.
+Scripts and manifests to produce installable packages for okapi.
 
 | Platform | Format | Script |
 |---|---|---|
@@ -57,7 +57,7 @@ and therefore not automated here:
 
 ```sh
 packaging/flatpak/build-flatpak.sh 0.1.0 dist
-flatpak install dist/dev.sschmidhuber.ocapi-0.1.0.flatpak
+flatpak install dist/dev.sschmidhuber.okapi-0.1.0.flatpak
 ```
 
 The build script adds the flathub remote if missing and installs the
@@ -66,7 +66,7 @@ required `org.kde.Platform//6.10` / `org.kde.Sdk//6.10` runtimes and the
 download), so no manual setup is needed beyond `flatpak` and
 `flatpak-builder` themselves.
 
-The manifest (`flatpak/dev.sschmidhuber.ocapi.yml`) builds from the git
+The manifest (`flatpak/dev.sschmidhuber.okapi.yml`) builds from the git
 checkout. It uses the KDE Platform/Sdk 6.10 runtime (Qt 6.10); Qt
 WebEngine is not part of org.kde.Sdk, so the app additionally uses
 `io.qt.qtwebengine.BaseApp//6.10`. poppler-cpp and tesseract (with language
@@ -79,10 +79,10 @@ the sandbox; libarchive comes from the SDK.
 ```sh
 # Fedora:  sudo dnf install rpm-build cmake ninja-build gcc-c++ qt6-qtbase-devel
 packaging/rpm/build-rpm.sh 0.1.0 dist
-sudo dnf install dist/ocapi-0.1.0-1.*.rpm
+sudo dnf install dist/okapi-0.1.0-1.*.rpm
 ```
 
-The spec is `rpm/ocapi.spec`. To also enable attachment text extraction,
+The spec is `rpm/okapi.spec`. To also enable attachment text extraction,
 add `poppler-cpp-devel tesseract-devel libarchive-devel` to
 `BuildRequires` and install them before building.
 
@@ -93,7 +93,7 @@ add `poppler-cpp-devel tesseract-devel libarchive-devel` to
 #     qt6-base-dev qt6-base-dev-tools qt6-multimedia-dev qt6-websockets-dev \
 #     libqt6sql6-sqlite libgl-dev dpkg-dev
 packaging/deb/build-deb.sh 0.1.0 dist
-sudo apt install ./dist/ocapi_0.1.0-1_amd64.deb
+sudo apt install ./dist/okapi_0.1.0-1_amd64.deb
 ```
 
 Runtime dependencies are resolved with `dpkg-shlibdeps` from the staged
@@ -114,8 +114,8 @@ installation. Pass `-QtDir` (e.g. `C:\Qt\6.8.2\msvc2022_64`) so CMake and
 packaging\windows\build-msix.ps1 -Version 0.1.0 -QtDir C:\Qt\6.8.2\msvc2022_64
 ```
 
-Produces `dist\ocapi-0.1.0-x64.msix`. The manifest is
-`windows/Package.appxmanifest` (identity `sschmidhuber.ocapi`, full-trust
+Produces `dist\okapi-0.1.0-x64.msix`. The manifest is
+`windows/Package.appxmanifest` (identity `sschmidhuber.okapi`, full-trust
 desktop app). Store logos under `windows/Assets/` should be added as real
 PNGs before publishing to the Store.
 
@@ -127,7 +127,7 @@ dotnet tool update --global wix
 packaging\windows\build-msi.ps1 -Version 0.1.0 -QtDir C:\Qt\6.8.2\msvc2022_64
 ```
 
-Produces `dist\ocapi-0.1.0-x64.msi` via CPack's WiX generator. The
+Produces `dist\okapi-0.1.0-x64.msi` via CPack's WiX generator. The
 upgrade GUID and product icon are configured in the top-level
 `CMakeLists.txt`.
 
@@ -138,7 +138,7 @@ upgrade GUID and product icon are configured in the top-level
 packaging\windows\build-exe.ps1 -Version 0.1.0 -QtDir C:\Qt\6.8.2\msvc2022_64
 ```
 
-Produces `dist\ocapi-0.1.0-windows-x64.exe`, a self-contained installer
+Produces `dist\okapi-0.1.0-windows-x64.exe`, a self-contained installer
 that bundles the Qt runtime via `windeployqt`.
 
 ## Files
@@ -146,10 +146,10 @@ that bundles the Qt runtime via `windeployqt`.
 ```
 packaging/
   README.md                              this file
-  linux/dev.sschmidhuber.ocapi.appdata.xml   AppStream metadata (rpm/deb)
-  flatpak/dev.sschmidhuber.ocapi.yml     Flatpak manifest
+  linux/dev.sschmidhuber.okapi.appdata.xml   AppStream metadata (rpm/deb)
+  flatpak/dev.sschmidhuber.okapi.yml     Flatpak manifest
   flatpak/build-flatpak.sh               Flatpak bundle builder
-  rpm/ocapi.spec                         RPM spec
+  rpm/okapi.spec                         RPM spec
   rpm/build-rpm.sh                       RPM builder
   deb/build-deb.sh                       DEB builder
   windows/Package.appxmanifest           MSIX manifest

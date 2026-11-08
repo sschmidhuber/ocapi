@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -55,4 +55,4 @@ void UiSettings::save() const {
     save(settings);
 }
 
-} // namespace ocapi
+} // namespace okapi

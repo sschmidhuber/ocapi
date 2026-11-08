@@ -414,7 +414,7 @@
         const stash = [];
         function stashToken(s) {
           stash.push(s);
-          return '@@ocapi' + (stash.length - 1) + '@@';
+          return '@@okapi' + (stash.length - 1) + '@@';
         }
 
         let masked = text.replace(/(```|~~~)[\s\S]*?(?:\1|$)/g, function (m) {
@@ -434,7 +434,7 @@
 
         let html = marked.parse(masked);
         for (let i = 0; i < stash.length; i++) {
-          const token = '@@ocapi' + i + '@@';
+          const token = '@@okapi' + i + '@@';
           let replacement = stash[i];
           if (replacement.charAt(0) === '`' && replacement.charAt(1) === '`')
             replacement = marked.parse(replacement); // fenced code block

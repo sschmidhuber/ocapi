@@ -27,7 +27,7 @@
 
 #include <algorithm>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -711,6 +711,6 @@ int Composer::attachmentStripHeight() const {
     return m_stripHeight;
 }
 
-} // namespace ocapi
+} // namespace okapi
 
 #include "composer.moc"

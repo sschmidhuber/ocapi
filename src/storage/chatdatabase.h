@@ -12,7 +12,7 @@
 #include "core/mcpserverconfig.h"
 #include "core/message.h"
 
-namespace ocapi {
+namespace okapi {
 
 class ChatSession;
 
@@ -145,4 +145,4 @@ private:
     mutable QString m_lastError;
 };
 
-} // namespace ocapi
+} // namespace okapi

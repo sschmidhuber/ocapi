@@ -6,7 +6,7 @@
 
 class QMouseEvent;
 
-namespace ocapi {
+namespace okapi {
 
 class ChatSession;
 
@@ -36,4 +36,4 @@ private:
     QVector<Message> m_messages;
 };
 
-} // namespace ocapi
+} // namespace okapi

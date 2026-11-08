@@ -2,7 +2,7 @@
 
 #include <QHash>
 
-namespace ocapi {
+namespace okapi {
 
 QString TtsServiceConfig::kindName(TtsServiceKind kind) {
     switch (kind) {
@@ -394,4 +394,4 @@ TtsServiceConfig TtsServiceConfig::fromJson(const QJsonObject &object) {
     return config;
 }
 
-} // namespace ocapi
+} // namespace okapi

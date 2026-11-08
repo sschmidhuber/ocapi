@@ -1,6 +1,6 @@
 #include "core/sentencesplitter.h"
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -351,4 +351,4 @@ bool SentenceSplitter::stripHtmlChar(QChar ch, QString &out) {
     return false;
 }
 
-} // namespace ocapi
+} // namespace okapi

@@ -9,7 +9,7 @@
 #include <QUrlQuery>
 #include <QWebSocket>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -19,7 +19,7 @@ constexpr int kDefaultSampleRate = 16000;
 
 void debugLog(const QByteArray &line) {
     if (sttDebug::sttEnabled())
-        sttDebug::log(QStringLiteral("[ocapi STT] %1").arg(QString::fromUtf8(line)));
+        sttDebug::log(QStringLiteral("[okapi STT] %1").arg(QString::fromUtf8(line)));
 }
 
 } // namespace
@@ -265,4 +265,4 @@ void SttStreamClient::emitAccumulated() {
     }
 }
 
-} // namespace ocapi
+} // namespace okapi

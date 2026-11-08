@@ -11,7 +11,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -204,4 +204,4 @@ void GeminiBackend::cancel() {
         m_stream->cancel();
 }
 
-} // namespace ocapi
+} // namespace okapi

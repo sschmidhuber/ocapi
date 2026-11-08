@@ -5,13 +5,13 @@
 #include <QString>
 #include <QtGlobal>
 
-namespace ocapi {
+namespace okapi {
 
 class ChatSession;
 
 namespace toolDebug {
 
-// Env-gated debug logging for the MCP tool-call loop: set OCAPI_DEBUG_TOOLS
+// Env-gated debug logging for the MCP tool-call loop: set OKAPI_DEBUG_TOOLS
 // to see on stderr which tool calls the model requested, how each call is
 // executed (permission decision, server, arguments), which tool-result
 // messages are appended to the session, and the exact conversation that is
@@ -19,12 +19,12 @@ namespace toolDebug {
 // your own traffic.
 
 [[nodiscard]] inline bool enabled() {
-    static const bool on = qEnvironmentVariableIsSet("OCAPI_DEBUG_TOOLS");
+    static const bool on = qEnvironmentVariableIsSet("OKAPI_DEBUG_TOOLS");
     return on;
 }
 
 inline void log(const QString &line) {
-    qWarning().noquote() << "[ocapi tools]" << line;
+    qWarning().noquote() << "[okapi tools]" << line;
 }
 
 // Dumps the session's messages (role, content length/snippet, tool calls)
@@ -32,4 +32,4 @@ inline void log(const QString &line) {
 void logSession(const ChatSession *session, const QString &label);
 
 } // namespace toolDebug
-} // namespace ocapi
+} // namespace okapi

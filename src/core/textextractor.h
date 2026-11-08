@@ -4,7 +4,7 @@
 #include <QString>
 #include <QStringList>
 
-namespace ocapi {
+namespace okapi {
 
 // Extracts text from input files for the chat: text from PDF files via
 // Poppler (with automatic OCR of scanned pages via Tesseract), text from
@@ -83,4 +83,4 @@ public:
     [[nodiscard]] static qint64 maxArchiveTotalBytes() { return qint64(256) * 1024 * 1024; }
 };
 
-} // namespace ocapi
+} // namespace okapi

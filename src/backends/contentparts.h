@@ -5,7 +5,7 @@
 #include <QJsonValue>
 #include <QString>
 
-namespace ocapi {
+namespace okapi {
 
 // Extracts the visible text of a streamed message's "content" field.
 // Content is usually a plain string, but servers that stream reasoning
@@ -14,7 +14,7 @@ namespace ocapi {
 // reasoning as {"type":"thinking"} parts. Reading it with toString()
 // alone silently dropped the first token of a reply when the server
 // switched from parts to plain strings mid-stream.
-inline QString ocapiContentText(const QJsonValue &content) {
+inline QString okapiContentText(const QJsonValue &content) {
     if (content.isString())
         return content.toString();
     if (!content.isArray())
@@ -43,7 +43,7 @@ inline QString ocapiContentText(const QJsonValue &content) {
 // comes as {"type":"thinking"} parts whose "thinking" value is a string
 // or an array of {"type":"text","text":...} segments. Plain-string
 // content carries no reasoning.
-inline QString ocapiContentThinking(const QJsonValue &content) {
+inline QString okapiContentThinking(const QJsonValue &content) {
     if (!content.isArray())
         return {};
     QString text;
@@ -67,4 +67,4 @@ inline QString ocapiContentThinking(const QJsonValue &content) {
     return text;
 }
 
-} // namespace ocapi
+} // namespace okapi

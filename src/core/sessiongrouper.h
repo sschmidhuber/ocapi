@@ -3,7 +3,7 @@
 #include <QDateTime>
 #include <QString>
 
-namespace ocapi {
+namespace okapi {
 
 // Groups chat sessions into a time-based tree for the sidebar. The group
 // label for a timestamp follows the common chat-app convention:
@@ -27,4 +27,4 @@ public:
     [[nodiscard]] static QString groupLabel(const QString &key);
 };
 
-} // namespace ocapi
+} // namespace okapi

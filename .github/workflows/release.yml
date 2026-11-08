@@ -64,7 +64,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ocapi-flatpak
+          name: okapi-flatpak
           path: dist/*.flatpak
           if-no-files-found: error
 
@@ -90,7 +90,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ocapi-rpm
+          name: okapi-rpm
           path: dist/*.rpm
           if-no-files-found: error
 
@@ -115,7 +115,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ocapi-deb
+          name: okapi-deb
           path: dist/*.deb
           if-no-files-found: error
 
@@ -173,7 +173,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ocapi-windows
+          name: okapi-windows
           path: |
             dist/*.msix
             dist/*.msi
@@ -203,7 +203,7 @@ jobs:
           TAG="v${{ needs.version.outputs.version }}"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             echo ">> No release found for tag $TAG; creating a draft release."
-            gh release create "$TAG" --draft --title "ocapi $TAG" --notes "Automated package build for $TAG. All packages are unsigned."
+            gh release create "$TAG" --draft --title "okapi $TAG" --notes "Automated package build for $TAG. All packages are unsigned."
           fi
           gh release upload "$TAG" artifacts/* --clobber
           echo ">> Uploaded to release $TAG"

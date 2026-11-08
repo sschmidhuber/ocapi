@@ -1,6 +1,6 @@
 #include "core/chatsession.h"
 
-namespace ocapi {
+namespace okapi {
 
 ChatSession::ChatSession(QObject *parent) : QObject(parent), m_title(tr("New chat")) {}
 
@@ -221,4 +221,4 @@ void ChatSession::clear() {
     m_messages.clear();
 }
 
-} // namespace ocapi
+} // namespace okapi

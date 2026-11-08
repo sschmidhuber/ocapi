@@ -10,7 +10,7 @@
 
 #include <memory>
 
-using namespace ocapi;
+using namespace okapi;
 
 namespace {
 

@@ -19,7 +19,7 @@
 #include <QVector>
 #include <algorithm>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -341,4 +341,4 @@ BackendKind BackendPage::currentKind() const {
     return static_cast<BackendKind>(m_kindCombo->currentData().toInt());
 }
 
-} // namespace ocapi
+} // namespace okapi

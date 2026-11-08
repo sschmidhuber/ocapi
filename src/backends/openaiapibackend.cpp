@@ -14,7 +14,7 @@
 #include <QNetworkRequest>
 #include <QUrl>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -204,7 +204,7 @@ void OpenAiApiBackend::sendMessage(ChatSession *session, const QString &model,
 namespace {
 
 QString contentText(const QJsonObject &delta) {
-    return ocapiContentText(delta.value(QStringLiteral("content")));
+    return okapiContentText(delta.value(QStringLiteral("content")));
 }
 
 // Reasoning ("thinking") delta: OpenAI-compatible servers send it either
@@ -215,7 +215,7 @@ QString reasoningText(const QJsonObject &delta) {
     if (text.isEmpty())
         text = delta.value(QStringLiteral("reasoning")).toString();
     if (text.isEmpty())
-        text = ocapiContentThinking(delta.value(QStringLiteral("content")));
+        text = okapiContentThinking(delta.value(QStringLiteral("content")));
     return text;
 }
 
@@ -316,4 +316,4 @@ void OpenAiApiBackend::setAvailableTools(const QJsonArray &tools) {
     m_availableTools = tools;
 }
 
-} // namespace ocapi
+} // namespace okapi

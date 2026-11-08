@@ -3,7 +3,7 @@
 #include <QObject>
 #include <QSettings>
 
-namespace ocapi {
+namespace okapi {
 
 // General "User Interface" settings (Settings > General > User Interface),
 // persisted in the application settings under the "ui" group. Mirrors the
@@ -42,4 +42,4 @@ private:
     QSettings::Format m_persistFormat = QSettings::IniFormat;
 };
 
-} // namespace ocapi
+} // namespace okapi

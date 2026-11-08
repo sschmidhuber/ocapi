@@ -2,7 +2,7 @@
 
 #include <QLocale>
 
-namespace ocapi {
+namespace okapi {
 
 QString SessionGrouper::groupKey(const QDateTime &timestamp, const QDateTime &reference) {
     if (!timestamp.isValid())
@@ -57,4 +57,4 @@ QString SessionGrouper::groupLabel(const QString &key) {
     return key;
 }
 
-} // namespace ocapi
+} // namespace okapi

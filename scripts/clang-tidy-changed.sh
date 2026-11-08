@@ -2,7 +2,7 @@
 # Run clang-tidy on the C++ translation units changed relative to a base
 # ref, in parallel.
 #
-# Unlike the compile-time integration (OCAPI_ENABLE_CLANG_TIDY=ON), this
+# Unlike the compile-time integration (OKAPI_ENABLE_CLANG_TIDY=ON), this
 # script does not rebuild the project first: it configures a build tree
 # purely to generate compile_commands.json, then invokes clang-tidy
 # directly on the changed .cpp files. Files are checked concurrently with
@@ -48,7 +48,7 @@ printf '   %s\n' $CHANGED
 
 echo ">> Generating compile_commands.json (autogen + configure only, no compile)"
 cmake -B "$BUILD_DIR" -G Ninja -DCMAKE_BUILD_TYPE=Debug \
-    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DOCAPI_BUILD_TESTS=ON >/dev/null
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DOKAPI_BUILD_TESTS=ON >/dev/null
 # Qt's AUTOMOC generates the <name>.moc includes for test and app sources;
 # clang-tidy needs them on disk even though we never compile. Building only
 # the changed files' targets (autogen + object) is much faster than a full
@@ -57,7 +57,7 @@ for file in $CHANGED; do
     target="$(basename "$file" .cpp)"
     cmake --build "$BUILD_DIR" --target "${target}_autogen" >/dev/null 2>&1 || true
 done
-cmake --build "$BUILD_DIR" --target ocapi-core_autogen ocapi_autogen >/dev/null 2>&1 || true
+cmake --build "$BUILD_DIR" --target okapi-core_autogen okapi_autogen >/dev/null 2>&1 || true
 run_tidy() {
     file="$1"
     build_dir="$2"

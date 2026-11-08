@@ -4,7 +4,7 @@
 
 #include <algorithm>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -110,4 +110,4 @@ void ShortcutRegistry::save(QSettings &settings) const {
     settings.endGroup();
 }
 
-} // namespace ocapi
+} // namespace okapi

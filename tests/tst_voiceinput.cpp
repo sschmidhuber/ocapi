@@ -3,7 +3,7 @@
 
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestVoiceInput : public QObject {
     Q_OBJECT

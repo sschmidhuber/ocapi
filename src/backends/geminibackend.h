@@ -7,7 +7,7 @@
 class QNetworkAccessManager;
 class QNetworkReply;
 
-namespace ocapi {
+namespace okapi {
 
 class SseClient;
 
@@ -34,4 +34,4 @@ private:
     QString m_accumulatedReasoning;
 };
 
-} // namespace ocapi
+} // namespace okapi

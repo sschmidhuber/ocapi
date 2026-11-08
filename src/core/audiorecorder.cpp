@@ -7,7 +7,7 @@
 
 #include <algorithm>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -112,4 +112,4 @@ bool AudioRecorder::isActive() const {
     return m_active;
 }
 
-} // namespace ocapi
+} // namespace okapi

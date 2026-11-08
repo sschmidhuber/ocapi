@@ -2,7 +2,7 @@
 
 #include <QString>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -110,4 +110,4 @@ std::optional<SseEvent> parseSseEventBlock(const QByteArray &rawEvent) {
     return SseEvent{event, data};
 }
 
-} // namespace ocapi
+} // namespace okapi

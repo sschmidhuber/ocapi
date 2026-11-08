@@ -8,7 +8,7 @@
 
 #include <functional>
 
-using namespace ocapi;
+using namespace okapi;
 
 namespace {
 
@@ -228,12 +228,12 @@ void TestMarkdown::tableRendersAsTable() {
 }
 
 void TestMarkdown::tableKeepsCellText() {
-    const QString md = QStringLiteral("| Name | Size |\n| --- | --- |\n| ocapi | small |");
+    const QString md = QStringLiteral("| Name | Size |\n| --- | --- |\n| okapi | small |");
     const auto doc = MarkdownRenderer::render(md, 400, testFont());
     const QString text = doc->toPlainText();
     QVERIFY(text.contains(QStringLiteral("Name")));
     QVERIFY(text.contains(QStringLiteral("Size")));
-    QVERIFY(text.contains(QStringLiteral("ocapi")));
+    QVERIFY(text.contains(QStringLiteral("okapi")));
     QVERIFY(text.contains(QStringLiteral("small")));
 }
 

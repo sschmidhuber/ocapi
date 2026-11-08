@@ -5,7 +5,7 @@
 #include <QString>
 #include <QVector>
 
-namespace ocapi {
+namespace okapi {
 
 class ChatDatabase;
 
@@ -39,4 +39,4 @@ private:
     QString m_databasePath;
 };
 
-} // namespace ocapi
+} // namespace okapi

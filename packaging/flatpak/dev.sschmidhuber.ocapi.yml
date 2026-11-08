@@ -33,17 +33,18 @@ modules:
   # poppler-cpp and tesseract are not part of org.kde.Sdk; build them so
   # PDF/OCR attachment text extraction works inside the sandbox.
   # Source pins are taken from the Flathub org.kde.skanpage/org.kde.okular
-  # manifests; leptonica is fetched from leptonica.org because the GitHub
-  # release download intermittently fails with 504 (the tarball is
-  # identical, the sha256 matches OpenBSD/MacPorts pins).
+  # manifests; leptonica is fetched via the GitHub archive endpoint
+  # (codeload) because the release-asset download fails with 504 and
+  # leptonica.org does not serve TLS. The codeload tarball sha256 is
+  # pinned by MSYS2.
   - name: leptonica
     buildsystem: autotools
     config-opts:
       - --disable-static
     sources:
       - type: archive
-        url: https://www.leptonica.org/source/leptonica-1.87.0.tar.gz
-        sha256: c73363397f96eb1295602bf44d708a994ad42046c791bf03ea0505d829bdb6a7
+        url: https://github.com/DanBloomberg/leptonica/archive/refs/tags/1.87.0.tar.gz
+        sha256: fa2b40c5caea96d1bb93a97486262aed8731b69ce25a84a6bf5d25323e33f631
 
   - name: tesseract
     buildsystem: autotools

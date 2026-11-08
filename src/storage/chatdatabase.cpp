@@ -25,18 +25,6 @@ int nextConnectionCounter() {
     return counter.fetchAndAddRelaxed(1);
 }
 
-// Schema evolution: adds a column to an existing table. On databases that
-// already have the column, SQLite fails with "duplicate column name"; that
-// expected error is ignored so m_lastError only ever holds genuine failures.
-void addColumnIfMissing(QSqlDatabase &database, const QString &statement, QString &lastError) {
-    QSqlQuery query(database);
-    query.exec(statement);
-    const QSqlError error = query.lastError();
-    if (error.isValid() && error.type() != QSqlError::NoError &&
-        !error.text().contains(QStringLiteral("duplicate column name"), Qt::CaseInsensitive))
-        lastError = error.text();
-}
-
 void createTables(QSqlDatabase &database) {
     QSqlQuery query(database);
     query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS backends ("
@@ -135,37 +123,6 @@ bool ChatDatabase::open(const QString &filePath) {
     pragma.exec(QStringLiteral("PRAGMA journal_mode = WAL"));
     pragma.exec(QStringLiteral("PRAGMA synchronous = NORMAL"));
     createTables(m_database);
-    // Schema evolution for older databases; each helper ignores the expected
-    // "duplicate column name" error so a healthy, up-to-date database does not
-    // leave a bogus error in m_lastError.
-    addColumnIfMissing(m_database,
-                       QStringLiteral("ALTER TABLE messages ADD COLUMN tokens_per_second REAL "
-                                      "NOT NULL DEFAULT -1"),
-                       m_lastError);
-    addColumnIfMissing(m_database,
-                       QStringLiteral("ALTER TABLE sessions ADD COLUMN last_activity_at INTEGER "
-                                      "NOT NULL DEFAULT 0"),
-                       m_lastError);
-    addColumnIfMissing(m_database,
-                       QStringLiteral("ALTER TABLE messages ADD COLUMN tool_calls TEXT "
-                                      "NOT NULL DEFAULT '[]'"),
-                       m_lastError);
-    addColumnIfMissing(m_database,
-                       QStringLiteral("ALTER TABLE message_files ADD COLUMN extracted_text TEXT "
-                                      "NOT NULL DEFAULT ''"),
-                       m_lastError);
-    addColumnIfMissing(m_database,
-                       QStringLiteral("ALTER TABLE messages ADD COLUMN reasoning TEXT "
-                                      "NOT NULL DEFAULT ''"),
-                       m_lastError);
-    addColumnIfMissing(m_database,
-                       QStringLiteral("ALTER TABLE messages ADD COLUMN element_order TEXT "
-                                      "NOT NULL DEFAULT ''"),
-                       m_lastError);
-    addColumnIfMissing(m_database,
-                       QStringLiteral("ALTER TABLE backends ADD COLUMN context_window INTEGER "
-                                      "NOT NULL DEFAULT 8192"),
-                       m_lastError);
     return true;
 }
 

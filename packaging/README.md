@@ -56,10 +56,14 @@ and therefore not automated here:
 ### Flatpak
 
 ```sh
-flatpak install flathub org.kde.Platform//6.10 org.kde.Sdk//6.10
 packaging/flatpak/build-flatpak.sh 0.1.0 dist
 flatpak install dist/dev.sschmidhuber.ocapi-0.1.0.flatpak
 ```
+
+The build script adds the flathub remote if missing and installs the
+required `org.kde.Platform//6.10` / `org.kde.Sdk//6.10` runtimes on first
+run (one-time download), so no manual setup is needed beyond `flatpak`
+and `flatpak-builder` themselves.
 
 The manifest (`flatpak/dev.sschmidhuber.ocapi.yml`) builds from the git
 checkout. It uses the KDE Platform/Sdk 6.10 runtime (Qt 6.10). The

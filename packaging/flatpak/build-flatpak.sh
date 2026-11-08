@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Build an installable Flatpak bundle for ocapi.
 #
-# Requirements: flatpak, flatpak-builder, and the freedesktop git remote:
-#   flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+# Requirements: flatpak and flatpak-builder. The script adds the flathub
+# remote if missing and installs the required KDE Platform/Sdk runtime
+# (one-time download) when it is not installed yet.
 #
 # Usage:
 #   packaging/flatpak/build-flatpak.sh [version] [output-directory]
@@ -26,6 +27,15 @@ MANIFEST="$REPO_ROOT/packaging/flatpak/dev.sschmidhuber.ocapi.yml"
 VERSION="${1:-$(date -u +%Y.%m.%d)}"
 OUT_DIR="${2:-$REPO_ROOT/dist}"
 APP_ID="dev.sschmidhuber.ocapi"
+RUNTIME_VERSION="$(sed -n 's/^runtime-version:[[:space:]]*"\?\([^"]*\)"\?/\1/p' "$MANIFEST")"
+
+echo ">> Ensuring flathub remote"
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+if ! flatpak info "org.kde.Sdk//${RUNTIME_VERSION}" >/dev/null 2>&1; then
+    echo ">> Installing org.kde.Platform//${RUNTIME_VERSION} and org.kde.Sdk//${RUNTIME_VERSION} (one-time download)"
+    flatpak install -y flathub "org.kde.Platform//${RUNTIME_VERSION}" "org.kde.Sdk//${RUNTIME_VERSION}"
+fi
 
 # flatpak-builder requires its state dir and the build dir on the same
 # filesystem (e.g. /tmp is often a separate tmpfs), so keep all

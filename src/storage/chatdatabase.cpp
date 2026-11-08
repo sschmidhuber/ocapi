@@ -597,28 +597,53 @@ void ChatDatabase::loadAttachmentsFor(QVector<StoredMessage> &messages) const {
     QHash<QString, StoredMessage *> byId;
     for (auto &message : messages)
         byId.insert(message.id, &message);
-    QSqlQuery query(m_database);
-    if (!query.exec(QStringLiteral("SELECT message_id, id, mime_type, file_name, source_path, "
-                                   "width, height, resized, data FROM message_images "
-                                   "ORDER BY position ASC"))) {
-        m_lastError = query.lastError().text();
-        return;
-    }
-    while (query.next()) {
-        const auto it = byId.constFind(query.value(0).toString());
-        if (it != byId.constEnd())
-            it.value()->images.push_back(imageFrom(query));
-    }
-    if (!query.exec(QStringLiteral("SELECT message_id, id, file_name, mime_type, source_path, "
-                                   "thumbnail, extracted_text FROM message_files "
-                                   "ORDER BY position ASC"))) {
-        m_lastError = query.lastError().text();
-        return;
-    }
-    while (query.next()) {
-        const auto it = byId.constFind(query.value(0).toString());
-        if (it != byId.constEnd())
-            it.value()->files.push_back(fileFrom(query));
+    QStringList ids;
+    ids.reserve(messages.size());
+    for (const auto &message : messages)
+        ids.append(message.id);
+    constexpr qsizetype kIdChunkSize = 500;
+    for (qsizetype offset = 0; offset < ids.size(); offset += kIdChunkSize) {
+        const QStringList chunk = ids.mid(offset, kIdChunkSize);
+        QString placeholders;
+        for (qsizetype i = 0; i < chunk.size(); ++i) {
+            if (i > 0)
+                placeholders += QLatin1Char(',');
+            placeholders += QLatin1Char('?');
+        }
+        QSqlQuery imageQuery(m_database);
+        imageQuery.prepare(
+            QStringLiteral("SELECT message_id, id, mime_type, file_name, source_path, "
+                           "width, height, resized, data FROM message_images "
+                           "WHERE message_id IN (%1) ORDER BY position ASC")
+                .arg(placeholders));
+        for (const auto &id : chunk)
+            imageQuery.addBindValue(id);
+        if (!imageQuery.exec()) {
+            m_lastError = imageQuery.lastError().text();
+            return;
+        }
+        while (imageQuery.next()) {
+            const auto it = byId.constFind(imageQuery.value(0).toString());
+            if (it != byId.constEnd())
+                it.value()->images.push_back(imageFrom(imageQuery));
+        }
+        QSqlQuery fileQuery(m_database);
+        fileQuery.prepare(
+            QStringLiteral("SELECT message_id, id, file_name, mime_type, source_path, "
+                           "thumbnail, extracted_text FROM message_files "
+                           "WHERE message_id IN (%1) ORDER BY position ASC")
+                .arg(placeholders));
+        for (const auto &id : chunk)
+            fileQuery.addBindValue(id);
+        if (!fileQuery.exec()) {
+            m_lastError = fileQuery.lastError().text();
+            return;
+        }
+        while (fileQuery.next()) {
+            const auto it = byId.constFind(fileQuery.value(0).toString());
+            if (it != byId.constEnd())
+                it.value()->files.push_back(fileFrom(fileQuery));
+        }
     }
 }
 

@@ -1,5 +1,6 @@
 #include "backends/sseclient.h"
 #include "backends/sseparser.h"
+#include "core/debuglog.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -13,10 +14,15 @@ namespace ocapi {
 
 namespace {
 
-// Debug aid: when OCAPI_DEBUG_SSE is set, every raw chunk read from the
-// network and every parsed event are appended to a log file so stream
-// parsing problems can be diagnosed from a real conversation. The file is
-// written into the app data location as sse-debug-<timestamp>.log.
+// Debug aid: when OCAPI_DEBUG_SSE is set, raw chunks read from the network
+// and parsed events are appended to a log file so stream parsing problems
+// can be diagnosed from a real conversation. The file is written into the
+// app data location as sse-debug-<timestamp>.log. Secrets (API keys in
+// URLs/headers/JSON) are redacted and entries are truncated, but the log
+// still contains conversation content and is capped at kMaxLogBytes, so
+// only run it on your own traffic and do not share the file blindly.
+constexpr qint64 kMaxLogBytes = 5LL * 1024 * 1024;
+
 bool sseDebugEnabled() {
     static const bool enabled = qEnvironmentVariableIsSet("OCAPI_DEBUG_SSE");
     return enabled;
@@ -42,8 +48,17 @@ void sseDebug(const QByteArray &line) {
     if (!sseDebugEnabled())
         return;
     QFile &file = sseDebugFile();
-    if (file.isOpen())
-        file.write(line);
+    if (!file.isOpen())
+        return;
+    if (file.size() >= kMaxLogBytes) {
+        static bool capNotified = false;
+        if (!capNotified) {
+            capNotified = true;
+            file.write("\n--- log size cap reached, further entries skipped ---\n");
+        }
+        return;
+    }
+    file.write(line);
 }
 
 QByteArray hexDump(const QByteArray &data) {
@@ -58,8 +73,9 @@ void SseClient::post(const QNetworkRequest &request, const QByteArray &payload) 
     cancel();
     m_buffer.clear();
     if (sseDebugEnabled()) {
-        sseDebug("=== POST " + request.url().toEncoded() + "\n");
-        sseDebug("=== request body: " + payload + "\n");
+        sseDebug("=== POST " + debugSanitize::redact(request.url().toEncoded()) + "\n");
+        sseDebug("=== request body: " + debugSanitize::clip(debugSanitize::redact(payload), 200) +
+                 "\n");
     }
     m_reply = m_nam->post(request, payload);
     connect(m_reply, &QNetworkReply::readyRead, this, &SseClient::onReadyRead);
@@ -81,7 +97,8 @@ void SseClient::onReadyRead() {
     const QByteArray chunk = m_reply->readAll();
     if (sseDebugEnabled())
         sseDebug("--- read " + QByteArray::number(chunk.size()) +
-                 " bytes\n--- hex: " + hexDump(chunk) + "\n--- text: " + chunk + "\n");
+                 " bytes\n--- hex: " + debugSanitize::clip(hexDump(chunk), 400) +
+                 "\n--- text: " + debugSanitize::clip(debugSanitize::redact(chunk), 1000) + "\n");
     m_buffer.append(chunk);
 
     QList<QByteArray> events;
@@ -94,15 +111,17 @@ void SseClient::onReadyRead() {
         std::optional<SseEvent> parsed;
         if (m_framing == Framing::Ndjson) {
             if (!rawEvent.trimmed().isEmpty())
-                parsed = SseEvent{"message", rawEvent.trimmed()};
+                parsed = SseEvent{.event = "message", .data = rawEvent.trimmed()};
         } else {
             parsed = parseSseEventBlock(rawEvent);
         }
         if (sseDebugEnabled()) {
-            sseDebug(">>> raw event hex: " + hexDump(rawEvent) +
-                     "\n>>> raw event text: " + rawEvent + "\n");
+            sseDebug(">>> raw event hex: " + debugSanitize::clip(hexDump(rawEvent), 400) +
+                     "\n>>> raw event text: " +
+                     debugSanitize::clip(debugSanitize::redact(rawEvent), 1000) + "\n");
             if (parsed)
-                sseDebug(">>> parsed event=" + parsed->event + " data=" + parsed->data + "\n");
+                sseDebug(">>> parsed event=" + parsed->event + " data=" +
+                         debugSanitize::clip(debugSanitize::redact(parsed->data), 1000) + "\n");
             else
                 sseDebug(">>> parsed: NO DATA (event dropped)\n");
         }
@@ -111,7 +130,7 @@ void SseClient::onReadyRead() {
     }
     if (sseDebugEnabled())
         sseDebug("--- buffer after extract (" + QByteArray::number(m_buffer.size()) +
-                 " bytes), hex: " + hexDump(m_buffer) + "\n");
+                 " bytes), hex: " + debugSanitize::clip(hexDump(m_buffer), 400) + "\n");
 }
 
 void SseClient::onFinished() {

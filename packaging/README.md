@@ -69,9 +69,10 @@ download), so no manual setup is needed beyond `flatpak` and
 The manifest (`flatpak/dev.sschmidhuber.ocapi.yml`) builds from the git
 checkout. It uses the KDE Platform/Sdk 6.10 runtime (Qt 6.10); Qt
 WebEngine is not part of org.kde.Sdk, so the app additionally uses
-`io.qt.qtwebengine.BaseApp//6.10`. poppler-cpp and tesseract (with English
-language data) are built as manifest modules so PDF/OCR attachment text
-extraction also works inside the sandbox; libarchive comes from the SDK.
+`io.qt.qtwebengine.BaseApp//6.10`. poppler-cpp and tesseract (with language
+data for the 20 most spoken languages, tessdata_fast 4.1.0) are built as
+manifest modules so PDF/OCR attachment text extraction also works inside
+the sandbox; libarchive comes from the SDK.
 
 ### RPM
 

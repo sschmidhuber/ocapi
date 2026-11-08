@@ -52,11 +52,106 @@ modules:
         url: https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.3.tar.gz
         sha256: 9218e62793116d42a9f6d14cd9348518b27f382096eea3d0f2d1a24616bb5884
       - type: file
-        url: https://github.com/tesseract-ocr/tessdata_best/raw/4.1.0/eng.traineddata
-        sha256: 8280aed0782fe27257a68ea10fe7ef324ca0f8d85bd2fd145d1c2b560bcb66ba
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/eng.traineddata
+        sha256: 7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/chi_sim.traineddata
+        sha256: a5fcb6f0db1e1d6d8522f39db4e848f05984669172e584e8d76b6b3141e1f730
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/hin.traineddata
+        sha256: 4c73ffc59d497c186b19d1e90f5d721d678ea6b2e277b719bee4e2af12271825
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/spa.traineddata
+        sha256: 6f2e04d02774a18f01bed44b1111f2cd7f3ba7ac9dc4373cd3f898a40ea6b464
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/fra.traineddata
+        sha256: ced037562e8c80c13122dece28dd477d399af80911a28791a66a63ac1e3445ca
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/ara.traineddata
+        sha256: e3206d3dc87fd50c24a0fb9f01838615911d25168f4e64415244b67d2bb3e729
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/ben.traineddata
+        sha256: 31163084c279aaebd376216f0c3d5c17ad4b5fee8db49dae79c20000b5de5964
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/por.traineddata
+        sha256: c4932b937207a9514b7514d518b931a99938c02a28a5a5a553f8599ed58b7deb
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/rus.traineddata
+        sha256: e16e5e036cce1d9ec2b00063cf8b54472625b9e14d893a169e2b0dedeb4df225
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/urd.traineddata
+        sha256: 62e8250ce2a994106e313a82e26a516a39e2cf159d0ce3c5b5008387fd0d555f
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/ind.traineddata
+        sha256: 69786901da87ab8766c1ea7fbb10b28f2110c14da3f6c8f2735df131fba95d88
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/deu.traineddata
+        sha256: 19d219bbb6672c869d20a9636c6816a81eb9a71796cb93ebe0cb1530e2cdb22d
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/jpn.traineddata
+        sha256: 1f5de9236d2e85f5fdf4b3c500f2d4926f8d9449f28f5394472d9e8d83b91b4d
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/swa.traineddata
+        sha256: 395439d1ec308535066cbaea9b15e0e4cc81f8609170af76ab7e7e8d3ec42f3e
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/mar.traineddata
+        sha256: 0ba3f2d116972e72fe9e176bc84c38e81dfb6670f4ed1f7f6c8e16a27da7cb61
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/tel.traineddata
+        sha256: d10691fddd5b67802e1c12800ebb321d3b8bcd8d24a2ac3ff206f93188c04ab5
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/tur.traineddata
+        sha256: 7393381111e1152420fc4092cb44eef4237580d21b92bf30d7d221aad192c6b7
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/vie.traineddata
+        sha256: 79df64caf7bcfb2a27df5042ecb6121e196eada34da774956995747636d5bfa1
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/kor.traineddata
+        sha256: 6b85e11d9bbf07863b97b3523b1b112844c43e713df8b66418a081fd1060b3b2
+        dest: traineddata
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/ita.traineddata
+        sha256: b8f89e1e785118dac4d51ae042c029a64edb5c3ee42ef73027a6d412748d8827
         dest: traineddata
     post-install:
       - install -p -D -m 0644 traineddata/eng.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/chi_sim.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/hin.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/spa.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/fra.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/ara.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/ben.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/por.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/rus.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/urd.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/ind.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/deu.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/jpn.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/swa.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/mar.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/tel.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/tur.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/vie.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/kor.traineddata -t ${FLATPAK_DEST}/share/tessdata/
+      - install -p -D -m 0644 traineddata/ita.traineddata -t ${FLATPAK_DEST}/share/tessdata/
 
   - name: poppler
     buildsystem: cmake-ninja

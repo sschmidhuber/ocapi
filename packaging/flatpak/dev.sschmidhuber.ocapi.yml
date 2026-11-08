@@ -45,6 +45,7 @@ modules:
       - type: archive
         url: https://codeload.github.com/DanBloomberg/leptonica/tar.gz/refs/tags/1.87.0
         sha256: fa2b40c5caea96d1bb93a97486262aed8731b69ce25a84a6bf5d25323e33f631
+        dest-filename: leptonica-1.87.0.tar.gz
 
   - name: tesseract
     buildsystem: autotools
@@ -54,6 +55,7 @@ modules:
       - type: archive
         url: https://codeload.github.com/tesseract-ocr/tesseract/tar.gz/refs/tags/5.5.3
         sha256: 9218e62793116d42a9f6d14cd9348518b27f382096eea3d0f2d1a24616bb5884
+        dest-filename: tesseract-5.5.3.tar.gz
       - type: file
         url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/eng.traineddata
         sha256: 7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2

@@ -1532,8 +1532,6 @@ void MainWindow::onTokenReceived(StreamContext *context, const QUuid &messageId,
     // Only the chat the user is watching is spoken aloud.
     if (context->session == m_currentSession && m_ttsRegistry.speakResponses())
         m_ttsPlayer.feedText(text);
-    if (m_database.isOpen())
-        m_database.updateMessage(messageId.toString(QUuid::WithoutBraces), text, true);
 }
 
 void MainWindow::onReasoningReceived(StreamContext *context, const QUuid &messageId,
@@ -1548,22 +1546,6 @@ void MainWindow::onReasoningReceived(StreamContext *context, const QUuid &messag
         ++context->streamedTokens;
         if (!context->firstToken.isValid())
             context->firstToken = QDateTime::currentDateTime();
-    }
-    if (m_database.isOpen()) {
-        // Persist all thinking phases of the message, not just the current one,
-        // plus the element order so the chat renders thinking/tool calls in
-        // the sequence they happened after a reload.
-        QStringList segments;
-        QStringList elementOrder;
-        for (const auto &message : context->session->messages()) {
-            if (message.id == messageId) {
-                segments = message.reasoningSegments;
-                elementOrder = message.elementOrder;
-                break;
-            }
-        }
-        m_database.setReasoning(messageId.toString(QUuid::WithoutBraces), segments);
-        m_database.setElementOrder(messageId.toString(QUuid::WithoutBraces), elementOrder);
     }
 }
 
@@ -1581,9 +1563,20 @@ void MainWindow::onStreamFinished(StreamContext *context, const QUuid &messageId
     if (tokensPerSecond > 0.0)
         context->session->setThroughput(messageId, tokensPerSecond);
     if (m_database.isOpen()) {
-        m_database.updateMessage(messageId.toString(QUuid::WithoutBraces), content, false);
-        if (tokensPerSecond > 0.0)
-            m_database.setThroughput(messageId.toString(QUuid::WithoutBraces), tokensPerSecond);
+        // Only the completed stream is persisted, and from a worker thread
+        // so the write never stalls the UI.
+        StreamResult result;
+        result.messageId = messageId.toString(QUuid::WithoutBraces);
+        result.content = content;
+        result.tokensPerSecond = tokensPerSecond;
+        for (const auto &message : context->session->messages()) {
+            if (message.id == messageId) {
+                result.reasoningSegments = message.reasoningSegments;
+                result.elementOrder = message.elementOrder;
+                break;
+            }
+        }
+        ChatDatabase::persistStreamResultAsync(defaultDatabasePath(), result);
         syncSessionToDatabase(context->session);
     }
     // A tool round is about to continue the turn: the context stays alive
@@ -1602,8 +1595,12 @@ void MainWindow::onStreamFailed(StreamContext *context, const QUuid &messageId,
     markChatUnread(context->session);
     if (context->session == m_currentSession)
         m_ttsPlayer.stop();
-    if (m_database.isOpen())
-        m_database.failMessage(messageId.toString(QUuid::WithoutBraces), error);
+    if (m_database.isOpen()) {
+        StreamResult result;
+        result.messageId = messageId.toString(QUuid::WithoutBraces);
+        result.error = error;
+        ChatDatabase::persistStreamResultAsync(defaultDatabasePath(), result);
+    }
     finalizeContext(context, tr("Error: %1").arg(error));
 }
 

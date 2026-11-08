@@ -41,6 +41,17 @@ struct StoredMessage {
     QVector<ToolCall> toolCalls;
 };
 
+// Snapshot of one finished (or failed) assistant stream. Only completed
+// streams are persisted; intermediate token states stay in memory.
+struct StreamResult {
+    QString messageId;
+    QString content;
+    QString error; // non-empty when the stream failed
+    QStringList reasoningSegments;
+    QStringList elementOrder;
+    double tokensPerSecond = -1.0; // negative when unknown
+};
+
 class ChatDatabase {
 public:
     ChatDatabase();
@@ -106,9 +117,18 @@ public:
                                                             int limit = -1, int offset = 0) const;
     [[nodiscard]] int messageCount(const QString &sessionId) const;
 
+    // Persists a finished stream from a thread-pool thread using its own
+    // connection to the same file, so the caller's (UI) thread is never
+    // blocked by the write. With WAL enabled, the concurrent write does not
+    // stall readers on the main connection.
+    static void persistStreamResultAsync(const QString &filePath, const StreamResult &result);
+
     // Runs a raw SQL statement on the database connection (for tests and
     // schema fixes that do not fit the typed API).
     bool executeRaw(const QString &query);
+    // Runs a raw SQL query and returns the first column of the first row
+    // (for tests and diagnostics, e.g. reading back PRAGMA values).
+    [[nodiscard]] QVariant queryScalar(const QString &query) const;
 
 private:
     bool execute(const QString &query, const QVariantList &bindings);

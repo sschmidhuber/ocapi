@@ -47,6 +47,9 @@ private slots:
     void toolCallStatusUpdateFailsForUnknownCall();
     void toolCallsColumnDefaultsToEmpty();
     void reopenDoesNotReportDuplicateColumnError();
+    void openUsesWalAndNormalSync();
+    void persistStreamResultAsyncPersistsFinishedStream();
+    void persistStreamResultAsyncPersistsFailure();
 
 private:
     ChatDatabase &db() { return m_database; }
@@ -669,6 +672,59 @@ void TestChatDatabase::reopenDoesNotReportDuplicateColumnError() {
                  .arg(db().lastError())
                  .toUtf8()
                  .constData());
+}
+
+void TestChatDatabase::openUsesWalAndNormalSync() {
+    QCOMPARE(db().queryScalar(QStringLiteral("PRAGMA journal_mode")).toString().toLower(),
+             QStringLiteral("wal"));
+    QCOMPARE(db().queryScalar(QStringLiteral("PRAGMA synchronous")).toInt(), 1);
+}
+
+void TestChatDatabase::persistStreamResultAsyncPersistsFinishedStream() {
+    ChatSession session(QStringLiteral("Chat"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+    const auto message = session.appendMessage(Role::Assistant, QString());
+    const auto messageId = message.id.toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertMessage(sessionId, messageId, message.roleName(), message.content,
+                               message.timestamp));
+
+    StreamResult result;
+    result.messageId = messageId;
+    result.content = QStringLiteral("full answer");
+    result.reasoningSegments = QStringList{QStringLiteral("thinking hard")};
+    result.elementOrder = QStringList{QStringLiteral("thinking:0"), QStringLiteral("text")};
+    result.tokensPerSecond = 42.5;
+    ChatDatabase::persistStreamResultAsync(m_filePath, result);
+
+    QTRY_COMPARE_WITH_TIMEOUT(db().messagesForSession(sessionId).at(0).content,
+                              QStringLiteral("full answer"), 5000);
+    const auto stored = db().messagesForSession(sessionId);
+    QVERIFY(!stored.at(0).streaming);
+    QCOMPARE(stored.at(0).reasoningSegments, QStringList{QStringLiteral("thinking hard")});
+    QCOMPARE(stored.at(0).elementOrder,
+             QStringList({QStringLiteral("thinking:0"), QStringLiteral("text")}));
+    QCOMPARE(stored.at(0).tokensPerSecond, 42.5);
+}
+
+void TestChatDatabase::persistStreamResultAsyncPersistsFailure() {
+    ChatSession session(QStringLiteral("Chat"), QStringLiteral("backend-1"));
+    const auto sessionId = session.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(session));
+    const auto message = session.appendMessage(Role::Assistant, QString());
+    const auto messageId = message.id.toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertMessage(sessionId, messageId, message.roleName(), message.content,
+                               message.timestamp));
+
+    StreamResult result;
+    result.messageId = messageId;
+    result.error = QStringLiteral("connection refused");
+    ChatDatabase::persistStreamResultAsync(m_filePath, result);
+
+    QTRY_COMPARE_WITH_TIMEOUT(db().messagesForSession(sessionId).at(0).error,
+                              QStringLiteral("connection refused"), 5000);
+    const auto stored = db().messagesForSession(sessionId);
+    QVERIFY(!stored.at(0).streaming);
 }
 
 QTEST_GUILESS_MAIN(TestChatDatabase)

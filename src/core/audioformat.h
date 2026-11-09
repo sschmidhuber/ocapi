@@ -3,7 +3,7 @@
 #include <QByteArray>
 #include <QString>
 
-namespace ocapi {
+namespace okapi {
 
 // Helpers to detect and parse the audio formats produced by TTS services so
 // they can be handed to QAudioDecoder: MP3 (OpenAI-compatible services) and
@@ -38,4 +38,4 @@ public:
                                                int channels, SampleFormat format);
 };
 
-} // namespace ocapi
+} // namespace okapi

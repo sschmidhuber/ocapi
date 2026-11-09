@@ -4,10 +4,10 @@
 #include <QRegularExpression>
 #include <QString>
 
-namespace ocapi::debugSanitize {
+namespace okapi::debugSanitize {
 
 // Shared redaction/truncation for the env-gated debug logging paths
-// (OCAPI_DEBUG_SSE / OCAPI_DEBUG_STT / OCAPI_DEBUG_TTS). Debug output is
+// (OKAPI_DEBUG_SSE / OKAPI_DEBUG_STT / OKAPI_DEBUG_TTS). Debug output is
 // exactly what users paste into bug reports, so credentials must never land
 // in it: API keys travel in Authorization headers, x-api-key-style headers
 // and key= URL query parameters (Gemini), and api_key JSON fields.
@@ -47,4 +47,4 @@ namespace ocapi::debugSanitize {
     return clip(QString::fromUtf8(data), maxBytes).toUtf8();
 }
 
-} // namespace ocapi::debugSanitize
+} // namespace okapi::debugSanitize

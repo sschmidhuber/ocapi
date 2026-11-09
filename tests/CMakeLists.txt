@@ -1,4 +1,4 @@
-set(OCAPI_TESTS
+set(OKAPI_TESTS
     tst_backendconfig
     tst_markdown
     tst_message
@@ -40,9 +40,9 @@ set(OCAPI_TESTS
     tst_debuglog)
 
 
-foreach(test_name ${OCAPI_TESTS})
+foreach(test_name ${OKAPI_TESTS})
     add_executable(${test_name} ${test_name}.cpp)
-    target_link_libraries(${test_name} PRIVATE ocapi-core Qt6::Test)
+    target_link_libraries(${test_name} PRIVATE okapi-core Qt6::Test)
     add_test(NAME ${test_name} COMMAND ${test_name})
 endforeach()
 
@@ -50,7 +50,7 @@ endforeach()
 # source directly and links against Qt Widgets.
 add_executable(tst_sidebar tst_sidebar.cpp ${CMAKE_SOURCE_DIR}/src/ui/sidebar.cpp)
 target_include_directories(tst_sidebar PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(tst_sidebar PRIVATE ocapi-core Qt6::Test Qt6::Widgets)
+target_link_libraries(tst_sidebar PRIVATE okapi-core Qt6::Test Qt6::Widgets)
 add_test(NAME tst_sidebar COMMAND tst_sidebar)
 
 # The chat view (and its delegate) also live in the application target; the
@@ -59,7 +59,7 @@ add_executable(tst_chatview tst_chatview.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/chatview.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/chatdelegate.cpp)
 target_include_directories(tst_chatview PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(tst_chatview PRIVATE ocapi-core Qt6::Test Qt6::Widgets)
+target_link_libraries(tst_chatview PRIVATE okapi-core Qt6::Test Qt6::Widgets)
 add_test(NAME tst_chatview COMMAND tst_chatview)
 
 # The settings dialog lives in the application target; the test compiles it
@@ -75,7 +75,7 @@ add_executable(tst_settingsdialog tst_settingsdialog.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/userinterfacepage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/prompttemplatespage.cpp)
 target_include_directories(tst_settingsdialog PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(tst_settingsdialog PRIVATE ocapi-core Qt6::Test Qt6::Widgets)
+target_link_libraries(tst_settingsdialog PRIVATE okapi-core Qt6::Test Qt6::Widgets)
 add_test(NAME tst_settingsdialog COMMAND tst_settingsdialog)
 
 # MainWindow lives in the application target; the test compiles it directly
@@ -97,7 +97,7 @@ add_executable(tst_mainwindow tst_mainwindow.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/prompttemplatespage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/settingsdialog.cpp)
 target_include_directories(tst_mainwindow PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(tst_mainwindow PRIVATE ocapi-core Qt6::Test Qt6::Widgets Qt6::WebEngineWidgets Qt6::WebChannel)
+target_link_libraries(tst_mainwindow PRIVATE okapi-core Qt6::Test Qt6::Widgets Qt6::WebEngineWidgets Qt6::WebChannel)
 add_test(NAME tst_mainwindow COMMAND tst_mainwindow)
 
 # The settings dialog shows themed icons with bundled SVGs from the app's
@@ -110,7 +110,7 @@ set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icons/general.svg
     PROPERTIES QT_RESOURCE_ALIAS "resources/icons/general.svg")
 set_source_files_properties(${CMAKE_SOURCE_DIR}/resources/icons/keyboard.svg
     PROPERTIES QT_RESOURCE_ALIAS "resources/icons/keyboard.svg")
-qt_add_resources(tst_settingsdialog "ocapi_resources"
+qt_add_resources(tst_settingsdialog "okapi_resources"
     PREFIX "/"
     FILES
         ${CMAKE_SOURCE_DIR}/resources/icons/ai_chip.svg

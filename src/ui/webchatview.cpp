@@ -25,7 +25,7 @@
 #include <QWebEngineSettings>
 #include <algorithm>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -111,11 +111,11 @@ QString attachmentsToJs(const Message &m) {
                                  .toJson(QJsonDocument::Compact));
 }
 
-// Env-gated tracing of the chat element rendering: set OCAPI_DEBUG_CHAT to
+// Env-gated tracing of the chat element rendering: set OKAPI_DEBUG_CHAT to
 // see on stderr, for every message pushed to the web view, the element
 // sequence (thinking phases vs. tool calls) the page is told to render.
 void logChatElements(const Message &m) {
-    static const bool on = qEnvironmentVariableIsSet("OCAPI_DEBUG_CHAT");
+    static const bool on = qEnvironmentVariableIsSet("OKAPI_DEBUG_CHAT");
     if (!on)
         return;
     QJsonArray calls;
@@ -129,7 +129,7 @@ void logChatElements(const Message &m) {
     QJsonArray order;
     for (const auto &token : m.elementOrder)
         order.append(token);
-    qWarning().noquote() << "[ocapi chat]" << m.id.toString(QUuid::WithoutBraces) << m.roleName()
+    qWarning().noquote() << "[okapi chat]" << m.id.toString(QUuid::WithoutBraces) << m.roleName()
                          << "streaming=" << m.streaming
                          << "thinkingPhases=" << m.reasoningSegments.size() << "toolCalls="
                          << QString::fromUtf8(QJsonDocument(calls).toJson(QJsonDocument::Compact))
@@ -314,4 +314,4 @@ void WebChatView::showPageSource() {
     dialog->show();
 }
 
-} // namespace ocapi
+} // namespace okapi

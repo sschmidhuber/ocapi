@@ -11,7 +11,7 @@
 class QNetworkAccessManager;
 class QNetworkReply;
 
-namespace ocapi {
+namespace okapi {
 
 // Client for text-to-speech services: posts the text to the configured
 // speech endpoint and reports the returned audio bytes. Requests are queued
@@ -67,4 +67,4 @@ private:
     bool m_cancelled = false;
 };
 
-} // namespace ocapi
+} // namespace okapi

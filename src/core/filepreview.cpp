@@ -9,12 +9,12 @@
 #include <QPainter>
 #include <QPainterPath>
 
-#if OCAPI_HAVE_LIBARCHIVE
+#if OKAPI_HAVE_LIBARCHIVE
 #include <archive.h>
 #include <archive_entry.h>
 #endif
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -142,7 +142,7 @@ QImage textTile(int size) {
 // containers that often embed a ready-made preview of the first page:
 // OOXML stores it at docProps/thumbnail.jpeg, ODF at Thumbnails/thumbnail.png.
 // Returns a null image when the package has no embedded preview.
-#if OCAPI_HAVE_LIBARCHIVE
+#if OKAPI_HAVE_LIBARCHIVE
 QImage embeddedPreviewFromOffice(const QString &path) {
     archive *arch = archive_read_new();
     if (!arch)
@@ -330,7 +330,7 @@ QByteArray FilePreview::thumbnailForFile(const QString &path, int maxEdge) {
         preview = TextExtractor::renderFirstPdfPage(path, maxEdge);
     } else if (category == FileCategory::Word || category == FileCategory::Spreadsheet ||
                category == FileCategory::Presentation) {
-#if OCAPI_HAVE_LIBARCHIVE
+#if OKAPI_HAVE_LIBARCHIVE
         preview = embeddedPreviewFromOffice(path);
 #endif
     } else if (category == FileCategory::Text) {
@@ -349,4 +349,4 @@ QByteArray FilePreview::thumbnailForFile(const QString &path, int maxEdge) {
     return encodePng(preview);
 }
 
-} // namespace ocapi
+} // namespace okapi

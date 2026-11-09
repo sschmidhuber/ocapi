@@ -11,7 +11,7 @@ class QListWidgetItem;
 class QPlainTextEdit;
 class QPushButton;
 
-namespace ocapi {
+namespace okapi {
 
 class PromptTemplateRegistry;
 
@@ -53,4 +53,4 @@ private:
     QVector<FileAttachment> m_pendingFiles;
 };
 
-} // namespace ocapi
+} // namespace okapi

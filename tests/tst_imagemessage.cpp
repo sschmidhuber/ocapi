@@ -7,7 +7,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestImageMessage : public QObject {
     Q_OBJECT

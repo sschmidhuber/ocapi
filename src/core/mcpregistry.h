@@ -5,7 +5,7 @@
 #include <QObject>
 #include <QVector>
 
-namespace ocapi {
+namespace okapi {
 
 class ChatDatabase;
 
@@ -44,4 +44,4 @@ private:
     ChatDatabase *m_database = nullptr;
 };
 
-} // namespace ocapi
+} // namespace okapi

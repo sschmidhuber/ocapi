@@ -14,7 +14,7 @@ class QPushButton;
 class QSlider;
 class QTimer;
 
-namespace ocapi {
+namespace okapi {
 
 class BackendRegistry;
 class TtsPlayer;
@@ -87,4 +87,4 @@ private:
     bool m_hasSelection = false;
 };
 
-} // namespace ocapi
+} // namespace okapi

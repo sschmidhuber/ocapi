@@ -22,7 +22,7 @@
 
 #include <algorithm>
 
-namespace ocapi {
+namespace okapi {
 
 SttPage::SttPage(SttRegistry *registry, BackendRegistry *backendRegistry, QWidget *parent)
     : QWidget(parent), m_registry(registry), m_backendRegistry(backendRegistry) {
@@ -383,4 +383,4 @@ SttServiceKind SttPage::currentKind() const {
     return static_cast<SttServiceKind>(m_kindCombo->currentData().toInt());
 }
 
-} // namespace ocapi
+} // namespace okapi

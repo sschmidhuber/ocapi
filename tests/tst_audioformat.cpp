@@ -6,7 +6,7 @@
 
 #include <array>
 
-using namespace ocapi;
+using namespace okapi;
 
 namespace {
 

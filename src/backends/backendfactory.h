@@ -2,7 +2,7 @@
 
 #include <memory>
 
-namespace ocapi {
+namespace okapi {
 
 struct BackendConfig;
 class IBackend;
@@ -11,4 +11,4 @@ class IBackend;
 // the returned backend.
 [[nodiscard]] std::unique_ptr<IBackend> createBackend(const BackendConfig &config);
 
-} // namespace ocapi
+} // namespace okapi

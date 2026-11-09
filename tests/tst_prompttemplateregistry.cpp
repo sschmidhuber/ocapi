@@ -6,7 +6,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestPromptTemplateRegistry : public QObject {
     Q_OBJECT
@@ -46,7 +46,7 @@ void TestPromptTemplateRegistry::changedSignalEmitted() {
     QVERIFY(dir.isValid());
     PromptTemplateRegistry registry;
     {
-        QSettings file(dir.filePath(QStringLiteral("ocapi.conf")), QSettings::IniFormat);
+        QSettings file(dir.filePath(QStringLiteral("okapi.conf")), QSettings::IniFormat);
         registry.load(file);
     }
     QSignalSpy spy(&registry, &PromptTemplateRegistry::changed);
@@ -64,7 +64,7 @@ void TestPromptTemplateRegistry::changedSignalEmitted() {
 void TestPromptTemplateRegistry::saveLoadRoundtripWithAttachments() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
-    const QString path = dir.filePath(QStringLiteral("ocapi.conf"));
+    const QString path = dir.filePath(QStringLiteral("okapi.conf"));
 
     PromptTemplateRegistry registry;
     {

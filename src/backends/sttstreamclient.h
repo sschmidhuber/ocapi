@@ -7,7 +7,7 @@
 
 class QWebSocket;
 
-namespace ocapi {
+namespace okapi {
 
 // Streaming speech-to-text client for services with a WebSocket protocol
 // (OpenAI Realtime transcription API, Mistral Voxtral Realtime). Sends raw
@@ -71,4 +71,4 @@ private:
     bool m_sessionCreated = false;
 };
 
-} // namespace ocapi
+} // namespace okapi

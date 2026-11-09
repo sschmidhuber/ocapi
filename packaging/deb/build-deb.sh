@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build an installable DEB package for ocapi.
+# Build an installable DEB package for okapi.
 #
 # Requirements (Debian / Ubuntu):
 #   sudo apt-get install build-essential cmake ninja-build qt6-base-dev \
@@ -14,26 +14,26 @@
 #
 # If no version is given, a date-based version (YYYY.MM.DD) is used.
 #
-# Produces: <output-directory>/ocapi_<version>-1_amd64.deb
+# Produces: <output-directory>/okapi_<version>-1_amd64.deb
 #
 # The DEB is unsigned (no dpkg-sig / debsign step). Signing a .deb for
 # repository distribution requires a GPG key; a plain unsigned .deb
-# installs fine with:  sudo apt install ./ocapi_<version>-1_amd64.deb
+# installs fine with:  sudo apt install ./okapi_<version>-1_amd64.deb
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VERSION="${1:-$(date -u +%Y.%m.%d)}"
 OUT_DIR="${2:-$REPO_ROOT/dist}"
 ARCH="$(dpkg --print-architecture)"
-PKG_DIR="$(mktemp -d /tmp/ocapi-deb.XXXXXX)"
+PKG_DIR="$(mktemp -d /tmp/okapi-deb.XXXXXX)"
 trap 'rm -rf "$PKG_DIR"' EXIT
 
-STAGE="$PKG_DIR/ocapi-$VERSION"
+STAGE="$PKG_DIR/okapi-$VERSION"
 DEBIAN="$STAGE/DEBIAN"
 mkdir -p "$OUT_DIR" "$DEBIAN"
 
-echo ">> Building ocapi $VERSION (Release)"
-CMAKE_ARGS=(-G Ninja -DCMAKE_BUILD_TYPE=Release -DOCAPI_BUILD_TESTS=OFF)
+echo ">> Building okapi $VERSION (Release)"
+CMAKE_ARGS=(-G Ninja -DCMAKE_BUILD_TYPE=Release -DOKAPI_BUILD_TESTS=OFF)
 if [ -n "${CMAKE_PREFIX_PATH:-}" ]; then
     CMAKE_ARGS+=(-DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH")
 fi
@@ -54,7 +54,7 @@ DESTDIR="$STAGE" cmake --install "$PKG_DIR/build" --prefix /usr
 # (e.g. libqt6core6t64 on trixie/noble). qt6-base is not a Debian package.
 resolve_deps_shlibdeps() {
     local out
-    if ! out="$(dpkg-shlibdeps -O --ignore-missing-info "$STAGE/usr/bin/ocapi" 2>&1)"; then
+    if ! out="$(dpkg-shlibdeps -O --ignore-missing-info "$STAGE/usr/bin/okapi" 2>&1)"; then
         echo "!! dpkg-shlibdeps failed, falling back to ldd-based dependency scan:" >&2
         printf '%s\n' "$out" >&2
         return 1
@@ -72,7 +72,7 @@ resolve_deps_ldd() {
         esac
         seen="$seen\n$pkg\n"
         deps="${deps:+$deps, }$pkg"
-    done < <(ldd "$STAGE/usr/bin/ocapi" 2>/dev/null | sed -n 's/.*=> \(\/.*\) (.*/\1/p')
+    done < <(ldd "$STAGE/usr/bin/okapi" 2>/dev/null | sed -n 's/.*=> \(\/.*\) (.*/\1/p')
     printf '%s\n' "$deps"
 }
 
@@ -100,16 +100,16 @@ case " $DEPS " in
 esac
 
 cat > "$DEBIAN/control" <<EOF
-Package: ocapi
+Package: okapi
 Version: $VERSION-1
 Section: net
 Priority: optional
 Architecture: $ARCH
-Maintainer: ocapi <ocapi@sschmidhuber.dev>
+Maintainer: okapi <okapi@sschmidhuber.dev>
 Depends: $DEPS
-Homepage: https://github.com/sschmidhuber/ocapi
+Homepage: https://github.com/sschmidhuber/__REPOOKAPI__
 Description: A desktop chat client for local and cloud LLM inference backends
- ocapi talks to local inference servers (Ollama, llama.cpp, vLLM) and cloud
+ okapi talks to local inference servers (Ollama, llama.cpp, vLLM) and cloud
  APIs (OpenAI, Anthropic, Google Gemini, Mistral AI, OpenRouter, and any
  OpenAI-compatible endpoint), locally or on remote machines.
  .
@@ -137,7 +137,7 @@ EOF
 cp "$REPO_ROOT/LICENSE" "$DEBIAN/copyright"
 
 echo ">> Building DEB"
-DEB_FILE="$OUT_DIR/ocapi_${VERSION}-1_${ARCH}.deb"
+DEB_FILE="$OUT_DIR/okapi_${VERSION}-1_${ARCH}.deb"
 if command -v fakeroot >/dev/null 2>&1; then
     fakeroot dpkg-deb --root-owner-group --build "$STAGE" "$DEB_FILE"
 else

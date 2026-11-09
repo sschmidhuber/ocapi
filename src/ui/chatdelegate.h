@@ -7,7 +7,7 @@
 class QHelpEvent;
 class QAbstractItemView;
 
-namespace ocapi {
+namespace okapi {
 
 class ChatDelegate : public QStyledItemDelegate {
     Q_OBJECT
@@ -68,4 +68,4 @@ private:
     int m_hoveredAttachment = -1;
 };
 
-} // namespace ocapi
+} // namespace okapi

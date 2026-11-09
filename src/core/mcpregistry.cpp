@@ -2,7 +2,7 @@
 
 #include "storage/chatdatabase.h"
 
-namespace ocapi {
+namespace okapi {
 
 McpRegistry::McpRegistry(QObject *parent) : QObject(parent) {}
 
@@ -85,4 +85,4 @@ void McpRegistry::setPermissionForTool(const QUuid &serverId, const QString &too
     emit changed();
 }
 
-} // namespace ocapi
+} // namespace okapi

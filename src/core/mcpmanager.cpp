@@ -9,7 +9,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -161,7 +161,7 @@ QJsonArray McpManager::availableTools() const {
 }
 
 bool McpManager::hasConnectedServers() const {
-    return std::any_of(m_servers.begin(), m_servers.end(), [](const ServerEntry &entry) {
+    return std::ranges::any_of(m_servers, [](const ServerEntry &entry) {
         return entry.client && entry.client->isConnected();
     });
 }
@@ -235,14 +235,17 @@ bool McpManager::executeToolCall(ChatSession *session, const ToolCall &call) {
     }
     if (permission == McpPermission::Ask) {
         const QString callKey = QUuid::createUuid().toString(QUuid::WithoutBraces);
-        m_pendingPermissions.insert(callKey, PendingPermission{session, call, config->name});
+        m_pendingPermissions.insert(
+            callKey,
+            PendingPermission{.session = session, .call = call, .serverName = config->name});
         log(QStringLiteral("  -> permission=Ask, emitting permissionRequested (callKey=%1)")
                 .arg(callKey));
         emit permissionRequested(callKey, config->name, toolName, call.arguments);
         return false;
     }
     const QString callKey = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    m_pendingCalls.insert(callKey, PendingCall{session, call, call.name});
+    m_pendingCalls.insert(
+        callKey, PendingCall{.session = session, .call = call, .namespacedToolName = call.name});
     log(QStringLiteral("  -> sending tools/call to server %1 (callKey=%2)")
             .arg(config->name, callKey));
     it->client->callTool(toolName, call.arguments);
@@ -267,8 +270,9 @@ void McpManager::decidePermission(const QString &callKey, bool allowOnce) {
         auto entryIt = m_servers.find(serverIdString(serverId));
         if (entryIt != m_servers.end() && entryIt->client && entryIt->client->isConnected()) {
             const QString callKey = QUuid::createUuid().toString(QUuid::WithoutBraces);
-            m_pendingCalls.insert(callKey,
-                                  PendingCall{pending.session, pending.call, pending.call.name});
+            m_pendingCalls.insert(callKey, PendingCall{.session = pending.session,
+                                                       .call = pending.call,
+                                                       .namespacedToolName = pending.call.name});
             entryIt->client->callTool(toolName, pending.call.arguments);
         }
     }
@@ -290,7 +294,7 @@ void McpManager::onToolResult(ServerEntry &entry, const QString &toolName,
     // Correlate with the oldest pending call for this tool.
     for (auto it = m_pendingCalls.begin(); it != m_pendingCalls.end(); ++it) {
         if (it->namespacedToolName == namespacedName) {
-            const PendingCall pending = it.value();
+            const PendingCall &pending = it.value();
             m_pendingCalls.erase(it);
             appendToolResultMessage(pending.session, pending.call,
                                     toolResultToMessageContent(result), result.isError);
@@ -319,4 +323,4 @@ void McpManager::appendToolResultMessage(ChatSession *session, const ToolCall &c
     emit toolResultReady(call.name, text, isError);
 }
 
-} // namespace ocapi
+} // namespace okapi

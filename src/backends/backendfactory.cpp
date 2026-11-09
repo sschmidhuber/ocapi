@@ -7,7 +7,7 @@
 #include "backends/openaiapibackend.h"
 #include "core/backendconfig.h"
 
-namespace ocapi {
+namespace okapi {
 
 std::unique_ptr<IBackend> createBackend(const BackendConfig &config) {
     switch (config.kind) {
@@ -31,4 +31,4 @@ std::unique_ptr<IBackend> createBackend(const BackendConfig &config) {
     return nullptr;
 }
 
-} // namespace ocapi
+} // namespace okapi

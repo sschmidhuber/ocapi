@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# SPDX-FileCopyrightText: 2025 ocapi Contributors
+# SPDX-FileCopyrightText: 2025 okapi Contributors
 #
 # Minimal mock of an Ollama server (https://github.com/ollama/ollama): enough
-# of the API for ocapi's "Test connection", chat streaming and tool calling to
+# of the API for okapi's "Test connection", chat streaming and tool calling to
 # work.
 #
 #   GET  /api/tags        -> {"models": [{"name": "mock-model"}, ...]}
@@ -23,7 +23,7 @@
 # through OpenAI-compatible surfaces (as observed from Z.ai's GLM models):
 # first "thinking" content parts, then the first visible token as a
 # {"type":"text"} content part array, and the rest as plain string content.
-# ocapi must keep the visible text and drop the reasoning.
+# okapi must keep the visible text and drop the reasoning.
 #
 # Anything else returns 404. No dependencies beyond the Python standard
 # library; used only for local tests and CI end-to-end runs.
@@ -90,7 +90,7 @@ class OllamaMockHandler(BaseHTTPRequestHandler):
         if self._in_tool_round(request):
             reply = self._tool_round_reply(request)
         elif self._wants_double_tool(request):
-            # One round requesting the same tool twice: ocapi must run both
+            # One round requesting the same tool twice: okapi must run both
             # calls, wait for BOTH results and only then continue the
             # conversation (regression: the second result was never counted
             # and the loop hung without a final assistant answer).

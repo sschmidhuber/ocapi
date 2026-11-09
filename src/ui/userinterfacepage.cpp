@@ -5,7 +5,7 @@
 #include <QCheckBox>
 #include <QVBoxLayout>
 
-namespace ocapi {
+namespace okapi {
 
 UserInterfacePage::UserInterfacePage(UiSettings *uiSettings, QWidget *parent)
     : QWidget(parent), m_uiSettings(uiSettings) {
@@ -23,4 +23,4 @@ UserInterfacePage::UserInterfacePage(UiSettings *uiSettings, QWidget *parent)
             [this](bool enabled) { m_uiSettings->setShowThroughput(enabled); });
 }
 
-} // namespace ocapi
+} // namespace okapi

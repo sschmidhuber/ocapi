@@ -7,7 +7,7 @@ class QListWidget;
 class QStackedWidget;
 class QTabWidget;
 
-namespace ocapi {
+namespace okapi {
 
 class BackendRegistry;
 class McpManager;
@@ -55,4 +55,4 @@ private:
     QStringList m_tabIds;
 };
 
-} // namespace ocapi
+} // namespace okapi

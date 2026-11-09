@@ -13,7 +13,7 @@
 #include <QProcessEnvironment>
 #include <QUrl>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -126,7 +126,7 @@ void McpClient::startStdio() {
     m_process->setProgram(m_config.command);
     m_process->setArguments(m_config.arguments);
     connect(m_process, &QProcess::readyReadStandardOutput, this, &McpClient::onProcessReadyRead);
-    // Log lines of stdio MCP servers to the console when OCAPI_DEBUG_TOOLS
+    // Log lines of stdio MCP servers to the console when OKAPI_DEBUG_TOOLS
     // is set (they usually carry the server's own log output on stderr).
     connect(m_process, &QProcess::readyReadStandardError, this, [this]() {
         if (!m_process || !toolDebug::enabled())
@@ -454,11 +454,11 @@ void McpClient::handleResponse(const QJsonObject &message) {
 
 void McpClient::handleServerRequest(const QJsonValue &id, const QString &method,
                                     const QJsonObject &params) {
-    // ocapi does not provide LLM sampling to servers; answer with the standard
+    // okapi does not provide LLM sampling to servers; answer with the standard
     // capability error so servers can fall back gracefully.
     if (method == QLatin1String("sampling/createMessage")) {
         respondError(id, kMethodNotFound,
-                     QStringLiteral("ocapi does not support server-initiated sampling."));
+                     QStringLiteral("okapi does not support server-initiated sampling."));
         return;
     }
     if (method == QLatin1String("roots/list")) {
@@ -467,7 +467,7 @@ void McpClient::handleServerRequest(const QJsonValue &id, const QString &method,
     }
     if (method == QLatin1String("elicitation/create")) {
         respondError(id, kMethodNotFound,
-                     QStringLiteral("ocapi does not answer server elicitation requests."));
+                     QStringLiteral("okapi does not answer server elicitation requests."));
         return;
     }
     emit serverRequest(id, method, params);
@@ -594,4 +594,4 @@ void McpClient::cancelPending() {
         emit requestFailed(it.value().method, tr("Cancelled"));
 }
 
-} // namespace ocapi
+} // namespace okapi

@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# SPDX-FileCopyrightText: 2025 ocapi Contributors
+# SPDX-FileCopyrightText: 2025 okapi Contributors
 #
-# End-to-end tests for ocapi, driven through KDE's selenium-webdriver-at-spi
+# End-to-end tests for okapi, driven through KDE's selenium-webdriver-at-spi
 # (AT-SPI accessibility). Run via `selenium-webdriver-at-spi-run`:
 #
-#   OCAPI_E2E_APP=./build/src/ocapi selenium-webdriver-at-spi-run \
-#       tests/e2e/ocapi_e2e_test.py
+#   OKAPI_E2E_APP=./build/src/okapi selenium-webdriver-at-spi-run \
+#       tests/e2e/okapi_e2e_test.py
 #
 # Requires the mock Ollama server from tests/e2e/mock_ollama.py running on
-# http://127.0.0.1:11434 (OCAPI_E2E_MOCK_PORT to override) and the mock MCP
+# http://127.0.0.1:11434 (OKAPI_E2E_MOCK_PORT to override) and the mock MCP
 # server from tests/e2e/mock_mcp.py on http://127.0.0.1:11435
-# (OCAPI_E2E_MOCK_MCP_PORT to override).
+# (OKAPI_E2E_MOCK_MCP_PORT to override).
 #
 # Covers the most essential user flows:
 #   1. the app starts with a chat, composer and send button
 #   2. the seeded mock backend is active and its model was detected
 #   3. a message can be sent and the mock backend's reply streams back
 #   4. the seeded mock MCP server connects, and a chat drives a full tool
-#      round-trip: the model requests the tool, ocapi runs it on the mock
+#      round-trip: the model requests the tool, okapi runs it on the mock
 #      MCP server, feeds the result back and the model's answer appears
 #   5. a keyboard shortcut can be changed via Settings > Shortcuts: the new
-#      sequence shows in the table, is persisted to ocapi.conf and takes
+#      sequence shows in the table, is persisted to okapi.conf and takes
 #      effect immediately (pressing it starts a new chat)
 #   6. the "Show throughput (t/s)" toggle under Settings > General > User
-#      Interface persists to ocapi.conf and makes the finished assistant
+#      Interface persists to okapi.conf and makes the finished assistant
 #      message show its output token throughput ("N t/s") next to the copy
 #      button
 #
@@ -55,20 +55,20 @@ TOOL_REPLY_TEXT = "The tool says: echo: Hello from the MCP tool!"
 DOUBLE_TOOL_REPLY_TEXT = "The tool says: echo: Hello from the MCP tool! And twice!"
 
 
-class OcapiE2E(unittest.TestCase):
+class OkapiE2E(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        port = os.environ.get("OCAPI_E2E_MOCK_PORT", "11434")
-        mcp_port = os.environ.get("OCAPI_E2E_MOCK_MCP_PORT", "11435")
+        port = os.environ.get("OKAPI_E2E_MOCK_PORT", "11434")
+        mcp_port = os.environ.get("OKAPI_E2E_MOCK_MCP_PORT", "11435")
         options = AppiumOptions()
-        options.set_capability("app", os.environ["OCAPI_E2E_APP"])
+        options.set_capability("app", os.environ["OKAPI_E2E_APP"])
         options.set_capability(
             "appium:environ",
             {
-                "OCAPI_E2E_MOCK_BACKEND": "1",
-                "OCAPI_E2E_MOCK_PORT": port,
-                "OCAPI_E2E_MOCK_MCP": "1",
-                "OCAPI_E2E_MOCK_MCP_PORT": mcp_port,
+                "OKAPI_E2E_MOCK_BACKEND": "1",
+                "OKAPI_E2E_MOCK_PORT": port,
+                "OKAPI_E2E_MOCK_MCP": "1",
+                "OKAPI_E2E_MOCK_MCP_PORT": mcp_port,
             },
         )
         cls.driver = webdriver.Remote(command_executor="http://127.0.0.1:4723", options=options)
@@ -117,7 +117,7 @@ class OcapiE2E(unittest.TestCase):
         self.find_by_name("Send")
 
     def test_02_backend_setup(self):
-        # The mock backend was seeded on startup (OCAPI_E2E_MOCK_BACKEND)
+        # The mock backend was seeded on startup (OKAPI_E2E_MOCK_BACKEND)
         # and is the active backend; its model was detected through a real
         # GET /api/tags round-trip against the mock server.
         # The picker is a QToolButton whose text ("Backend | model") doubles
@@ -169,7 +169,7 @@ class OcapiE2E(unittest.TestCase):
     def test_05_mcp_tool_roundtrip(self):
         # The seeded mock MCP server connected on startup and offered its
         # echo tool (status bar: "MCP: 1 tool(s)"). A chat message with the
-        # trigger phrase makes the mock backend request the tool; ocapi runs
+        # trigger phrase makes the mock backend request the tool; okapi runs
         # it against the mock MCP server, feeds the result back and the mock
         # backend's final answer (quoting the tool result) streams in.
         self.wait_for("//label[starts-with(@name, 'MCP: 1 tool')]", timeout=30)
@@ -188,7 +188,7 @@ class OcapiE2E(unittest.TestCase):
         # asynchronously hung the tool-call loop — the round counter was
         # decremented only for the first result, so the conversation never
         # continued and no final assistant answer appeared. The mock backend
-        # requests the echo tool twice; ocapi must run both calls, feed both
+        # requests the echo tool twice; okapi must run both calls, feed both
         # results back and stream the double-round answer (a text that is
         # not already on screen from the single-round test before).
         composer = self.find_by_name("Message input")
@@ -241,10 +241,10 @@ class OcapiE2E(unittest.TestCase):
         # The table shows the new shortcut for "New chat" right away.
         self.wait_for(f"{showing_cell}[@name='End']")
 
-        # The override is persisted to ocapi.conf (group "shortcuts").
+        # The override is persisted to okapi.conf (group "shortcuts").
         self.wait_for("//dialog[@name='Settings']//*[@name='Close']").click()
         config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-        conf_path = os.path.join(config_home, "sschmidhuber", "ocapi", "ocapi.conf")
+        conf_path = os.path.join(config_home, "sschmidhuber", "okapi", "okapi.conf")
         with open(conf_path, encoding="utf-8") as conf_file:
             conf = conf_file.read()
         self.assertIn("[shortcuts]", conf)
@@ -308,9 +308,9 @@ class OcapiE2E(unittest.TestCase):
         checkbox.click()
         self.wait_for("//dialog[@name='Settings']//*[@name='Close']").click()
 
-        # The toggle is persisted to ocapi.conf (group "ui").
+        # The toggle is persisted to okapi.conf (group "ui").
         config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-        conf_path = os.path.join(config_home, "sschmidhuber", "ocapi", "ocapi.conf")
+        conf_path = os.path.join(config_home, "sschmidhuber", "okapi", "okapi.conf")
         with open(conf_path, encoding="utf-8") as conf_file:
             conf = conf_file.read()
         self.assertIn("[ui]", conf)

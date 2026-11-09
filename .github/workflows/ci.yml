@@ -152,9 +152,9 @@ jobs:
           ccache --set-config=sloppiness=file_macro,time_macros
           ccache -z
 
-      - name: Build ocapi
+      - name: Build okapi
         run: |
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DOCAPI_BUILD_TESTS=OFF \
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DOKAPI_BUILD_TESTS=OFF \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
           cmake --build build
 
@@ -231,16 +231,16 @@ jobs:
             exit 1
           fi
 
-          export OCAPI_E2E_APP="$PWD/build/src/ocapi"
-          export OCAPI_E2E_MOCK_PORT=11434
-          export OCAPI_E2E_MOCK_MCP_PORT=11435
-          export OCAPI_E2E_SCREENSHOT_DIR="$RUNNER_TEMP/e2e-report/screenshots"
-          export OCAPI_E2E_JUNIT_XML="$RUNNER_TEMP/e2e-report/results.xml"
-          export OCAPI_E2E_REPORT_MD="$RUNNER_TEMP/e2e-report/report.md"
+          export OKAPI_E2E_APP="$PWD/build/src/okapi"
+          export OKAPI_E2E_MOCK_PORT=11434
+          export OKAPI_E2E_MOCK_MCP_PORT=11435
+          export OKAPI_E2E_SCREENSHOT_DIR="$RUNNER_TEMP/e2e-report/screenshots"
+          export OKAPI_E2E_JUNIT_XML="$RUNNER_TEMP/e2e-report/results.xml"
+          export OKAPI_E2E_REPORT_MD="$RUNNER_TEMP/e2e-report/report.md"
           . .venv/bin/activate
           rc=0
           ( cd tests/e2e && python3 run_with_report.py ) || rc=$?
-          cat "$OCAPI_E2E_REPORT_MD" >> "$GITHUB_STEP_SUMMARY"
+          cat "$OKAPI_E2E_REPORT_MD" >> "$GITHUB_STEP_SUMMARY"
           exit "$rc"
           SCRIPT
 

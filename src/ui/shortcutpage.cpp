@@ -17,7 +17,7 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
-namespace ocapi {
+namespace okapi {
 
 ShortcutPage::ShortcutPage(ShortcutRegistry *registry, QWidget *parent)
     : QWidget(parent), m_registry(registry) {
@@ -172,8 +172,8 @@ bool ShortcutPage::captureAndApply(int row) {
 void ShortcutPage::persist() {
     const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     QDir().mkpath(configDir);
-    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    QSettings settings(configDir + QStringLiteral("/okapi.conf"), QSettings::IniFormat);
     m_registry->save(settings);
 }
 
-} // namespace ocapi
+} // namespace okapi

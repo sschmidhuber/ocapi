@@ -9,7 +9,7 @@ class QTimer;
 class QTreeWidget;
 class QTreeWidgetItem;
 
-namespace ocapi {
+namespace okapi {
 
 class ChatSession;
 
@@ -64,4 +64,4 @@ private:
     QSet<QUuid> m_unread;
 };
 
-} // namespace ocapi
+} // namespace okapi

@@ -5,7 +5,7 @@
 #include <QSignalSpy>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestMcpManager : public QObject {
     Q_OBJECT

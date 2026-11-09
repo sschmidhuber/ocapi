@@ -7,7 +7,7 @@
 
 class QSettings;
 
-namespace ocapi {
+namespace okapi {
 
 // One configurable keyboard shortcut: a stable id, the user-visible action
 // description and the default key sequence. windowScope=false marks
@@ -61,4 +61,4 @@ private:
     QHash<QString, QKeySequence> m_overrides;
 };
 
-} // namespace ocapi
+} // namespace okapi

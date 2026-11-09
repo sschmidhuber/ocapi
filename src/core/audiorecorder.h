@@ -9,7 +9,7 @@ class QAudioSource;
 class QIODevice;
 class QMediaDevices;
 
-namespace ocapi {
+namespace okapi {
 
 // Captures audio from the configured input device as 16-bit mono PCM and
 // emits the samples in small blocks. The device (or the system default when
@@ -46,4 +46,4 @@ private:
     bool m_active = false;
 };
 
-} // namespace ocapi
+} // namespace okapi

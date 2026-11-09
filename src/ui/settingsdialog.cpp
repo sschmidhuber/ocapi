@@ -27,7 +27,7 @@
 #include <QTabWidget>
 #include <QVBoxLayout>
 
-namespace ocapi {
+namespace okapi {
 
 SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mcpRegistry,
                                McpManager *mcpManager, SttRegistry *sttRegistry,
@@ -131,4 +131,4 @@ void SettingsDialog::addTab(const QString &title, const QString &tabId, QWidget 
     m_tabIds.append(tabId);
 }
 
-} // namespace ocapi
+} // namespace okapi

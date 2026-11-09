@@ -8,7 +8,7 @@
 #include <QVector>
 #include <optional>
 
-namespace ocapi {
+namespace okapi {
 
 enum class SttServiceKind {
     OpenAiApi,       // OpenAI transcription API
@@ -77,4 +77,4 @@ struct SttServiceConfig {
     static SttServiceConfig fromJson(const QJsonObject &object);
 };
 
-} // namespace ocapi
+} // namespace okapi

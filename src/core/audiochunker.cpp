@@ -4,7 +4,7 @@
 
 #include <algorithm>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -100,4 +100,4 @@ qint64 AudioChunker::bytesToMs(qsizetype bytes) const {
     return bytes * 1000 / static_cast<qint64>(m_sampleRate) / kBytesPerFrame;
 }
 
-} // namespace ocapi
+} // namespace okapi

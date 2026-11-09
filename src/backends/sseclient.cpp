@@ -10,11 +10,11 @@
 #include <QNetworkRequest>
 #include <QStandardPaths>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
-// Debug aid: when OCAPI_DEBUG_SSE is set, raw chunks read from the network
+// Debug aid: when OKAPI_DEBUG_SSE is set, raw chunks read from the network
 // and parsed events are appended to a log file so stream parsing problems
 // can be diagnosed from a real conversation. The file is written into the
 // app data location as sse-debug-<timestamp>.log. Secrets (API keys in
@@ -24,7 +24,7 @@ namespace {
 constexpr qint64 kMaxLogBytes = 5LL * 1024 * 1024;
 
 bool sseDebugEnabled() {
-    static const bool enabled = qEnvironmentVariableIsSet("OCAPI_DEBUG_SSE");
+    static const bool enabled = qEnvironmentVariableIsSet("OKAPI_DEBUG_SSE");
     return enabled;
 }
 
@@ -155,4 +155,4 @@ void SseClient::onFinished() {
     emit finished();
 }
 
-} // namespace ocapi
+} // namespace okapi

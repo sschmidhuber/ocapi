@@ -17,7 +17,7 @@
 #include <QTreeWidget>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 namespace {
 
@@ -54,7 +54,7 @@ void clickModalButton(QMessageBox::StandardButton button) {
 
 } // namespace
 
-// MainWindow writes ocapi.conf/ocapi.sqlite under the app config/data dirs;
+// MainWindow writes okapi.conf/okapi.sqlite under the app config/data dirs;
 // redirect them into a temp dir so the test does not touch real settings.
 class TestMainWindow : public QObject {
     Q_OBJECT

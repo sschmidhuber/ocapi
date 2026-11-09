@@ -1,5 +1,5 @@
 {
-  "name": "ocapi-web-lint",
+  "name": "okapi-web-lint",
   "version": "0.0.0",
   "private": true,
   "description": "Dev-only static analysis for the web chat assets in resources/web (ESLint, Stylelint, HTMLHint, Prettier). Not part of the shipped app.",

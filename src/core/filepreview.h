@@ -4,7 +4,7 @@
 #include <QImage>
 #include <QString>
 
-namespace ocapi {
+namespace okapi {
 
 // Categorizes attached non-image files so the chat can render a matching
 // thumbnail for every supported file type.
@@ -38,4 +38,4 @@ public:
     [[nodiscard]] static int maxThumbnailEdge() { return 96; }
 };
 
-} // namespace ocapi
+} // namespace okapi

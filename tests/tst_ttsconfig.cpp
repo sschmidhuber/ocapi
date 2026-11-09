@@ -2,7 +2,7 @@
 
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestTtsConfig : public QObject {
     Q_OBJECT

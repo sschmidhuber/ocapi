@@ -8,7 +8,7 @@
 #include <QUuid>
 #include <QVector>
 
-namespace ocapi {
+namespace okapi {
 
 // JSON-RPC 2.0 / MCP protocol version implemented by the client. Bumped when
 // newer MCP revisions add features the client can use.
@@ -189,7 +189,7 @@ struct McpToolResult {
         {QStringLiteral("capabilities"), clientCapabilitiesJson()},
         {QStringLiteral("clientInfo"),
          QJsonObject{
-             {QStringLiteral("name"), QStringLiteral("ocapi")},
+             {QStringLiteral("name"), QStringLiteral("okapi")},
              {QStringLiteral("version"), QStringLiteral("0.1.0")},
          }},
     };
@@ -274,16 +274,16 @@ struct McpToolResult {
     return QUuid::createUuid().toString(QUuid::WithoutBraces);
 }
 
-} // namespace ocapi
+} // namespace okapi
 
-Q_DECLARE_METATYPE(ocapi::McpTool)
-Q_DECLARE_METATYPE(QVector<ocapi::McpTool>)
-Q_DECLARE_METATYPE(ocapi::McpResource)
-Q_DECLARE_METATYPE(QVector<ocapi::McpResource>)
-Q_DECLARE_METATYPE(ocapi::McpResourceTemplate)
-Q_DECLARE_METATYPE(QVector<ocapi::McpResourceTemplate>)
-Q_DECLARE_METATYPE(ocapi::McpPrompt)
-Q_DECLARE_METATYPE(QVector<ocapi::McpPrompt>)
-Q_DECLARE_METATYPE(ocapi::McpToolResult)
-Q_DECLARE_METATYPE(ocapi::McpServerInfo)
-Q_DECLARE_METATYPE(ocapi::McpPromptContent)
+Q_DECLARE_METATYPE(okapi::McpTool)
+Q_DECLARE_METATYPE(QVector<okapi::McpTool>)
+Q_DECLARE_METATYPE(okapi::McpResource)
+Q_DECLARE_METATYPE(QVector<okapi::McpResource>)
+Q_DECLARE_METATYPE(okapi::McpResourceTemplate)
+Q_DECLARE_METATYPE(QVector<okapi::McpResourceTemplate>)
+Q_DECLARE_METATYPE(okapi::McpPrompt)
+Q_DECLARE_METATYPE(QVector<okapi::McpPrompt>)
+Q_DECLARE_METATYPE(okapi::McpToolResult)
+Q_DECLARE_METATYPE(okapi::McpServerInfo)
+Q_DECLARE_METATYPE(okapi::McpPromptContent)

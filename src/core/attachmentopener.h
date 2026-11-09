@@ -2,7 +2,7 @@
 
 #include <QString>
 
-namespace ocapi {
+namespace okapi {
 
 // Opens files with the platform's default application. QDesktopServices
 // routes through the freedesktop OpenURI portal inside Flatpak/snap
@@ -16,4 +16,4 @@ public:
     [[nodiscard]] static bool open(const QString &path, QString *error = nullptr);
 };
 
-} // namespace ocapi
+} // namespace okapi

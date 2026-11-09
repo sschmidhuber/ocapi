@@ -1,6 +1,6 @@
 # End-to-end tests
 
-Essential user flows of the ocapi UI, driven through KDE's
+Essential user flows of the okapi UI, driven through KDE's
 [selenium-webdriver-at-spi](https://github.com/KDE/selenium-webdriver-at-spi)
 (the AT-SPI-based Appium/WebDriver stack KDE uses for its own end-to-end
 tests). The tests are black-box: they find and interact with widgets through
@@ -24,19 +24,19 @@ the Linux accessibility API, never through pixel comparison.
 5. **MCP setup and tool usage** — the seeded mock MCP server connects and
    offers its `echo` tool (status bar shows "MCP: 1 tool(s)"). A chat
    message with a trigger phrase makes the mock backend request the tool;
-   ocapi runs it against the mock MCP server, feeds the result back to the
+   okapi runs it against the mock MCP server, feeds the result back to the
    model, and the final answer (quoting the tool result) appears in the chat.
    This drives the complete agent loop: tool advertisement, model tool call,
    MCP execution, result feedback and the model's follow-up.
 6. **Shortcut configuration** — *Settings → Shortcuts* lists the actions with
    their default shortcuts; changing "New chat" to another key updates the
-   table, persists the override to `ocapi.conf` (`[shortcuts]` group) and
+   table, persists the override to `okapi.conf` (`[shortcuts]` group) and
    takes effect immediately (pressing the new key starts a new chat). The
    driver synthesizes real key events for special keys only (no modifier
    chords), so the test binds a plain special key ("End").
 7. **Throughput toggle** — *Settings → General → User Interface* (the dialog
    opens on "General"; the tab button exposes a Press action) enables
-   "Show throughput (t/s)". The change persists to `ocapi.conf` (`[ui]`
+   "Show throughput (t/s)". The change persists to `okapi.conf` (`[ui]`
    group) and the finished assistant message immediately shows its output
    throughput ("N t/s") next to the copy button.
 
@@ -50,7 +50,7 @@ populates rather than through the menu.
 ## Mock backend
 
 [`mock_ollama.py`](mock_ollama.py) is a dependency-free mock of the parts of
-the Ollama API ocapi uses:
+the Ollama API okapi uses:
 
 - `GET /api/tags` — reports a single `mock-model`
 - `POST /api/chat` — streams a fixed reply as Server-Sent Events; when the
@@ -59,10 +59,10 @@ the Ollama API ocapi uses:
   thinking parts, then a content-part array for the first visible token,
   then plain strings)
 
-The test run sets `OCAPI_E2E_MOCK_BACKEND=1`, which makes ocapi pre-seed a
+The test run sets `OKAPI_E2E_MOCK_BACKEND=1`, which makes okapi pre-seed a
 "Mock backend" entry pointing at the mock server
 (`src/main.cpp`), so no menu-driven configuration is required for the chat
-test. `OCAPI_E2E_MOCK_PORT` selects the port (default 11434, Ollama's
+test. `OKAPI_E2E_MOCK_PORT` selects the port (default 11434, Ollama's
 default).
 
 ## Running locally
@@ -86,15 +86,15 @@ pip install -r /tmp/swa/requirements.txt
 Then, from the repository root:
 
 ```
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DOCAPI_BUILD_TESTS=OFF
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DOKAPI_BUILD_TESTS=OFF
 cmake --build build
 
 . .venv/bin/activate
-export OCAPI_E2E_APP="$PWD/build/src/ocapi"
+export OKAPI_E2E_APP="$PWD/build/src/okapi"
 export QT_QPA_PLATFORM=xcb
 python3 tests/e2e/mock_ollama.py 11434 &
 (cd /tmp/swa && flask run --port 4723 --no-reload) &
-python3 tests/e2e/ocapi_e2e_test.py
+python3 tests/e2e/okapi_e2e_test.py
 ```
 
 Inside a desktop session nothing else is needed; on a headless machine wrap
@@ -105,7 +105,7 @@ the run in `xvfb-run -a dbus-run-session -- …` and start
 ## CI
 
 The `e2e` job in `.github/workflows/ci.yml` runs the suite on every push to
-`main` and on pull requests: it builds ocapi, starts the mock backend and
+`main` and on pull requests: it builds okapi, starts the mock backend and
 mock MCP server, brings up the AT-SPI bus inside `Xvfb` + `dbus-run-session`,
 serves the selenium-webdriver-at-spi WebDriver, and runs the suite through
 [`run_with_report.py`](run_with_report.py).
@@ -126,6 +126,6 @@ Each run produces a report that is easy to review directly on GitHub:
 To generate the same report locally:
 
 ```
-OCAPI_E2E_SCREENSHOT_DIR=/tmp/shots OCAPI_E2E_REPORT_MD=/tmp/report.md \
-OCAPI_E2E_JUNIT_XML=/tmp/results.xml python3 tests/e2e/run_with_report.py
+OKAPI_E2E_SCREENSHOT_DIR=/tmp/shots OKAPI_E2E_REPORT_MD=/tmp/report.md \
+OKAPI_E2E_JUNIT_XML=/tmp/results.xml python3 tests/e2e/run_with_report.py
 ```

@@ -15,7 +15,7 @@ class QPushButton;
 class QStackedWidget;
 class QTableWidget;
 
-namespace ocapi {
+namespace okapi {
 
 class McpClient;
 class McpRegistry;
@@ -37,9 +37,9 @@ private slots:
     void onFieldEdited();
     void onTransportChanged(int index);
     void onTestConnection();
-    void onTestConnected(const ocapi::McpServerInfo &info);
+    void onTestConnected(const okapi::McpServerInfo &info);
     void onTestFailed(const QString &error);
-    void onTestToolsReady(const QVector<ocapi::McpTool> &tools);
+    void onTestToolsReady(const QVector<okapi::McpTool> &tools);
     void onPermissionChanged(int row, int column);
 
 private:
@@ -75,4 +75,4 @@ private:
     bool m_updatingForm = false;
 };
 
-} // namespace ocapi
+} // namespace okapi

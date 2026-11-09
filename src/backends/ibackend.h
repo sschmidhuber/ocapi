@@ -11,7 +11,7 @@
 #include <QStringList>
 #include <QVector>
 
-namespace ocapi {
+namespace okapi {
 
 class ChatSession;
 
@@ -81,7 +81,7 @@ protected:
         return session->appendMessage(Role::Assistant, {}, true).id;
     }
 
-    // With OCAPI_DEBUG_TOOLS set, dumps the exact messages array sent to the
+    // With OKAPI_DEBUG_TOOLS set, dumps the exact messages array sent to the
     // model, so it is visible whether tool results are in the context.
     static void debugLogRequest(const QString &backendName, const QJsonArray &messages) {
         if (toolDebug::enabled()) {
@@ -95,4 +95,4 @@ protected:
     BackendConfig m_config;
 };
 
-} // namespace ocapi
+} // namespace okapi

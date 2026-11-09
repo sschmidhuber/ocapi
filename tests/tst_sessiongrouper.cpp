@@ -3,7 +3,7 @@
 #include <QLocale>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestSessionGrouper : public QObject {
     Q_OBJECT

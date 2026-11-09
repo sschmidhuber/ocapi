@@ -1,9 +1,9 @@
-# Flatpak manifest for ocapi.
+# Flatpak manifest for okapi.
 #
 # Build a local bundle with:
 #   packaging/flatpak/build-flatpak.sh
 #
-# The manifest builds ocapi from the git checkout that contains it (the
+# The manifest builds okapi from the git checkout that contains it (the
 # script passes the source directory). The KDE Platform/Sdk 6.10 runtime
 # provides Qt 6.10 (Widgets, Network, Sql) and libarchive. Attachment
 # text extraction is enabled by bundling poppler-cpp and tesseract as
@@ -12,13 +12,13 @@
 # Qt WebEngine is not part of org.kde.Sdk, so the app uses the
 # io.qt.qtwebengine.BaseApp (branch matching the runtime's Qt version)
 # which provides Qt6WebEngine and Chromium sandboxing support.
-id: dev.sschmidhuber.ocapi
+id: dev.sschmidhuber.okapi
 runtime: org.kde.Platform
 runtime-version: "6.10"
 sdk: org.kde.Sdk
 base: io.qt.qtwebengine.BaseApp
 base-version: "6.10"
-command: ocapi
+command: okapi
 
 finish-args:
   - --share=ipc
@@ -183,11 +183,11 @@ modules:
         url: https://poppler.freedesktop.org/poppler-26.10.0.tar.xz
         sha256: 6792cb7c69205007ad87d2e936cecc5b3a31fac29ab54ffc3175fdb6b2a6ce35
 
-  - name: ocapi
+  - name: okapi
     buildsystem: cmake-ninja
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
-      - -DOCAPI_BUILD_TESTS=OFF
+      - -DOKAPI_BUILD_TESTS=OFF
     sources:
       - type: dir
         path: ../..

@@ -3,7 +3,7 @@
 #include <QJsonDocument>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestSseParser : public QObject {
     Q_OBJECT

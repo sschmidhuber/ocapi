@@ -6,7 +6,7 @@
 
 #include <memory>
 
-namespace ocapi {
+namespace okapi {
 
 // Renders a subset of markdown (headings, emphasis, inline code, fenced code
 // blocks, links, lists, blockquotes, horizontal rules) into a QTextDocument
@@ -28,4 +28,4 @@ private:
     static void renderInto(QTextDocument &doc, const QString &markdown, const QFont &font);
 };
 
-} // namespace ocapi
+} // namespace okapi

@@ -2,7 +2,7 @@
 
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestSentenceSplitter : public QObject {
     Q_OBJECT

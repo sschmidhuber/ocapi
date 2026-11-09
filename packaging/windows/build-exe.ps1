@@ -1,4 +1,4 @@
-# Build a self-contained EXE installer for ocapi using CPack's NSIS generator.
+# Build a self-contained EXE installer for okapi using CPack's NSIS generator.
 #
 # Requirements (Windows 10/11):
 #   - Visual Studio with the "C++ CMake tools for Windows" component, or a
@@ -10,11 +10,11 @@
 # Usage (PowerShell):
 #   packaging\windows\build-exe.ps1 [-Version 0.1.0] [-QtDir C:\Qt\6.8.2\msvc2022_64]
 #
-# Produces: dist\ocapi-<Version>-windows-x64.exe
+# Produces: dist\okapi-<Version>-windows-x64.exe
 #
 # The installer is NOT signed. Signing the produced .exe for distribution
 # requires a code-signing certificate; sign afterwards with:
-#   signtool sign /fd SHA256 /a /tr http://timestamp.digicert.com /td SHA256 ocapi-<Version>-windows-x64.exe
+#   signtool sign /fd SHA256 /a /tr http://timestamp.digicert.com /td SHA256 okapi-<Version>-windows-x64.exe
 param(
     [string]$Version = "",
     [string]$QtDir = "$env:Qt6_DIR",
@@ -26,8 +26,8 @@ if (-not $Version) { $Version = (Get-Date).ToUniversalTime().ToString("yyyy.MM.d
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Resolve-Path "$PSScriptRoot\..\.."
-$BuildDir = Join-Path $env:TEMP "ocapi-exe-build"
-$ExeFile = Join-Path $OutDir "ocapi-$Version-windows-x64.exe"
+$BuildDir = Join-Path $env:TEMP "okapi-exe-build"
+$ExeFile = Join-Path $OutDir "okapi-$Version-windows-x64.exe"
 
 foreach ($tool in @("cmake", "ninja", "cpack", "makensis")) {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
@@ -38,22 +38,22 @@ foreach ($tool in @("cmake", "ninja", "cpack", "makensis")) {
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 Remove-Item -Recurse -Force $BuildDir -ErrorAction SilentlyContinue
 
-Write-Host ">> Configuring ocapi $Version (CPack NSIS generator)"
+Write-Host ">> Configuring okapi $Version (CPack NSIS generator)"
 $cmakeArgs = @(
     "-S", $RepoRoot,
     "-B", $BuildDir,
     "-G", "Ninja",
     "-DCMAKE_BUILD_TYPE=Release",
-    "-DOCAPI_BUILD_TESTS=OFF",
+    "-DOKAPI_BUILD_TESTS=OFF",
     "-DCPACK_GENERATOR=NSIS64",
     "-DCPACK_PACKAGE_VERSION=$Version",
-    "-DCPACK_NSIS_MUI_ICON=$RepoRoot\resources\icons\ocapi.ico",
-    "-DCPACK_NSIS_MUI_UNIICON=$RepoRoot\resources\icons\ocapi.ico",
-    "-DCPACK_NSIS_INSTALLED_ICON_NAME=bin\\ocapi.exe",
-    "-DCPACK_NSIS_DISPLAY_NAME=ocapi",
-    "-DCPACK_NSIS_HELP_LINK=https://github.com/sschmidhuber/ocapi",
-    "-DCPACK_NSIS_URL_INFO_ABOUT=https://github.com/sschmidhuber/ocapi",
-    "-DCPACK_NSIS_CONTACT=https://github.com/sschmidhuber/ocapi",
+    "-DCPACK_NSIS_MUI_ICON=$RepoRoot\resources\icons\okapi.ico",
+    "-DCPACK_NSIS_MUI_UNIICON=$RepoRoot\resources\icons\okapi.ico",
+    "-DCPACK_NSIS_INSTALLED_ICON_NAME=bin\\okapi.exe",
+    "-DCPACK_NSIS_DISPLAY_NAME=Okapi",
+    "-DCPACK_NSIS_HELP_LINK=https://github.com/sschmidhuber/__REPOOKAPI__",
+    "-DCPACK_NSIS_URL_INFO_ABOUT=https://github.com/sschmidhuber/__REPOOKAPI__",
+    "-DCPACK_NSIS_CONTACT=https://github.com/sschmidhuber/__REPOOKAPI__",
     "-DCPACK_NSIS_MODIFY_PATH=ON"
 )
 if ($QtDir) { $cmakeArgs += "-DCMAKE_PREFIX_PATH=$QtDir" }
@@ -70,13 +70,13 @@ if (-not $windeployqt -and $QtDir) {
     $windeployqt = Get-Item (Join-Path $QtDir "bin\windeployqt.exe") -ErrorAction SilentlyContinue
 }
 if (-not $windeployqt) { Write-Error "windeployqt not found; pass -QtDir pointing at your Qt installation" }
-$AppExe = Join-Path $BuildDir "src\Release\ocapi.exe"
-if (-not (Test-Path $AppExe)) { $AppExe = Join-Path $BuildDir "src\ocapi.exe" }
+$AppExe = Join-Path $BuildDir "src\Release\okapi.exe"
+if (-not (Test-Path $AppExe)) { $AppExe = Join-Path $BuildDir "src\okapi.exe" }
 $InstallRoot = Join-Path $BuildDir "_CPack_Packages\Windows\NSIS"
 # windeployqt into the directory CPack will package: install the app first.
 & cmake --install $BuildDir --prefix "" --config Release
 $DeployTarget = Join-Path $BuildDir "bin"
-if (-not (Test-Path (Join-Path $DeployTarget "ocapi.exe"))) {
+if (-not (Test-Path (Join-Path $DeployTarget "okapi.exe"))) {
     # Fallback: deploy next to the built exe and let CPack's install rules pick it up.
     $DeployTarget = Split-Path $AppExe -Parent
 }
@@ -88,7 +88,7 @@ Push-Location $BuildDir
 try {
     & cpack -G NSIS64 -C Release -R $Version
     if ($LASTEXITCODE -ne 0) { Write-Error "CPack failed" }
-    $built = Get-ChildItem -Filter "ocapi-$Version-*.exe" | Select-Object -First 1
+    $built = Get-ChildItem -Filter "okapi-$Version-*.exe" | Select-Object -First 1
     if (-not $built) { Write-Error "CPack did not produce an EXE installer" }
     Copy-Item $built.FullName -Destination $ExeFile -Force
 } finally {

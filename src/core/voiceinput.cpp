@@ -4,7 +4,7 @@
 #include "backends/sttstreamclient.h"
 #include "core/audiorecorder.h"
 
-namespace ocapi {
+namespace okapi {
 
 VoiceInput::VoiceInput(QObject *parent) : QObject(parent) {
     m_recorder = new AudioRecorder(this);
@@ -102,4 +102,4 @@ void VoiceInput::onSamplesCaptured(const QByteArray &pcm) {
         m_client->transcribeChunk(chunk);
 }
 
-} // namespace ocapi
+} // namespace okapi

@@ -16,7 +16,7 @@ class QIODevice;
 class QMediaDevices;
 class QTimer;
 
-namespace ocapi {
+namespace okapi {
 
 class TtsClient;
 
@@ -100,4 +100,4 @@ private:
     bool m_stopped = true;
 };
 
-} // namespace ocapi
+} // namespace okapi

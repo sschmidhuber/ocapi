@@ -5,7 +5,7 @@
 #include <array>
 #include <numeric>
 
-using namespace ocapi;
+using namespace okapi;
 
 namespace {
 
@@ -17,7 +17,7 @@ void writeMinimalPdf(const QString &path, const QByteArray &content) {
     file.close();
 }
 
-// A minimal but valid single-page PDF containing the text "Hello ocapi PDF".
+// A minimal but valid single-page PDF containing the text "Hello okapi PDF".
 QByteArray minimalPdf() {
     const std::array<QByteArray, 5> objects = {
         QByteArrayLiteral("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"),
@@ -25,7 +25,7 @@ QByteArray minimalPdf() {
         QByteArrayLiteral("3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] "
                           "/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"),
         QByteArrayLiteral("4 0 obj\n<< /Length 46 >>\nstream\nBT /F1 24 Tf 20 40 Td "
-                          "(Hello ocapi PDF) Tj ET\nendstream\nendobj\n"),
+                          "(Hello okapi PDF) Tj ET\nendstream\nendobj\n"),
         QByteArrayLiteral("5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica "
                           ">>\nendobj\n")};
     QByteArray pdf("%PDF-1.4\n");
@@ -5558,7 +5558,7 @@ private slots:
 };
 
 void TestTextExtractor::extractFromEmailHandlesEml() {
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.eml"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-test.eml"));
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     file.write("Subject: Quarterly report\r\n"
@@ -5581,7 +5581,7 @@ void TestTextExtractor::extractFromEmailHandlesEml() {
 }
 
 void TestTextExtractor::extractFromEmailHandlesMbox() {
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.mbox"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-test.mbox"));
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     file.write("From alice@example.com Mon Oct 20 10:00:00 2026\n"
@@ -5604,7 +5604,7 @@ void TestTextExtractor::extractFromEmailHandlesMbox() {
 }
 
 void TestTextExtractor::extractFromEmailHandlesHtmlBody() {
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-html.eml"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-html.eml"));
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     file.write("Subject: Fancy newsletter\r\n"
@@ -5648,7 +5648,7 @@ void TestTextExtractor::htmlToTextKeepsBlockStructure() {
 }
 
 void TestTextExtractor::extractFromFileRoutesHtml() {
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-page.html"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-page.html"));
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     file.write(
@@ -5667,7 +5667,7 @@ void TestTextExtractor::extractFromArchiveHandlesZip() {
     if (!TextExtractor::hasLibArchive())
         QSKIP("libarchive not available in this build");
 
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.zip"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-test.zip"));
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     file.write(zipZip());
@@ -5688,7 +5688,7 @@ void TestTextExtractor::extractFromArchiveRejectsBomb() {
 
     // An archive whose declared entry sizes exceed maxArchiveTotalBytes() must
     // be rejected without writing anything to disk.
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-bomb.zip"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-bomb.zip"));
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     file.write(bombZip());
@@ -5711,20 +5711,20 @@ void TestTextExtractor::extractFromPdfReturnsEmbeddedText() {
     if (!TextExtractor::hasPoppler())
         QSKIP("poppler-cpp not available in this build");
 
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.pdf"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-test.pdf"));
     writeMinimalPdf(path, minimalPdf());
 
     QString error;
     const QString text = TextExtractor::extractFromPdf(path, &error);
     QVERIFY2(!text.isEmpty(), qPrintable(error));
-    QVERIFY(text.contains(QStringLiteral("Hello ocapi PDF"), Qt::CaseInsensitive));
+    QVERIFY(text.contains(QStringLiteral("Hello okapi PDF"), Qt::CaseInsensitive));
     QFile::remove(path);
 }
 
 void TestTextExtractor::extractFromPdfRejectsMissingFile() {
     QString error;
     const QString text = TextExtractor::extractFromPdf(
-        QDir::temp().filePath(QStringLiteral("ocapi-missing-file.pdf")), &error);
+        QDir::temp().filePath(QStringLiteral("okapi-missing-file.pdf")), &error);
     QVERIFY(text.isEmpty());
     if (TextExtractor::hasPoppler())
         QVERIFY(!error.isEmpty());
@@ -5741,7 +5741,7 @@ void TestTextExtractor::extractFromImageIsAvailableOrReportsError() {
 }
 
 void TestTextExtractor::extractFromTextFileReturnsContent() {
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.txt"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-test.txt"));
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     file.write("name,value\nfoo,42\nbar,1337");
@@ -5755,7 +5755,7 @@ void TestTextExtractor::extractFromTextFileReturnsContent() {
 }
 
 void TestTextExtractor::extractFromTextFileTruncatesLargeFiles() {
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-large.txt"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-large.txt"));
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     const QString filler = QString(TextExtractor::maxTextFileChars() + 100, QLatin1Char('x'));
@@ -5775,12 +5775,18 @@ void TestTextExtractor::isTextFileAcceptsPlainTextFormats() {
         QByteArray content;
     };
     const std::array<TestCase, 6> cases = {
-        TestCase{QStringLiteral("ocapi.csv"), QByteArrayLiteral("id,name\n1,alpha\n2,beta")},
-        TestCase{QStringLiteral("ocapi.md"), QByteArrayLiteral("# Heading\n\nSome *markdown*.")},
-        TestCase{QStringLiteral("ocapi.html"), QByteArrayLiteral("<html><body>hi</body></html>\n")},
-        TestCase{QStringLiteral("ocapi.cpp"), QByteArrayLiteral("int main() { return 0; }\n")},
-        TestCase{QStringLiteral("ocapi.json"), QByteArrayLiteral("{\"key\": [1, 2, 3]}")},
-        TestCase{QStringLiteral("ocapi.log"), QByteArrayLiteral("2026-10-20 INFO started\n")}};
+        TestCase{.name = QStringLiteral("okapi.csv"),
+                 .content = QByteArrayLiteral("id,name\n1,alpha\n2,beta")},
+        TestCase{.name = QStringLiteral("okapi.md"),
+                 .content = QByteArrayLiteral("# Heading\n\nSome *markdown*.")},
+        TestCase{.name = QStringLiteral("okapi.html"),
+                 .content = QByteArrayLiteral("<html><body>hi</body></html>\n")},
+        TestCase{.name = QStringLiteral("okapi.cpp"),
+                 .content = QByteArrayLiteral("int main() { return 0; }\n")},
+        TestCase{.name = QStringLiteral("okapi.json"),
+                 .content = QByteArrayLiteral("{\"key\": [1, 2, 3]}")},
+        TestCase{.name = QStringLiteral("okapi.log"),
+                 .content = QByteArrayLiteral("2026-10-20 INFO started\n")}};
     for (const auto &testCase : cases) {
         const QString path = QDir::temp().filePath(testCase.name);
         QFile file(path);
@@ -5794,11 +5800,11 @@ void TestTextExtractor::isTextFileAcceptsPlainTextFormats() {
 }
 
 void TestTextExtractor::isTextFileRejectsBinaryFiles() {
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-binary.bin"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-binary.bin"));
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     std::array<char, 64> binary{};
-    std::iota(binary.begin(), binary.end(), static_cast<char>(0));
+    std::ranges::iota(binary, static_cast<char>(0));
     file.write(binary.data(), static_cast<qint64>(binary.size()));
     file.close();
     QVERIFY(!TextExtractor::isTextFile(path));
@@ -5811,7 +5817,7 @@ void TestTextExtractor::isTextFileRejectsBinaryFiles() {
 }
 
 void TestTextExtractor::extractFromFileRoutesTextFiles() {
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-notes.md"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-notes.md"));
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     file.write("- first\n- second");
@@ -5834,13 +5840,13 @@ void TestTextExtractor::extractFromOoxmlHandlesDocx() {
     if (!TextExtractor::hasLibArchive())
         QSKIP("libarchive not available in this build");
 
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.docx"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-test.docx"));
     writeFixture(path, docxZip());
     QString error;
     const QString text = TextExtractor::extractFromOffice(path, &error);
     QVERIFY2(!text.isEmpty(), qPrintable(error));
     QVERIFY(text.contains(QStringLiteral("Hello"), Qt::CaseInsensitive));
-    QVERIFY(text.contains(QStringLiteral("ocapi"), Qt::CaseInsensitive));
+    QVERIFY(text.contains(QStringLiteral("okapi"), Qt::CaseInsensitive));
     QVERIFY(text.contains(QStringLiteral("docx"), Qt::CaseInsensitive));
     QVERIFY(text.contains(QStringLiteral("Second paragraph"), Qt::CaseInsensitive));
     QFile::remove(path);
@@ -5850,7 +5856,7 @@ void TestTextExtractor::extractFromOoxmlHandlesXlsx() {
     if (!TextExtractor::hasLibArchive())
         QSKIP("libarchive not available in this build");
 
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.xlsx"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-test.xlsx"));
     writeFixture(path, xlsxZip());
     QString error;
     const QString text = TextExtractor::extractFromOffice(path, &error);
@@ -5864,7 +5870,7 @@ void TestTextExtractor::extractFromOoxmlHandlesPptx() {
     if (!TextExtractor::hasLibArchive())
         QSKIP("libarchive not available in this build");
 
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.pptx"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-test.pptx"));
     writeFixture(path, pptxZip());
     QString error;
     const QString text = TextExtractor::extractFromOffice(path, &error);
@@ -5878,7 +5884,7 @@ void TestTextExtractor::extractFromOfficeHandlesOdt() {
     if (!TextExtractor::hasLibArchive())
         QSKIP("libarchive not available in this build");
 
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.odt"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-test.odt"));
     writeFixture(path, odtZip());
     QString error;
     const QString text = TextExtractor::extractFromOffice(path, &error);
@@ -5892,7 +5898,7 @@ void TestTextExtractor::extractFromOfficeHandlesOds() {
     if (!TextExtractor::hasLibArchive())
         QSKIP("libarchive not available in this build");
 
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.ods"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-test.ods"));
     writeFixture(path, odsZip());
     QString error;
     const QString text = TextExtractor::extractFromOffice(path, &error);
@@ -5906,7 +5912,7 @@ void TestTextExtractor::extractFromOfficeHandlesOdp() {
     if (!TextExtractor::hasLibArchive())
         QSKIP("libarchive not available in this build");
 
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.odp"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-test.odp"));
     writeFixture(path, odpZip());
     QString error;
     const QString text = TextExtractor::extractFromOffice(path, &error);
@@ -5922,17 +5928,17 @@ void TestTextExtractor::extractFromOoxmlRejectsMissingFile() {
 
     QString error;
     const QString text = TextExtractor::extractFromOffice(
-        QDir::temp().filePath(QStringLiteral("ocapi-missing-file.docx")), &error);
+        QDir::temp().filePath(QStringLiteral("okapi-missing-file.docx")), &error);
     QVERIFY(text.isEmpty());
     QVERIFY(!error.isEmpty());
 }
 
 void TestTextExtractor::extractFromFileRejectsUnsupportedSuffix() {
-    const QString path = QDir::temp().filePath(QStringLiteral("ocapi-test.xyz"));
+    const QString path = QDir::temp().filePath(QStringLiteral("okapi-test.xyz"));
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     std::array<char, 48> binary{};
-    std::iota(binary.begin(), binary.end(), static_cast<char>(0));
+    std::ranges::iota(binary, static_cast<char>(0));
     file.write(binary.data(), static_cast<qint64>(binary.size()));
     file.close();
     QString error;

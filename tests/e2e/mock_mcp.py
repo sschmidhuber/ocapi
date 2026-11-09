@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# SPDX-FileCopyrightText: 2025 ocapi Contributors
+# SPDX-FileCopyrightText: 2025 okapi Contributors
 #
 # Minimal mock of an MCP server (Model Context Protocol, streamable HTTP
-# transport): enough of the protocol for ocapi's MCP client to connect,
+# transport): enough of the protocol for okapi's MCP client to connect,
 # list tools and call them. Every POST is answered with plain JSON (one of
-# the response shapes ocapi's McpClient accepts).
+# the response shapes okapi's McpClient accepts).
 #
 #   POST /  initialize             -> capabilities + serverInfo
 #   POST /  notifications/initial… -> 202

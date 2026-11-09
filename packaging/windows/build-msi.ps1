@@ -1,4 +1,4 @@
-# Build an MSI installer for ocapi using WiX v4/v5 and CPack.
+# Build an MSI installer for okapi using WiX v4/v5 and CPack.
 #
 # Requirements (Windows 10/11):
 #   - Visual Studio with the "C++ CMake tools for Windows" component, or a
@@ -10,11 +10,11 @@
 # Usage (PowerShell):
 #   packaging\windows\build-msi.ps1 [-Version 0.1.0] [-QtDir C:\Qt\6.8.2\msvc2022_64]
 #
-# Produces: dist\ocapi-<Version>-x64.msi
+# Produces: dist\okapi-<Version>-x64.msi
 #
 # The MSI is NOT signed. Signing an MSI for distribution requires a
 # code-signing certificate; sign afterwards with:
-#   signtool sign /fd SHA256 /a /tr http://timestamp.digicert.com /td SHA256 ocapi-<Version>-x64.msi
+#   signtool sign /fd SHA256 /a /tr http://timestamp.digicert.com /td SHA256 okapi-<Version>-x64.msi
 param(
     [string]$Version = "",
     [string]$QtDir = "$env:Qt6_DIR",
@@ -26,8 +26,8 @@ if (-not $Version) { $Version = (Get-Date).ToUniversalTime().ToString("yyyy.MM.d
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Resolve-Path "$PSScriptRoot\..\.."
-$BuildDir = Join-Path $env:TEMP "ocapi-msi-build"
-$MsiFile = Join-Path $OutDir "ocapi-$Version-x64.msi"
+$BuildDir = Join-Path $env:TEMP "okapi-msi-build"
+$MsiFile = Join-Path $OutDir "okapi-$Version-x64.msi"
 
 foreach ($tool in @("cmake", "ninja", "cpack")) {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
@@ -42,16 +42,16 @@ if (-not $wix) {
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 Remove-Item -Recurse -Force $BuildDir -ErrorAction SilentlyContinue
 
-Write-Host ">> Configuring ocapi $Version (CPack WiX generator)"
+Write-Host ">> Configuring okapi $Version (CPack WiX generator)"
 $cmakeArgs = @(
     "-S", $RepoRoot,
     "-B", $BuildDir,
     "-G", "Ninja",
     "-DCMAKE_BUILD_TYPE=Release",
-    "-DOCAPI_BUILD_TESTS=OFF",
+    "-DOKAPI_BUILD_TESTS=OFF",
     "-DCPACK_GENERATOR=WIX",
     "-DCPACK_PACKAGE_VERSION=$Version",
-    "-DCPACK_WIX_PRODUCT_ICON=$RepoRoot\resources\icons\ocapi.ico"
+    "-DCPACK_WIX_PRODUCT_ICON=$RepoRoot\resources\icons\okapi.ico"
 )
 if ($QtDir) { $cmakeArgs += "-DCMAKE_PREFIX_PATH=$QtDir" }
 & cmake @cmakeArgs
@@ -67,21 +67,21 @@ if (-not $windeployqt -and $QtDir) {
     $windeployqt = Get-Item (Join-Path $QtDir "bin\windeployqt.exe") -ErrorAction SilentlyContinue
 }
 if (-not $windeployqt) { Write-Error "windeployqt not found; pass -QtDir pointing at your Qt installation" }
-$AppExe = Join-Path $BuildDir "src\Release\ocapi.exe"
-if (-not (Test-Path $AppExe)) { $AppExe = Join-Path $BuildDir "src\ocapi.exe" }
+$AppExe = Join-Path $BuildDir "src\Release\okapi.exe"
+if (-not (Test-Path $AppExe)) { $AppExe = Join-Path $BuildDir "src\okapi.exe" }
 $InstallRoot = Join-Path $BuildDir "install"
 New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
 & $windeployqt.Source --release --no-translations --dir $InstallRoot $AppExe
 if ($LASTEXITCODE -ne 0) { Write-Error "windeployqt failed" }
 # CPack WiX packages the CMake install tree; point it at the deployed one.
-$env:OCAPI_WINDEPLOY_DIR = $InstallRoot
+$env:OKAPI_WINDEPLOY_DIR = $InstallRoot
 
 Write-Host ">> Creating MSI with CPack"
 Push-Location $BuildDir
 try {
     & cpack -G WIX -C Release -R $Version
     if ($LASTEXITCODE -ne 0) { Write-Error "CPack failed" }
-    $built = Get-ChildItem -Filter "ocapi-$Version-*.msi" | Select-Object -First 1
+    $built = Get-ChildItem -Filter "okapi-$Version-*.msi" | Select-Object -First 1
     if (-not $built) { Write-Error "CPack did not produce an MSI" }
     Copy-Item $built.FullName -Destination $MsiFile -Force
 } finally {

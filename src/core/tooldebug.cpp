@@ -2,7 +2,7 @@
 
 #include "core/chatsession.h"
 
-namespace ocapi::toolDebug {
+namespace okapi::toolDebug {
 
 void logSession(const ChatSession *session, const QString &label) {
     if (!enabled() || !session)
@@ -40,4 +40,4 @@ void logSession(const ChatSession *session, const QString &label) {
     }
 }
 
-} // namespace ocapi::toolDebug
+} // namespace okapi::toolDebug

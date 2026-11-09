@@ -2,7 +2,7 @@
 
 #include <QByteArray>
 
-namespace ocapi {
+namespace okapi {
 
 // Accumulates raw PCM samples (16-bit, mono, sampleRate) and pops complete
 // WAV blobs once a minimum chunk duration has been captured. Used to feed a
@@ -37,4 +37,4 @@ private:
     QByteArray m_buffer;
 };
 
-} // namespace ocapi
+} // namespace okapi

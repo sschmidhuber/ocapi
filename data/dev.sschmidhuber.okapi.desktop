@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=ocapi
+Name=Okapi
 GenericName=AI Chat Client
 Comment=Chat with local and cloud LLM inference backends
-Exec=ocapi
-Icon=ocapi
+Exec=okapi
+Icon=okapi
 Terminal=false
 Categories=Qt;Network;Chat;Utility;
 Keywords=chat;llm;ai;ollama;openai;anthropic;gemini;

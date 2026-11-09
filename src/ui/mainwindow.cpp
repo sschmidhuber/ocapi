@@ -39,7 +39,7 @@
 
 #include <algorithm>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -60,8 +60,8 @@ ModelPickerButton::ModelPickerButton(QWidget *parent) : QToolButton(parent) {
 
 void ModelPickerButton::setBackendAndModel(const QString &backendName, const QString &backendId,
                                            const QString &model) {
-    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS"))
-        qWarning().noquote() << "[ocapi models] setBackendAndModel" << backendName << backendId
+    if (qEnvironmentVariableIsSet("OKAPI_DEBUG_MODELS"))
+        qWarning().noquote() << "[okapi models] setBackendAndModel" << backendName << backendId
                              << "model=" << model
                              << "listForBackend=" << m_models.value(backendId).size();
     const bool changed = m_backendId != backendId || m_model != model;
@@ -84,11 +84,11 @@ void ModelPickerButton::setBackendAndModel(const QString &backendName, const QSt
 
 void ModelPickerButton::setBackends(const QVector<QPair<QString, QString>> &backends,
                                     const QHash<QString, QStringList> &models) {
-    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS")) {
+    if (qEnvironmentVariableIsSet("OKAPI_DEBUG_MODELS")) {
         QStringList perBackend;
         for (auto it = models.begin(); it != models.end(); ++it)
             perBackend << it.key() + QLatin1Char(':') + QString::number(it.value().size());
-        qWarning().noquote() << "[ocapi models] setBackends backends=" << backends.size()
+        qWarning().noquote() << "[okapi models] setBackends backends=" << backends.size()
                              << "modelLists=" << perBackend.join(QLatin1Char(' '));
     }
     m_backends = backends;
@@ -106,8 +106,8 @@ void ModelPickerButton::setBackends(const QVector<QPair<QString, QString>> &back
 }
 
 void ModelPickerButton::addModels(const QString &backendId, const QStringList &models) {
-    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS"))
-        qWarning().noquote() << "[ocapi models] addModels called for" << backendId
+    if (qEnvironmentVariableIsSet("OKAPI_DEBUG_MODELS"))
+        qWarning().noquote() << "[okapi models] addModels called for" << backendId
                              << "new=" << models.size()
                              << "currentListSize=" << m_models.value(backendId).size()
                              << "backendsInPicker=" << m_backends.size();
@@ -119,19 +119,19 @@ void ModelPickerButton::addModels(const QString &backendId, const QStringList &m
     std::ranges::sort(
         list, [](const QString &a, const QString &b) { return a.localeAwareCompare(b) < 0; });
     m_models.insert(backendId, list);
-    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS"))
-        qWarning().noquote() << "[ocapi models] addModels" << backendId << "->" << list.size()
+    if (qEnvironmentVariableIsSet("OKAPI_DEBUG_MODELS"))
+        qWarning().noquote() << "[okapi models] addModels" << backendId << "->" << list.size()
                              << list;
     rebuildMenu();
 }
 
 void ModelPickerButton::rebuildMenu() {
-    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS")) {
+    if (qEnvironmentVariableIsSet("OKAPI_DEBUG_MODELS")) {
         QStringList perBackend;
         for (const auto &[name, id] : m_backends)
             perBackend << name + QLatin1Char('(') + QString::number(m_models.value(id).size()) +
                               QLatin1Char(')');
-        qWarning().noquote() << "[ocapi models] rebuildMenu current=" << m_backendName << '|'
+        qWarning().noquote() << "[okapi models] rebuildMenu current=" << m_backendName << '|'
                              << m_model << "entries=" << perBackend.join(QLatin1Char(' '));
     }
     auto *menu = new QMenu(this);
@@ -169,8 +169,8 @@ namespace {
 QString defaultDatabasePath() {
     const QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     if (!QDir().mkpath(dataDir))
-        return QStringLiteral("ocapi.sqlite");
-    return dataDir + QStringLiteral("/ocapi.sqlite");
+        return QStringLiteral("okapi.sqlite");
+    return dataDir + QStringLiteral("/okapi.sqlite");
 }
 
 Role roleFromName(const QString &name) {
@@ -223,7 +223,7 @@ struct StreamContext {
 };
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_mcpRegistry) {
-    setWindowTitle(tr("Ocapi"));
+    setWindowTitle(tr("Okapi"));
     resize(1100, 720);
 
     if (!openDatabase())
@@ -574,7 +574,7 @@ void MainWindow::createSession(const QString &backendId, const QString &model) {
     // database already holds all of them; initialize the pagination counter
     // to the live message count (0 here) so loadOlderMessages() never
     // re-loads messages the session already has.
-    session->setProperty("ocapi_loadedCount", 0);
+    session->setProperty("okapi_loadedCount", 0);
 
     // Auto-generate a title from the first user message.
     connect(session, &ChatSession::messageAdded, this, [this, session](const Message &message) {
@@ -835,35 +835,35 @@ void MainWindow::loadMcpServersFromDatabase() {
 void MainWindow::loadSystemPrompt() {
     const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     QDir().mkpath(configDir);
-    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    QSettings settings(configDir + QStringLiteral("/okapi.conf"), QSettings::IniFormat);
     m_systemPrompt.load(settings);
 }
 
 void MainWindow::loadSttSettingsFromDatabase() {
     const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     QDir().mkpath(configDir);
-    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    QSettings settings(configDir + QStringLiteral("/okapi.conf"), QSettings::IniFormat);
     m_sttRegistry.loadSettings(settings);
 }
 
 void MainWindow::loadTtsSettingsFromDatabase() {
     const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     QDir().mkpath(configDir);
-    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    QSettings settings(configDir + QStringLiteral("/okapi.conf"), QSettings::IniFormat);
     m_ttsRegistry.loadSettings(settings);
 }
 
 void MainWindow::loadShortcuts() {
     const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     QDir().mkpath(configDir);
-    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    QSettings settings(configDir + QStringLiteral("/okapi.conf"), QSettings::IniFormat);
     m_shortcuts.load(settings);
 }
 
 void MainWindow::loadPromptTemplates() {
     const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     QDir().mkpath(configDir);
-    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    QSettings settings(configDir + QStringLiteral("/okapi.conf"), QSettings::IniFormat);
     m_promptTemplates.load(settings);
 }
 
@@ -944,14 +944,14 @@ void MainWindow::closePromptMenu() {
 void MainWindow::loadUiSettings() {
     const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     QDir().mkpath(configDir);
-    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    QSettings settings(configDir + QStringLiteral("/okapi.conf"), QSettings::IniFormat);
     m_uiSettings.load(settings);
 }
 
 void MainWindow::loadLastModels() {
     const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     QDir().mkpath(configDir);
-    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    QSettings settings(configDir + QStringLiteral("/okapi.conf"), QSettings::IniFormat);
     const auto keys = settings.allKeys();
     for (const QString &key : keys) {
         constexpr auto prefix = "models/last/";
@@ -1039,7 +1039,7 @@ bool MainWindow::openDatabase() {
         const int initial = qMin(total, kMessagesPerPage);
         for (const auto &message : m_database.messagesForSession(stored.id, initial, 0))
             appendStoredMessage(session, message);
-        session->setProperty("ocapi_loadedCount", initial);
+        session->setProperty("okapi_loadedCount", initial);
         connect(session, &ChatSession::messageAdded, this, [this, session](const Message &message) {
             persistMessageForSession(session, message);
         });
@@ -1064,7 +1064,7 @@ void MainWindow::loadOlderMessages(ChatSession *session) {
     // the session are the newest ones, and the offset skips exactly that
     // many rows from the top (the query returns newest-first).
     const int liveCount = static_cast<int>(session->messages().size());
-    const int loaded = session->property("ocapi_loadedCount").toInt() + liveCount;
+    const int loaded = session->property("okapi_loadedCount").toInt() + liveCount;
     if (loaded >= total)
         return;
     m_loadingOlder = true;
@@ -1084,7 +1084,7 @@ void MainWindow::loadOlderMessages(ChatSession *session) {
         m_chatView->prependMessages(older);
         // Track how many DB rows sit above the live tail: previously paged-in
         // history plus the live messages themselves.
-        session->setProperty("ocapi_loadedCount", session->property("ocapi_loadedCount").toInt() +
+        session->setProperty("okapi_loadedCount", session->property("okapi_loadedCount").toInt() +
                                                       liveCount + static_cast<int>(older.size()));
     }
     m_loadingOlder = false;
@@ -1158,7 +1158,7 @@ void MainWindow::saveLastModelForBackend(const QString &backendId, const QString
     m_lastModels.insert(backendId, model.trimmed());
     const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     QDir().mkpath(configDir);
-    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    QSettings settings(configDir + QStringLiteral("/okapi.conf"), QSettings::IniFormat);
     settings.setValue(QStringLiteral("models/last/%1").arg(backendId), model.trimmed());
 }
 
@@ -1167,7 +1167,7 @@ void MainWindow::forgetLastModelForBackend(const QString &backendId) {
         return;
     const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     QDir().mkpath(configDir);
-    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    QSettings settings(configDir + QStringLiteral("/okapi.conf"), QSettings::IniFormat);
     settings.remove(QStringLiteral("models/last/%1").arg(backendId));
 }
 
@@ -1214,11 +1214,11 @@ void MainWindow::refreshBackendSelector() {
             backendName = entry.first;
     }
 
-    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS")) {
+    if (qEnvironmentVariableIsSet("OKAPI_DEBUG_MODELS")) {
         QStringList perBackend;
         for (auto it = models.begin(); it != models.end(); ++it)
             perBackend << it.key() + QLatin1Char(':') + QString::number(it.value().size());
-        qWarning().noquote() << "[ocapi models] refreshBackendSelector selected=" << selectedId
+        qWarning().noquote() << "[okapi models] refreshBackendSelector selected=" << selectedId
                              << "model=" << model << "backends=" << backends.size()
                              << "modelLists=" << perBackend.join(QLatin1Char(' '));
     }
@@ -1260,8 +1260,8 @@ void MainWindow::detectModels() {
         auto *detector = createBackend(config).release();
         detector->setParent(this);
         const QString url = config.effectiveBaseUrl();
-        if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS"))
-            qWarning().noquote() << "[ocapi models] detectModels() sending listModels() for"
+        if (qEnvironmentVariableIsSet("OKAPI_DEBUG_MODELS"))
+            qWarning().noquote() << "[okapi models] detectModels() sending listModels() for"
                                  << config.name << backendId << "to" << url;
         connect(detector, &IBackend::modelsReady, this,
                 [this, backendId, detector](const QStringList &models) {
@@ -1270,9 +1270,9 @@ void MainWindow::detectModels() {
                 });
         connect(detector, &IBackend::modelsFailed, this,
                 [this, backendId, detector](const QString &error) {
-                    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS"))
+                    if (qEnvironmentVariableIsSet("OKAPI_DEBUG_MODELS"))
                         qWarning().noquote()
-                            << "[ocapi models] detection FAILED for" << backendId << ":" << error;
+                            << "[okapi models] detection FAILED for" << backendId << ":" << error;
                     if (m_detectors.contains(backendId) &&
                         *m_detectors.find(backendId) == detector) {
                         m_pendingDetection.remove(backendId); // allow retry on next trigger
@@ -1283,11 +1283,11 @@ void MainWindow::detectModels() {
         m_detectors.insert(backendId, detector);
         detector->listModels();
     }
-    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS")) {
+    if (qEnvironmentVariableIsSet("OKAPI_DEBUG_MODELS")) {
         QStringList pending;
         for (const QString &id : m_pendingDetection)
             pending << id;
-        qWarning().noquote() << "[ocapi models] detectModels() done; pending="
+        qWarning().noquote() << "[okapi models] detectModels() done; pending="
                              << pending.join(QLatin1Char(' '));
     }
 }
@@ -1299,8 +1299,8 @@ void MainWindow::onModelsDetected(const QString &backendId, const QStringList &m
         (*detIt)->deleteLater();
         m_detectors.erase(detIt);
     }
-    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_MODELS"))
-        qWarning().noquote() << "[ocapi models] onModelsDetected backend=" << backendId
+    if (qEnvironmentVariableIsSet("OKAPI_DEBUG_MODELS"))
+        qWarning().noquote() << "[okapi models] onModelsDetected backend=" << backendId
                              << "count=" << models.size() << "models=" << models;
     if (models.isEmpty())
         return;
@@ -1517,8 +1517,8 @@ void MainWindow::onTokenReceived(StreamContext *context, const QUuid &messageId,
                                  const QString &text) {
     if (!contextAlive(context))
         return;
-    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_SSE"))
-        qWarning().noquote() << "[ocapi debug] tokenReceived" << messageId.toString()
+    if (qEnvironmentVariableIsSet("OKAPI_DEBUG_SSE"))
+        qWarning().noquote() << "[okapi debug] tokenReceived" << messageId.toString()
                              << "len:" << text.size() << "text:" << text.left(200);
     if (messageId == context->streamedMessageId) {
         ++context->streamedTokens;
@@ -1553,8 +1553,8 @@ void MainWindow::onStreamFinished(StreamContext *context, const QUuid &messageId
     if (!contextAlive(context))
         return;
     const QString content = messageContent(context, messageId);
-    if (qEnvironmentVariableIsSet("OCAPI_DEBUG_SSE"))
-        qWarning().noquote() << "[ocapi debug] streamFinished" << messageId.toString()
+    if (qEnvironmentVariableIsSet("OKAPI_DEBUG_SSE"))
+        qWarning().noquote() << "[okapi debug] streamFinished" << messageId.toString()
                              << "len:" << content.size() << "content:" << content.left(300);
     context->session->updateMessage(messageId, content, false);
     context->session->setReasoningStreaming(messageId, false);
@@ -1984,4 +1984,4 @@ void MainWindow::updateEmptyState() {
     m_sendButton->setEnabled(!noSession && !noBackends);
 }
 
-} // namespace ocapi
+} // namespace okapi

@@ -11,7 +11,7 @@
 #include <QStandardPaths>
 #include <QVBoxLayout>
 
-namespace ocapi {
+namespace okapi {
 
 SystemPromptPage::SystemPromptPage(SystemPrompt *systemPrompt, QWidget *parent)
     : QWidget(parent), m_systemPrompt(systemPrompt) {
@@ -48,7 +48,7 @@ void SystemPromptPage::onSave() {
     m_systemPrompt->setText(m_editor->toPlainText());
     const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     QDir().mkpath(configDir);
-    QSettings settings(configDir + QStringLiteral("/ocapi.conf"), QSettings::IniFormat);
+    QSettings settings(configDir + QStringLiteral("/okapi.conf"), QSettings::IniFormat);
     m_systemPrompt->save(settings);
     emit changed();
 }
@@ -62,4 +62,4 @@ void SystemPromptPage::onResetDefault() {
     onPreview();
 }
 
-} // namespace ocapi
+} // namespace okapi

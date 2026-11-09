@@ -15,7 +15,7 @@ class QDropEvent;
 class QImage;
 class QWebChannel;
 
-namespace ocapi {
+namespace okapi {
 class ChatSession;
 
 // Bridge object exposed to the chat page's JavaScript: the page reports
@@ -88,4 +88,4 @@ private:
     bool m_showThroughput = false;
 };
 
-} // namespace ocapi
+} // namespace okapi

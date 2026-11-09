@@ -6,7 +6,7 @@
 #include <QUuid>
 #include <QVector>
 
-namespace ocapi {
+namespace okapi {
 
 // How the client reaches an MCP server.
 enum class McpTransport {
@@ -67,4 +67,4 @@ struct McpServerConfig {
     }
 };
 
-} // namespace ocapi
+} // namespace okapi

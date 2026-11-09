@@ -11,7 +11,7 @@
 #include <algorithm>
 #include <memory>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -826,4 +826,4 @@ void MarkdownRenderer::renderInto(QTextDocument &doc, const QString &markdown, c
     }
 }
 
-} // namespace ocapi
+} // namespace okapi

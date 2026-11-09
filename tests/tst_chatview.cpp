@@ -9,7 +9,7 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 namespace {
 
@@ -219,7 +219,7 @@ void TestChatView::streamingAssistantShowsNoCopyFooter() {
 
 void TestChatView::clickOnFileChipEmitsOpenFailureForMissingFile() {
     ChatSession session(QStringLiteral("t"), QStringLiteral("b"));
-    session.appendMessage(makeFileMessage(QStringLiteral("/nonexistent/ocapi-missing.txt")));
+    session.appendMessage(makeFileMessage(QStringLiteral("/nonexistent/okapi-missing.txt")));
     ChatView view;
     view.resize(600, 400);
     view.setSession(&session);
@@ -276,7 +276,7 @@ void TestChatView::clickOnFileChipOpensExistingFile() {
 
 void TestChatView::clickOutsideAttachmentsDoesNotOpen() {
     ChatSession session(QStringLiteral("t"), QStringLiteral("b"));
-    session.appendMessage(makeFileMessage(QStringLiteral("/nonexistent/ocapi-missing.txt")));
+    session.appendMessage(makeFileMessage(QStringLiteral("/nonexistent/okapi-missing.txt")));
     ChatView view;
     view.resize(600, 400);
     view.setSession(&session);

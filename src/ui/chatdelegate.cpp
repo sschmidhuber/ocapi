@@ -29,7 +29,7 @@
 #include <algorithm>
 #include <memory>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -386,7 +386,7 @@ ItemLayout layoutItem(const QStyleOptionViewItem &option, const QModelIndex &ind
     layout.imageBlockHeight = images.isEmpty() ? 0 : imagesBlockHeight(images) + kImageSpacing;
     layout.filesBlockHeight =
         files.isEmpty() ? 0
-                        : ocapi::filesBlockHeight(files, option.font, maxTextWidth) + kImageSpacing;
+                        : okapi::filesBlockHeight(files, option.font, maxTextWidth) + kImageSpacing;
 
     std::unique_ptr<QTextDocument> doc;
     if (!error.isEmpty()) {
@@ -1077,4 +1077,4 @@ void ChatDelegate::setHoveredAttachment(const QModelIndex &index, int attachment
     emit hoverChanged();
 }
 
-} // namespace ocapi
+} // namespace okapi

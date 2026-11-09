@@ -7,7 +7,7 @@
 
 class QNetworkAccessManager;
 
-namespace ocapi {
+namespace okapi {
 
 // Client for speech-to-text services: posts WAV audio to the configured
 // transcription endpoint and reports the transcribed text. Chunked requests
@@ -51,4 +51,4 @@ private:
     bool m_failed = false;
 };
 
-} // namespace ocapi
+} // namespace okapi

@@ -9,7 +9,7 @@
 #include <QVector>
 #include <optional>
 
-namespace ocapi {
+namespace okapi {
 
 enum class TtsServiceKind {
     OpenAiApi,  // OpenAI speech API
@@ -112,4 +112,4 @@ struct TtsServiceConfig {
     static TtsServiceConfig fromJson(const QJsonObject &object);
 };
 
-} // namespace ocapi
+} // namespace okapi

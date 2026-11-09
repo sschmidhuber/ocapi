@@ -3,7 +3,7 @@
 #include <QUuid>
 #include <QVector>
 
-namespace ocapi {
+namespace okapi {
 
 enum class BackendKind {
     Ollama,
@@ -51,4 +51,4 @@ struct BackendConfig {
     [[nodiscard]] QString kindName() const { return kindName(kind); }
 };
 
-} // namespace ocapi
+} // namespace okapi

@@ -2,7 +2,7 @@
 
 #include <QtTest>
 
-using namespace ocapi;
+using namespace okapi;
 
 class TestBackendConfig : public QObject {
     Q_OBJECT
@@ -125,7 +125,7 @@ void TestBackendConfig::effectiveBaseUrlPrefersUserValue() {
 }
 
 void TestBackendConfig::allKindsAreKnown() {
-    const auto kinds = BackendConfig::allKinds();
+    const auto &kinds = BackendConfig::allKinds();
     QVERIFY(kinds.size() >= 12);
     for (const auto kind : kinds) {
         QVERIFY2(!BackendConfig::kindName(kind).isEmpty(), "every kind has a name");

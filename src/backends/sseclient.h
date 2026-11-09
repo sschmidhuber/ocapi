@@ -8,7 +8,7 @@ class QNetworkAccessManager;
 class QNetworkReply;
 class QNetworkRequest;
 
-namespace ocapi {
+namespace okapi {
 
 class SseClient : public QObject {
     Q_OBJECT
@@ -40,4 +40,4 @@ private:
     Framing m_framing = Framing::Sse;
 };
 
-} // namespace ocapi
+} // namespace okapi

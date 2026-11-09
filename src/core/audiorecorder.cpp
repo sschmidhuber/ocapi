@@ -7,7 +7,7 @@
 
 #include <algorithm>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -97,7 +97,7 @@ bool AudioRecorder::start() {
 void AudioRecorder::stop() {
     if (m_source) {
         m_source->stop();
-        m_source.reset();
+        m_source = nullptr;
     }
     m_io = nullptr;
     delete m_devices;
@@ -112,4 +112,4 @@ bool AudioRecorder::isActive() const {
     return m_active;
 }
 
-} // namespace ocapi
+} // namespace okapi

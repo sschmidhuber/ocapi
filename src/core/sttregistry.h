@@ -7,7 +7,7 @@
 #include <QSettings>
 #include <QVector>
 
-namespace ocapi {
+namespace okapi {
 
 // Manages the list of configured speech-to-text services. Analogous to
 // BackendRegistry, but persisted as one JSON document in the settings table
@@ -47,4 +47,4 @@ private:
     QSettings::Format m_persistFormat = QSettings::IniFormat;
 };
 
-} // namespace ocapi
+} // namespace okapi

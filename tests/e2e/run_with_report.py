@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# SPDX-FileCopyrightText: 2025 ocapi Contributors
+# SPDX-FileCopyrightText: 2025 okapi Contributors
 #
-# Runs the ocapi E2E test suite and produces a review-friendly report:
+# Runs the okapi E2E test suite and produces a review-friendly report:
 #
-#   - one screenshot per test (OCAPI_E2E_SCREENSHOT_DIR, captured with the
+#   - one screenshot per test (OKAPI_E2E_SCREENSHOT_DIR, captured with the
 #     ImageMagick "import" tool from the X display; the appium screenshot
 #     endpoint is unavailable in the driver's headless mode)
-#   - JUnit XML (OCAPI_E2E_JUNIT_XML) for tooling
-#   - a Markdown report (OCAPI_E2E_REPORT_MD) with a results table and a
+#   - JUnit XML (OKAPI_E2E_JUNIT_XML) for tooling
+#   - a Markdown report (OKAPI_E2E_REPORT_MD) with a results table and a
 #     screenshot gallery, ready to paste into a GitHub job summary
 #
 # Screenshots are taken through X and not through the WebDriver because the
@@ -21,9 +21,9 @@ import sys
 import time
 import unittest
 
-SCREENSHOT_DIR = os.environ.get("OCAPI_E2E_SCREENSHOT_DIR", "e2e-report")
-JUNIT_XML = os.environ.get("OCAPI_E2E_JUNIT_XML")
-REPORT_MD = os.environ.get("OCAPI_E2E_REPORT_MD")
+SCREENSHOT_DIR = os.environ.get("OKAPI_E2E_SCREENSHOT_DIR", "e2e-report")
+JUNIT_XML = os.environ.get("OKAPI_E2E_JUNIT_XML")
+REPORT_MD = os.environ.get("OKAPI_E2E_REPORT_MD")
 DISPLAY = os.environ.get("DISPLAY", ":99")
 
 
@@ -49,9 +49,9 @@ def screenshot(name):
 def run():
     # Imported here so the reporting functions below stay usable without
     # the appium/selenium dependencies installed.
-    import ocapi_e2e_test
+    import okapi_e2e_test
 
-    suite = unittest.defaultTestLoader.loadTestsFromModule(ocapi_e2e_test)
+    suite = unittest.defaultTestLoader.loadTestsFromModule(okapi_e2e_test)
     runner = unittest.TextTestRunner(verbosity=2, resultclass=TestResult)
     result = runner.run(suite)
     write_junit(result)
@@ -107,7 +107,7 @@ def write_junit(result):
 
     testsuite = ET.Element(
         "testsuite",
-        name="ocapi-e2e",
+        name="okapi-e2e",
         tests=str(len(result.records)),
         failures=str(sum(1 for r in result.records if r["status"] == "failed")),
         errors=str(sum(1 for r in result.records if r["status"] == "error")),
@@ -117,7 +117,7 @@ def write_junit(result):
         tc = ET.SubElement(
             testsuite,
             "testcase",
-            classname="ocapi-e2e",
+            classname="okapi-e2e",
             name=r["name"],
             time=str(r["seconds"] or 0),
         )
@@ -131,7 +131,7 @@ def write_markdown(result):
     if not REPORT_MD:
         return
     icon = {"passed": "✅", "failed": "❌", "error": "💥", "skipped": "⏭️", "ran": "⏳"}
-    lines = ["## ocapi E2E test results", ""]
+    lines = ["## okapi E2E test results", ""]
     passed = sum(1 for r in result.records if r["status"] == "passed")
     lines.append(f"**{passed}/{len(result.records)} tests passed**")
     lines.append("")

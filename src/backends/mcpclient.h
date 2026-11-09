@@ -14,7 +14,7 @@
 class QNetworkAccessManager;
 class QNetworkReply;
 
-namespace ocapi {
+namespace okapi {
 
 // Speaks the Model Context Protocol to one MCP server over stdio or HTTP.
 //
@@ -22,7 +22,7 @@ namespace ocapi {
 // handshake with capability negotiation, tools (list + call), resources
 // (list, templates, read), prompts (list + get), logging notifications and
 // server->client requests (sampling/createMessage, roots/list) which are
-// answered with a capability error because ocapi never samples. Both the
+// answered with a capability error because okapi never samples. Both the
 // Streamable HTTP transport (single POST, JSON or SSE response) and the
 // legacy HTTP+SSE transport (POST to send, GET for the event stream) are
 // supported; stdio spawns the configured command as a child process.
@@ -71,17 +71,17 @@ public:
     void cancelPending();
 
 signals:
-    void stateChanged(ocapi::McpClient::State state);
-    void connected(const ocapi::McpServerInfo &info);
+    void stateChanged(okapi::McpClient::State state);
+    void connected(const okapi::McpServerInfo &info);
     void connectionFailed(const QString &error);
 
-    void toolsReady(const QVector<ocapi::McpTool> &tools);
-    void resourcesReady(const QVector<ocapi::McpResource> &resources);
-    void resourceTemplatesReady(const QVector<ocapi::McpResourceTemplate> &templs);
-    void promptsReady(const QVector<ocapi::McpPrompt> &prompts);
+    void toolsReady(const QVector<okapi::McpTool> &tools);
+    void resourcesReady(const QVector<okapi::McpResource> &resources);
+    void resourceTemplatesReady(const QVector<okapi::McpResourceTemplate> &templs);
+    void promptsReady(const QVector<okapi::McpPrompt> &prompts);
     void resourceRead(const QString &uri, const QString &mimeType, const QString &text);
-    void promptReady(const QString &name, const ocapi::McpPromptContent &content);
-    void toolResult(const QString &toolName, const ocapi::McpToolResult &result);
+    void promptReady(const QString &name, const okapi::McpPromptContent &content);
+    void toolResult(const QString &toolName, const okapi::McpToolResult &result);
     void requestFailed(const QString &method, const QString &error);
 
     // Server-initiated notifications, surfaced so the UI can show them.
@@ -151,4 +151,4 @@ private:
     bool m_handshakeDone = false;
 };
 
-} // namespace ocapi
+} // namespace okapi

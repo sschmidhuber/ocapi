@@ -21,7 +21,7 @@
 
 #include <algorithm>
 
-namespace ocapi {
+namespace okapi {
 
 namespace {
 
@@ -500,4 +500,4 @@ TtsServiceKind TtsPage::currentKind() const {
     return static_cast<TtsServiceKind>(m_kindCombo->currentData().toInt());
 }
 
-} // namespace ocapi
+} // namespace okapi

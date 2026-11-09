@@ -41,6 +41,7 @@ private slots:
     void fileAttachmentsRoundTrip();
     void deleteSessionRemovesFiles();
     void fileThumbnailSurvivesRoundTrip();
+    void attachmentsLoadedOnlyForRequestedMessages();
     void toolCallsRoundTrip();
     void toolCallsSurviveReinsertUpsert();
     void toolCallStatusUpdatePersists();
@@ -709,6 +710,66 @@ void TestChatDatabase::persistStreamResultAsyncPersistsFailure() {
                               QStringLiteral("connection refused"), 5000);
     const auto stored = db().messagesForSession(sessionId);
     QVERIFY(!stored.at(0).streaming);
+}
+
+void TestChatDatabase::attachmentsLoadedOnlyForRequestedMessages() {
+    ChatSession sessionA(QStringLiteral("A"), QStringLiteral("backend-1"));
+    ChatSession sessionB(QStringLiteral("B"), QStringLiteral("backend-1"));
+    const auto idA = sessionA.id().toString(QUuid::WithoutBraces);
+    const auto idB = sessionB.id().toString(QUuid::WithoutBraces);
+    QVERIFY(db().insertSession(sessionA));
+    QVERIFY(db().insertSession(sessionB));
+
+    Message first;
+    first.role = Role::User;
+    first.content = QStringLiteral("with image");
+    ImageAttachment imageA;
+    imageA.mimeType = QStringLiteral("image/png");
+    imageA.fileName = QStringLiteral("a.png");
+    imageA.data = QByteArrayLiteral("image-of-A");
+    first.images.push_back(imageA);
+    QVERIFY(db().insertMessage(idA, first.id.toString(QUuid::WithoutBraces), first.roleName(),
+                               first.content, first.timestamp, first.images));
+
+    Message second;
+    second.role = Role::Assistant;
+    second.content = QStringLiteral("with file");
+    FileAttachment fileA;
+    fileA.fileName = QStringLiteral("a.pdf");
+    fileA.thumbnail = QByteArrayLiteral("thumb-of-A");
+    second.files.push_back(fileA);
+    QVERIFY(db().insertMessage(idA, second.id.toString(QUuid::WithoutBraces), second.roleName(),
+                               second.content, second.timestamp, second.images, second.files));
+
+    Message other;
+    other.role = Role::User;
+    other.content = QStringLiteral("other session");
+    ImageAttachment imageB;
+    imageB.mimeType = QStringLiteral("image/png");
+    imageB.data = QByteArrayLiteral("image-of-B");
+    other.images.push_back(imageB);
+    QVERIFY(db().insertMessage(idB, other.id.toString(QUuid::WithoutBraces), other.roleName(),
+                               other.content, other.timestamp, other.images));
+
+    const auto all = db().messagesForSession(idA);
+    QCOMPARE(all.size(), 2);
+    QCOMPARE(all.at(0).images.size(), 1);
+    QCOMPARE(all.at(0).images.at(0).data, QByteArrayLiteral("image-of-A"));
+    QCOMPARE(all.at(0).files.size(), 0);
+    QCOMPARE(all.at(1).images.size(), 0);
+    QCOMPARE(all.at(1).files.size(), 1);
+    QCOMPARE(all.at(1).files.at(0).fileName, QStringLiteral("a.pdf"));
+
+    const auto page = db().messagesForSession(idA, 1, 0);
+    QCOMPARE(page.size(), 1);
+    QCOMPARE(page.at(0).content, QStringLiteral("with file"));
+    QCOMPARE(page.at(0).files.size(), 1);
+    QCOMPARE(page.at(0).images.size(), 0);
+
+    const auto otherSession = db().messagesForSession(idB);
+    QCOMPARE(otherSession.size(), 1);
+    QCOMPARE(otherSession.at(0).images.size(), 1);
+    QCOMPARE(otherSession.at(0).images.at(0).data, QByteArrayLiteral("image-of-B"));
 }
 
 QTEST_GUILESS_MAIN(TestChatDatabase)

@@ -9,14 +9,20 @@
     <p>
       okapi is a desktop chat client for agentic work. It talks to local
       inference servers (Ollama, llama.cpp, vLLM) and cloud APIs (OpenAI,
-      Anthropic, Google Gemini, Mistral AI, and any OpenAI-compatible
-      endpoint), locally or on remote machines.
+      Anthropic, Google Gemini, Mistral AI, OpenRouter, and any
+      OpenAI-compatible endpoint), locally or on remote machines.
     </p>
-    <p>
-      Features include streaming responses over Server-Sent Events, file
-      attachments with PDF/OCR/document text extraction, and MCP (Model
-      Context Protocol) server integration for tools, resources and prompts.
-    </p>
+    <ul>
+      <li>Streaming chat over Server-Sent Events with live token throughput (t/s)</li>
+      <li>Reasoning models: thinking phases shown as collapsible elements in the chat</li>
+      <li>MCP (Model Context Protocol) integration: connect HTTP/SSE or stdio servers and use their tools, resources and prompts, with per-tool permissions (off / ask / allow); tool calls and results are shown inline in the chat</li>
+      <li>File attachments: images, PDFs, office documents, archives, e-mails and text files, with thumbnail previews and automatic text extraction (Poppler, Tesseract OCR, libarchive; optional at build time)</li>
+      <li>Speech-to-text dictation with live transcription while you speak</li>
+      <li>Text-to-speech: assistant responses can be read aloud, synthesized sentence-by-sentence while the response streams in</li>
+      <li>Prompt templates, insertable via slash commands in the composer</li>
+      <li>Chat history grouped by date in the sidebar; everything stored locally in an SQLite database in the XDG data directory; messages can be edited and resent</li>
+      <li>KDE Plasma look &amp; feel, works on GNOME and other desktops; follows freedesktop standards (XDG desktop entry)</li>
+    </ul>
   </description>
   <launchable type="desktop-id">dev.sschmidhuber.okapi.desktop</launchable>
   <url type="homepage">https://github.com/sschmidhuber/__REPOOKAPI__</url>

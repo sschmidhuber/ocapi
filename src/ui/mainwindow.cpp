@@ -32,6 +32,7 @@
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QStatusBar>
+#include <QThreadPool>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
@@ -44,6 +45,9 @@ namespace okapi {
 namespace {
 
 constexpr int kMessagesPerPage = 50;
+// Delay before the background prefetch of recent chats starts, so first
+// paint is never delayed by disk I/O for chat history.
+constexpr int kPrefetchDelayMs = 300;
 // Minimum height of the chat history area when the composer splitter is
 // dragged; the composer column minimum is UiSettings::kMinComposerHeight.
 constexpr int kMinChatHeight = 120;
@@ -254,10 +258,18 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     onBackendChanged();
     refreshSidebar();
 
-    if (m_sessions.isEmpty())
-        createSession();
-    else
-        onSessionSelected(m_sessions.first()->id());
+    // Always start on a fresh chat: reopening the last chat would read its
+    // full content (images, thumbnails) before the window is shown. Recent
+    // chats are prefetched in the background, older ones load on demand when
+    // selected.
+    createSession();
+    // Drains background prefetch results on the UI thread; the workers only
+    // append to the shared queue, so they never touch this window.
+    m_prefetchDrainTimer = new QTimer(this);
+    m_prefetchDrainTimer->setInterval(100);
+    connect(m_prefetchDrainTimer, &QTimer::timeout, this, [this]() { drainPrefetchResults(); });
+    m_prefetchDrainTimer->start();
+    QTimer::singleShot(kPrefetchDelayMs, this, [this]() { prefetchRecentSessions(); });
 }
 
 void MainWindow::showEvent(QShowEvent *event) {
@@ -575,6 +587,10 @@ void MainWindow::createSession(const QString &backendId, const QString &model) {
     // to the live message count (0 here) so loadOlderMessages() never
     // re-loads messages the session already has.
     session->setProperty("okapi_loadedCount", 0);
+    session->setProperty("okapi_messagesLoaded", true);
+    // Persist the row only once the chat gets content, so starting on a new
+    // chat does not leave an empty row behind on every launch.
+    session->setProperty("okapi_persisted", false);
 
     // Auto-generate a title from the first user message.
     connect(session, &ChatSession::messageAdded, this, [this, session](const Message &message) {
@@ -592,7 +608,6 @@ void MainWindow::createSession(const QString &backendId, const QString &model) {
     });
 
     m_sessions.push_back(session);
-    persistSession(session);
     connect(session, &ChatSession::titleChanged, this,
             [this, session](const QString &) { syncSessionToDatabase(session); });
     refreshSidebar();
@@ -611,6 +626,11 @@ void MainWindow::onSessionSelected(const QUuid &id) {
             break;
         }
     }
+    // Chats restored from storage start with metadata only; the newest
+    // message page is read on first selection (recent chats are usually
+    // already prefetched in the background by then).
+    if (m_currentSession)
+        loadInitialMessages(m_currentSession);
     m_chatView->setSession(m_currentSession);
     m_sidebar->selectSession(id);
 
@@ -627,6 +647,14 @@ void MainWindow::onSessionSelected(const QUuid &id) {
     m_modelPicker->setEnabled(hasSession);
     updateStreamingUi();
     updateEmptyState();
+}
+
+ChatSession *MainWindow::sessionForTest(const QUuid &id) const {
+    for (auto *session : m_sessions) {
+        if (session->id() == id)
+            return session;
+    }
+    return nullptr;
 }
 
 void MainWindow::cycleChat(int direction) {
@@ -1026,7 +1054,11 @@ bool MainWindow::openDatabase() {
     if (!m_database.open(defaultDatabasePath()))
         return false;
     // Sessions come back ordered by last activity (newest first); keep that
-    // order so the sidebar's time groups list recent chats first.
+    // order so the sidebar's time groups list recent chats first. Only the
+    // session metadata is read here: message content (including image data
+    // and file thumbnails) is loaded lazily — on selection, or prefetched in
+    // the background for recent chats — so startup does not read every
+    // chat's attachments before the window is shown.
     for (const auto &stored : m_database.loadSessions()) {
         const QUuid id(stored.id);
         if (id.isNull())
@@ -1035,11 +1067,9 @@ bool MainWindow::openDatabase() {
         session->setModel(stored.model);
         session->setCreatedAt(stored.createdAt);
         session->setLastActivityAt(stored.lastActivityAt);
-        const int total = m_database.messageCount(stored.id);
-        const int initial = qMin(total, kMessagesPerPage);
-        for (const auto &message : m_database.messagesForSession(stored.id, initial, 0))
-            appendStoredMessage(session, message);
-        session->setProperty("okapi_loadedCount", initial);
+        session->setProperty("okapi_loadedCount", 0);
+        session->setProperty("okapi_messagesLoaded", false);
+        session->setProperty("okapi_persisted", true);
         connect(session, &ChatSession::messageAdded, this, [this, session](const Message &message) {
             persistMessageForSession(session, message);
         });
@@ -1090,6 +1120,82 @@ void MainWindow::loadOlderMessages(ChatSession *session) {
     m_loadingOlder = false;
 }
 
+void MainWindow::loadInitialMessages(ChatSession *session) {
+    if (!m_database.isOpen() || !session)
+        return;
+    if (session->property("okapi_messagesLoaded").toBool())
+        return;
+    const QString sessionId = session->id().toString(QUuid::WithoutBraces);
+    const int total = m_database.messageCount(sessionId);
+    const int initial = qMin(total, kMessagesPerPage);
+    for (const auto &message : m_database.messagesForSession(sessionId, initial, 0))
+        appendStoredMessage(session, message);
+    session->setProperty("okapi_loadedCount", initial);
+    session->setProperty("okapi_messagesLoaded", true);
+}
+
+void MainWindow::prefetchRecentSessions() {
+    const QDate today = QDate::currentDate();
+    const QDate yesterday = today.addDays(-1);
+    for (const auto *session : m_sessions) {
+        if (session->property("okapi_messagesLoaded").toBool())
+            continue;
+        const QDate activity = session->lastActivityAt().date();
+        if (activity == today || activity == yesterday)
+            prefetchSession(session->id().toString(QUuid::WithoutBraces));
+    }
+}
+
+void MainWindow::prefetchSession(const QString &sessionId) {
+    // The read runs on a thread-pool thread with its own connection to the
+    // database file (WAL lets it proceed while the UI thread writes); the
+    // result goes into the shared queue and is applied on the UI thread by
+    // the drain timer, so the worker never dereferences the window.
+    const QString filePath = m_database.filePath();
+    QThreadPool::globalInstance()->start([queue = m_prefetchQueue, filePath, sessionId]() {
+        ChatDatabase db;
+        if (!db.open(filePath))
+            return;
+        const int total = db.messageCount(sessionId);
+        const int initial = qMin(total, kMessagesPerPage);
+        PrefetchResult result{sessionId, db.messagesForSession(sessionId, initial, 0), initial};
+        const QMutexLocker locker(&queue->mutex);
+        queue->results.push_back(std::move(result));
+    });
+}
+
+void MainWindow::drainPrefetchResults() {
+    QVector<PrefetchResult> results;
+    {
+        const QMutexLocker locker(&m_prefetchQueue->mutex);
+        if (m_prefetchQueue->results.isEmpty())
+            return;
+        results = std::move(m_prefetchQueue->results);
+        m_prefetchQueue->results.clear();
+    }
+    for (const auto &result : results)
+        applyPrefetchedMessages(result.sessionId, result.messages, result.loadedCount);
+}
+
+void MainWindow::applyPrefetchedMessages(const QString &sessionId,
+                                         const QVector<StoredMessage> &messages, int loadedCount) {
+    for (auto *session : m_sessions) {
+        if (session->id().toString(QUuid::WithoutBraces) != sessionId)
+            continue;
+        // The chat may have been selected (and loaded on demand) while the
+        // prefetch was in flight; never load the same page twice.
+        if (session->property("okapi_messagesLoaded").toBool())
+            return;
+        for (const auto &stored : messages)
+            appendStoredMessage(session, stored);
+        session->setProperty("okapi_loadedCount", loadedCount);
+        session->setProperty("okapi_messagesLoaded", true);
+        if (session == m_currentSession)
+            m_chatView->setSession(m_currentSession);
+        return;
+    }
+}
+
 void MainWindow::persistSession(ChatSession *session) {
     if (!m_database.isOpen())
         return;
@@ -1099,6 +1205,12 @@ void MainWindow::persistSession(ChatSession *session) {
 void MainWindow::persistMessageForSession(ChatSession *session, const Message &message) {
     if (!m_database.isOpen() || !session)
         return;
+    // A chat created this launch is persisted with its first message, so an
+    // abandoned new chat never leaves a row behind.
+    if (!session->property("okapi_persisted").toBool()) {
+        persistSession(session);
+        session->setProperty("okapi_persisted", true);
+    }
     m_database.insertMessage(session->id().toString(QUuid::WithoutBraces),
                              message.id.toString(QUuid::WithoutBraces), message.roleName(),
                              message.content, message.timestamp, message.images, message.files,
@@ -1115,6 +1227,11 @@ void MainWindow::persistMessageForSession(ChatSession *session, const Message &m
 void MainWindow::syncSessionToDatabase(ChatSession *session) {
     if (!m_database.isOpen() || !session)
         return;
+    if (!session->property("okapi_persisted").toBool()) {
+        persistSession(session);
+        session->setProperty("okapi_persisted", true);
+        return;
+    }
     m_database.updateSession(*session);
 }
 

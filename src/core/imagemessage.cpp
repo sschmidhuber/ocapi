@@ -19,14 +19,14 @@ struct SignatureEntry {
 };
 
 const std::array<SignatureEntry, 8> kSignatures{{
-    {QByteArrayLiteral("\xFF\xD8\xFF"), QStringLiteral("image/jpeg")},
-    {QByteArrayLiteral("\x89PNG\r\n\x1A\n"), QStringLiteral("image/png")},
-    {QByteArrayLiteral("II*\x0"), QStringLiteral("image/tiff")},
-    {QByteArrayLiteral("MM\x0*"), QStringLiteral("image/tiff")},
-    {QByteArrayLiteral("GIF87a"), QStringLiteral("image/gif")},
-    {QByteArrayLiteral("GIF89a"), QStringLiteral("image/gif")},
-    {QByteArrayLiteral("\xFF\x0A"), QStringLiteral("image/jxl")},
-    {QByteArrayLiteral("\x0\x0\x0\xCJXL "), QStringLiteral("image/jxl")},
+    {.signature = QByteArrayLiteral("\xFF\xD8\xFF"), .mimeType = QStringLiteral("image/jpeg")},
+    {.signature = QByteArrayLiteral("\x89PNG\r\n\x1A\n"), .mimeType = QStringLiteral("image/png")},
+    {.signature = QByteArrayLiteral("II*\x0"), .mimeType = QStringLiteral("image/tiff")},
+    {.signature = QByteArrayLiteral("MM\x0*"), .mimeType = QStringLiteral("image/tiff")},
+    {.signature = QByteArrayLiteral("GIF87a"), .mimeType = QStringLiteral("image/gif")},
+    {.signature = QByteArrayLiteral("GIF89a"), .mimeType = QStringLiteral("image/gif")},
+    {.signature = QByteArrayLiteral("\xFF\x0A"), .mimeType = QStringLiteral("image/jxl")},
+    {.signature = QByteArrayLiteral("\x0\x0\x0\xCJXL "), .mimeType = QStringLiteral("image/jxl")},
 }};
 
 bool isWebP(const QByteArray &bytes) {

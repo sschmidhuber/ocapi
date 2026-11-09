@@ -107,7 +107,7 @@ std::optional<SseEvent> parseSseEventBlock(const QByteArray &rawEvent) {
     if (data.isEmpty())
         return std::nullopt;
 
-    return SseEvent{event, data};
+    return SseEvent{.event = event, .data = data};
 }
 
 } // namespace okapi

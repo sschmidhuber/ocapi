@@ -57,7 +57,7 @@ void TestAudioChunker::feedEmitsOneChunkAtExactSize() {
     AudioChunker chunker(kSampleRate, 6000);
     const auto chunks = chunker.feed(pcm(qsizetype{16000} * 2 * 6));
     QCOMPARE(chunks.size(), 1);
-    QCOMPARE(chunks.first().size(), qsizetype(44 + 16000 * 2 * 6));
+    QCOMPARE(chunks.first().size(), qsizetype(44 + (16000 * 2 * 6)));
 }
 
 void TestAudioChunker::feedEmitsMultipleChunks() {
@@ -71,7 +71,7 @@ void TestAudioChunker::flushReturnsRemainder() {
     chunker.feed(pcm(qsizetype{16000} * 2 * 2));
     const QByteArray tail = chunker.flush();
     QVERIFY(!tail.isEmpty());
-    QCOMPARE(tail.size(), 44 + 16000 * 2 * 2);
+    QCOMPARE(tail.size(), 44 + (16000 * 2 * 2));
 }
 
 void TestAudioChunker::flushReturnsEmptyWhenBufferEmpty() {

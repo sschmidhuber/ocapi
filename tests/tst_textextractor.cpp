@@ -5775,12 +5775,18 @@ void TestTextExtractor::isTextFileAcceptsPlainTextFormats() {
         QByteArray content;
     };
     const std::array<TestCase, 6> cases = {
-        TestCase{QStringLiteral("okapi.csv"), QByteArrayLiteral("id,name\n1,alpha\n2,beta")},
-        TestCase{QStringLiteral("okapi.md"), QByteArrayLiteral("# Heading\n\nSome *markdown*.")},
-        TestCase{QStringLiteral("okapi.html"), QByteArrayLiteral("<html><body>hi</body></html>\n")},
-        TestCase{QStringLiteral("okapi.cpp"), QByteArrayLiteral("int main() { return 0; }\n")},
-        TestCase{QStringLiteral("okapi.json"), QByteArrayLiteral("{\"key\": [1, 2, 3]}")},
-        TestCase{QStringLiteral("okapi.log"), QByteArrayLiteral("2026-10-20 INFO started\n")}};
+        TestCase{.name = QStringLiteral("okapi.csv"),
+                 .content = QByteArrayLiteral("id,name\n1,alpha\n2,beta")},
+        TestCase{.name = QStringLiteral("okapi.md"),
+                 .content = QByteArrayLiteral("# Heading\n\nSome *markdown*.")},
+        TestCase{.name = QStringLiteral("okapi.html"),
+                 .content = QByteArrayLiteral("<html><body>hi</body></html>\n")},
+        TestCase{.name = QStringLiteral("okapi.cpp"),
+                 .content = QByteArrayLiteral("int main() { return 0; }\n")},
+        TestCase{.name = QStringLiteral("okapi.json"),
+                 .content = QByteArrayLiteral("{\"key\": [1, 2, 3]}")},
+        TestCase{.name = QStringLiteral("okapi.log"),
+                 .content = QByteArrayLiteral("2026-10-20 INFO started\n")}};
     for (const auto &testCase : cases) {
         const QString path = QDir::temp().filePath(testCase.name);
         QFile file(path);
@@ -5798,7 +5804,7 @@ void TestTextExtractor::isTextFileRejectsBinaryFiles() {
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     std::array<char, 64> binary{};
-    std::iota(binary.begin(), binary.end(), static_cast<char>(0));
+    std::ranges::iota(binary, static_cast<char>(0));
     file.write(binary.data(), static_cast<qint64>(binary.size()));
     file.close();
     QVERIFY(!TextExtractor::isTextFile(path));
@@ -5932,7 +5938,7 @@ void TestTextExtractor::extractFromFileRejectsUnsupportedSuffix() {
     QFile file(path);
     QVERIFY(file.open(QIODevice::WriteOnly));
     std::array<char, 48> binary{};
-    std::iota(binary.begin(), binary.end(), static_cast<char>(0));
+    std::ranges::iota(binary, static_cast<char>(0));
     file.write(binary.data(), static_cast<qint64>(binary.size()));
     file.close();
     QString error;

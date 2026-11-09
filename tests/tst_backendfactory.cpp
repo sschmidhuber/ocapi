@@ -23,18 +23,18 @@ void TestBackendFactory::createsCorrectBackendTypeForEachKind() {
         const char *typeName;
     };
     const QList<Case> cases{
-        {BackendKind::Ollama, "okapi::OllamaBackend"},
-        {BackendKind::LlamaCpp, "okapi::OpenAiApiBackend"},
-        {BackendKind::Vllm, "okapi::OpenAiApiBackend"},
-        {BackendKind::OpenAi, "okapi::OpenAiApiBackend"},
-        {BackendKind::Mistral, "okapi::OpenAiApiBackend"},
-        {BackendKind::Zai, "okapi::OpenAiApiBackend"},
-        {BackendKind::Qwen, "okapi::OpenAiApiBackend"},
-        {BackendKind::DeepSeek, "okapi::OpenAiApiBackend"},
-        {BackendKind::Groq, "okapi::OpenAiApiBackend"},
-        {BackendKind::OpenRouter, "okapi::OpenAiApiBackend"},
-        {BackendKind::Anthropic, "okapi::AnthropicBackend"},
-        {BackendKind::Gemini, "okapi::GeminiBackend"},
+        {.kind = BackendKind::Ollama, .typeName = "okapi::OllamaBackend"},
+        {.kind = BackendKind::LlamaCpp, .typeName = "okapi::OpenAiApiBackend"},
+        {.kind = BackendKind::Vllm, .typeName = "okapi::OpenAiApiBackend"},
+        {.kind = BackendKind::OpenAi, .typeName = "okapi::OpenAiApiBackend"},
+        {.kind = BackendKind::Mistral, .typeName = "okapi::OpenAiApiBackend"},
+        {.kind = BackendKind::Zai, .typeName = "okapi::OpenAiApiBackend"},
+        {.kind = BackendKind::Qwen, .typeName = "okapi::OpenAiApiBackend"},
+        {.kind = BackendKind::DeepSeek, .typeName = "okapi::OpenAiApiBackend"},
+        {.kind = BackendKind::Groq, .typeName = "okapi::OpenAiApiBackend"},
+        {.kind = BackendKind::OpenRouter, .typeName = "okapi::OpenAiApiBackend"},
+        {.kind = BackendKind::Anthropic, .typeName = "okapi::AnthropicBackend"},
+        {.kind = BackendKind::Gemini, .typeName = "okapi::GeminiBackend"},
     };
 
     for (const auto &c : cases) {

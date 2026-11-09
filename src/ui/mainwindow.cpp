@@ -1152,13 +1152,17 @@ void MainWindow::prefetchSession(const QString &sessionId) {
     // result goes into the shared queue and is applied on the UI thread by
     // the drain timer, so the worker never dereferences the window.
     const QString filePath = m_database.filePath();
-    QThreadPool::globalInstance()->start([queue = m_prefetchQueue, filePath, sessionId]() {
+    QThreadPool::globalInstance()->start([queue = m_prefetchQueue, filePath, sessionId] {
         ChatDatabase db;
         if (!db.open(filePath))
             return;
         const int total = db.messageCount(sessionId);
         const int initial = qMin(total, kMessagesPerPage);
-        PrefetchResult result{sessionId, db.messagesForSession(sessionId, initial, 0), initial};
+        PrefetchResult result{
+            .sessionId = sessionId,
+            .messages = db.messagesForSession(sessionId, initial, 0),
+            .loadedCount = initial,
+        };
         const QMutexLocker locker(&queue->mutex);
         queue->results.push_back(std::move(result));
     });

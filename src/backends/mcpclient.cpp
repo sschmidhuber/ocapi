@@ -1,7 +1,6 @@
 #include "backends/mcpclient.h"
 
 #include "backends/sseparser.h"
-#include "core/tooldebug.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -11,6 +10,7 @@
 #include <QNetworkRequest>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QTimer>
 #include <QUrl>
 
 namespace okapi {
@@ -19,6 +19,9 @@ namespace {
 
 // JSON-RPC 2.0 error code.
 constexpr int kMethodNotFound = -32601;
+
+// How many stderr lines of a stdio server are kept for error messages.
+constexpr int kMaxStderrTailLines = 20;
 
 QNetworkRequest makeRequest(const QUrl &url, const QStringList &headers) {
     QNetworkRequest request(url);
@@ -39,6 +42,9 @@ QNetworkRequest makeRequest(const QUrl &url, const QStringList &headers) {
 McpClient::McpClient(McpServerConfig config, QObject *parent)
     : QObject(parent), m_config(std::move(config)) {
     m_nam = new QNetworkAccessManager(this);
+    m_connectTimer = new QTimer(this);
+    m_connectTimer->setSingleShot(true);
+    connect(m_connectTimer, &QTimer::timeout, this, &McpClient::onConnectTimeout);
 }
 
 McpClient::~McpClient() {
@@ -70,6 +76,7 @@ void McpClient::connectToServer() {
         return;
     m_lastError.clear();
     setState(State::Connecting);
+    m_connectTimer->start(m_connectTimeoutMs);
     if (m_config.transport == McpTransport::Stdio)
         startStdio();
     else
@@ -84,6 +91,7 @@ void McpClient::disconnectFromServer() {
 }
 
 void McpClient::stopTransport() {
+    m_connectTimer->stop();
     if (m_process) {
         m_process->disconnect(this);
         m_process->kill();
@@ -98,6 +106,8 @@ void McpClient::stopTransport() {
         m_streamReply = nullptr;
     }
     m_stdioBuffer.clear();
+    m_stderrBuffer.clear();
+    m_stderrTail.clear();
     m_sseSessionId.clear();
     const auto pending = m_pending;
     m_pending.clear();
@@ -114,35 +124,29 @@ void McpClient::startStdio() {
         fail(tr("No command configured for stdio server \"%1\".").arg(m_config.name));
         return;
     }
-    m_process = new QProcess(this);
     QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    QStringList invalidEntries;
     for (const auto &entry : m_config.environment) {
         const qsizetype equals = entry.indexOf(QLatin1Char('='));
-        if (equals > 0)
+        if (equals <= 0)
+            invalidEntries.append(entry);
+        else
             environment.insert(entry.left(static_cast<int>(equals)),
                                entry.mid(static_cast<int>(equals) + 1));
     }
+    if (!invalidEntries.isEmpty()) {
+        fail(tr("Invalid environment entries for stdio server \"%1\" (expected KEY=VALUE): %2")
+                 .arg(m_config.name, invalidEntries.join(QStringLiteral(", "))));
+        return;
+    }
+    m_process = new QProcess(this);
     m_process->setProcessEnvironment(environment);
     m_process->setProgram(m_config.command);
     m_process->setArguments(m_config.arguments);
     connect(m_process, &QProcess::readyReadStandardOutput, this, &McpClient::onProcessReadyRead);
-    // Log lines of stdio MCP servers to the console when OKAPI_DEBUG_TOOLS
-    // is set (they usually carry the server's own log output on stderr).
-    connect(m_process, &QProcess::readyReadStandardError, this, [this]() {
-        if (!m_process || !toolDebug::enabled())
-            return;
-        m_stderrBuffer.append(m_process->readAllStandardError());
-        while (true) {
-            const qsizetype newline = m_stderrBuffer.indexOf('\n');
-            if (newline < 0)
-                break;
-            const QByteArray line = m_stderrBuffer.left(newline).trimmed();
-            m_stderrBuffer.remove(0, newline + 1);
-            if (!line.isEmpty())
-                toolDebug::log(
-                    QStringLiteral("[mcp %1] %2").arg(m_config.name, QString::fromUtf8(line)));
-        }
-    });
+    // stdio MCP servers usually carry their own log output on stderr; echo it
+    // to the console and keep the last lines around for error messages.
+    connect(m_process, &QProcess::readyReadStandardError, this, &McpClient::drainStderr);
     connect(m_process, &QProcess::errorOccurred, this, &McpClient::onProcessErrorOccurred);
     connect(m_process, &QProcess::finished, this, &McpClient::onProcessFinished);
     m_process->start();
@@ -151,6 +155,44 @@ void McpClient::startStdio() {
     // initialize handshake unless the process already failed to start.
     if (m_process->error() != QProcess::FailedToStart)
         sendRequest(QStringLiteral("initialize"), initializeParamsJson());
+}
+
+void McpClient::drainStderr() {
+    if (!m_process)
+        return;
+    m_stderrBuffer.append(m_process->readAllStandardError());
+    while (true) {
+        const qsizetype newline = m_stderrBuffer.indexOf('\n');
+        if (newline < 0)
+            break;
+        const QByteArray line = m_stderrBuffer.left(newline).trimmed();
+        m_stderrBuffer.remove(0, newline + 1);
+        if (line.isEmpty())
+            continue;
+        const QString text = QString::fromUtf8(line);
+        m_stderrTail.append(text);
+        while (m_stderrTail.size() > kMaxStderrTailLines)
+            m_stderrTail.removeFirst();
+        qWarning().noquote() << QStringLiteral("[mcp %1] %2").arg(m_config.name, text);
+    }
+}
+
+QString McpClient::stderrTailText() const {
+    return m_stderrTail.join(QStringLiteral("\n"));
+}
+
+void McpClient::onConnectTimeout() {
+    if (m_state != State::Connecting)
+        return;
+    QString message = tr("Timed out after %1 s waiting for MCP server \"%2\" to answer the "
+                         "initialize request.")
+                          .arg(m_connectTimeoutMs / 1000)
+                          .arg(m_config.name);
+    const QString tail = stderrTailText();
+    if (!tail.isEmpty())
+        message +=
+            QStringLiteral("\n") + tr("Last server output (stderr):") + QStringLiteral("\n") + tail;
+    fail(message);
 }
 
 void McpClient::startHttp() {
@@ -207,8 +249,16 @@ void McpClient::onProcessErrorOccurred(QProcess::ProcessError error) {
 void McpClient::onProcessFinished(int exitCode, QProcess::ExitStatus status) {
     Q_UNUSED(exitCode)
     Q_UNUSED(status)
-    if (m_state == State::Connecting || m_state == State::Connected)
-        fail(tr("MCP server process \"%1\" exited unexpectedly.").arg(m_config.command));
+    if (m_state == State::Connecting || m_state == State::Connected) {
+        drainStderr();
+        QString message =
+            tr("MCP server process \"%1\" exited unexpectedly.").arg(m_config.command);
+        const QString tail = stderrTailText();
+        if (!tail.isEmpty())
+            message +=
+                QStringLiteral("\n") + tr("Server output (stderr):") + QStringLiteral("\n") + tail;
+        fail(message);
+    }
 }
 
 QJsonValue McpClient::sendRequest(const QString &method, const QJsonObject &params) {
@@ -495,6 +545,7 @@ void McpClient::respondResult(const QJsonValue &id, const QJsonObject &result) {
 }
 
 void McpClient::onInitializeResponse(const QJsonObject &result) {
+    m_connectTimer->stop();
     m_serverInfo = serverInfoFromJson(result);
     m_initialized = true;
     // Notify the server that initialization is complete.

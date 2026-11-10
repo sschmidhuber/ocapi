@@ -9,12 +9,17 @@
 #include <QProcess>
 #include <QQueue>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 class QNetworkAccessManager;
 class QNetworkReply;
+class QTimer;
 
 namespace okapi {
+
+// Default timeout for the initialize handshake while connecting to a server.
+inline constexpr int kDefaultConnectTimeoutMs = 30000;
 
 // Speaks the Model Context Protocol to one MCP server over stdio or HTTP.
 //
@@ -51,9 +56,14 @@ public:
     [[nodiscard]] QString lastError() const { return m_lastError; }
     [[nodiscard]] const McpServerInfo &serverInfo() const { return m_serverInfo; }
 
-    // Starts the transport and runs the MCP initialize handshake.
+    // Starts the transport and runs the MCP initialize handshake. If the
+    // server does not answer the initialize request within the connect
+    // timeout, the client fails with a timeout error instead of hanging.
     void connectToServer();
     void disconnectFromServer();
+
+    void setConnectTimeout(int msec) { m_connectTimeoutMs = msec; }
+    [[nodiscard]] int connectTimeout() const { return m_connectTimeoutMs; }
 
     [[nodiscard]] bool isConnected() const { return m_state == State::Connected; }
 
@@ -121,6 +131,11 @@ private:
     void onProcessReadyRead();
     void onProcessErrorOccurred(QProcess::ProcessError error);
     void onProcessFinished(int exitCode, QProcess::ExitStatus status);
+    void drainStderr();
+    [[nodiscard]] QString stderrTailText() const;
+
+    // Connect timeout.
+    void onConnectTimeout();
 
     // HTTP transports.
     void onPostFinished(QNetworkReply *reply, const QString &requestId);
@@ -138,8 +153,11 @@ private:
     QNetworkAccessManager *m_nam = nullptr;
     QProcess *m_process = nullptr;
     QNetworkReply *m_streamReply = nullptr; // legacy SSE event stream (GET)
+    QTimer *m_connectTimer = nullptr;
     QByteArray m_stdioBuffer;
     QByteArray m_stderrBuffer;
+    QStringList m_stderrTail; // last stderr lines of the stdio process
+    int m_connectTimeoutMs = kDefaultConnectTimeoutMs;
     QString m_sseSessionId;
 
     QHash<QString, PendingCall> m_pending;        // request id -> call

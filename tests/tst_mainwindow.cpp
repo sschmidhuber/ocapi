@@ -1,11 +1,13 @@
 #include "core/backendconfig.h"
 #include "core/backendregistry.h"
 #include "core/chatsession.h"
+#include "storage/chatdatabase.h"
 #include "ui/composer.h"
 #include "ui/mainwindow.h"
 #include "ui/sidebar.h"
 
 #include <QApplication>
+#include <QDateTime>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPlainTextEdit>
@@ -77,6 +79,8 @@ private slots:
     void editMessageTruncatesHistoryOnSend();
     void composerInsertTemplateAppendsTextAndAttachments();
     void promptMenuFiltersAndEnterConfirms();
+    void startupShowsNewChatAndLoadsOldChatsOnDemand();
+    void recentChatsArePrefetchedInBackground();
 
 private:
     QTemporaryDir m_home;
@@ -520,6 +524,76 @@ void TestMainWindow::promptMenuFiltersAndEnterConfirms() {
     QTest::keyClick(edit, Qt::Key_Return);
     QCOMPARE(composer->text(), QStringLiteral("Recherchiere:"));
     QVERIFY(!menu->isVisible());
+}
+
+// Seeds one stored chat with one message directly into the shared temp
+// database (the same file MainWindow opens via the redirected XDG dirs).
+static void seedStoredChat(const QUuid &id, const QString &title, const QString &content,
+                           const QDateTime &activity) {
+    const QString dbPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+                           QStringLiteral("/okapi.sqlite");
+    ChatDatabase db;
+    QVERIFY(db.open(dbPath));
+    ChatSession seed(id, title, QStringLiteral("backend-seed"));
+    seed.setCreatedAt(activity);
+    seed.setLastActivityAt(activity);
+    QVERIFY(db.insertSession(seed));
+    QVERIFY(db.insertMessage(id.toString(QUuid::WithoutBraces),
+                             QUuid::createUuid().toString(QUuid::WithoutBraces),
+                             QStringLiteral("user"), content, activity));
+}
+
+// Startup shows a fresh "New chat" instead of reopening the last chat, and
+// older chats are read from the database only once they are selected.
+void TestMainWindow::startupShowsNewChatAndLoadsOldChatsOnDemand() {
+    const QUuid oldId = QUuid::createUuid();
+    const QDateTime oldTime = QDateTime::currentDateTime().addDays(-5);
+    seedStoredChat(oldId, QStringLiteral("Old chat"), QStringLiteral("hello old"), oldTime);
+
+    MainWindow window;
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    // The startup chat is a new one, not the stored chat.
+    QVERIFY(window.currentSession());
+    QCOMPARE(window.currentSession()->title(), QStringLiteral("New chat"));
+    QVERIFY(window.currentSession()->id() != oldId);
+
+    // The stored chat is listed but its messages are not loaded yet (it is
+    // older than yesterday, so the background prefetch skips it).
+    ChatSession *old = window.sessionForTest(oldId);
+    QVERIFY(old);
+    QVERIFY(!old->property("okapi_messagesLoaded").toBool());
+    QVERIFY(old->messages().isEmpty());
+
+    // Selecting it loads its newest page on demand.
+    window.selectSessionForTest(oldId);
+    QCOMPARE(window.currentSession(), old);
+    QVERIFY(old->property("okapi_messagesLoaded").toBool());
+    QCOMPARE(old->messages().size(), 1);
+    QCOMPARE(old->messages().constFirst().content, QStringLiteral("hello old"));
+}
+
+// Chats of today (and yesterday) are prefetched in the background shortly
+// after startup, so they open without a visible load delay.
+void TestMainWindow::recentChatsArePrefetchedInBackground() {
+    const QUuid recentId = QUuid::createUuid();
+    // Within the last minutes: always "today" or "yesterday" at prefetch time.
+    const QDateTime recentTime = QDateTime::currentDateTime().addSecs(-120);
+    seedStoredChat(recentId, QStringLiteral("Recent chat"), QStringLiteral("hello recent"),
+                   recentTime);
+
+    MainWindow window;
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+
+    ChatSession *recent = window.sessionForTest(recentId);
+    QVERIFY(recent);
+    QTRY_VERIFY_WITH_TIMEOUT(recent->property("okapi_messagesLoaded").toBool(), 5000);
+    QCOMPARE(recent->messages().size(), 1);
+    QCOMPARE(recent->messages().constFirst().content, QStringLiteral("hello recent"));
+    // Prefetching must not change which chat is shown: still the new chat.
+    QCOMPARE(window.currentSession()->title(), QStringLiteral("New chat"));
 }
 
 int main(int argc, char *argv[]) {

@@ -23,10 +23,12 @@
 #include <QListWidget>
 #include <QMainWindow>
 #include <QMenu>
+#include <QMutex>
 #include <QPushButton>
 #include <QSet>
 #include <QShortcut>
 #include <QSplitter>
+#include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
 #include <QVector>
@@ -101,6 +103,8 @@ public:
     [[nodiscard]] QWidget *promptMenuForTest() const { return m_promptMenu; }
     void requestDeleteSessionsForTest(const QList<QUuid> &ids) { onSessionDeleteRequested(ids); }
     void markUnreadForTest(const QUuid &id) { m_unreadSessions.insert(id); }
+    [[nodiscard]] ChatSession *sessionForTest(const QUuid &id) const;
+    void selectSessionForTest(const QUuid &id) { onSessionSelected(id); }
     // Drives the streaming UI state of the current chat directly.
     void simulateStreamStartForTest();
     void simulateStreamFinishForTest();
@@ -207,6 +211,16 @@ private:
     void configureTts();
     void loadMcpServersFromDatabase();
     void loadOlderMessages(ChatSession *session);
+    // Loads the newest message page of a chat on demand (first selection).
+    void loadInitialMessages(ChatSession *session);
+    // Background-prefetches the chats of today and yesterday after startup
+    // so they open instantly, without reading them before the window shows.
+    void prefetchRecentSessions();
+    void prefetchSession(const QString &sessionId);
+    // Applies prefetch results queued from worker threads on the UI thread.
+    void drainPrefetchResults();
+    void applyPrefetchedMessages(const QString &sessionId, const QVector<StoredMessage> &messages,
+                                 int loadedCount);
     void persistSession(ChatSession *session);
     void persistMessageForSession(ChatSession *session, const Message &message);
     // Re-persists an assistant message so its current tool calls (status and
@@ -321,6 +335,20 @@ private:
     QLabel *m_statusLabel = nullptr;
     QLabel *m_emptyLabel = nullptr;
     QLabel *m_mcpStatusLabel = nullptr;
+    // One finished background history prefetch, waiting to be applied.
+    struct PrefetchResult {
+        QString sessionId;
+        QVector<StoredMessage> messages;
+        int loadedCount = 0;
+    };
+    // Shared with the thread-pool workers so they can queue results without
+    // touching this window (which may already be destroyed by then).
+    struct PrefetchQueue {
+        QMutex mutex;
+        QVector<PrefetchResult> results;
+    };
+    std::shared_ptr<PrefetchQueue> m_prefetchQueue = std::make_shared<PrefetchQueue>();
+    QTimer *m_prefetchDrainTimer = nullptr;
 };
 
 } // namespace okapi

@@ -16,6 +16,7 @@
 #include <QComboBox>
 #include <QFile>
 #include <QKeySequence>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPalette>
@@ -56,6 +57,7 @@ private slots:
     void shortcutsPageListsAllActions();
     void selectPageSelectsCategoryAndTab();
     void mcpHttpAuthModeShowsOnlyRelevantField();
+    void mcpTransportSwitchHidesOtherGroupIncludingLabels();
     void themeComboAppliesImmediately();
     void themedIconFollowsPaletteInDarkMode();
     void sidebarKeepsMaxWidthWhenDialogGrows();
@@ -336,6 +338,60 @@ void TestSettingsDialog::themedIconFollowsPaletteInDarkMode() {
         }
     QVERIFY(hasDarkPixel);
     qApp->setPalette(original);
+}
+
+// Switching the transport must hide the whole other group, including the
+// row labels (URL/Authorization vs Command/Arguments/Environment).
+void TestSettingsDialog::mcpTransportSwitchHidesOtherGroupIncludingLabels() {
+    McpRegistry registry;
+    McpManager manager(&registry);
+    registry.add(QStringLiteral("srv"), McpTransport::StreamableHttp);
+    McpPage page(&registry, &manager);
+    page.show();
+    auto *list = page.findChild<QListWidget *>();
+    if (!list || list->count() == 0)
+        QFAIL("server list not populated");
+    list->setCurrentRow(0);
+    auto *transportCombo = page.findChild<QComboBox *>();
+    if (!transportCombo)
+        QFAIL("transport combo not found");
+    auto *urlEdit = page.findChild<QLineEdit *>(QStringLiteral("urlEdit"));
+    if (!urlEdit)
+        urlEdit = [&]() {
+            for (auto *e : page.findChildren<QLineEdit *>())
+                if (e->placeholderText().contains(QStringLiteral("http://")))
+                    return e;
+            return static_cast<QLineEdit *>(nullptr);
+        }();
+    auto *cmdEdit = [&]() {
+        for (auto *e : page.findChildren<QLineEdit *>())
+            if (e->placeholderText() == QStringLiteral("npx"))
+                return e;
+        return static_cast<QLineEdit *>(nullptr);
+    }();
+    if (!urlEdit || !cmdEdit)
+        QFAIL("url/command edits not found");
+    auto labelWithText = [&page](const QString &text) {
+        for (auto *l : page.findChildren<QLabel *>())
+            if (l->text() == text)
+                return l;
+        return static_cast<QLabel *>(nullptr);
+    };
+
+    const int stdioIndex = transportCombo->findText(QStringLiteral("stdio"));
+    QVERIFY(stdioIndex >= 0);
+    transportCombo->setCurrentIndex(stdioIndex);
+    QVERIFY(!urlEdit->isVisibleTo(&page));
+    QVERIFY(!labelWithText(QStringLiteral("URL:"))->isVisibleTo(&page));
+    QVERIFY(!labelWithText(QStringLiteral("Authorization:"))->isVisibleTo(&page));
+    QVERIFY(cmdEdit->isVisibleTo(&page));
+    QVERIFY(labelWithText(QStringLiteral("Command:"))->isVisibleTo(&page));
+
+    transportCombo->setCurrentIndex(0); // back to Streamable HTTP
+    QVERIFY(urlEdit->isVisibleTo(&page));
+    QVERIFY(labelWithText(QStringLiteral("URL:"))->isVisibleTo(&page));
+    QVERIFY(!cmdEdit->isVisibleTo(&page));
+    QVERIFY(!labelWithText(QStringLiteral("Command:"))->isVisibleTo(&page));
 }
 
 #include "tst_settingsdialog.moc"

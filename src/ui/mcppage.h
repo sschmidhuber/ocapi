@@ -58,9 +58,14 @@ private:
     QListWidget *m_list = nullptr;
     QLineEdit *m_nameEdit = nullptr;
     QComboBox *m_transportCombo = nullptr;
+    QLabel *m_urlLabel = nullptr;
+    QLabel *m_authLabel = nullptr;
     QLineEdit *m_urlEdit = nullptr;
     QWidget *m_authModeWidget = nullptr;
-    QList<QWidget *> m_httpGroup;  // URL + authorization rows (HTTP transports)
+    QList<QWidget *> m_httpGroup; // URL + authorization rows (HTTP transports)
+    QLabel *m_commandLabel = nullptr;
+    QLabel *m_argumentsLabel = nullptr;
+    QLabel *m_environmentLabel = nullptr;
     QList<QWidget *> m_stdioGroup; // command/arguments/environment rows
     // HTTP authorization mode: only the selected field is visible; both
     // values are kept so switching modes loses no configuration.

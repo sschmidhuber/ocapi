@@ -31,9 +31,8 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     auto *rightLayout = new QVBoxLayout(rightWidget);
 
     auto *formLayout = new QFormLayout;
-    // Left-aligned labels and fields that fill the whole row, so Name,
-    // Transport, URL etc. line up consistently.
-    formLayout->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    // Right-aligned labels (KDE style) and fields that fill the whole row.
+    formLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
     formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     m_nameEdit = new QLineEdit(rightWidget);
     m_transportCombo = new QComboBox(rightWidget);

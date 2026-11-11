@@ -119,8 +119,10 @@ signals:
     void promptTemplateRequested();
     // Text after the trigger changed while the menu is open (live filter).
     void promptFilterChanged(const QString &filter);
-    // Enter while the menu is open: confirm the top entry.
+    // Enter while the menu is open: confirm the selected entry.
     void promptMenuConfirmed();
+    // Arrow up/down while the menu is open: move the selection (delta -1/1).
+    void promptMenuNavigate(int delta);
     // Escape while the menu is open, or the trigger text was removed.
     void promptMenuClosed();
 

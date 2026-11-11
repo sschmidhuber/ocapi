@@ -435,6 +435,7 @@ void MainWindow::setupConnections() {
             &MainWindow::showPromptTemplateMenu);
     connect(m_composer, &Composer::promptFilterChanged, this, &MainWindow::onPromptFilterChanged);
     connect(m_composer, &Composer::promptMenuConfirmed, this, [this]() { confirmPromptMenu(); });
+    connect(m_composer, &Composer::promptMenuNavigate, this, &MainWindow::navigatePromptMenu);
     connect(m_composer, &Composer::promptMenuClosed, this, &MainWindow::closePromptMenu);
     // Close the popup when the focus leaves composer and popup.
     connect(qApp, &QApplication::focusChanged, this, [this](QWidget *now) {
@@ -971,6 +972,28 @@ void MainWindow::onPromptFilterChanged(const QString &filter) {
         m_promptMenuList->setCurrentRow(firstVisible);
     // Keep the popup anchored at the trigger line (it moves on line wraps).
     positionPromptMenu();
+}
+
+void MainWindow::navigatePromptMenu(int delta) {
+    if (!m_promptMenu || !m_promptMenu->isVisible() || !m_promptMenuList)
+        return;
+    const int count = m_promptMenuList->count();
+    if (count == 0)
+        return;
+    int row = m_promptMenuList->currentRow();
+    for (int step = 0; step < count; ++step) {
+        row += delta;
+        if (row < 0)
+            row = count - 1;
+        else if (row >= count)
+            row = 0;
+        auto *item = m_promptMenuList->item(row);
+        if (item && !item->isHidden()) {
+            m_promptMenuList->setCurrentRow(row);
+            m_promptMenuList->scrollToItem(item);
+            return;
+        }
+    }
 }
 
 void MainWindow::confirmPromptMenu(int row) {

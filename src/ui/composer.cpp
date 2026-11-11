@@ -408,6 +408,11 @@ bool Composer::handlePromptMenuKey(QKeyEvent *keyEvent) {
         closePromptMenu();
         return true;
     }
+    // Arrow keys move the menu selection instead of the text caret.
+    if (keyEvent->key() == Qt::Key_Down || keyEvent->key() == Qt::Key_Up) {
+        emit promptMenuNavigate(keyEvent->key() == Qt::Key_Down ? 1 : -1);
+        return true;
+    }
     return false;
 }
 

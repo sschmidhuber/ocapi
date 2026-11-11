@@ -50,7 +50,7 @@ bool systemPrefersDark() {
 QIcon themedIcon(const QString &resourcePath) {
     QFile file(resourcePath);
     if (!file.open(QIODevice::ReadOnly))
-        return QIcon(resourcePath);
+        return QIcon{resourcePath};
     QByteArray svg = file.readAll();
     file.close();
     // The bundled symbolic icons use a fixed dark color (#232629); recolor
@@ -59,12 +59,12 @@ QIcon themedIcon(const QString &resourcePath) {
         svg.replace("#232629", qApp->palette().color(QPalette::Text).name().toUtf8());
     QSvgRenderer renderer(svg);
     if (!renderer.isValid())
-        return QIcon(resourcePath);
+        return QIcon{resourcePath};
     QPixmap pix(renderer.defaultSize());
     pix.fill(Qt::transparent);
     QPainter painter(&pix);
     renderer.render(&painter);
-    return QIcon(pix);
+    return QIcon{pix};
 }
 
 bool applyTheme(UiSettings::Theme theme) {

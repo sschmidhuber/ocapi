@@ -243,6 +243,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     loadLastModels();
     loadShortcuts();
     loadUiSettings();
+    // Apply the theme before setupUi() creates any widgets, so icons created
+    // in constructors (themedIcon) already use the correct palette.
+    applyTheme(m_uiSettings.theme());
     loadPromptTemplates();
 
     setupUi();
@@ -459,7 +462,7 @@ void MainWindow::setupConnections() {
             themedIcon(QStringLiteral(":/resources/icons/contact-new-symbolic.svg")));
         m_settingsButton->setIcon(
             themedIcon(QStringLiteral(":/resources/icons/settings-configure-symbolic.svg")));
-        m_composer->refreshThemeIcons();
+        m_composer->refreshTheme();
     });
     connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged, this, [this](Qt::ColorScheme) {
         if (m_uiSettings.theme() == UiSettings::Theme::Auto) {
@@ -469,7 +472,7 @@ void MainWindow::setupConnections() {
                 themedIcon(QStringLiteral(":/resources/icons/contact-new-symbolic.svg")));
             m_settingsButton->setIcon(
                 themedIcon(QStringLiteral(":/resources/icons/settings-configure-symbolic.svg")));
-            m_composer->refreshThemeIcons();
+            m_composer->refreshTheme();
         }
     });
     connect(m_settingsButton, &QToolButton::clicked, this, [this] { openSettings(QString()); });

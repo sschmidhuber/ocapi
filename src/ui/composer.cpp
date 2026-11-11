@@ -4,6 +4,7 @@
 #include "core/filepreview.h"
 #include "ui/theme.h"
 
+#include <QApplication>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFileDialog>
@@ -243,10 +244,8 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     m_textEdit->setTabChangesFocus(true);
     m_textEdit->setAcceptDrops(true);
     // Full frame around the input, including the top side.
-    // Explicit palette roles so the input follows theme switches (a bare
-    // border rule would keep the light default background in dark mode).
-    m_textEdit->setStyleSheet(QStringLiteral("QPlainTextEdit { border: 1px solid palette(mid); "
-                                             "background: palette(base); color: palette(text); }"));
+    m_textEdit->setStyleSheet(QStringLiteral("QPlainTextEdit { border: 1px solid palette(mid); }"));
+    m_textEdit->setPalette(qApp->palette());
 
     m_textEdit->installEventFilter(this);
     connect(m_attachButton, &QToolButton::clicked, this, &Composer::attachFiles);
@@ -271,7 +270,10 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     connect(m_textEdit, &QPlainTextEdit::textChanged, this, [this]() { onTextChanged(); });
 }
 
-void Composer::refreshThemeIcons() {
+void Composer::refreshTheme() {
+    // Set the palette explicitly: the scroll area's viewport does not follow
+    // a stylesheet background, but it does follow the widget palette.
+    m_textEdit->setPalette(qApp->palette());
     const QIcon attachIcon(themedIcon(QStringLiteral(":/resources/icons/folder-new-symbolic.svg")));
     if (!attachIcon.isNull()) {
         m_attachButton->setIcon(attachIcon);

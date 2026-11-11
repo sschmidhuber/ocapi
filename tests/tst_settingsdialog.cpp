@@ -10,7 +10,6 @@
 #include "ui/mcppage.h"
 #include "ui/settingsdialog.h"
 
-#include "ui/mcppage.h"
 #include <QApplication>
 #include <QKeySequence>
 #include <QLineEdit>
@@ -235,18 +234,21 @@ void TestSettingsDialog::sidebarKeepsMaxWidthWhenDialogGrows() {
     QTest::qWait(200);
     auto *splitter = dialog->findChild<QSplitter *>();
     auto *cats = dialog->findChild<QListWidget *>();
-    QVERIFY(splitter && cats);
+    if (!splitter || !cats)
+        QFAIL("splitter or category list not found");
     dialog->resize(1400, 700);
     QTest::qWait(200);
     QVERIFY(splitter->sizes().first() <= cats->maximumWidth());
 
     auto *page = dialog->findChild<McpPage *>();
-    QVERIFY(page);
+    if (!page)
+        QFAIL("MCP page not found");
     dialog->selectPage(QStringLiteral("tools/mcp"));
     QTest::qWait(200);
     auto *inner = page->findChild<QSplitter *>();
     auto *srvList = page->findChild<QListWidget *>();
-    QVERIFY(inner && srvList);
+    if (!inner || !srvList)
+        QFAIL("inner splitter or server list not found");
     QVERIFY(inner->sizes().first() <= srvList->maximumWidth() + 20);
 }
 

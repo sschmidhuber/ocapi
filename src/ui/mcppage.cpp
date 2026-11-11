@@ -68,8 +68,9 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     m_headersEdit = new QLineEdit(rightWidget);
     m_headersEdit->setObjectName(QStringLiteral("headersEdit"));
     m_headersEdit->setPlaceholderText(tr("Authorization: Bearer \u2026 (one per line)"));
-    m_httpGroup = {m_urlEdit,    m_authModeWidget, m_apiKeyLabel,
-                   m_apiKeyEdit, m_headersLabel,   m_headersEdit};
+    m_httpGroup = {
+        m_urlEdit, m_authModeWidget, m_apiKeyLabel, m_apiKeyEdit, m_headersLabel, m_headersEdit,
+    };
     m_commandEdit = new QLineEdit(rightWidget);
     m_commandEdit->setPlaceholderText(QStringLiteral("npx"));
     m_argumentsEdit = new QLineEdit(rightWidget);
@@ -152,8 +153,15 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     connect(m_list, &QListWidget::currentRowChanged, this, [this](int) { onSelectionChanged(); });
     connect(m_transportCombo, &QComboBox::currentIndexChanged, this, &McpPage::onTransportChanged);
     connect(m_testButton, &QPushButton::clicked, this, &McpPage::onTestConnection);
-    for (auto *edit : {m_nameEdit, m_urlEdit, m_apiKeyEdit, m_commandEdit, m_argumentsEdit,
-                       m_environmentEdit, m_headersEdit}) {
+    for (auto *edit : {
+             m_nameEdit,
+             m_urlEdit,
+             m_apiKeyEdit,
+             m_commandEdit,
+             m_argumentsEdit,
+             m_environmentEdit,
+             m_headersEdit,
+         }) {
         connect(edit, &QLineEdit::textEdited, this, &McpPage::onFieldEdited);
     }
     connect(m_defaultPermissionCombo, &QComboBox::currentIndexChanged, this,
@@ -228,10 +236,11 @@ void McpPage::onSelectionChanged() {
     m_updatingForm = true;
     auto *item = m_list->currentItem();
     const bool hasSelection = item != nullptr;
-    const QList<QWidget *> widgets{m_nameEdit,       m_transportCombo, m_urlEdit,
-                                   m_authModeWidget, m_apiKeyEdit,     m_headersEdit,
-                                   m_commandEdit,    m_argumentsEdit,  m_environmentEdit,
-                                   m_enabledBox,     m_testButton,     m_toolsTable};
+    const QList<QWidget *> widgets{
+        m_nameEdit,        m_transportCombo, m_urlEdit,     m_authModeWidget,
+        m_apiKeyEdit,      m_headersEdit,    m_commandEdit, m_argumentsEdit,
+        m_environmentEdit, m_enabledBox,     m_testButton,  m_toolsTable,
+    };
     for (auto *widget : widgets)
         widget->setEnabled(hasSelection);
     m_defaultPermissionCombo->setEnabled(hasSelection);

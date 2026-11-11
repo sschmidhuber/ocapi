@@ -60,11 +60,12 @@ private:
     QComboBox *m_transportCombo = nullptr;
     QStackedWidget *m_connectionStack = nullptr;
     QLineEdit *m_urlEdit = nullptr;
-    // HTTP authorization mode: exactly one of the two fields is shown and
-    // used (the radio decides); switching modes clears the other field.
+    // HTTP authorization mode: only the selected field is visible; both
+    // values are kept so switching modes loses no configuration.
     QRadioButton *m_apiKeyRadio = nullptr;
     QRadioButton *m_headersRadio = nullptr;
-    QStackedWidget *m_httpAuthStack = nullptr;
+    QLabel *m_apiKeyLabel = nullptr;
+    QLabel *m_headersLabel = nullptr;
     QLineEdit *m_apiKeyEdit = nullptr;
     QLineEdit *m_commandEdit = nullptr;
     QLineEdit *m_argumentsEdit = nullptr;

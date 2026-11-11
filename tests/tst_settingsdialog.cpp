@@ -171,8 +171,7 @@ void TestSettingsDialog::selectPageSelectsCategoryAndTab() {
 // The settings dialog is a QWidget, so the test needs a QApplication; force
 // the offscreen platform because the CI test runner has no display server.
 // The HTTP authorization mode radio buttons show only the relevant input
-// field; switching the mode clears the other field so exactly one auth
-// method stays configured.
+// field; switching the mode keeps both entered values.
 void TestSettingsDialog::mcpHttpAuthModeShowsOnlyRelevantField() {
     McpRegistry registry;
     McpManager manager(&registry);
@@ -188,34 +187,37 @@ void TestSettingsDialog::mcpHttpAuthModeShowsOnlyRelevantField() {
 
     auto *apiKeyRadio = page.findChild<QRadioButton *>(QStringLiteral("apiKeyRadio"));
     auto *headersRadio = page.findChild<QRadioButton *>(QStringLiteral("headersRadio"));
-    auto *stack = page.findChild<QStackedWidget *>(QStringLiteral("httpAuthStack"));
-    QVERIFY(apiKeyRadio && headersRadio && stack);
-    auto *apiKeyEdit = qobject_cast<QLineEdit *>(stack->widget(0));
-    auto *headersEdit = qobject_cast<QLineEdit *>(stack->widget(1));
-    QVERIFY(apiKeyEdit && headersEdit);
+    auto *apiKeyEdit = page.findChild<QLineEdit *>(QStringLiteral("apiKeyEdit"));
+    auto *headersEdit = page.findChild<QLineEdit *>(QStringLiteral("headersEdit"));
+    QVERIFY(apiKeyRadio && headersRadio && apiKeyEdit && headersEdit);
+    QCOMPARE(apiKeyRadio->text(), QStringLiteral("API token"));
+    QCOMPARE(apiKeyEdit->placeholderText(), QStringLiteral("API token"));
 
-    // Default: API key mode, headers page hidden.
+    // Default: API token mode, headers field hidden.
     QVERIFY(apiKeyRadio->isChecked());
-    QCOMPARE(stack->currentIndex(), 0);
+    QVERIFY(apiKeyEdit->isVisibleTo(&page));
+    QVERIFY(!headersEdit->isVisibleTo(&page));
 
     QTest::keyClicks(apiKeyEdit, QStringLiteral("secret"));
     QCOMPARE(registry.servers().first().apiKey, QStringLiteral("secret"));
 
-    // Switch to HTTP headers: only the headers field is shown, the API key
-    // is cleared.
+    // Switch to HTTP headers: only the headers field is visible, the API
+    // token value is kept.
     headersRadio->setChecked(true);
-    QCOMPARE(stack->currentIndex(), 1);
-    QVERIFY(apiKeyEdit->text().isEmpty());
-    QVERIFY(registry.servers().first().apiKey.isEmpty());
+    QVERIFY(!apiKeyEdit->isVisibleTo(&page));
+    QVERIFY(headersEdit->isVisibleTo(&page));
+    QCOMPARE(apiKeyEdit->text(), QStringLiteral("secret"));
+    QCOMPARE(registry.servers().first().apiKey, QStringLiteral("secret"));
 
     QTest::keyClicks(headersEdit, QStringLiteral("X-A: 1"));
     QCOMPARE(registry.servers().first().headers, QStringList({QStringLiteral("X-A: 1")}));
 
-    // Switch back: API key field shown again, custom headers cleared.
+    // Switch back: API token field visible again, headers value kept.
     apiKeyRadio->setChecked(true);
-    QCOMPARE(stack->currentIndex(), 0);
-    QVERIFY(headersEdit->text().isEmpty());
-    QVERIFY(registry.servers().first().headers.isEmpty());
+    QVERIFY(apiKeyEdit->isVisibleTo(&page));
+    QVERIFY(!headersEdit->isVisibleTo(&page));
+    QCOMPARE(headersEdit->text(), QStringLiteral("X-A: 1"));
+    QCOMPARE(registry.servers().first().headers, QStringList({QStringLiteral("X-A: 1")}));
 }
 
 int main(int argc, char *argv[]) {

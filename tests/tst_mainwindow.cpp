@@ -159,15 +159,18 @@ void TestMainWindow::switchingToNewBackendDoesNotLeakOldModel() {
 
     // Switch the chat to the new backend the way the picker menu does.
     auto *picker = window.modelPickerForTest();
-    QVERIFY(picker);
+    if (!picker)
+        QFAIL("model picker not available");
     auto *menu = picker->menu();
-    QVERIFY(menu);
+    if (!menu)
+        QFAIL("picker menu not built");
     QAction *freshAction = nullptr;
     for (auto *action : menu->actions()) {
         if (action->text() == QStringLiteral("Fresh backend"))
             freshAction = action;
     }
-    QVERIFY(freshAction);
+    if (!freshAction)
+        QFAIL("backend action not found in picker menu");
     freshAction->trigger();
 
     // The session must no longer carry the old backend's model...
@@ -196,7 +199,8 @@ void TestMainWindow::reconfiguredBackendDropsStaleDetectedModels() {
         registry.add(QStringLiteral("New backend"), BackendKind::Ollama).id.toString();
     registry.save();
     auto *picker = window.modelPickerForTest();
-    QVERIFY(picker);
+    if (!picker)
+        QFAIL("model picker not available");
 
     // A detection for the new backend completes (with whatever the backend
     // answered while it still had the default config).
@@ -206,7 +210,8 @@ void TestMainWindow::reconfiguredBackendDropsStaleDetectedModels() {
     // The user reconfigures the backend (different URL), as the settings page
     // signals via BackendRegistry::changed.
     auto *config = registry.find(QUuid(freshId));
-    QVERIFY(config);
+    if (!config)
+        QFAIL("backend not found in registry");
     config->baseUrl = QStringLiteral("http://127.0.0.1:59999");
     registry.save();
     emit registry.changed();

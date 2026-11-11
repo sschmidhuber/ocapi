@@ -206,6 +206,9 @@ private:
     // Signature of the config a backend's model list was detected with
     // (kind + base URL + API key); a mismatch means re-detection is required.
     [[nodiscard]] static QString detectionSignature(const BackendConfig &config);
+    // Drops the cached detection of a backend whose config changed since the
+    // last detection; returns true when stale state was removed.
+    bool dropStaleDetectionIfReconfigured(const BackendConfig &config);
     void saveLastModelForBackend(const QString &backendId, const QString &model);
     void forgetLastModelForBackend(const QString &backendId);
     void updateEmptyState();

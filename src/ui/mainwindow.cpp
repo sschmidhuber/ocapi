@@ -1461,6 +1461,27 @@ void MainWindow::onModelSelected(const QString &backendId, const QString &model)
     saveLastModelForBackend(backendId, model);
 }
 
+bool MainWindow::dropStaleDetectionIfReconfigured(const BackendConfig &config) {
+    const QString backendId = config.id.toString();
+    const QString signature = detectionSignature(config);
+    if (m_detectionSignatures.value(backendId) == signature)
+        return false;
+    // The backend was reconfigured since its models were detected (e.g. a
+    // newly added backend still had the default URL when the first detection
+    // ran): drop the stale list and any in-flight request so the backend is
+    // queried again with the new config.
+    m_detectedModels.remove(backendId);
+    m_detectionSignatures.remove(backendId);
+    m_pendingDetection.remove(backendId);
+    const auto staleIt = m_detectors.find(backendId);
+    if (staleIt != m_detectors.end()) {
+        (*staleIt)->disconnect(this);
+        (*staleIt)->deleteLater();
+        m_detectors.erase(staleIt);
+    }
+    return true;
+}
+
 void MainWindow::detectModels() {
     // Query every enabled backend, not just the selected one: the picker
     // shows a submenu per provider, and a provider the user never selected
@@ -1470,29 +1491,13 @@ void MainWindow::detectModels() {
         if (!config.enabled)
             continue;
         const QString backendId = config.id.toString();
-        const QString signature = detectionSignature(config);
-        if (m_detectionSignatures.value(backendId) != signature) {
-            // The backend was reconfigured since its models were detected
-            // (e.g. a newly added backend still had the default URL when the
-            // first detection ran): drop the stale list and any in-flight
-            // request so the backend is queried again with the new config.
-            m_detectedModels.remove(backendId);
-            m_detectionSignatures.remove(backendId);
-            m_pendingDetection.remove(backendId);
-            const auto staleIt = m_detectors.find(backendId);
-            if (staleIt != m_detectors.end()) {
-                (*staleIt)->disconnect(this);
-                (*staleIt)->deleteLater();
-                m_detectors.erase(staleIt);
-            }
-            invalidatedStale = true;
-        }
+        invalidatedStale = dropStaleDetectionIfReconfigured(config) || invalidatedStale;
         if (!m_detectedModels.value(backendId).isEmpty())
             continue; // already detected successfully for this backend
         if (m_pendingDetection.contains(backendId))
             continue; // request already in flight
         m_pendingDetection.insert(backendId);
-        m_detectionSignatures.insert(backendId, signature);
+        m_detectionSignatures.insert(backendId, detectionSignature(config));
         auto *detector = createBackend(config).release();
         detector->setParent(this);
         const QString url = config.effectiveBaseUrl();

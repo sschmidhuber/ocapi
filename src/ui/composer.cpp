@@ -307,6 +307,14 @@ void Composer::closePromptMenu() {
     emit promptMenuClosed();
 }
 
+QPoint Composer::promptMenuAnchorGlobal() const {
+    QTextCursor cursor = m_textEdit->textCursor();
+    if (m_promptActive && m_promptTriggerPos >= 0)
+        cursor.setPosition(m_promptTriggerPos);
+    const QRect rect = m_textEdit->cursorRect(cursor);
+    return m_textEdit->viewport()->mapToGlobal(rect.bottomLeft());
+}
+
 void Composer::applyPromptTemplate(const QString &text, const QVector<ImageAttachment> &images,
                                    const QVector<FileAttachment> &files) {
     // Remove the typed trigger + filter text ("/re"), then insert the template.
@@ -398,6 +406,11 @@ bool Composer::handlePromptMenuKey(QKeyEvent *keyEvent) {
     }
     if (keyEvent->key() == Qt::Key_Escape) {
         closePromptMenu();
+        return true;
+    }
+    // Arrow keys move the menu selection instead of the text caret.
+    if (keyEvent->key() == Qt::Key_Down || keyEvent->key() == Qt::Key_Up) {
+        emit promptMenuNavigate(keyEvent->key() == Qt::Key_Down ? 1 : -1);
         return true;
     }
     return false;

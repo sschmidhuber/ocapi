@@ -134,6 +134,9 @@ private slots:
     // the composer keeps focus and keeps filtering while typing).
     void showPromptTemplateMenu();
     void onPromptFilterChanged(const QString &filter);
+    // Arrow up/down while the popup is open: move the selection through the
+    // visible (non-filtered) entries, wrapping at both ends.
+    void navigatePromptMenu(int delta);
     void confirmPromptMenu(int row = -1);
     void closePromptMenu();
     // Deletes the given chats; asks for confirmation when there are several.
@@ -206,6 +209,10 @@ private:
     void loadShortcuts();
     void loadUiSettings();
     void loadPromptTemplates();
+    // Moves the prompt-template popup to the composer's caret anchor
+    // (below the trigger line, flipped above the composer near the screen
+    // bottom).
+    void positionPromptMenu();
     void configureVoiceInput();
     void loadTtsSettingsFromDatabase();
     void configureTts();

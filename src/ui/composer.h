@@ -105,6 +105,10 @@ public:
     void applyPromptTemplate(const QString &text, const QVector<ImageAttachment> &images,
                              const QVector<FileAttachment> &files);
     [[nodiscard]] bool promptMenuActive() const { return m_promptActive; }
+    // Global anchor for the prompt-template popup: bottom-left of the line
+    // box at the trigger position (IDE-style caret anchoring). Falls back to
+    // the current caret when no prompt session is active.
+    [[nodiscard]] QPoint promptMenuAnchorGlobal() const;
 
 signals:
     void sendRequested(const QString &text, const QVector<okapi::ImageAttachment> &images,
@@ -115,8 +119,10 @@ signals:
     void promptTemplateRequested();
     // Text after the trigger changed while the menu is open (live filter).
     void promptFilterChanged(const QString &filter);
-    // Enter while the menu is open: confirm the top entry.
+    // Enter while the menu is open: confirm the selected entry.
     void promptMenuConfirmed();
+    // Arrow up/down while the menu is open: move the selection (delta -1/1).
+    void promptMenuNavigate(int delta);
     // Escape while the menu is open, or the trigger text was removed.
     void promptMenuClosed();
 

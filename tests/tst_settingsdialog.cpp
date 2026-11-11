@@ -7,11 +7,14 @@
 #include "core/systemprompt.h"
 #include "core/ttsregistry.h"
 #include "core/uisettings.h"
+#include "ui/mcppage.h"
 #include "ui/settingsdialog.h"
 
 #include <QApplication>
 #include <QKeySequence>
+#include <QLineEdit>
 #include <QListWidget>
+#include <QRadioButton>
 #include <QStackedWidget>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -45,6 +48,7 @@ private slots:
     void pagesAreTabsOfTheirCategory();
     void shortcutsPageListsAllActions();
     void selectPageSelectsCategoryAndTab();
+    void mcpHttpAuthModeShowsOnlyRelevantField();
 
 private:
     SettingsDialog *makeDialog();
@@ -166,6 +170,54 @@ void TestSettingsDialog::selectPageSelectsCategoryAndTab() {
 
 // The settings dialog is a QWidget, so the test needs a QApplication; force
 // the offscreen platform because the CI test runner has no display server.
+// The HTTP authorization mode radio buttons show only the relevant input
+// field; switching the mode clears the other field so exactly one auth
+// method stays configured.
+void TestSettingsDialog::mcpHttpAuthModeShowsOnlyRelevantField() {
+    McpRegistry registry;
+    McpManager manager(&registry);
+    // Add the server before constructing the page so its list is populated
+    // and the first row is selected.
+    registry.add(QStringLiteral("srv"), McpTransport::StreamableHttp);
+    McpPage page(&registry, &manager);
+    page.show();
+    auto *list = page.findChild<QListWidget *>();
+    QVERIFY(list);
+    QCOMPARE(list->count(), 1);
+    list->setCurrentRow(0);
+
+    auto *apiKeyRadio = page.findChild<QRadioButton *>(QStringLiteral("apiKeyRadio"));
+    auto *headersRadio = page.findChild<QRadioButton *>(QStringLiteral("headersRadio"));
+    auto *stack = page.findChild<QStackedWidget *>(QStringLiteral("httpAuthStack"));
+    QVERIFY(apiKeyRadio && headersRadio && stack);
+    auto *apiKeyEdit = qobject_cast<QLineEdit *>(stack->widget(0));
+    auto *headersEdit = qobject_cast<QLineEdit *>(stack->widget(1));
+    QVERIFY(apiKeyEdit && headersEdit);
+
+    // Default: API key mode, headers page hidden.
+    QVERIFY(apiKeyRadio->isChecked());
+    QCOMPARE(stack->currentIndex(), 0);
+
+    QTest::keyClicks(apiKeyEdit, QStringLiteral("secret"));
+    QCOMPARE(registry.servers().first().apiKey, QStringLiteral("secret"));
+
+    // Switch to HTTP headers: only the headers field is shown, the API key
+    // is cleared.
+    headersRadio->setChecked(true);
+    QCOMPARE(stack->currentIndex(), 1);
+    QVERIFY(apiKeyEdit->text().isEmpty());
+    QVERIFY(registry.servers().first().apiKey.isEmpty());
+
+    QTest::keyClicks(headersEdit, QStringLiteral("X-A: 1"));
+    QCOMPARE(registry.servers().first().headers, QStringList({QStringLiteral("X-A: 1")}));
+
+    // Switch back: API key field shown again, custom headers cleared.
+    apiKeyRadio->setChecked(true);
+    QCOMPARE(stack->currentIndex(), 0);
+    QVERIFY(headersEdit->text().isEmpty());
+    QVERIFY(registry.servers().first().headers.isEmpty());
+}
+
 int main(int argc, char *argv[]) {
     qputenv("QT_QPA_PLATFORM", "offscreen");
     QApplication app(argc, argv);

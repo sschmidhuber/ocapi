@@ -12,6 +12,7 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPushButton;
+class QRadioButton;
 class QStackedWidget;
 class QTableWidget;
 
@@ -59,6 +60,11 @@ private:
     QComboBox *m_transportCombo = nullptr;
     QStackedWidget *m_connectionStack = nullptr;
     QLineEdit *m_urlEdit = nullptr;
+    // HTTP authorization mode: exactly one of the two fields is shown and
+    // used (the radio decides); switching modes clears the other field.
+    QRadioButton *m_apiKeyRadio = nullptr;
+    QRadioButton *m_headersRadio = nullptr;
+    QStackedWidget *m_httpAuthStack = nullptr;
     QLineEdit *m_apiKeyEdit = nullptr;
     QLineEdit *m_commandEdit = nullptr;
     QLineEdit *m_argumentsEdit = nullptr;

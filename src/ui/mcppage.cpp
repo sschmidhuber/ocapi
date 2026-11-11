@@ -13,6 +13,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QTableWidget>
@@ -41,14 +42,29 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     auto *httpLayout = new QFormLayout(httpPage);
     m_urlEdit = new QLineEdit(httpPage);
     m_urlEdit->setPlaceholderText(QStringLiteral("http://127.0.0.1:3000/mcp"));
-    m_apiKeyEdit = new QLineEdit(httpPage);
+    // Authorization method for HTTP transports: API key (default, sent as
+    // Bearer) or custom HTTP headers. Only the selected field is shown.
+    m_apiKeyRadio = new QRadioButton(tr("API key"), httpPage);
+    m_apiKeyRadio->setObjectName(QStringLiteral("apiKeyRadio"));
+    m_apiKeyRadio->setChecked(true);
+    m_headersRadio = new QRadioButton(tr("HTTP headers"), httpPage);
+    m_headersRadio->setObjectName(QStringLiteral("headersRadio"));
+    auto *authModeRow = new QHBoxLayout;
+    authModeRow->addWidget(m_apiKeyRadio);
+    authModeRow->addWidget(m_headersRadio);
+    authModeRow->addStretch();
+    m_httpAuthStack = new QStackedWidget(httpPage);
+    m_httpAuthStack->setObjectName(QStringLiteral("httpAuthStack"));
+    m_apiKeyEdit = new QLineEdit(m_httpAuthStack);
     m_apiKeyEdit->setEchoMode(QLineEdit::Password);
     m_apiKeyEdit->setPlaceholderText(tr("Sent as \"Authorization: Bearer\""));
-    m_headersEdit = new QLineEdit(httpPage);
-    m_headersEdit->setPlaceholderText(tr("X-Custom: value (one per line)"));
+    m_headersEdit = new QLineEdit(m_httpAuthStack);
+    m_headersEdit->setPlaceholderText(tr("Authorization: Bearer \u2026 (one per line)"));
+    m_httpAuthStack->addWidget(m_apiKeyEdit);
+    m_httpAuthStack->addWidget(m_headersEdit);
     httpLayout->addRow(tr("URL:"), m_urlEdit);
-    httpLayout->addRow(tr("API key:"), m_apiKeyEdit);
-    httpLayout->addRow(tr("HTTP headers:"), m_headersEdit);
+    httpLayout->addRow(tr("Authorization:"), authModeRow);
+    httpLayout->addRow(m_httpAuthStack);
     auto *stdioPage = new QWidget(m_connectionStack);
     auto *stdioLayout = new QFormLayout(stdioPage);
     m_commandEdit = new QLineEdit(stdioPage);
@@ -130,6 +146,22 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     }
     connect(m_defaultPermissionCombo, &QComboBox::currentIndexChanged, this,
             &McpPage::onFieldEdited);
+    // Switching the authorization mode shows only the relevant field and
+    // clears the other one, so exactly one auth method is configured.
+    connect(m_apiKeyRadio, &QRadioButton::toggled, this, [this](bool checked) {
+        if (!checked || m_updatingForm)
+            return;
+        m_httpAuthStack->setCurrentIndex(0);
+        m_headersEdit->clear();
+        onFieldEdited();
+    });
+    connect(m_headersRadio, &QRadioButton::toggled, this, [this](bool checked) {
+        if (!checked || m_updatingForm)
+            return;
+        m_httpAuthStack->setCurrentIndex(1);
+        m_apiKeyEdit->clear();
+        onFieldEdited();
+    });
     connect(m_enabledBox, &QCheckBox::toggled, this, &McpPage::onFieldEdited);
     connect(m_toolsTable, &QTableWidget::cellChanged, this, &McpPage::onPermissionChanged);
 
@@ -386,6 +418,11 @@ void McpPage::loadConfigIntoForm(const McpServerConfig &config) {
     m_urlEdit->setText(config.url);
     m_apiKeyEdit->setText(config.apiKey);
     m_commandEdit->setText(config.command);
+    // API key mode when a key is set or no custom headers exist (default).
+    const bool useApiKey = !config.apiKey.isEmpty() || config.headers.isEmpty();
+    m_apiKeyRadio->setChecked(useApiKey);
+    m_headersRadio->setChecked(!useApiKey);
+    m_httpAuthStack->setCurrentIndex(useApiKey ? 0 : 1);
     m_argumentsEdit->setText(config.arguments.join(QLatin1Char(' ')));
     m_environmentEdit->setText(config.environment.join(QLatin1Char('\n')));
     m_headersEdit->setText(config.headers.join(QLatin1Char('\n')));

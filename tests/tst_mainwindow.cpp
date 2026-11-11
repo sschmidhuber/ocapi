@@ -70,6 +70,7 @@ private slots:
     void initTestCase();
     void newChatKeepsCurrentBackendAndModel();
     void switchingToNewBackendDoesNotLeakOldModel();
+    void reconfiguredBackendDropsStaleDetectedModels();
     void toolCallFailureAppendsToolMessageWithoutCrashing();
     void keyboardShortcuts();
     void reboundShortcutFiresImmediately();
@@ -178,6 +179,43 @@ void TestMainWindow::switchingToNewBackendDoesNotLeakOldModel() {
     const QStringList freshModels = picker->backendModels().value(freshId);
     QVERIFY(!freshModels.contains(QStringLiteral("llama3.2")));
     QVERIFY(picker->currentModel().isEmpty() || freshModels.contains(picker->currentModel()));
+}
+
+// Regression test: when a backend's configuration changes after its models
+// were detected (e.g. a newly added backend is first probed with the default
+// URL and only then edited), the stale model list must be dropped so the
+// backend is queried again with the new config. Otherwise the picker keeps
+// showing the previously configured backend's models until an app restart.
+void TestMainWindow::reconfiguredBackendDropsStaleDetectedModels() {
+    MainWindow window;
+    window.show();
+
+    auto &registry = window.registryForTest();
+    registry.add(QStringLiteral("Ollama"), BackendKind::Ollama);
+    const QString freshId =
+        registry.add(QStringLiteral("New backend"), BackendKind::Ollama).id.toString();
+    registry.save();
+    auto *picker = window.modelPickerForTest();
+    QVERIFY(picker);
+
+    // A detection for the new backend completes (with whatever the backend
+    // answered while it still had the default config).
+    window.simulateModelsDetectedForTest(freshId, {QStringLiteral("stale-model")});
+    QVERIFY(picker->backendModels().value(freshId).contains(QStringLiteral("stale-model")));
+
+    // The user reconfigures the backend (different URL), as the settings page
+    // signals via BackendRegistry::changed.
+    auto *config = registry.find(QUuid(freshId));
+    QVERIFY(config);
+    config->baseUrl = QStringLiteral("http://127.0.0.1:59999");
+    registry.save();
+    emit registry.changed();
+
+    // The stale list must be gone from the picker...
+    QVERIFY(!picker->backendModels().value(freshId).contains(QStringLiteral("stale-model")));
+    // ...and a fresh detection result replaces it.
+    window.simulateModelsDetectedForTest(freshId, {QStringLiteral("fresh-model")});
+    QCOMPARE(picker->backendModels().value(freshId), QStringList{QStringLiteral("fresh-model")});
 }
 
 // Regression test: a synchronously failing MCP tool call (unknown tool, no

@@ -25,12 +25,17 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     : QWidget(parent), m_registry(registry), m_manager(manager) {
     auto *splitter = new QSplitter(this);
     m_list = new QListWidget(splitter);
-    m_list->setMinimumWidth(180);
+    m_list->setMinimumWidth(140);
+    m_list->setMaximumWidth(200);
 
     auto *rightWidget = new QWidget(splitter);
     auto *rightLayout = new QVBoxLayout(rightWidget);
 
     auto *formLayout = new QFormLayout;
+    // Left-aligned labels and fields that fill the whole row, so Name,
+    // Transport, URL etc. line up consistently.
+    formLayout->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     m_nameEdit = new QLineEdit(rightWidget);
     m_transportCombo = new QComboBox(rightWidget);
     for (const auto transport : McpServerConfig::allTransports())
@@ -40,6 +45,8 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     m_connectionStack = new QStackedWidget(rightWidget);
     auto *httpPage = new QWidget(m_connectionStack);
     auto *httpLayout = new QFormLayout(httpPage);
+    httpLayout->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    httpLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     m_urlEdit = new QLineEdit(httpPage);
     m_urlEdit->setPlaceholderText(QStringLiteral("http://127.0.0.1:3000/mcp"));
     // Authorization method for HTTP transports: API token (default, sent as
@@ -69,6 +76,8 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     httpLayout->addRow(m_headersLabel, m_headersEdit);
     auto *stdioPage = new QWidget(m_connectionStack);
     auto *stdioLayout = new QFormLayout(stdioPage);
+    stdioLayout->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    stdioLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     m_commandEdit = new QLineEdit(stdioPage);
     m_commandEdit->setPlaceholderText(QStringLiteral("npx"));
     m_argumentsEdit = new QLineEdit(stdioPage);

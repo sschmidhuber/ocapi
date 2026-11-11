@@ -138,7 +138,10 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
 
     splitter->addWidget(leftWidget);
     splitter->addWidget(rightWidget);
-    splitter->setStretchFactor(1, 2);
+    // Stretch factor 0 for the server list: extra width always goes to the
+    // form, never to the list (same first-show sizing issue as the settings
+    // sidebar).
+    splitter->setStretchFactor(0, 1);
 
     auto *outerLayout = new QVBoxLayout(this);
     outerLayout->setContentsMargins(0, 0, 0, 0);

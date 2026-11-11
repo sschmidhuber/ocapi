@@ -10,11 +10,13 @@
 #include "ui/mcppage.h"
 #include "ui/settingsdialog.h"
 
+#include "ui/mcppage.h"
 #include <QApplication>
 #include <QKeySequence>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QRadioButton>
+#include <QSplitter>
 #include <QStackedWidget>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -49,6 +51,7 @@ private slots:
     void shortcutsPageListsAllActions();
     void selectPageSelectsCategoryAndTab();
     void mcpHttpAuthModeShowsOnlyRelevantField();
+    void sidebarKeepsMaxWidthWhenDialogGrows();
 
 private:
     SettingsDialog *makeDialog();
@@ -218,6 +221,33 @@ void TestSettingsDialog::mcpHttpAuthModeShowsOnlyRelevantField() {
     QVERIFY(!headersEdit->isVisibleTo(&page));
     QCOMPARE(headersEdit->text(), QStringLiteral("X-A: 1"));
     QCOMPARE(registry.servers().first().headers, QStringList({QStringLiteral("X-A: 1")}));
+}
+
+// Regression test: the settings sidebar (and the MCP server list) must not
+// absorb extra width when the dialog grows — QSplitter's first-show sizing
+// used to leave a large empty gap next to the list until the splitter handle
+// was moved once. Stretch factor 0 keeps the list at its maximum width.
+void TestSettingsDialog::sidebarKeepsMaxWidthWhenDialogGrows() {
+    std::unique_ptr<SettingsDialog> dialog(makeDialog());
+    dialog->resize(880, 580);
+    dialog->show();
+    QVERIFY(QTest::qWaitForWindowExposed(dialog.get()));
+    QTest::qWait(200);
+    auto *splitter = dialog->findChild<QSplitter *>();
+    auto *cats = dialog->findChild<QListWidget *>();
+    QVERIFY(splitter && cats);
+    dialog->resize(1400, 700);
+    QTest::qWait(200);
+    QVERIFY(splitter->sizes().first() <= cats->maximumWidth());
+
+    auto *page = dialog->findChild<McpPage *>();
+    QVERIFY(page);
+    dialog->selectPage(QStringLiteral("tools/mcp"));
+    QTest::qWait(200);
+    auto *inner = page->findChild<QSplitter *>();
+    auto *srvList = page->findChild<QListWidget *>();
+    QVERIFY(inner && srvList);
+    QVERIFY(inner->sizes().first() <= srvList->maximumWidth() + 20);
 }
 
 int main(int argc, char *argv[]) {

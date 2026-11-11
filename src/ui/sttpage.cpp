@@ -32,6 +32,8 @@ SttPage::SttPage(SttRegistry *registry, BackendRegistry *backendRegistry, QWidge
 
     auto *formWidget = new QWidget(splitter);
     auto *formLayout = new QFormLayout(formWidget);
+    // Right-aligned labels (KDE style), consistent with the MCP page.
+    formLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
     m_nameEdit = new QLineEdit(formWidget);
     m_kindCombo = new QComboBox(formWidget);
     for (auto kind : SttServiceConfig::selectableKinds()) {

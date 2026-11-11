@@ -35,6 +35,8 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
 
     auto *formWidget = new QWidget(splitter);
     auto *formLayout = new QFormLayout(formWidget);
+    // Right-aligned labels (KDE style), consistent with the MCP page.
+    formLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
     m_formLayout = formLayout;
     formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     m_kindCombo = new QComboBox(formWidget);

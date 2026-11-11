@@ -105,6 +105,10 @@ public:
     void applyPromptTemplate(const QString &text, const QVector<ImageAttachment> &images,
                              const QVector<FileAttachment> &files);
     [[nodiscard]] bool promptMenuActive() const { return m_promptActive; }
+    // Global anchor for the prompt-template popup: bottom-left of the line
+    // box at the trigger position (IDE-style caret anchoring). Falls back to
+    // the current caret when no prompt session is active.
+    [[nodiscard]] QPoint promptMenuAnchorGlobal() const;
 
 signals:
     void sendRequested(const QString &text, const QVector<okapi::ImageAttachment> &images,

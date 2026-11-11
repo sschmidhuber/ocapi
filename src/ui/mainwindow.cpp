@@ -25,6 +25,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QScreen>
 #include <QSet>
 #include <QSettings>
 #include <QShortcut>
@@ -926,12 +927,33 @@ void MainWindow::showPromptTemplateMenu() {
     m_promptMenu->setFixedWidth(320);
     m_promptMenuList->setFixedHeight((std::min(m_promptMenuList->count(), 8) * 24) + 8);
     m_promptMenu->adjustSize();
-    const QPoint topLeft = m_composer->mapToGlobal(QPoint(0, 0));
-    m_promptMenu->move(topLeft.x(), topLeft.y() - m_promptMenu->height() - 4);
+    positionPromptMenu();
     m_promptMenu->show();
     m_promptMenu->raise();
     onPromptFilterChanged(QString());
     m_composer->focusInput();
+}
+
+void MainWindow::positionPromptMenu() {
+    if (!m_promptMenu || !m_composer)
+        return;
+    // Anchor at the caret (trigger line), like IDE autocompletion: below the
+    // caret by default, flipped above the composer when the screen bottom is
+    // too close.
+    const QPoint anchor = m_composer->promptMenuAnchorGlobal();
+    const int menuWidth = m_promptMenu->width() > 0 ? m_promptMenu->width() : 320;
+    const int menuHeight = m_promptMenu->height() > 0 ? m_promptMenu->height() : 200;
+    const QScreen *screen = m_promptMenu->screen();
+    const QRect available = screen ? screen->availableGeometry() : QRect(anchor, QSize(1920, 1080));
+    int x = anchor.x();
+    if (x + menuWidth > available.right() + 1)
+        x = std::max(available.left(), available.right() + 1 - menuWidth);
+    int y = anchor.y() + 2;
+    if (y + menuHeight > available.bottom() + 1) {
+        const QPoint composerTopLeft = m_composer->mapToGlobal(QPoint(0, 0));
+        y = composerTopLeft.y() - menuHeight - 4;
+    }
+    m_promptMenu->move(x, std::max(available.top(), y));
 }
 
 void MainWindow::onPromptFilterChanged(const QString &filter) {
@@ -947,6 +969,8 @@ void MainWindow::onPromptFilterChanged(const QString &filter) {
     }
     if (firstVisible >= 0)
         m_promptMenuList->setCurrentRow(firstVisible);
+    // Keep the popup anchored at the trigger line (it moves on line wraps).
+    positionPromptMenu();
 }
 
 void MainWindow::confirmPromptMenu(int row) {

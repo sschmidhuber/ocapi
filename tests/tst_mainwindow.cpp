@@ -11,6 +11,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPlainTextEdit>
+#include <QScreen>
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QTemporaryDir>
@@ -79,6 +80,7 @@ private slots:
     void editMessageTruncatesHistoryOnSend();
     void composerInsertTemplateAppendsTextAndAttachments();
     void promptMenuFiltersAndEnterConfirms();
+    void promptMenuOpensAtCaretAnchor();
     void startupShowsNewChatAndLoadsOldChatsOnDemand();
     void recentChatsArePrefetchedInBackground();
 
@@ -524,6 +526,50 @@ void TestMainWindow::promptMenuFiltersAndEnterConfirms() {
     QTest::keyClick(edit, Qt::Key_Return);
     QCOMPARE(composer->text(), QStringLiteral("Recherchiere:"));
     QVERIFY(!menu->isVisible());
+}
+
+// The popup opens at the current caret position (IDE autocompletion style):
+// horizontally aligned with the trigger character and directly below its
+// line — not at the composer's top-left corner above the input.
+void TestMainWindow::promptMenuOpensAtCaretAnchor() {
+    MainWindow window;
+    window.resize(400, 300);
+    window.move(0, 0);
+    window.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&window));
+    auto &reg = window.promptTemplatesForTest();
+    PromptTemplate a;
+    a.name = QStringLiteral("Analyse");
+    a.text = QStringLiteral("Analysiere:");
+    reg.add(a);
+
+    auto *composer = window.findChild<Composer *>();
+    QVERIFY(composer);
+    auto *edit = composer->findChild<QPlainTextEdit *>();
+    QVERIFY(edit);
+    edit->setFocus();
+
+    // Second line, then the trigger: the caret (and anchor) is below the
+    // composer's top edge, so the old "above the composer" placement and the
+    // caret placement differ measurably.
+    QTest::keyClicks(edit, QStringLiteral("hello"));
+    QTest::keyClick(edit, Qt::Key_Return, Qt::ShiftModifier);
+    QTest::keyClicks(edit, QStringLiteral("/"));
+
+    auto *menu = window.promptMenuForTest();
+    QVERIFY(menu);
+    QVERIFY(menu->isVisible());
+    const QPoint anchor = composer->promptMenuAnchorGlobal();
+    const QRect available = menu->screen()->availableGeometry();
+    // Room below the caret in the offscreen screen: expect the popup right
+    // below the trigger line, aligned with it horizontally.
+    QVERIFY(anchor.y() + 2 + menu->height() <= available.bottom() + 1);
+    QVERIFY(anchor.x() + menu->width() <= available.right() + 1);
+    QCOMPARE(menu->pos().x(), anchor.x());
+    QCOMPARE(menu->pos().y(), anchor.y() + 2);
+    // And clearly below the composer's top edge (old behavior placed it
+    // above the composer).
+    QVERIFY(menu->pos().y() > composer->mapToGlobal(QPoint(0, 0)).y());
 }
 
 // Seeds one stored chat with one message directly into the shared temp

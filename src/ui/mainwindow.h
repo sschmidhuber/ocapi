@@ -206,6 +206,10 @@ private:
     void loadShortcuts();
     void loadUiSettings();
     void loadPromptTemplates();
+    // Moves the prompt-template popup to the composer's caret anchor
+    // (below the trigger line, flipped above the composer near the screen
+    // bottom).
+    void positionPromptMenu();
     void configureVoiceInput();
     void loadTtsSettingsFromDatabase();
     void configureTts();

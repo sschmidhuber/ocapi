@@ -56,6 +56,9 @@ public:
     // Whether assistant messages show their output token throughput (t/s)
     // next to the copy button; re-renders the current session on change.
     void setShowThroughput(bool enabled);
+    // Dark mode of the web content (chat.html setTheme()); re-applied when
+    // the page finishes loading.
+    void setDarkMode(bool dark);
 
 signals:
     void olderMessagesRequested();
@@ -86,6 +89,7 @@ private:
     WebChatBridge *m_bridge = nullptr;
     bool m_ready = false;
     bool m_showThroughput = false;
+    bool m_darkMode = false;
 };
 
 } // namespace okapi

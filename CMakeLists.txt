@@ -12,7 +12,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Network Sql Multimedia WebSockets WebEngineWidgets)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Network Sql Multimedia WebSockets WebEngineWidgets Svg)
 
 option(OKAPI_BUILD_TESTS "Build the unit tests" ON)
 option(OKAPI_ENABLE_CLANG_TIDY "Run clang-tidy on compilation" OFF)

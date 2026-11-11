@@ -9,16 +9,22 @@
 #include "core/uisettings.h"
 #include "ui/mcppage.h"
 #include "ui/settingsdialog.h"
+#include "ui/theme.h"
+#include "ui/userinterfacepage.h"
 
 #include <QApplication>
+#include <QComboBox>
+#include <QFile>
 #include <QKeySequence>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QPalette>
 #include <QRadioButton>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QTabWidget>
 #include <QTableWidget>
+#include <QTemporaryDir>
 #include <QtTest>
 
 #include <memory>
@@ -50,6 +56,8 @@ private slots:
     void shortcutsPageListsAllActions();
     void selectPageSelectsCategoryAndTab();
     void mcpHttpAuthModeShowsOnlyRelevantField();
+    void themeComboAppliesImmediately();
+    void themedIconFollowsPaletteInDarkMode();
     void sidebarKeepsMaxWidthWhenDialogGrows();
 
 private:
@@ -257,6 +265,77 @@ int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     TestSettingsDialog test;
     return QTest::qExec(&test, argc, argv);
+}
+
+// The User Interface page offers Auto/Light/Dark (Auto default); changing it
+// persists the setting and applyTheme() switches the application palette
+// immediately.
+void TestSettingsDialog::themeComboAppliesImmediately() {
+    UiSettings settings;
+    UserInterfacePage page(&settings);
+    page.show();
+    auto *combo = page.findChild<QComboBox *>(QStringLiteral("themeCombo"));
+    if (!combo)
+        QFAIL("theme combo not found");
+    QCOMPARE(combo->count(), 3);
+    QCOMPARE(combo->currentIndex(), 0); // Auto is the default
+    QCOMPARE(settings.theme(), UiSettings::Theme::Auto);
+
+    const QPalette original = qApp->palette();
+    combo->setCurrentIndex(2); // Dark
+    QCOMPARE(settings.theme(), UiSettings::Theme::Dark);
+    QVERIFY(applyTheme(settings.theme()));
+    QVERIFY(qApp->palette().color(QPalette::Window).lightness() < 128);
+
+    combo->setCurrentIndex(1); // Light
+    QCOMPARE(settings.theme(), UiSettings::Theme::Light);
+    QVERIFY(!applyTheme(settings.theme()));
+    QVERIFY(qApp->palette().color(QPalette::Window).lightness() >= 128);
+
+    qApp->setPalette(original);
+}
+
+// Themed icons replace the fixed dark stroke color with the palette text
+// color, so they stay visible on a dark background.
+void TestSettingsDialog::themedIconFollowsPaletteInDarkMode() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString svgPath = dir.filePath(QStringLiteral("icon.svg"));
+    {
+        QFile f(svgPath);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" "
+                "height=\"24\"><path d=\"M4 4 h16 v16 h-16 z\" fill=\"#232629\"/></svg>");
+    }
+
+    const QPalette original = qApp->palette();
+    QVERIFY(applyTheme(UiSettings::Theme::Dark));
+    const QImage darkImage = themedIcon(svgPath).pixmap(24, 24).toImage();
+    // The icon must contain light (text-colored) pixels, not the dark #232629.
+    bool hasLightPixel = false;
+    for (int y = 0; y < darkImage.height() && !hasLightPixel; ++y)
+        for (int x = 0; x < darkImage.width(); ++x) {
+            const QColor c = darkImage.pixelColor(x, y);
+            if (c.alpha() > 200 && c.lightness() > 128) {
+                hasLightPixel = true;
+                break;
+            }
+        }
+    QVERIFY(hasLightPixel);
+
+    QVERIFY(!applyTheme(UiSettings::Theme::Light));
+    const QImage lightImage = themedIcon(svgPath).pixmap(24, 24).toImage();
+    bool hasDarkPixel = false;
+    for (int y = 0; y < lightImage.height() && !hasDarkPixel; ++y)
+        for (int x = 0; x < lightImage.width(); ++x) {
+            const QColor c = lightImage.pixelColor(x, y);
+            if (c.alpha() > 200 && c.lightness() < 128) {
+                hasDarkPixel = true;
+                break;
+            }
+        }
+    QVERIFY(hasDarkPixel);
+    qApp->setPalette(original);
 }
 
 #include "tst_settingsdialog.moc"

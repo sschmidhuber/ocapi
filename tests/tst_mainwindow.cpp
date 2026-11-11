@@ -5,11 +5,13 @@
 #include "ui/composer.h"
 #include "ui/mainwindow.h"
 #include "ui/sidebar.h"
+#include "ui/theme.h"
 
 #include <QApplication>
 #include <QDateTime>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QPalette>
 #include <QPlainTextEdit>
 #include <QScreen>
 #include <QStandardPaths>
@@ -80,6 +82,7 @@ private slots:
     void editMessageTruncatesHistoryOnSend();
     void composerInsertTemplateAppendsTextAndAttachments();
     void promptMenuFiltersAndEnterConfirms();
+    void composerFollowsDarkPalette();
     void promptMenuOpensAtCaretAnchor();
     void promptMenuArrowKeysNavigateVisibleEntries();
     void startupShowsNewChatAndLoadsOldChatsOnDemand();
@@ -716,6 +719,23 @@ int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     TestMainWindow test;
     return QTest::qExec(&test, argc, argv);
+}
+
+// In dark mode the composer's text edit must use the dark base color (its
+// viewport follows the widget palette, not a stylesheet background).
+void TestMainWindow::composerFollowsDarkPalette() {
+    const QPalette original = qApp->palette();
+    QVERIFY(applyTheme(UiSettings::Theme::Dark));
+    Composer composer;
+    composer.refreshTheme();
+    auto *edit = composer.findChild<QPlainTextEdit *>();
+    if (!edit)
+        QFAIL("text edit not found");
+    QVERIFY(edit->palette().color(QPalette::Base).lightness() < 128);
+    QVERIFY(!applyTheme(UiSettings::Theme::Light));
+    composer.refreshTheme();
+    QVERIFY(edit->palette().color(QPalette::Base).lightness() >= 128);
+    qApp->setPalette(original);
 }
 
 #include "tst_mainwindow.moc"

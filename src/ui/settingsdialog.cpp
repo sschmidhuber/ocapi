@@ -1,4 +1,5 @@
 #include "ui/settingsdialog.h"
+#include "ui/theme.h"
 
 #include "core/backendregistry.h"
 #include "core/mcpmanager.h"
@@ -124,7 +125,7 @@ void SettingsDialog::addCategory(const QString &title, const QString &categoryId
     // Always use the bundled icon: theme lookups resolve to whatever the
     // installed icon theme provides, which may differ between (older or
     // newer) KDE installations and other desktops.
-    item->setIcon(QIcon(iconPath));
+    item->setIcon(themedIcon(iconPath));
     item->setData(Qt::UserRole, m_stack->count() - 1);
     item->setData(Qt::UserRole + 1, categoryId);
 }

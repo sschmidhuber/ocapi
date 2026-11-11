@@ -13,6 +13,13 @@ class UiSettings : public QObject {
     Q_OBJECT
 
 public:
+    // Color theme of the application UI.
+    enum class Theme {
+        Auto, // follow the system color scheme (default)
+        Light,
+        Dark,
+    };
+
     explicit UiSettings(QObject *parent = nullptr);
 
     // Whether assistant messages show the output token throughput (t/s)
@@ -28,6 +35,12 @@ public:
     [[nodiscard]] int composerHeight() const { return m_composerHeight; }
     void setComposerHeight(int height);
 
+    // Color theme (auto = follow the system); applied immediately on change.
+    [[nodiscard]] Theme theme() const { return m_theme; }
+    void setTheme(Theme theme);
+    [[nodiscard]] static QString themeKey(Theme theme);
+    [[nodiscard]] static Theme themeFromString(const QString &key);
+
     void load(QSettings &settings);
     void save(QSettings &settings) const;
     void save() const;
@@ -38,6 +51,7 @@ signals:
 private:
     bool m_showThroughput = false;
     int m_composerHeight = 96;
+    Theme m_theme = Theme::Auto;
     QString m_persistPath;
     QSettings::Format m_persistFormat = QSettings::IniFormat;
 };

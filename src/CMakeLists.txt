@@ -158,6 +158,8 @@ set(OKAPI_UI_SOURCES
     ui/shortcutpage.cpp
     ui/userinterfacepage.h
     ui/userinterfacepage.cpp
+    ui/theme.h
+    ui/theme.cpp
     ui/prompttemplatespage.h
     ui/prompttemplatespage.cpp
 )
@@ -167,7 +169,7 @@ qt_add_executable(okapi
     ${OKAPI_UI_SOURCES}
 )
 
-target_link_libraries(okapi PRIVATE okapi-core Qt6::Widgets Qt6::WebEngineWidgets Qt6::WebChannel)
+target_link_libraries(okapi PRIVATE okapi-core Qt6::Widgets Qt6::WebEngineWidgets Qt6::WebChannel Qt6::Svg)
 
 qt_add_resources(okapi "okapi_resources"
     PREFIX "/"

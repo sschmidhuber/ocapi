@@ -9,6 +9,7 @@
 #include "ui/composer.h"
 #include "ui/settingsdialog.h"
 #include "ui/sidebar.h"
+#include "ui/theme.h"
 #include "ui/webchatview.h"
 
 #include <QApplication>
@@ -33,6 +34,7 @@
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QStatusBar>
+#include <QStyleHints>
 #include <QThreadPool>
 #include <QTimer>
 #include <QToolBar>
@@ -241,6 +243,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     loadLastModels();
     loadShortcuts();
     loadUiSettings();
+    // Apply the theme before setupUi() creates any widgets, so icons created
+    // in constructors (themedIcon) already use the correct palette.
+    applyTheme(m_uiSettings.theme());
     loadPromptTemplates();
 
     setupUi();
@@ -294,7 +299,7 @@ void MainWindow::setupUi() {
     m_newChatButton = new QToolButton(m_toolBar);
     m_newChatButton->setText(tr("New"));
     m_newChatButton->setIcon(
-        QIcon(QString::fromUtf8(":/resources/icons/contact-new-symbolic.svg")));
+        themedIcon(QStringLiteral(":/resources/icons/contact-new-symbolic.svg")));
     // Widgets added via addWidget() don't inherit the toolbar's
     // toolButtonStyle; set it explicitly so icon and text both show.
     m_newChatButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
@@ -304,7 +309,7 @@ void MainWindow::setupUi() {
     m_settingsButton = new QToolButton(m_toolBar);
     m_settingsButton->setText(tr("Settings"));
     m_settingsButton->setIcon(
-        QIcon(QString::fromUtf8(":/resources/icons/settings-configure-symbolic.svg")));
+        themedIcon(QStringLiteral(":/resources/icons/settings-configure-symbolic.svg")));
     m_settingsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_settingsButton->setToolTip(tr("Open settings"));
     m_toolBar->addWidget(m_newChatButton);
@@ -371,7 +376,7 @@ void MainWindow::setupUi() {
     m_cancelEditButton->setVisible(false);
     // Icon button styled like the Dictate (mic) button next to it.
     m_speakButton = new QToolButton(footerRow);
-    const QIcon speakerIcon(QString::fromUtf8(":/resources/icons/audio-symbolic.svg"));
+    const QIcon speakerIcon(themedIcon(QStringLiteral(":/resources/icons/audio-symbolic.svg")));
     if (!speakerIcon.isNull()) {
         m_speakButton->setIcon(speakerIcon);
         m_speakButton->setIconSize(QSize(18, 18));
@@ -447,6 +452,29 @@ void MainWindow::setupConnections() {
     m_chatView->setShowThroughput(m_uiSettings.showThroughput());
     connect(&m_uiSettings, &UiSettings::changed, this,
             [this]() { m_chatView->setShowThroughput(m_uiSettings.showThroughput()); });
+    // Theme: applied immediately; in Auto mode also follow live OS changes.
+    m_chatView->setDarkMode(applyTheme(m_uiSettings.theme()));
+    connect(&m_uiSettings, &UiSettings::changed, this, [this]() {
+        const bool dark = applyTheme(m_uiSettings.theme());
+        m_chatView->setDarkMode(dark);
+        // Re-theme the toolbar and composer icons (recolored on load).
+        m_newChatButton->setIcon(
+            themedIcon(QStringLiteral(":/resources/icons/contact-new-symbolic.svg")));
+        m_settingsButton->setIcon(
+            themedIcon(QStringLiteral(":/resources/icons/settings-configure-symbolic.svg")));
+        m_composer->refreshTheme();
+    });
+    connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged, this, [this](Qt::ColorScheme) {
+        if (m_uiSettings.theme() == UiSettings::Theme::Auto) {
+            const bool dark = applyTheme(UiSettings::Theme::Auto);
+            m_chatView->setDarkMode(dark);
+            m_newChatButton->setIcon(
+                themedIcon(QStringLiteral(":/resources/icons/contact-new-symbolic.svg")));
+            m_settingsButton->setIcon(
+                themedIcon(QStringLiteral(":/resources/icons/settings-configure-symbolic.svg")));
+            m_composer->refreshTheme();
+        }
+    });
     connect(m_settingsButton, &QToolButton::clicked, this, [this] { openSettings(QString()); });
     setupComposerSplitter();
     connect(m_sidebar, &Sidebar::sessionSelected, this, &MainWindow::onSessionSelected);

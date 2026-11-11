@@ -2,6 +2,7 @@
 #include "core/attachmentopener.h"
 #include "core/markdown.h"
 #include "core/message.h"
+#include "ui/theme.h"
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -460,7 +461,7 @@ int attachmentIndexAt(const QStyleOptionViewItem &option, const QModelIndex &ind
 }
 
 const QIcon &copyIcon() {
-    static const QIcon icon(QString::fromUtf8(":/resources/icons/edit-copy-symbolic.svg"));
+    static const QIcon icon(themedIcon(QStringLiteral(":/resources/icons/edit-copy-symbolic.svg")));
     return icon;
 }
 

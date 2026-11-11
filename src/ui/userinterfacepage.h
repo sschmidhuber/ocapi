@@ -3,6 +3,7 @@
 #include <QWidget>
 
 class QCheckBox;
+class QComboBox;
 
 namespace okapi {
 
@@ -20,6 +21,7 @@ public:
 private:
     UiSettings *m_uiSettings;
     QCheckBox *m_showThroughputBox = nullptr;
+    QComboBox *m_themeCombo = nullptr;
 };
 
 } // namespace okapi

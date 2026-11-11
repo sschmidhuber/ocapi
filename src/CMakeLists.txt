@@ -158,6 +158,8 @@ set(OKAPI_UI_SOURCES
     ui/shortcutpage.cpp
     ui/userinterfacepage.h
     ui/userinterfacepage.cpp
+    ui/theme.h
+    ui/theme.cpp
     ui/prompttemplatespage.h
     ui/prompttemplatespage.cpp
 )

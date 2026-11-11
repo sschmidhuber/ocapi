@@ -9,11 +9,15 @@
 #include "core/uisettings.h"
 #include "ui/mcppage.h"
 #include "ui/settingsdialog.h"
+#include "ui/theme.h"
+#include "ui/userinterfacepage.h"
 
 #include <QApplication>
+#include <QComboBox>
 #include <QKeySequence>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QPalette>
 #include <QRadioButton>
 #include <QSplitter>
 #include <QStackedWidget>
@@ -50,6 +54,7 @@ private slots:
     void shortcutsPageListsAllActions();
     void selectPageSelectsCategoryAndTab();
     void mcpHttpAuthModeShowsOnlyRelevantField();
+    void themeComboAppliesImmediately();
     void sidebarKeepsMaxWidthWhenDialogGrows();
 
 private:
@@ -257,6 +262,34 @@ int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     TestSettingsDialog test;
     return QTest::qExec(&test, argc, argv);
+}
+
+// The User Interface page offers Auto/Light/Dark (Auto default); changing it
+// persists the setting and applyTheme() switches the application palette
+// immediately.
+void TestSettingsDialog::themeComboAppliesImmediately() {
+    UiSettings settings;
+    UserInterfacePage page(&settings);
+    page.show();
+    auto *combo = page.findChild<QComboBox *>(QStringLiteral("themeCombo"));
+    if (!combo)
+        QFAIL("theme combo not found");
+    QCOMPARE(combo->count(), 3);
+    QCOMPARE(combo->currentIndex(), 0); // Auto is the default
+    QCOMPARE(settings.theme(), UiSettings::Theme::Auto);
+
+    const QPalette original = qApp->palette();
+    combo->setCurrentIndex(2); // Dark
+    QCOMPARE(settings.theme(), UiSettings::Theme::Dark);
+    QVERIFY(applyTheme(settings.theme()));
+    QVERIFY(qApp->palette().color(QPalette::Window).lightness() < 128);
+
+    combo->setCurrentIndex(1); // Light
+    QCOMPARE(settings.theme(), UiSettings::Theme::Light);
+    QVERIFY(!applyTheme(settings.theme()));
+    QVERIFY(qApp->palette().color(QPalette::Window).lightness() >= 128);
+
+    qApp->setPalette(original);
 }
 
 #include "tst_settingsdialog.moc"

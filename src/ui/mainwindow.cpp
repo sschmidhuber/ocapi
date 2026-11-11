@@ -9,6 +9,7 @@
 #include "ui/composer.h"
 #include "ui/settingsdialog.h"
 #include "ui/sidebar.h"
+#include "ui/theme.h"
 #include "ui/webchatview.h"
 
 #include <QApplication>
@@ -33,6 +34,7 @@
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QStatusBar>
+#include <QStyleHints>
 #include <QThreadPool>
 #include <QTimer>
 #include <QToolBar>
@@ -447,6 +449,14 @@ void MainWindow::setupConnections() {
     m_chatView->setShowThroughput(m_uiSettings.showThroughput());
     connect(&m_uiSettings, &UiSettings::changed, this,
             [this]() { m_chatView->setShowThroughput(m_uiSettings.showThroughput()); });
+    // Theme: applied immediately; in Auto mode also follow live OS changes.
+    m_chatView->setDarkMode(applyTheme(m_uiSettings.theme()));
+    connect(&m_uiSettings, &UiSettings::changed, this,
+            [this]() { m_chatView->setDarkMode(applyTheme(m_uiSettings.theme())); });
+    connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged, this, [this](Qt::ColorScheme) {
+        if (m_uiSettings.theme() == UiSettings::Theme::Auto)
+            m_chatView->setDarkMode(applyTheme(UiSettings::Theme::Auto));
+    });
     connect(m_settingsButton, &QToolButton::clicked, this, [this] { openSettings(QString()); });
     setupComposerSplitter();
     connect(m_sidebar, &Sidebar::sessionSelected, this, &MainWindow::onSessionSelected);

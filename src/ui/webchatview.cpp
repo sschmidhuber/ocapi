@@ -164,6 +164,8 @@ WebChatView::WebChatView(QWidget *parent) : QWebEngineView(parent) {
         // was ready (callJs() is a no-op until then).
         callJs(QStringLiteral("setShowThroughput(%1)")
                    .arg(m_showThroughput ? QStringLiteral("true") : QStringLiteral("false")));
+        callJs(QStringLiteral("setTheme(%1)")
+                   .arg(m_darkMode ? QStringLiteral("true") : QStringLiteral("false")));
         if (m_session) {
             for (const auto &message : m_session->messages())
                 onMessageAdded(message);
@@ -260,6 +262,14 @@ void WebChatView::onMessageAdded(const Message &message) {
                     message.reasoningStreaming ? QStringLiteral("true") : QStringLiteral("false"),
                     toolCallsToJs(message.toolCalls), elementOrderToJs(message),
                     QString::number(message.tokensPerSecond), attachmentsToJs(message)));
+}
+
+void WebChatView::setDarkMode(bool dark) {
+    if (m_darkMode == dark)
+        return;
+    m_darkMode = dark;
+    callJs(QStringLiteral("setTheme(%1)")
+               .arg(dark ? QStringLiteral("true") : QStringLiteral("false")));
 }
 
 void WebChatView::setShowThroughput(bool enabled) {

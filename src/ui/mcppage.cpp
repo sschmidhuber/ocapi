@@ -42,6 +42,7 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
 
     // Transport-specific rows live in the same form so all labels share one
     // column; updateTransportVisibility() shows only the relevant group.
+    m_urlLabel = new QLabel(tr("URL:"), rightWidget);
     m_urlEdit = new QLineEdit(rightWidget);
     m_urlEdit->setPlaceholderText(QStringLiteral("http://127.0.0.1:3000/mcp"));
     // Authorization method for HTTP transports: API token (default, sent as
@@ -52,6 +53,7 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     m_apiKeyRadio->setChecked(true);
     m_headersRadio = new QRadioButton(tr("HTTP headers"), rightWidget);
     m_headersRadio->setObjectName(QStringLiteral("headersRadio"));
+    m_authLabel = new QLabel(tr("Authorization:"), rightWidget);
     m_authModeWidget = new QWidget(rightWidget);
     auto *authModeRow = new QHBoxLayout(m_authModeWidget);
     authModeRow->setContentsMargins(0, 0, 0, 0);
@@ -68,15 +70,22 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     m_headersEdit->setObjectName(QStringLiteral("headersEdit"));
     m_headersEdit->setPlaceholderText(tr("Authorization: Bearer \u2026 (one per line)"));
     m_httpGroup = {
-        m_urlEdit, m_authModeWidget, m_apiKeyLabel, m_apiKeyEdit, m_headersLabel, m_headersEdit,
+        m_urlLabel,    m_urlEdit,    m_authLabel,    m_authModeWidget,
+        m_apiKeyLabel, m_apiKeyEdit, m_headersLabel, m_headersEdit,
     };
+    m_commandLabel = new QLabel(tr("Command:"), rightWidget);
     m_commandEdit = new QLineEdit(rightWidget);
     m_commandEdit->setPlaceholderText(QStringLiteral("npx"));
+    m_argumentsLabel = new QLabel(tr("Arguments:"), rightWidget);
     m_argumentsEdit = new QLineEdit(rightWidget);
     m_argumentsEdit->setPlaceholderText(tr("-y @modelcontextprotocol/server-filesystem /tmp"));
+    m_environmentLabel = new QLabel(tr("Environment:"), rightWidget);
     m_environmentEdit = new QLineEdit(rightWidget);
     m_environmentEdit->setPlaceholderText(tr("KEY=VALUE (one per line)"));
-    m_stdioGroup = {m_commandEdit, m_argumentsEdit, m_environmentEdit};
+    m_stdioGroup = {
+        m_commandLabel,  m_commandEdit,      m_argumentsLabel,
+        m_argumentsEdit, m_environmentLabel, m_environmentEdit,
+    };
 
     m_defaultPermissionCombo = new QComboBox(rightWidget);
     for (const auto permission : McpServerConfig::allPermissions())
@@ -93,13 +102,13 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
 
     formLayout->addRow(tr("Name:"), m_nameEdit);
     formLayout->addRow(tr("Transport:"), m_transportCombo);
-    formLayout->addRow(tr("URL:"), m_urlEdit);
-    formLayout->addRow(tr("Authorization:"), m_authModeWidget);
+    formLayout->addRow(m_urlLabel, m_urlEdit);
+    formLayout->addRow(m_authLabel, m_authModeWidget);
     formLayout->addRow(m_apiKeyLabel, m_apiKeyEdit);
     formLayout->addRow(m_headersLabel, m_headersEdit);
-    formLayout->addRow(tr("Command:"), m_commandEdit);
-    formLayout->addRow(tr("Arguments:"), m_argumentsEdit);
-    formLayout->addRow(tr("Environment:"), m_environmentEdit);
+    formLayout->addRow(m_commandLabel, m_commandEdit);
+    formLayout->addRow(m_argumentsLabel, m_argumentsEdit);
+    formLayout->addRow(m_environmentLabel, m_environmentEdit);
     formLayout->addRow(tr("Default permission:"), m_defaultPermissionCombo);
     formLayout->addRow(m_enabledBox);
     formLayout->addRow(m_testButton);

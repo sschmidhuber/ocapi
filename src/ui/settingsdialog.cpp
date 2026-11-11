@@ -40,8 +40,8 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
 
     auto *splitter = new QSplitter(this);
     m_categories = new QListWidget(splitter);
-    m_categories->setMinimumWidth(120);
-    m_categories->setMaximumWidth(170);
+    m_categories->setMinimumWidth(110);
+    m_categories->setMaximumWidth(150);
 
     m_stack = new QStackedWidget(splitter);
 

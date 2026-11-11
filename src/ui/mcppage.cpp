@@ -15,7 +15,6 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSplitter>
-#include <QStackedWidget>
 #include <QTableWidget>
 #include <QVBoxLayout>
 
@@ -25,8 +24,8 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     : QWidget(parent), m_registry(registry), m_manager(manager) {
     auto *splitter = new QSplitter(this);
     m_list = new QListWidget(splitter);
-    m_list->setMinimumWidth(140);
-    m_list->setMaximumWidth(200);
+    m_list->setMinimumWidth(120);
+    m_list->setMaximumWidth(170);
 
     auto *rightWidget = new QWidget(splitter);
     auto *rightLayout = new QVBoxLayout(rightWidget);
@@ -42,53 +41,42 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
         m_transportCombo->addItem(McpServerConfig::transportName(transport),
                                   QVariant::fromValue(static_cast<int>(transport)));
 
-    m_connectionStack = new QStackedWidget(rightWidget);
-    auto *httpPage = new QWidget(m_connectionStack);
-    auto *httpLayout = new QFormLayout(httpPage);
-    httpLayout->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    httpLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    m_urlEdit = new QLineEdit(httpPage);
+    // Transport-specific rows live in the same form so all labels share one
+    // column; updateTransportVisibility() shows only the relevant group.
+    m_urlEdit = new QLineEdit(rightWidget);
     m_urlEdit->setPlaceholderText(QStringLiteral("http://127.0.0.1:3000/mcp"));
     // Authorization method for HTTP transports: API token (default, sent as
     // Bearer) or custom HTTP headers. Only the selected field is visible;
     // both values are kept so switching modes loses no configuration.
-    m_apiKeyRadio = new QRadioButton(tr("API token"), httpPage);
+    m_apiKeyRadio = new QRadioButton(tr("API token"), rightWidget);
     m_apiKeyRadio->setObjectName(QStringLiteral("apiKeyRadio"));
     m_apiKeyRadio->setChecked(true);
-    m_headersRadio = new QRadioButton(tr("HTTP headers"), httpPage);
+    m_headersRadio = new QRadioButton(tr("HTTP headers"), rightWidget);
     m_headersRadio->setObjectName(QStringLiteral("headersRadio"));
-    auto *authModeRow = new QHBoxLayout;
+    m_authModeWidget = new QWidget(rightWidget);
+    auto *authModeRow = new QHBoxLayout(m_authModeWidget);
+    authModeRow->setContentsMargins(0, 0, 0, 0);
     authModeRow->addWidget(m_apiKeyRadio);
     authModeRow->addWidget(m_headersRadio);
     authModeRow->addStretch();
-    m_apiKeyLabel = new QLabel(tr("API token:"), httpPage);
-    m_apiKeyEdit = new QLineEdit(httpPage);
+    m_apiKeyLabel = new QLabel(tr("API token:"), rightWidget);
+    m_apiKeyEdit = new QLineEdit(rightWidget);
     m_apiKeyEdit->setObjectName(QStringLiteral("apiKeyEdit"));
     m_apiKeyEdit->setEchoMode(QLineEdit::Password);
     m_apiKeyEdit->setPlaceholderText(tr("API token"));
-    m_headersLabel = new QLabel(tr("HTTP headers:"), httpPage);
-    m_headersEdit = new QLineEdit(httpPage);
+    m_headersLabel = new QLabel(tr("HTTP headers:"), rightWidget);
+    m_headersEdit = new QLineEdit(rightWidget);
     m_headersEdit->setObjectName(QStringLiteral("headersEdit"));
     m_headersEdit->setPlaceholderText(tr("Authorization: Bearer \u2026 (one per line)"));
-    httpLayout->addRow(tr("URL:"), m_urlEdit);
-    httpLayout->addRow(tr("Authorization:"), authModeRow);
-    httpLayout->addRow(m_apiKeyLabel, m_apiKeyEdit);
-    httpLayout->addRow(m_headersLabel, m_headersEdit);
-    auto *stdioPage = new QWidget(m_connectionStack);
-    auto *stdioLayout = new QFormLayout(stdioPage);
-    stdioLayout->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    stdioLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    m_commandEdit = new QLineEdit(stdioPage);
+    m_httpGroup = {m_urlEdit,    m_authModeWidget, m_apiKeyLabel,
+                   m_apiKeyEdit, m_headersLabel,   m_headersEdit};
+    m_commandEdit = new QLineEdit(rightWidget);
     m_commandEdit->setPlaceholderText(QStringLiteral("npx"));
-    m_argumentsEdit = new QLineEdit(stdioPage);
+    m_argumentsEdit = new QLineEdit(rightWidget);
     m_argumentsEdit->setPlaceholderText(tr("-y @modelcontextprotocol/server-filesystem /tmp"));
-    m_environmentEdit = new QLineEdit(stdioPage);
+    m_environmentEdit = new QLineEdit(rightWidget);
     m_environmentEdit->setPlaceholderText(tr("KEY=VALUE (one per line)"));
-    stdioLayout->addRow(tr("Command:"), m_commandEdit);
-    stdioLayout->addRow(tr("Arguments:"), m_argumentsEdit);
-    stdioLayout->addRow(tr("Environment:"), m_environmentEdit);
-    m_connectionStack->addWidget(httpPage);
-    m_connectionStack->addWidget(stdioPage);
+    m_stdioGroup = {m_commandEdit, m_argumentsEdit, m_environmentEdit};
 
     m_defaultPermissionCombo = new QComboBox(rightWidget);
     for (const auto permission : McpServerConfig::allPermissions())
@@ -105,7 +93,13 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
 
     formLayout->addRow(tr("Name:"), m_nameEdit);
     formLayout->addRow(tr("Transport:"), m_transportCombo);
-    formLayout->addRow(m_connectionStack);
+    formLayout->addRow(tr("URL:"), m_urlEdit);
+    formLayout->addRow(tr("Authorization:"), m_authModeWidget);
+    formLayout->addRow(m_apiKeyLabel, m_apiKeyEdit);
+    formLayout->addRow(m_headersLabel, m_headersEdit);
+    formLayout->addRow(tr("Command:"), m_commandEdit);
+    formLayout->addRow(tr("Arguments:"), m_argumentsEdit);
+    formLayout->addRow(tr("Environment:"), m_environmentEdit);
     formLayout->addRow(tr("Default permission:"), m_defaultPermissionCombo);
     formLayout->addRow(m_enabledBox);
     formLayout->addRow(m_testButton);
@@ -227,8 +221,10 @@ void McpPage::onSelectionChanged() {
     m_updatingForm = true;
     auto *item = m_list->currentItem();
     const bool hasSelection = item != nullptr;
-    const QList<QWidget *> widgets{m_nameEdit,   m_transportCombo, m_connectionStack,
-                                   m_enabledBox, m_testButton,     m_toolsTable};
+    const QList<QWidget *> widgets{m_nameEdit,       m_transportCombo, m_urlEdit,
+                                   m_authModeWidget, m_apiKeyEdit,     m_headersEdit,
+                                   m_commandEdit,    m_argumentsEdit,  m_environmentEdit,
+                                   m_enabledBox,     m_testButton,     m_toolsTable};
     for (auto *widget : widgets)
         widget->setEnabled(hasSelection);
     m_defaultPermissionCombo->setEnabled(hasSelection);
@@ -259,15 +255,25 @@ void McpPage::onSelectionChanged() {
 void McpPage::onTransportChanged(int index) {
     if (m_updatingForm)
         return;
-    const auto transport = static_cast<McpTransport>(m_transportCombo->itemData(index).toInt());
-    m_connectionStack->setCurrentIndex(transport == McpTransport::Stdio ? 1 : 0);
     updateTransportVisibility();
     onFieldEdited();
 }
 
 void McpPage::updateTransportVisibility() {
     const auto transport = static_cast<McpTransport>(m_transportCombo->currentData().toInt());
-    m_connectionStack->setCurrentIndex(transport == McpTransport::Stdio ? 1 : 0);
+    const bool stdio = transport == McpTransport::Stdio;
+    for (auto *w : m_stdioGroup)
+        w->setVisible(stdio);
+    for (auto *w : m_httpGroup)
+        w->setVisible(!stdio);
+    if (!stdio) {
+        // Keep the auth-mode selection visible state consistent.
+        const bool useApiKey = m_apiKeyRadio->isChecked();
+        m_apiKeyLabel->setVisible(useApiKey);
+        m_apiKeyEdit->setVisible(useApiKey);
+        m_headersLabel->setVisible(!useApiKey);
+        m_headersEdit->setVisible(!useApiKey);
+    }
 }
 
 void McpPage::onFieldEdited() {

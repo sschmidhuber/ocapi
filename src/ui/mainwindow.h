@@ -101,6 +101,7 @@ public:
     [[nodiscard]] ShortcutRegistry &shortcutsForTest() { return m_shortcuts; }
     [[nodiscard]] PromptTemplateRegistry &promptTemplatesForTest() { return m_promptTemplates; }
     [[nodiscard]] QWidget *promptMenuForTest() const { return m_promptMenu; }
+    [[nodiscard]] ModelPickerButton *modelPickerForTest() const { return m_modelPicker; }
     void requestDeleteSessionsForTest(const QList<QUuid> &ids) { onSessionDeleteRequested(ids); }
     void markUnreadForTest(const QUuid &id) { m_unreadSessions.insert(id); }
     [[nodiscard]] ChatSession *sessionForTest(const QUuid &id) const;

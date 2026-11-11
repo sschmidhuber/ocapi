@@ -7,9 +7,11 @@
 #include "ui/sidebar.h"
 #include "ui/theme.h"
 
+#include <QAction>
 #include <QApplication>
 #include <QDateTime>
 #include <QListWidget>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPalette>
 #include <QPlainTextEdit>
@@ -67,6 +69,7 @@ class TestMainWindow : public QObject {
 private slots:
     void initTestCase();
     void newChatKeepsCurrentBackendAndModel();
+    void switchingToNewBackendDoesNotLeakOldModel();
     void toolCallFailureAppendsToolMessageWithoutCrashing();
     void keyboardShortcuts();
     void reboundShortcutFiresImmediately();
@@ -131,6 +134,50 @@ void TestMainWindow::newChatKeepsCurrentBackendAndModel() {
     QCOMPARE(next->backendId(), ollama.id.toString());
     QCOMPARE(next->model(), QStringLiteral("llama3.2"));
     Q_UNUSED(mistral);
+}
+
+// Regression test: switching to a newly configured backend must not show the
+// previous backend's model under the new backend. The session kept the old
+// model while its backendId changed, and the picker then appended that
+// foreign model to the new backend's model list.
+void TestMainWindow::switchingToNewBackendDoesNotLeakOldModel() {
+    MainWindow window;
+    window.show();
+
+    auto &registry = window.registryForTest();
+    const QString ollamaId =
+        registry.add(QStringLiteral("Ollama"), BackendKind::Ollama).id.toString();
+    const QString freshId =
+        registry.add(QStringLiteral("Fresh backend"), BackendKind::Ollama).id.toString();
+    registry.save();
+
+    ChatSession *session = window.currentSession();
+    QVERIFY(session);
+    session->setBackendId(ollamaId);
+    session->setModel(QStringLiteral("llama3.2"));
+
+    // Switch the chat to the new backend the way the picker menu does.
+    auto *picker = window.modelPickerForTest();
+    QVERIFY(picker);
+    auto *menu = picker->menu();
+    QVERIFY(menu);
+    QAction *freshAction = nullptr;
+    for (auto *action : menu->actions()) {
+        if (action->text() == QStringLiteral("Fresh backend"))
+            freshAction = action;
+    }
+    QVERIFY(freshAction);
+    freshAction->trigger();
+
+    // The session must no longer carry the old backend's model...
+    QCOMPARE(session->backendId(), freshId);
+    QVERIFY(session->model().isEmpty());
+    // ...and the new backend's model list must not contain it, even after a
+    // selector rebuild (e.g. when model detection for it completes).
+    window.selectSessionForTest(session->id());
+    const QStringList freshModels = picker->backendModels().value(freshId);
+    QVERIFY(!freshModels.contains(QStringLiteral("llama3.2")));
+    QVERIFY(picker->currentModel().isEmpty() || freshModels.contains(picker->currentModel()));
 }
 
 // Regression test: a synchronously failing MCP tool call (unknown tool, no

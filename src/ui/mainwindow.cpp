@@ -540,11 +540,17 @@ void MainWindow::setupConnections() {
     connect(m_modelPicker, &ModelPickerButton::backendSelected, this, [this](const QString &id) {
         if (m_currentSession && !id.isEmpty()) {
             m_currentSession->setBackendId(id);
+            // The session's model belongs to the previously selected backend;
+            // switch to the model last used with the new backend (empty if it
+            // has none yet) so the old backend's model is never shown under
+            // the new one.
+            m_currentSession->setModel(lastModelForBackend(id));
             syncSessionToDatabase(m_currentSession);
             // The running turn belongs to the previous backend; switching
             // the chat's backend ends it, as before the parallel-chats rework.
             cancelContext(m_currentSession);
         }
+        refreshBackendSelector();
         detectModels();
     });
     connect(m_modelPicker, &ModelPickerButton::modelSelected, this,
@@ -1391,7 +1397,11 @@ void MainWindow::refreshBackendSelector() {
     if (selectedId.isEmpty() && !backends.isEmpty())
         selectedId = backends.first().second;
 
-    QString model = m_currentSession ? m_currentSession->model() : QString();
+    // The session's model only applies while it belongs to the selected
+    // backend; after a backend switch it must not leak into the new one.
+    QString model = m_currentSession && m_currentSession->backendId() == selectedId
+                        ? m_currentSession->model()
+                        : QString();
     if (model.isEmpty())
         model = lastModelForBackend(selectedId);
     if (model.isEmpty()) {

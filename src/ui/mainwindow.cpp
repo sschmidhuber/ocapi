@@ -245,7 +245,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     loadUiSettings();
     // Apply the theme before setupUi() creates any widgets, so icons created
     // in constructors (themedIcon) already use the correct palette.
-    applyTheme(m_uiSettings.theme());
+    m_darkMode = applyTheme(m_uiSettings.theme());
     loadPromptTemplates();
 
     setupUi();
@@ -453,10 +453,10 @@ void MainWindow::setupConnections() {
     connect(&m_uiSettings, &UiSettings::changed, this,
             [this]() { m_chatView->setShowThroughput(m_uiSettings.showThroughput()); });
     // Theme: applied immediately; in Auto mode also follow live OS changes.
-    m_chatView->setDarkMode(applyTheme(m_uiSettings.theme()));
+    m_chatView->setDarkMode(m_darkMode);
     connect(&m_uiSettings, &UiSettings::changed, this, [this]() {
-        const bool dark = applyTheme(m_uiSettings.theme());
-        m_chatView->setDarkMode(dark);
+        m_darkMode = applyTheme(m_uiSettings.theme());
+        m_chatView->setDarkMode(m_darkMode);
         // Re-theme the toolbar and composer icons (recolored on load).
         m_newChatButton->setIcon(
             themedIcon(QStringLiteral(":/resources/icons/contact-new-symbolic.svg")));
@@ -466,8 +466,8 @@ void MainWindow::setupConnections() {
     });
     connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged, this, [this](Qt::ColorScheme) {
         if (m_uiSettings.theme() == UiSettings::Theme::Auto) {
-            const bool dark = applyTheme(UiSettings::Theme::Auto);
-            m_chatView->setDarkMode(dark);
+            m_darkMode = applyTheme(UiSettings::Theme::Auto);
+            m_chatView->setDarkMode(m_darkMode);
             m_newChatButton->setIcon(
                 themedIcon(QStringLiteral(":/resources/icons/contact-new-symbolic.svg")));
             m_settingsButton->setIcon(

@@ -71,6 +71,9 @@ private slots:
     void stdioServerListsPrompts();
     void stdioServerCallsTool();
     void stdioFailureReportsError();
+    void stdioServerThatNeverAnswersTimesOut();
+    void stdioInvalidEnvironmentEntryFailsImmediately();
+    void stdioServerStderrIsPartOfTheError();
     void httpWithoutUrlFailsImmediately();
     void notConnectedCallsFail();
 
@@ -172,6 +175,46 @@ void TestMcpClient::stdioFailureReportsError() {
     QVERIFY(failedSpy.count() >= 1);
     QVERIFY(!client.lastError().isEmpty());
     Q_UNUSED(stateSpy)
+}
+
+void TestMcpClient::stdioServerThatNeverAnswersTimesOut() {
+    McpClient client(stdioConfig(m_python));
+    // Reads stdin but never answers the initialize request (like an
+    // interactive REPL started without a script).
+    client.configRef().arguments = {QStringLiteral("-c"),
+                                    QStringLiteral("import sys; sys.stdin.read()")};
+    client.setConnectTimeout(500);
+    QSignalSpy failedSpy(&client, &McpClient::connectionFailed);
+    client.connectToServer();
+    QTRY_COMPARE_WITH_TIMEOUT(client.state(), McpClient::State::Failed, 5000);
+    QCOMPARE(failedSpy.count(), 1);
+    QVERIFY(client.lastError().contains(QStringLiteral("Timed out")));
+}
+
+void TestMcpClient::stdioInvalidEnvironmentEntryFailsImmediately() {
+    McpClient client(stdioConfig(m_python));
+    client.configRef().arguments = {QStringLiteral("-c"), QStringLiteral("pass")};
+    // A path without KEY= must not be silently dropped.
+    client.configRef().environment = {
+        QStringLiteral("development/Julia/anglerfish/src/Anglerfish.jl")};
+    QSignalSpy failedSpy(&client, &McpClient::connectionFailed);
+    client.connectToServer();
+    QCOMPARE(failedSpy.count(), 1);
+    QCOMPARE(client.state(), McpClient::State::Failed);
+    QVERIFY(client.lastError().contains(QStringLiteral("KEY=VALUE")));
+    QVERIFY(client.lastError().contains(QStringLiteral("Anglerfish.jl")));
+}
+
+void TestMcpClient::stdioServerStderrIsPartOfTheError() {
+    McpClient client(stdioConfig(m_python));
+    client.configRef().arguments = {
+        QStringLiteral("-c"), QStringLiteral("import sys; sys.stderr.write('boom happened\\n'); "
+                                             "sys.exit(3)")};
+    QSignalSpy failedSpy(&client, &McpClient::connectionFailed);
+    client.connectToServer();
+    QTRY_COMPARE_WITH_TIMEOUT(client.state(), McpClient::State::Failed, 10000);
+    QVERIFY(failedSpy.count() >= 1);
+    QVERIFY(client.lastError().contains(QStringLiteral("boom happened")));
 }
 
 void TestMcpClient::httpWithoutUrlFailsImmediately() {

@@ -318,6 +318,8 @@ private:
     QList<QShortcut *> m_windowShortcuts;
     // General UI settings (Settings > General > User Interface).
     UiSettings m_uiSettings;
+    // Effective dark mode after applyTheme() (drives the web chat view).
+    bool m_darkMode = false;
     // Prompt templates (Settings > General > Prompt Templates).
     PromptTemplateRegistry m_promptTemplates;
     // Autocompletion popup (frameless top-level above the composer).

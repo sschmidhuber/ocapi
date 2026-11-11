@@ -131,6 +131,10 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     leftLayout->addLayout(listButtons);
     auto *leftWidget = new QWidget(splitter);
     leftWidget->setLayout(leftLayout);
+    // Cap the container as well: otherwise the splitter can allocate it more
+    // width than the server list (which is capped), leaving an empty gap
+    // between the list and the form until the handle is moved once.
+    leftWidget->setMaximumWidth(m_list->maximumWidth() + 20);
 
     splitter->addWidget(leftWidget);
     splitter->addWidget(rightWidget);

@@ -79,9 +79,22 @@ void createTables(QSqlDatabase &database) {
                               "arguments TEXT NOT NULL DEFAULT '', "
                               "environment TEXT NOT NULL DEFAULT '', "
                               "headers TEXT NOT NULL DEFAULT '', "
+                              "api_key TEXT NOT NULL DEFAULT '', "
                               "default_permission TEXT NOT NULL DEFAULT 'ask', "
                               "tool_permissions TEXT NOT NULL DEFAULT '{}', "
                               "enabled INTEGER NOT NULL DEFAULT 1)"));
+    // Migration for databases created before the api_key column existed.
+    QSqlQuery columns(database);
+    if (columns.exec(QStringLiteral("PRAGMA table_info(mcp_servers)"))) {
+        bool hasApiKey = false;
+        while (columns.next()) {
+            if (columns.value(1).toString() == QLatin1String("api_key"))
+                hasApiKey = true;
+        }
+        if (!hasApiKey)
+            columns.exec(QStringLiteral("ALTER TABLE mcp_servers ADD COLUMN api_key TEXT NOT NULL "
+                                        "DEFAULT ''"));
+    }
     query.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS message_images ("
                               "id TEXT PRIMARY KEY NOT NULL, "
                               "message_id TEXT NOT NULL, "
@@ -499,12 +512,14 @@ QVector<BackendConfig> ChatDatabase::loadBackends() const {
 void ChatDatabase::insertMcpServer(const McpServerConfig &config) {
     execute(
         QStringLiteral("INSERT INTO mcp_servers (id, name, transport, url, command, arguments, "
-                       "environment, headers, default_permission, tool_permissions, enabled) "
-                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                       "environment, headers, api_key, default_permission, tool_permissions, "
+                       "enabled) "
+                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                        "ON CONFLICT (id) DO UPDATE SET name = excluded.name, "
                        "transport = excluded.transport, url = excluded.url, "
                        "command = excluded.command, arguments = excluded.arguments, "
                        "environment = excluded.environment, headers = excluded.headers, "
+                       "api_key = excluded.api_key, "
                        "default_permission = excluded.default_permission, "
                        "tool_permissions = excluded.tool_permissions, "
                        "enabled = excluded.enabled"),
@@ -517,6 +532,7 @@ void ChatDatabase::insertMcpServer(const McpServerConfig &config) {
             nullToEmpty(config.arguments.join(QLatin1Char('\n'))),
             nullToEmpty(config.environment.join(QLatin1Char('\n'))),
             nullToEmpty(config.headers.join(QLatin1Char('\n'))),
+            nullToEmpty(config.apiKey),
             McpServerConfig::permissionKey(config.defaultPermission),
             QString::fromUtf8(QJsonDocument(config.toolPermissions).toJson(QJsonDocument::Compact)),
             config.enabled ? 1 : 0,
@@ -530,9 +546,10 @@ void ChatDatabase::deleteMcpServer(const QString &serverId) {
 QVector<McpServerConfig> ChatDatabase::loadMcpServers() const {
     QVector<McpServerConfig> result;
     QSqlQuery query(m_database);
-    if (!query.exec(QStringLiteral("SELECT id, name, transport, url, command, arguments, "
-                                   "environment, headers, default_permission, tool_permissions, "
-                                   "enabled FROM mcp_servers ORDER BY rowid ASC"))) {
+    if (!query.exec(
+            QStringLiteral("SELECT id, name, transport, url, command, arguments, "
+                           "environment, headers, api_key, default_permission, "
+                           "tool_permissions, enabled FROM mcp_servers ORDER BY rowid ASC"))) {
         m_lastError = query.lastError().text();
         return result;
     }
@@ -555,9 +572,10 @@ QVector<McpServerConfig> ChatDatabase::loadMcpServers() const {
         config.arguments = splitLines(query.value(5).toString());
         config.environment = splitLines(query.value(6).toString());
         config.headers = splitLines(query.value(7).toString());
-        config.defaultPermission = McpServerConfig::permissionFromString(query.value(8).toString());
-        config.toolPermissions = QJsonDocument::fromJson(query.value(9).toByteArray()).object();
-        config.enabled = query.value(10).toInt() != 0;
+        config.apiKey = query.value(8).toString();
+        config.defaultPermission = McpServerConfig::permissionFromString(query.value(9).toString());
+        config.toolPermissions = QJsonDocument::fromJson(query.value(10).toByteArray()).object();
+        config.enabled = query.value(11).toInt() != 0;
         result.push_back(std::move(config));
     }
     return result;

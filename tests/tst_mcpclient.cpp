@@ -1,7 +1,9 @@
 #include "backends/mcpclient.h"
 
+#include <QFile>
 #include <QProcess>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QtTest>
 
 using namespace okapi;
@@ -59,6 +61,38 @@ for line in sys.stdin:
         print(json.dumps({"jsonrpc": "2.0", "id": rid, "result": result}), flush=True)
 )PY";
 
+// A minimal Streamable HTTP MCP server on 127.0.0.1 with an ephemeral port.
+// It answers initialize and records the Authorization header of the last
+// request into the file given as argv[1]; the port is written to argv[2].
+constexpr auto kHttpServer = R"PY(
+import json, sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+class H(BaseHTTPRequestHandler):
+    def do_POST(self):
+        length = int(self.headers.get('Content-Length', 0))
+        msg = json.loads(self.rfile.read(length) or b'{}')
+        with open(sys.argv[1], 'w') as f:
+            f.write(self.headers.get('Authorization', ''))
+        if msg.get('method') == 'initialize':
+            result = {"protocolVersion": "2025-06-18", "capabilities": {"tools": {}},
+                      "serverInfo": {"name": "httpfake", "version": "0.1"}}
+        else:
+            result = {"tools": []}
+        resp = {"jsonrpc": "2.0", "id": msg.get('id'), "result": result}
+        data = json.dumps(resp).encode()
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+    def log_message(self, *args):
+        pass
+server = HTTPServer(('127.0.0.1', 0), H)
+with open(sys.argv[2], 'w') as f:
+    f.write(str(server.server_address[1]))
+server.serve_forever()
+)PY";
+
 } // namespace
 
 class TestMcpClient : public QObject {
@@ -75,6 +109,7 @@ private slots:
     void stdioInvalidEnvironmentEntryFailsImmediately();
     void stdioServerStderrIsPartOfTheError();
     void httpWithoutUrlFailsImmediately();
+    void httpApiKeySentAsBearerHeader();
     void notConnectedCallsFail();
 
 private:
@@ -227,6 +262,42 @@ void TestMcpClient::httpWithoutUrlFailsImmediately() {
     client.connectToServer();
     QCOMPARE(failedSpy.count(), 1);
     QCOMPARE(client.state(), McpClient::State::Failed);
+}
+
+void TestMcpClient::httpApiKeySentAsBearerHeader() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString authFile = dir.filePath(QStringLiteral("auth.txt"));
+    const QString portFile = dir.filePath(QStringLiteral("port.txt"));
+    QProcess server;
+    server.start(m_python,
+                 {QStringLiteral("-c"), QString::fromUtf8(kHttpServer), authFile, portFile});
+    QVERIFY(server.waitForStarted(5000));
+    QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(portFile), 5000);
+    QFile pf(portFile);
+    QVERIFY(pf.open(QIODevice::ReadOnly));
+    const int port = pf.readAll().trimmed().toInt();
+    QVERIFY(port > 0);
+
+    McpServerConfig config;
+    config.name = QStringLiteral("http");
+    config.transport = McpTransport::StreamableHttp;
+    config.url = QStringLiteral("http://127.0.0.1:%1/mcp").arg(port);
+    config.apiKey = QStringLiteral("secret-token");
+    McpClient client(config);
+    QSignalSpy connectedSpy(&client, &McpClient::connected);
+    QSignalSpy failedSpy(&client, &McpClient::connectionFailed);
+    client.connectToServer();
+    QVERIFY(connectedSpy.wait(10000));
+    QCOMPARE(failedSpy.count(), 0);
+
+    QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(authFile), 5000);
+    QFile af(authFile);
+    QVERIFY(af.open(QIODevice::ReadOnly));
+    QCOMPARE(QString::fromUtf8(af.readAll()), QStringLiteral("Bearer secret-token"));
+
+    server.kill();
+    server.waitForFinished(3000);
 }
 
 void TestMcpClient::notConnectedCallsFail() {

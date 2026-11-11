@@ -1,5 +1,7 @@
 #include "core/mcpserverconfig.h"
 
+#include <algorithm>
+
 namespace okapi {
 
 QString McpServerConfig::transportName(McpTransport transport) {
@@ -43,6 +45,20 @@ const QVector<McpTransport> &McpServerConfig::allTransports() {
         McpTransport::HttpSse,
     };
     return transports;
+}
+
+QStringList McpServerConfig::effectiveHeaders() const {
+    QStringList result = headers;
+    if (!apiKey.trimmed().isEmpty()) {
+        const auto hasAuthorization = std::ranges::any_of(result, [](const QString &header) {
+            const qsizetype colon = header.indexOf(QLatin1Char(':'));
+            return colon > 0 && header.left(colon).trimmed().compare(
+                                    QStringLiteral("Authorization"), Qt::CaseInsensitive) == 0;
+        });
+        if (!hasAuthorization)
+            result.append(QStringLiteral("Authorization: Bearer %1").arg(apiKey.trimmed()));
+    }
+    return result;
 }
 
 QString McpServerConfig::permissionName(McpPermission permission) {

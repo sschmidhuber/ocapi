@@ -7,11 +7,15 @@
 #include "core/systemprompt.h"
 #include "core/ttsregistry.h"
 #include "core/uisettings.h"
+#include "ui/mcppage.h"
 #include "ui/settingsdialog.h"
 
 #include <QApplication>
 #include <QKeySequence>
+#include <QLineEdit>
 #include <QListWidget>
+#include <QRadioButton>
+#include <QSplitter>
 #include <QStackedWidget>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -45,6 +49,8 @@ private slots:
     void pagesAreTabsOfTheirCategory();
     void shortcutsPageListsAllActions();
     void selectPageSelectsCategoryAndTab();
+    void mcpHttpAuthModeShowsOnlyRelevantField();
+    void sidebarKeepsMaxWidthWhenDialogGrows();
 
 private:
     SettingsDialog *makeDialog();
@@ -166,6 +172,86 @@ void TestSettingsDialog::selectPageSelectsCategoryAndTab() {
 
 // The settings dialog is a QWidget, so the test needs a QApplication; force
 // the offscreen platform because the CI test runner has no display server.
+// The HTTP authorization mode radio buttons show only the relevant input
+// field; switching the mode keeps both entered values.
+void TestSettingsDialog::mcpHttpAuthModeShowsOnlyRelevantField() {
+    McpRegistry registry;
+    McpManager manager(&registry);
+    // Add the server before constructing the page so its list is populated
+    // and the first row is selected.
+    registry.add(QStringLiteral("srv"), McpTransport::StreamableHttp);
+    McpPage page(&registry, &manager);
+    page.show();
+    auto *list = page.findChild<QListWidget *>();
+    QVERIFY(list);
+    QCOMPARE(list->count(), 1);
+    list->setCurrentRow(0);
+
+    auto *apiKeyRadio = page.findChild<QRadioButton *>(QStringLiteral("apiKeyRadio"));
+    auto *headersRadio = page.findChild<QRadioButton *>(QStringLiteral("headersRadio"));
+    auto *apiKeyEdit = page.findChild<QLineEdit *>(QStringLiteral("apiKeyEdit"));
+    auto *headersEdit = page.findChild<QLineEdit *>(QStringLiteral("headersEdit"));
+    QVERIFY(apiKeyRadio && headersRadio && apiKeyEdit && headersEdit);
+    QCOMPARE(apiKeyRadio->text(), QStringLiteral("API token"));
+    QCOMPARE(apiKeyEdit->placeholderText(), QStringLiteral("API token"));
+
+    // Default: API token mode, headers field hidden.
+    QVERIFY(apiKeyRadio->isChecked());
+    QVERIFY(apiKeyEdit->isVisibleTo(&page));
+    QVERIFY(!headersEdit->isVisibleTo(&page));
+
+    QTest::keyClicks(apiKeyEdit, QStringLiteral("secret"));
+    QCOMPARE(registry.servers().first().apiKey, QStringLiteral("secret"));
+
+    // Switch to HTTP headers: only the headers field is visible, the API
+    // token value is kept.
+    headersRadio->setChecked(true);
+    QVERIFY(!apiKeyEdit->isVisibleTo(&page));
+    QVERIFY(headersEdit->isVisibleTo(&page));
+    QCOMPARE(apiKeyEdit->text(), QStringLiteral("secret"));
+    QCOMPARE(registry.servers().first().apiKey, QStringLiteral("secret"));
+
+    QTest::keyClicks(headersEdit, QStringLiteral("X-A: 1"));
+    QCOMPARE(registry.servers().first().headers, QStringList({QStringLiteral("X-A: 1")}));
+
+    // Switch back: API token field visible again, headers value kept.
+    apiKeyRadio->setChecked(true);
+    QVERIFY(apiKeyEdit->isVisibleTo(&page));
+    QVERIFY(!headersEdit->isVisibleTo(&page));
+    QCOMPARE(headersEdit->text(), QStringLiteral("X-A: 1"));
+    QCOMPARE(registry.servers().first().headers, QStringList({QStringLiteral("X-A: 1")}));
+}
+
+// Regression test: the settings sidebar (and the MCP server list) must not
+// absorb extra width when the dialog grows — QSplitter's first-show sizing
+// used to leave a large empty gap next to the list until the splitter handle
+// was moved once. Stretch factor 0 keeps the list at its maximum width.
+void TestSettingsDialog::sidebarKeepsMaxWidthWhenDialogGrows() {
+    std::unique_ptr<SettingsDialog> dialog(makeDialog());
+    dialog->resize(880, 580);
+    dialog->show();
+    QVERIFY(QTest::qWaitForWindowExposed(dialog.get()));
+    QTest::qWait(200);
+    auto *splitter = dialog->findChild<QSplitter *>();
+    auto *cats = dialog->findChild<QListWidget *>();
+    if (!splitter || !cats)
+        QFAIL("splitter or category list not found");
+    dialog->resize(1400, 700);
+    QTest::qWait(200);
+    QVERIFY(splitter->sizes().first() <= cats->maximumWidth());
+
+    auto *page = dialog->findChild<McpPage *>();
+    if (!page)
+        QFAIL("MCP page not found");
+    dialog->selectPage(QStringLiteral("tools/mcp"));
+    QTest::qWait(200);
+    auto *inner = page->findChild<QSplitter *>();
+    auto *srvList = page->findChild<QListWidget *>();
+    if (!inner || !srvList)
+        QFAIL("inner splitter or server list not found");
+    QVERIFY(inner->sizes().first() <= srvList->maximumWidth() + 20);
+}
+
 int main(int argc, char *argv[]) {
     qputenv("QT_QPA_PLATFORM", "offscreen");
     QApplication app(argc, argv);

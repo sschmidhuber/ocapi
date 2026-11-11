@@ -40,8 +40,8 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
 
     auto *splitter = new QSplitter(this);
     m_categories = new QListWidget(splitter);
-    m_categories->setMinimumWidth(160);
-    m_categories->setMaximumWidth(220);
+    m_categories->setMinimumWidth(110);
+    m_categories->setMaximumWidth(150);
 
     m_stack = new QStackedWidget(splitter);
 
@@ -71,7 +71,10 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
 
     splitter->addWidget(m_categories);
     splitter->addWidget(m_stack);
-    splitter->setStretchFactor(1, 1);
+    // Stretch factor 0 for the sidebar: on the first layout QSplitter
+    // distributes extra space by stretch factor, so (1, 1) made the category
+    // list grow far beyond its maximum width until the handle was moved once.
+    splitter->setStretchFactor(0, 1);
 
     auto *layout = new QVBoxLayout(this);
     layout->addWidget(splitter);

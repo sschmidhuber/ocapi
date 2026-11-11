@@ -13,8 +13,8 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QSplitter>
-#include <QStackedWidget>
 #include <QTableWidget>
 #include <QVBoxLayout>
 
@@ -24,40 +24,59 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     : QWidget(parent), m_registry(registry), m_manager(manager) {
     auto *splitter = new QSplitter(this);
     m_list = new QListWidget(splitter);
-    m_list->setMinimumWidth(180);
+    m_list->setMinimumWidth(120);
+    m_list->setMaximumWidth(170);
 
     auto *rightWidget = new QWidget(splitter);
     auto *rightLayout = new QVBoxLayout(rightWidget);
 
     auto *formLayout = new QFormLayout;
+    // Right-aligned labels (KDE style) and fields that fill the whole row.
+    formLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     m_nameEdit = new QLineEdit(rightWidget);
     m_transportCombo = new QComboBox(rightWidget);
     for (const auto transport : McpServerConfig::allTransports())
         m_transportCombo->addItem(McpServerConfig::transportName(transport),
                                   QVariant::fromValue(static_cast<int>(transport)));
 
-    m_connectionStack = new QStackedWidget(rightWidget);
-    auto *httpPage = new QWidget(m_connectionStack);
-    auto *httpLayout = new QFormLayout(httpPage);
-    m_urlEdit = new QLineEdit(httpPage);
+    // Transport-specific rows live in the same form so all labels share one
+    // column; updateTransportVisibility() shows only the relevant group.
+    m_urlEdit = new QLineEdit(rightWidget);
     m_urlEdit->setPlaceholderText(QStringLiteral("http://127.0.0.1:3000/mcp"));
-    m_headersEdit = new QLineEdit(httpPage);
-    m_headersEdit->setPlaceholderText(tr("Authorization: Bearer … (one per line)"));
-    httpLayout->addRow(tr("URL:"), m_urlEdit);
-    httpLayout->addRow(tr("HTTP headers:"), m_headersEdit);
-    auto *stdioPage = new QWidget(m_connectionStack);
-    auto *stdioLayout = new QFormLayout(stdioPage);
-    m_commandEdit = new QLineEdit(stdioPage);
+    // Authorization method for HTTP transports: API token (default, sent as
+    // Bearer) or custom HTTP headers. Only the selected field is visible;
+    // both values are kept so switching modes loses no configuration.
+    m_apiKeyRadio = new QRadioButton(tr("API token"), rightWidget);
+    m_apiKeyRadio->setObjectName(QStringLiteral("apiKeyRadio"));
+    m_apiKeyRadio->setChecked(true);
+    m_headersRadio = new QRadioButton(tr("HTTP headers"), rightWidget);
+    m_headersRadio->setObjectName(QStringLiteral("headersRadio"));
+    m_authModeWidget = new QWidget(rightWidget);
+    auto *authModeRow = new QHBoxLayout(m_authModeWidget);
+    authModeRow->setContentsMargins(0, 0, 0, 0);
+    authModeRow->addWidget(m_apiKeyRadio);
+    authModeRow->addWidget(m_headersRadio);
+    authModeRow->addStretch();
+    m_apiKeyLabel = new QLabel(tr("API token:"), rightWidget);
+    m_apiKeyEdit = new QLineEdit(rightWidget);
+    m_apiKeyEdit->setObjectName(QStringLiteral("apiKeyEdit"));
+    m_apiKeyEdit->setEchoMode(QLineEdit::Password);
+    m_apiKeyEdit->setPlaceholderText(tr("API token"));
+    m_headersLabel = new QLabel(tr("HTTP headers:"), rightWidget);
+    m_headersEdit = new QLineEdit(rightWidget);
+    m_headersEdit->setObjectName(QStringLiteral("headersEdit"));
+    m_headersEdit->setPlaceholderText(tr("Authorization: Bearer \u2026 (one per line)"));
+    m_httpGroup = {
+        m_urlEdit, m_authModeWidget, m_apiKeyLabel, m_apiKeyEdit, m_headersLabel, m_headersEdit,
+    };
+    m_commandEdit = new QLineEdit(rightWidget);
     m_commandEdit->setPlaceholderText(QStringLiteral("npx"));
-    m_argumentsEdit = new QLineEdit(stdioPage);
+    m_argumentsEdit = new QLineEdit(rightWidget);
     m_argumentsEdit->setPlaceholderText(tr("-y @modelcontextprotocol/server-filesystem /tmp"));
-    m_environmentEdit = new QLineEdit(stdioPage);
+    m_environmentEdit = new QLineEdit(rightWidget);
     m_environmentEdit->setPlaceholderText(tr("KEY=VALUE (one per line)"));
-    stdioLayout->addRow(tr("Command:"), m_commandEdit);
-    stdioLayout->addRow(tr("Arguments:"), m_argumentsEdit);
-    stdioLayout->addRow(tr("Environment:"), m_environmentEdit);
-    m_connectionStack->addWidget(httpPage);
-    m_connectionStack->addWidget(stdioPage);
+    m_stdioGroup = {m_commandEdit, m_argumentsEdit, m_environmentEdit};
 
     m_defaultPermissionCombo = new QComboBox(rightWidget);
     for (const auto permission : McpServerConfig::allPermissions())
@@ -74,7 +93,13 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
 
     formLayout->addRow(tr("Name:"), m_nameEdit);
     formLayout->addRow(tr("Transport:"), m_transportCombo);
-    formLayout->addRow(m_connectionStack);
+    formLayout->addRow(tr("URL:"), m_urlEdit);
+    formLayout->addRow(tr("Authorization:"), m_authModeWidget);
+    formLayout->addRow(m_apiKeyLabel, m_apiKeyEdit);
+    formLayout->addRow(m_headersLabel, m_headersEdit);
+    formLayout->addRow(tr("Command:"), m_commandEdit);
+    formLayout->addRow(tr("Arguments:"), m_argumentsEdit);
+    formLayout->addRow(tr("Environment:"), m_environmentEdit);
     formLayout->addRow(tr("Default permission:"), m_defaultPermissionCombo);
     formLayout->addRow(m_enabledBox);
     formLayout->addRow(m_testButton);
@@ -106,10 +131,17 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     leftLayout->addLayout(listButtons);
     auto *leftWidget = new QWidget(splitter);
     leftWidget->setLayout(leftLayout);
+    // Cap the container as well: otherwise the splitter can allocate it more
+    // width than the server list (which is capped), leaving an empty gap
+    // between the list and the form until the handle is moved once.
+    leftWidget->setMaximumWidth(m_list->maximumWidth() + 20);
 
     splitter->addWidget(leftWidget);
     splitter->addWidget(rightWidget);
-    splitter->setStretchFactor(1, 2);
+    // Stretch factor 0 for the server list: extra width always goes to the
+    // form, never to the list (same first-show sizing issue as the settings
+    // sidebar).
+    splitter->setStretchFactor(0, 1);
 
     auto *outerLayout = new QVBoxLayout(this);
     outerLayout->setContentsMargins(0, 0, 0, 0);
@@ -120,12 +152,37 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     connect(m_list, &QListWidget::currentRowChanged, this, [this](int) { onSelectionChanged(); });
     connect(m_transportCombo, &QComboBox::currentIndexChanged, this, &McpPage::onTransportChanged);
     connect(m_testButton, &QPushButton::clicked, this, &McpPage::onTestConnection);
-    for (auto *edit : {m_nameEdit, m_urlEdit, m_commandEdit, m_argumentsEdit, m_environmentEdit,
-                       m_headersEdit}) {
+    for (auto *edit : {
+             m_nameEdit,
+             m_urlEdit,
+             m_apiKeyEdit,
+             m_commandEdit,
+             m_argumentsEdit,
+             m_environmentEdit,
+             m_headersEdit,
+         }) {
         connect(edit, &QLineEdit::textEdited, this, &McpPage::onFieldEdited);
     }
     connect(m_defaultPermissionCombo, &QComboBox::currentIndexChanged, this,
             &McpPage::onFieldEdited);
+    // Switching the authorization mode only toggles visibility; the entered
+    // values of both fields are kept.
+    connect(m_apiKeyRadio, &QRadioButton::toggled, this, [this](bool checked) {
+        if (!checked || m_updatingForm)
+            return;
+        m_apiKeyLabel->setVisible(true);
+        m_apiKeyEdit->setVisible(true);
+        m_headersLabel->setVisible(false);
+        m_headersEdit->setVisible(false);
+    });
+    connect(m_headersRadio, &QRadioButton::toggled, this, [this](bool checked) {
+        if (!checked || m_updatingForm)
+            return;
+        m_apiKeyLabel->setVisible(false);
+        m_apiKeyEdit->setVisible(false);
+        m_headersLabel->setVisible(true);
+        m_headersEdit->setVisible(true);
+    });
     connect(m_enabledBox, &QCheckBox::toggled, this, &McpPage::onFieldEdited);
     connect(m_toolsTable, &QTableWidget::cellChanged, this, &McpPage::onPermissionChanged);
 
@@ -178,8 +235,11 @@ void McpPage::onSelectionChanged() {
     m_updatingForm = true;
     auto *item = m_list->currentItem();
     const bool hasSelection = item != nullptr;
-    const QList<QWidget *> widgets{m_nameEdit,   m_transportCombo, m_connectionStack,
-                                   m_enabledBox, m_testButton,     m_toolsTable};
+    const QList<QWidget *> widgets{
+        m_nameEdit,        m_transportCombo, m_urlEdit,     m_authModeWidget,
+        m_apiKeyEdit,      m_headersEdit,    m_commandEdit, m_argumentsEdit,
+        m_environmentEdit, m_enabledBox,     m_testButton,  m_toolsTable,
+    };
     for (auto *widget : widgets)
         widget->setEnabled(hasSelection);
     m_defaultPermissionCombo->setEnabled(hasSelection);
@@ -196,6 +256,7 @@ void McpPage::onSelectionChanged() {
     } else {
         m_nameEdit->clear();
         m_urlEdit->clear();
+        m_apiKeyEdit->clear();
         m_commandEdit->clear();
         m_argumentsEdit->clear();
         m_environmentEdit->clear();
@@ -209,15 +270,25 @@ void McpPage::onSelectionChanged() {
 void McpPage::onTransportChanged(int index) {
     if (m_updatingForm)
         return;
-    const auto transport = static_cast<McpTransport>(m_transportCombo->itemData(index).toInt());
-    m_connectionStack->setCurrentIndex(transport == McpTransport::Stdio ? 1 : 0);
     updateTransportVisibility();
     onFieldEdited();
 }
 
 void McpPage::updateTransportVisibility() {
     const auto transport = static_cast<McpTransport>(m_transportCombo->currentData().toInt());
-    m_connectionStack->setCurrentIndex(transport == McpTransport::Stdio ? 1 : 0);
+    const bool stdio = transport == McpTransport::Stdio;
+    for (auto *w : m_stdioGroup)
+        w->setVisible(stdio);
+    for (auto *w : m_httpGroup)
+        w->setVisible(!stdio);
+    if (!stdio) {
+        // Keep the auth-mode selection visible state consistent.
+        const bool useApiKey = m_apiKeyRadio->isChecked();
+        m_apiKeyLabel->setVisible(useApiKey);
+        m_apiKeyEdit->setVisible(useApiKey);
+        m_headersLabel->setVisible(!useApiKey);
+        m_headersEdit->setVisible(!useApiKey);
+    }
 }
 
 void McpPage::onFieldEdited() {
@@ -379,7 +450,16 @@ void McpPage::loadConfigIntoForm(const McpServerConfig &config) {
         m_transportCombo->findData(QVariant::fromValue(static_cast<int>(config.transport)));
     m_transportCombo->setCurrentIndex(transportIndex < 0 ? 0 : transportIndex);
     m_urlEdit->setText(config.url);
+    m_apiKeyEdit->setText(config.apiKey);
     m_commandEdit->setText(config.command);
+    // API key mode when a key is set or no custom headers exist (default).
+    const bool useApiKey = !config.apiKey.isEmpty() || config.headers.isEmpty();
+    m_apiKeyRadio->setChecked(useApiKey);
+    m_headersRadio->setChecked(!useApiKey);
+    m_apiKeyLabel->setVisible(useApiKey);
+    m_apiKeyEdit->setVisible(useApiKey);
+    m_headersLabel->setVisible(!useApiKey);
+    m_headersEdit->setVisible(!useApiKey);
     m_argumentsEdit->setText(config.arguments.join(QLatin1Char(' ')));
     m_environmentEdit->setText(config.environment.join(QLatin1Char('\n')));
     m_headersEdit->setText(config.headers.join(QLatin1Char('\n')));
@@ -395,6 +475,7 @@ void McpPage::saveFormIntoConfig(McpServerConfig &config) {
         m_nameEdit->text().trimmed().isEmpty() ? tr("MCP server") : m_nameEdit->text().trimmed();
     config.transport = static_cast<McpTransport>(m_transportCombo->currentData().toInt());
     config.url = m_urlEdit->text().trimmed();
+    config.apiKey = m_apiKeyEdit->text().trimmed();
     config.command = m_commandEdit->text().trimmed();
     config.arguments = m_argumentsEdit->text().trimmed().isEmpty()
                            ? QStringList{}

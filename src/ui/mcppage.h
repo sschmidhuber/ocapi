@@ -3,6 +3,7 @@
 #include "core/mcpmanager.h"
 #include "core/mcpserverconfig.h"
 
+#include <QList>
 #include <QUuid>
 #include <QWidget>
 
@@ -12,7 +13,7 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QPushButton;
-class QStackedWidget;
+class QRadioButton;
 class QTableWidget;
 
 namespace okapi {
@@ -57,8 +58,17 @@ private:
     QListWidget *m_list = nullptr;
     QLineEdit *m_nameEdit = nullptr;
     QComboBox *m_transportCombo = nullptr;
-    QStackedWidget *m_connectionStack = nullptr;
     QLineEdit *m_urlEdit = nullptr;
+    QWidget *m_authModeWidget = nullptr;
+    QList<QWidget *> m_httpGroup;  // URL + authorization rows (HTTP transports)
+    QList<QWidget *> m_stdioGroup; // command/arguments/environment rows
+    // HTTP authorization mode: only the selected field is visible; both
+    // values are kept so switching modes loses no configuration.
+    QRadioButton *m_apiKeyRadio = nullptr;
+    QRadioButton *m_headersRadio = nullptr;
+    QLabel *m_apiKeyLabel = nullptr;
+    QLabel *m_headersLabel = nullptr;
+    QLineEdit *m_apiKeyEdit = nullptr;
     QLineEdit *m_commandEdit = nullptr;
     QLineEdit *m_argumentsEdit = nullptr;
     QLineEdit *m_environmentEdit = nullptr;

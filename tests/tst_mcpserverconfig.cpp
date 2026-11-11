@@ -17,6 +17,9 @@ private slots:
     void permissionForToolUsesPerToolOverride();
     void disabledServerForcesOff();
     void setPermissionForToolStoresOverride();
+    void apiKeyBecomesBearerAuthorizationHeader();
+    void customAuthorizationHeaderWinsOverApiKey();
+    void emptyApiKeyLeavesHeadersUntouched();
 };
 
 void TestMcpServerConfig::transportRoundTripsThroughKey() {
@@ -79,6 +82,34 @@ void TestMcpServerConfig::setPermissionForToolStoresOverride() {
     config.setPermissionForTool(QStringLiteral("tool"), McpPermission::Allow);
     QCOMPARE(config.toolPermissions.value(QStringLiteral("tool")).toString(),
              QStringLiteral("allow"));
+}
+
+void TestMcpServerConfig::apiKeyBecomesBearerAuthorizationHeader() {
+    McpServerConfig config;
+    config.apiKey = QStringLiteral("secret-token");
+    config.headers = {QStringLiteral("X-Custom: 1")};
+    QCOMPARE(config.effectiveHeaders(),
+             QStringList({QStringLiteral("X-Custom: 1"),
+                          QStringLiteral("Authorization: Bearer secret-token")}));
+}
+
+void TestMcpServerConfig::customAuthorizationHeaderWinsOverApiKey() {
+    McpServerConfig config;
+    config.apiKey = QStringLiteral("secret-token");
+    config.headers = {QStringLiteral("Authorization: Basic dXNlcjpwYXNz")};
+    // The explicit header is kept; no Bearer header is added.
+    QCOMPARE(config.effectiveHeaders(),
+             QStringList({QStringLiteral("Authorization: Basic dXNlcjpwYXNz")}));
+}
+
+void TestMcpServerConfig::emptyApiKeyLeavesHeadersUntouched() {
+    McpServerConfig config;
+    config.apiKey = QStringLiteral("  ");
+    config.headers = {QStringLiteral("X-Custom: 1")};
+    QCOMPARE(config.effectiveHeaders(), QStringList({QStringLiteral("X-Custom: 1")}));
+    config.apiKey.clear();
+    config.headers.clear();
+    QVERIFY(config.effectiveHeaders().isEmpty());
 }
 
 QTEST_GUILESS_MAIN(TestMcpServerConfig)

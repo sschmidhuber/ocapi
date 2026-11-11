@@ -38,6 +38,8 @@ TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidge
 
     auto *formWidget = new QWidget(splitter);
     auto *formLayout = new QFormLayout(formWidget);
+    // Right-aligned labels (KDE style), consistent with the MCP page.
+    formLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
     m_formLayout = formLayout;
     m_speakResponsesBox = new QCheckBox(tr("Speak assistant responses aloud"), formWidget);
     m_speakResponsesBox->setChecked(m_registry->speakResponses());

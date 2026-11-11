@@ -202,7 +202,7 @@ void McpClient::startHttp() {
     }
     if (m_config.transport == McpTransport::HttpSse) {
         // Legacy transport: open the GET event stream first, then initialize.
-        QNetworkRequest request = makeRequest(QUrl(m_config.url), m_config.headers);
+        QNetworkRequest request = makeRequest(QUrl(m_config.url), m_config.effectiveHeaders());
         request.setRawHeader("Accept", "text/event-stream");
         m_streamReply = m_nam->get(request);
         connect(m_streamReply, &QNetworkReply::readyRead, this, [this]() {
@@ -297,7 +297,7 @@ void McpClient::sendMessage(const QJsonObject &message) {
 }
 
 void McpClient::sendHttpPost(const QJsonObject &message) {
-    QNetworkRequest request = makeRequest(QUrl(m_config.url), m_config.headers);
+    QNetworkRequest request = makeRequest(QUrl(m_config.url), m_config.effectiveHeaders());
     if (!m_sseSessionId.isEmpty())
         request.setRawHeader("Mcp-Session-Id", m_sseSessionId.toUtf8());
     const QByteArray payload = QJsonDocument(message).toJson(QJsonDocument::Compact);

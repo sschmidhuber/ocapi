@@ -1,9 +1,14 @@
 #include "ui/theme.h"
 
 #include <QApplication>
+#include <QFile>
+#include <QIcon>
+#include <QPainter>
 #include <QPalette>
+#include <QPixmap>
 #include <QStyle>
 #include <QStyleHints>
+#include <QSvgRenderer>
 
 namespace okapi {
 
@@ -40,6 +45,26 @@ namespace {
 
 bool systemPrefersDark() {
     return QApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
+}
+
+QIcon themedIcon(const QString &resourcePath) {
+    QFile file(resourcePath);
+    if (!file.open(QIODevice::ReadOnly))
+        return QIcon(resourcePath);
+    QByteArray svg = file.readAll();
+    file.close();
+    // The bundled symbolic icons use a fixed dark color (#232629); recolor
+    // to the palette text color so they remain visible in dark mode.
+    if (svg.contains("#232629"))
+        svg.replace("#232629", qApp->palette().color(QPalette::Text).name().toUtf8());
+    QSvgRenderer renderer(svg);
+    if (!renderer.isValid())
+        return QIcon(resourcePath);
+    QPixmap pix(renderer.defaultSize());
+    pix.fill(Qt::transparent);
+    QPainter painter(&pix);
+    renderer.render(&painter);
+    return QIcon(pix);
 }
 
 bool applyTheme(UiSettings::Theme theme) {

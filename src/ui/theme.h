@@ -2,6 +2,10 @@
 
 #include "core/uisettings.h"
 
+#include <QString>
+
+class QIcon;
+
 namespace okapi {
 
 // Whether the OS is currently in dark mode (used for Theme::Auto).
@@ -12,5 +16,9 @@ namespace okapi {
 // the system color scheme is used. Also feeds the web chat view's setTheme()
 // via the caller.
 [[nodiscard]] bool applyTheme(UiSettings::Theme theme);
+
+// Loads a bundled SVG icon, recoloring the fixed dark stroke/fill color to
+// the palette text color so the icon stays visible in dark mode.
+[[nodiscard]] QIcon themedIcon(const QString &resourcePath);
 
 } // namespace okapi

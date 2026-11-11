@@ -2,6 +2,7 @@
 
 #include "core/attachmentopener.h"
 #include "core/filepreview.h"
+#include "ui/theme.h"
 
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -206,7 +207,7 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     rowLayout->setSpacing(2);
     m_textEdit = new MessageTextEdit(row);
     m_attachButton = new QToolButton(this);
-    const QIcon attachIcon(QString::fromUtf8(":/resources/icons/folder-new-symbolic.svg"));
+    const QIcon attachIcon(themedIcon(QStringLiteral(":/resources/icons/folder-new-symbolic.svg")));
     if (!attachIcon.isNull()) {
         m_attachButton->setIcon(attachIcon);
         m_attachButton->setIconSize(QSize(18, 18));
@@ -217,7 +218,7 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     m_attachButton->setAutoRaise(true);
     m_attachButton->setFixedSize(28, 28);
     m_micButton = new QToolButton(this);
-    const QIcon micIcon(QString::fromUtf8(":/resources/icons/microphone.svg"));
+    const QIcon micIcon(themedIcon(QStringLiteral(":/resources/icons/microphone.svg")));
     if (!micIcon.isNull()) {
         m_micButton->setIcon(micIcon);
         m_micButton->setIconSize(QSize(18, 18));
@@ -242,7 +243,10 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     m_textEdit->setTabChangesFocus(true);
     m_textEdit->setAcceptDrops(true);
     // Full frame around the input, including the top side.
-    m_textEdit->setStyleSheet(QStringLiteral("QPlainTextEdit { border: 1px solid palette(mid); }"));
+    // Explicit palette roles so the input follows theme switches (a bare
+    // border rule would keep the light default background in dark mode).
+    m_textEdit->setStyleSheet(QStringLiteral("QPlainTextEdit { border: 1px solid palette(mid); "
+                                             "background: palette(base); color: palette(text); }"));
 
     m_textEdit->installEventFilter(this);
     connect(m_attachButton, &QToolButton::clicked, this, &Composer::attachFiles);
@@ -265,6 +269,19 @@ Composer::Composer(QWidget *parent) : QWidget(parent) {
     });
     // Live filter while the prompt-template menu is open.
     connect(m_textEdit, &QPlainTextEdit::textChanged, this, [this]() { onTextChanged(); });
+}
+
+void Composer::refreshThemeIcons() {
+    const QIcon attachIcon(themedIcon(QStringLiteral(":/resources/icons/folder-new-symbolic.svg")));
+    if (!attachIcon.isNull()) {
+        m_attachButton->setIcon(attachIcon);
+        m_attachButton->setIconSize(QSize(18, 18));
+    }
+    const QIcon micIcon(themedIcon(QStringLiteral(":/resources/icons/microphone.svg")));
+    if (!micIcon.isNull()) {
+        m_micButton->setIcon(micIcon);
+        m_micButton->setIconSize(QSize(18, 18));
+    }
 }
 
 void Composer::setPromptTriggerSequence(const QKeySequence &sequence) {
@@ -623,7 +640,7 @@ QToolButton *Composer::removeButton(QWidget *parent, const QUuid &id, bool isDoc
     // Always use the bundled breeze icon: theme lookups resolve to whatever
     // the installed icon theme provides, which may differ between (older or
     // newer) KDE installations and other desktops.
-    const QIcon icon(QString::fromUtf8(":/resources/icons/edit-delete-symbolic.svg"));
+    const QIcon icon(themedIcon(QStringLiteral(":/resources/icons/edit-delete-symbolic.svg")));
     if (!icon.isNull())
         button->setIcon(icon);
     else

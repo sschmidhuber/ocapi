@@ -94,6 +94,8 @@ public:
     // Rebinds the dictate shortcut (e.g. after the user changed it in the
     // settings) and updates the mic button tooltip accordingly.
     void setDictateSequence(const QKeySequence &sequence);
+    // Re-applies the theme-colored icons (attach, mic) after a theme change.
+    void refreshThemeIcons();
     // Rebinds the prompt-template trigger (composer-local, configurable in
     // the settings; default "/"). Detected in eventFilter: text edits accept
     // the shortcut override for printable keys, so a QShortcut never fires.

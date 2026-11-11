@@ -14,6 +14,7 @@
 
 #include <QApplication>
 #include <QComboBox>
+#include <QFile>
 #include <QKeySequence>
 #include <QLineEdit>
 #include <QListWidget>
@@ -23,6 +24,7 @@
 #include <QStackedWidget>
 #include <QTabWidget>
 #include <QTableWidget>
+#include <QTemporaryDir>
 #include <QtTest>
 
 #include <memory>
@@ -55,6 +57,7 @@ private slots:
     void selectPageSelectsCategoryAndTab();
     void mcpHttpAuthModeShowsOnlyRelevantField();
     void themeComboAppliesImmediately();
+    void themedIconFollowsPaletteInDarkMode();
     void sidebarKeepsMaxWidthWhenDialogGrows();
 
 private:
@@ -289,6 +292,49 @@ void TestSettingsDialog::themeComboAppliesImmediately() {
     QVERIFY(!applyTheme(settings.theme()));
     QVERIFY(qApp->palette().color(QPalette::Window).lightness() >= 128);
 
+    qApp->setPalette(original);
+}
+
+// Themed icons replace the fixed dark stroke color with the palette text
+// color, so they stay visible on a dark background.
+void TestSettingsDialog::themedIconFollowsPaletteInDarkMode() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString svgPath = dir.filePath(QStringLiteral("icon.svg"));
+    {
+        QFile f(svgPath);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" width=\"24\" "
+                "height=\"24\"><path d=\"M4 4 h16 v16 h-16 z\" fill=\"#232629\"/></svg>");
+    }
+
+    const QPalette original = qApp->palette();
+    QVERIFY(applyTheme(UiSettings::Theme::Dark));
+    const QImage darkImage = themedIcon(svgPath).pixmap(24, 24).toImage();
+    // The icon must contain light (text-colored) pixels, not the dark #232629.
+    bool hasLightPixel = false;
+    for (int y = 0; y < darkImage.height() && !hasLightPixel; ++y)
+        for (int x = 0; x < darkImage.width(); ++x) {
+            const QColor c = darkImage.pixelColor(x, y);
+            if (c.alpha() > 200 && c.lightness() > 128) {
+                hasLightPixel = true;
+                break;
+            }
+        }
+    QVERIFY(hasLightPixel);
+
+    QVERIFY(!applyTheme(UiSettings::Theme::Light));
+    const QImage lightImage = themedIcon(svgPath).pixmap(24, 24).toImage();
+    bool hasDarkPixel = false;
+    for (int y = 0; y < lightImage.height() && !hasDarkPixel; ++y)
+        for (int x = 0; x < lightImage.width(); ++x) {
+            const QColor c = lightImage.pixelColor(x, y);
+            if (c.alpha() > 200 && c.lightness() < 128) {
+                hasDarkPixel = true;
+                break;
+            }
+        }
+    QVERIFY(hasDarkPixel);
     qApp->setPalette(original);
 }
 

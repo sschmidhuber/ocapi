@@ -57,9 +57,10 @@ add_test(NAME tst_sidebar COMMAND tst_sidebar)
 # test compiles them directly like tst_sidebar.
 add_executable(tst_chatview tst_chatview.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/chatview.cpp
-    ${CMAKE_SOURCE_DIR}/src/ui/chatdelegate.cpp)
+    ${CMAKE_SOURCE_DIR}/src/ui/chatdelegate.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/theme.cpp)
 target_include_directories(tst_chatview PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(tst_chatview PRIVATE okapi-core Qt6::Test Qt6::Widgets)
+target_link_libraries(tst_chatview PRIVATE okapi-core Qt6::Test Qt6::Widgets Qt6::Svg)
 add_test(NAME tst_chatview COMMAND tst_chatview)
 
 # The settings dialog lives in the application target; the test compiles it
@@ -76,7 +77,7 @@ add_executable(tst_settingsdialog tst_settingsdialog.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/prompttemplatespage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/theme.cpp)
 target_include_directories(tst_settingsdialog PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(tst_settingsdialog PRIVATE okapi-core Qt6::Test Qt6::Widgets)
+target_link_libraries(tst_settingsdialog PRIVATE okapi-core Qt6::Test Qt6::Widgets Qt6::Svg)
 add_test(NAME tst_settingsdialog COMMAND tst_settingsdialog)
 
 # MainWindow lives in the application target; the test compiles it directly
@@ -99,7 +100,7 @@ add_executable(tst_mainwindow tst_mainwindow.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/settingsdialog.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/theme.cpp)
 target_include_directories(tst_mainwindow PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(tst_mainwindow PRIVATE okapi-core Qt6::Test Qt6::Widgets Qt6::WebEngineWidgets Qt6::WebChannel)
+target_link_libraries(tst_mainwindow PRIVATE okapi-core Qt6::Test Qt6::Widgets Qt6::WebEngineWidgets Qt6::WebChannel Qt6::Svg)
 add_test(NAME tst_mainwindow COMMAND tst_mainwindow)
 
 # The settings dialog shows themed icons with bundled SVGs from the app's

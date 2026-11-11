@@ -1325,10 +1325,21 @@ void MainWindow::onBackendChanged() {
         else
             ++it;
     }
+    for (auto it = m_detectionSignatures.begin(); it != m_detectionSignatures.end();) {
+        if (!existing.contains(it.key()))
+            it = m_detectionSignatures.erase(it);
+        else
+            ++it;
+    }
     m_pendingDetection.clear();
     refreshBackendSelector();
     updateEmptyState();
     detectModels();
+}
+
+QString MainWindow::detectionSignature(const BackendConfig &config) {
+    return QStringLiteral("%1|%2|%3")
+        .arg(BackendConfig::kindKey(config.kind), config.effectiveBaseUrl(), config.apiKey);
 }
 
 QStringList MainWindow::knownModelsForBackend(const BackendConfig &config) const {
@@ -1444,15 +1455,34 @@ void MainWindow::detectModels() {
     // Query every enabled backend, not just the selected one: the picker
     // shows a submenu per provider, and a provider the user never selected
     // would otherwise stay at "No models detected yet".
+    bool invalidatedStale = false;
     for (const auto &config : m_registry.backends()) {
         if (!config.enabled)
             continue;
         const QString backendId = config.id.toString();
+        const QString signature = detectionSignature(config);
+        if (m_detectionSignatures.value(backendId) != signature) {
+            // The backend was reconfigured since its models were detected
+            // (e.g. a newly added backend still had the default URL when the
+            // first detection ran): drop the stale list and any in-flight
+            // request so the backend is queried again with the new config.
+            m_detectedModels.remove(backendId);
+            m_detectionSignatures.remove(backendId);
+            m_pendingDetection.remove(backendId);
+            const auto staleIt = m_detectors.find(backendId);
+            if (staleIt != m_detectors.end()) {
+                (*staleIt)->disconnect(this);
+                (*staleIt)->deleteLater();
+                m_detectors.erase(staleIt);
+            }
+            invalidatedStale = true;
+        }
         if (!m_detectedModels.value(backendId).isEmpty())
             continue; // already detected successfully for this backend
         if (m_pendingDetection.contains(backendId))
             continue; // request already in flight
         m_pendingDetection.insert(backendId);
+        m_detectionSignatures.insert(backendId, signature);
         auto *detector = createBackend(config).release();
         detector->setParent(this);
         const QString url = config.effectiveBaseUrl();
@@ -1479,6 +1509,11 @@ void MainWindow::detectModels() {
         m_detectors.insert(backendId, detector);
         detector->listModels();
     }
+    // Stale lists were dropped above: rebuild the picker right away so it no
+    // longer shows the old backend's models while re-detection is running (or
+    // if it fails).
+    if (invalidatedStale)
+        refreshBackendSelector();
     if (qEnvironmentVariableIsSet("OKAPI_DEBUG_MODELS")) {
         QStringList pending;
         for (const QString &id : m_pendingDetection)

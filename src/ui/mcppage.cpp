@@ -41,9 +41,13 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     auto *httpLayout = new QFormLayout(httpPage);
     m_urlEdit = new QLineEdit(httpPage);
     m_urlEdit->setPlaceholderText(QStringLiteral("http://127.0.0.1:3000/mcp"));
+    m_apiKeyEdit = new QLineEdit(httpPage);
+    m_apiKeyEdit->setEchoMode(QLineEdit::Password);
+    m_apiKeyEdit->setPlaceholderText(tr("Sent as \"Authorization: Bearer\""));
     m_headersEdit = new QLineEdit(httpPage);
-    m_headersEdit->setPlaceholderText(tr("Authorization: Bearer … (one per line)"));
+    m_headersEdit->setPlaceholderText(tr("X-Custom: value (one per line)"));
     httpLayout->addRow(tr("URL:"), m_urlEdit);
+    httpLayout->addRow(tr("API key:"), m_apiKeyEdit);
     httpLayout->addRow(tr("HTTP headers:"), m_headersEdit);
     auto *stdioPage = new QWidget(m_connectionStack);
     auto *stdioLayout = new QFormLayout(stdioPage);
@@ -120,8 +124,8 @@ McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     connect(m_list, &QListWidget::currentRowChanged, this, [this](int) { onSelectionChanged(); });
     connect(m_transportCombo, &QComboBox::currentIndexChanged, this, &McpPage::onTransportChanged);
     connect(m_testButton, &QPushButton::clicked, this, &McpPage::onTestConnection);
-    for (auto *edit : {m_nameEdit, m_urlEdit, m_commandEdit, m_argumentsEdit, m_environmentEdit,
-                       m_headersEdit}) {
+    for (auto *edit : {m_nameEdit, m_urlEdit, m_apiKeyEdit, m_commandEdit, m_argumentsEdit,
+                       m_environmentEdit, m_headersEdit}) {
         connect(edit, &QLineEdit::textEdited, this, &McpPage::onFieldEdited);
     }
     connect(m_defaultPermissionCombo, &QComboBox::currentIndexChanged, this,
@@ -196,6 +200,7 @@ void McpPage::onSelectionChanged() {
     } else {
         m_nameEdit->clear();
         m_urlEdit->clear();
+        m_apiKeyEdit->clear();
         m_commandEdit->clear();
         m_argumentsEdit->clear();
         m_environmentEdit->clear();
@@ -379,6 +384,7 @@ void McpPage::loadConfigIntoForm(const McpServerConfig &config) {
         m_transportCombo->findData(QVariant::fromValue(static_cast<int>(config.transport)));
     m_transportCombo->setCurrentIndex(transportIndex < 0 ? 0 : transportIndex);
     m_urlEdit->setText(config.url);
+    m_apiKeyEdit->setText(config.apiKey);
     m_commandEdit->setText(config.command);
     m_argumentsEdit->setText(config.arguments.join(QLatin1Char(' ')));
     m_environmentEdit->setText(config.environment.join(QLatin1Char('\n')));
@@ -395,6 +401,7 @@ void McpPage::saveFormIntoConfig(McpServerConfig &config) {
         m_nameEdit->text().trimmed().isEmpty() ? tr("MCP server") : m_nameEdit->text().trimmed();
     config.transport = static_cast<McpTransport>(m_transportCombo->currentData().toInt());
     config.url = m_urlEdit->text().trimmed();
+    config.apiKey = m_apiKeyEdit->text().trimmed();
     config.command = m_commandEdit->text().trimmed();
     config.arguments = m_argumentsEdit->text().trimmed().isEmpty()
                            ? QStringList{}

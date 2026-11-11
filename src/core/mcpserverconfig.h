@@ -32,6 +32,9 @@ struct McpServerConfig {
     QStringList arguments;
     // Environment variables for stdio servers, "KEY=VALUE" per entry.
     QStringList environment;
+    // API key for HTTP transports, sent as "Authorization: Bearer <key>"
+    // unless the headers list already sets an Authorization header.
+    QString apiKey;
     // Extra HTTP headers, "Name: value" per entry (HTTP transports only).
     QStringList headers;
     // Server-wide default permission; per-tool overrides live in toolPermissions.
@@ -45,6 +48,11 @@ struct McpServerConfig {
     [[nodiscard]] static McpTransport transportFromString(const QString &key);
     [[nodiscard]] static const QVector<McpTransport> &allTransports();
     [[nodiscard]] QString transportName() const { return transportName(transport); }
+
+    // Headers actually sent to the server: the custom headers plus
+    // "Authorization: Bearer <apiKey>" when an API key is set and no custom
+    // Authorization header overrides it.
+    [[nodiscard]] QStringList effectiveHeaders() const;
 
     [[nodiscard]] static QString permissionName(McpPermission permission);
     [[nodiscard]] static QString permissionKey(McpPermission permission);

@@ -59,6 +59,7 @@ private:
     QComboBox *m_transportCombo = nullptr;
     QStackedWidget *m_connectionStack = nullptr;
     QLineEdit *m_urlEdit = nullptr;
+    QLineEdit *m_apiKeyEdit = nullptr;
     QLineEdit *m_commandEdit = nullptr;
     QLineEdit *m_argumentsEdit = nullptr;
     QLineEdit *m_environmentEdit = nullptr;

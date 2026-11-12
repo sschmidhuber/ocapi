@@ -7,9 +7,11 @@
 #include "ui/sidebar.h"
 #include "ui/theme.h"
 
+#include <QAction>
 #include <QApplication>
 #include <QDateTime>
 #include <QListWidget>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPalette>
 #include <QPlainTextEdit>
@@ -67,6 +69,8 @@ class TestMainWindow : public QObject {
 private slots:
     void initTestCase();
     void newChatKeepsCurrentBackendAndModel();
+    void switchingToNewBackendDoesNotLeakOldModel();
+    void reconfiguredBackendDropsStaleDetectedModels();
     void toolCallFailureAppendsToolMessageWithoutCrashing();
     void keyboardShortcuts();
     void reboundShortcutFiresImmediately();
@@ -131,6 +135,92 @@ void TestMainWindow::newChatKeepsCurrentBackendAndModel() {
     QCOMPARE(next->backendId(), ollama.id.toString());
     QCOMPARE(next->model(), QStringLiteral("llama3.2"));
     Q_UNUSED(mistral);
+}
+
+// Regression test: switching to a newly configured backend must not show the
+// previous backend's model under the new backend. The session kept the old
+// model while its backendId changed, and the picker then appended that
+// foreign model to the new backend's model list.
+void TestMainWindow::switchingToNewBackendDoesNotLeakOldModel() {
+    MainWindow window;
+    window.show();
+
+    auto &registry = window.registryForTest();
+    const QString ollamaId =
+        registry.add(QStringLiteral("Ollama"), BackendKind::Ollama).id.toString();
+    const QString freshId =
+        registry.add(QStringLiteral("Fresh backend"), BackendKind::Ollama).id.toString();
+    registry.save();
+
+    ChatSession *session = window.currentSession();
+    QVERIFY(session);
+    session->setBackendId(ollamaId);
+    session->setModel(QStringLiteral("llama3.2"));
+
+    // Switch the chat to the new backend the way the picker menu does.
+    auto *picker = window.modelPickerForTest();
+    if (!picker)
+        QFAIL("model picker not available");
+    auto *menu = picker->menu();
+    if (!menu)
+        QFAIL("picker menu not built");
+    QAction *freshAction = nullptr;
+    for (auto *action : menu->actions()) {
+        if (action->text() == QStringLiteral("Fresh backend"))
+            freshAction = action;
+    }
+    if (!freshAction)
+        QFAIL("backend action not found in picker menu");
+    freshAction->trigger();
+
+    // The session must no longer carry the old backend's model...
+    QCOMPARE(session->backendId(), freshId);
+    QVERIFY(session->model().isEmpty());
+    // ...and the new backend's model list must not contain it, even after a
+    // selector rebuild (e.g. when model detection for it completes).
+    window.selectSessionForTest(session->id());
+    const QStringList freshModels = picker->backendModels().value(freshId);
+    QVERIFY(!freshModels.contains(QStringLiteral("llama3.2")));
+    QVERIFY(picker->currentModel().isEmpty() || freshModels.contains(picker->currentModel()));
+}
+
+// Regression test: when a backend's configuration changes after its models
+// were detected (e.g. a newly added backend is first probed with the default
+// URL and only then edited), the stale model list must be dropped so the
+// backend is queried again with the new config. Otherwise the picker keeps
+// showing the previously configured backend's models until an app restart.
+void TestMainWindow::reconfiguredBackendDropsStaleDetectedModels() {
+    MainWindow window;
+    window.show();
+
+    auto &registry = window.registryForTest();
+    registry.add(QStringLiteral("Ollama"), BackendKind::Ollama);
+    const QString freshId =
+        registry.add(QStringLiteral("New backend"), BackendKind::Ollama).id.toString();
+    registry.save();
+    auto *picker = window.modelPickerForTest();
+    if (!picker)
+        QFAIL("model picker not available");
+
+    // A detection for the new backend completes (with whatever the backend
+    // answered while it still had the default config).
+    window.simulateModelsDetectedForTest(freshId, {QStringLiteral("stale-model")});
+    QVERIFY(picker->backendModels().value(freshId).contains(QStringLiteral("stale-model")));
+
+    // The user reconfigures the backend (different URL), as the settings page
+    // signals via BackendRegistry::changed.
+    auto *config = registry.find(QUuid(freshId));
+    if (!config)
+        QFAIL("backend not found in registry");
+    config->baseUrl = QStringLiteral("http://127.0.0.1:59999");
+    registry.save();
+    emit registry.changed();
+
+    // The stale list must be gone from the picker...
+    QVERIFY(!picker->backendModels().value(freshId).contains(QStringLiteral("stale-model")));
+    // ...and a fresh detection result replaces it.
+    window.simulateModelsDetectedForTest(freshId, {QStringLiteral("fresh-model")});
+    QCOMPARE(picker->backendModels().value(freshId), QStringList{QStringLiteral("fresh-model")});
 }
 
 // Regression test: a synchronously failing MCP tool call (unknown tool, no

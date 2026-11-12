@@ -101,6 +101,11 @@ public:
     [[nodiscard]] ShortcutRegistry &shortcutsForTest() { return m_shortcuts; }
     [[nodiscard]] PromptTemplateRegistry &promptTemplatesForTest() { return m_promptTemplates; }
     [[nodiscard]] QWidget *promptMenuForTest() const { return m_promptMenu; }
+    [[nodiscard]] ModelPickerButton *modelPickerForTest() const { return m_modelPicker; }
+    // Feeds a detection result for one backend directly, without network.
+    void simulateModelsDetectedForTest(const QString &backendId, const QStringList &models) {
+        onModelsDetected(backendId, models);
+    }
     void requestDeleteSessionsForTest(const QList<QUuid> &ids) { onSessionDeleteRequested(ids); }
     void markUnreadForTest(const QUuid &id) { m_unreadSessions.insert(id); }
     [[nodiscard]] ChatSession *sessionForTest(const QUuid &id) const;
@@ -198,6 +203,12 @@ private:
     // Last model the user picked for a backend; persisted in okapi.conf so
     // the selection survives restarts. Empty when never selected.
     [[nodiscard]] QString lastModelForBackend(const QString &backendId) const;
+    // Signature of the config a backend's model list was detected with
+    // (kind + base URL + API key); a mismatch means re-detection is required.
+    [[nodiscard]] static QString detectionSignature(const BackendConfig &config);
+    // Drops the cached detection of a backend whose config changed since the
+    // last detection; returns true when stale state was removed.
+    bool dropStaleDetectionIfReconfigured(const BackendConfig &config);
     void saveLastModelForBackend(const QString &backendId, const QString &model);
     void forgetLastModelForBackend(const QString &backendId);
     void updateEmptyState();
@@ -300,6 +311,8 @@ private:
     bool m_loadingOlder = false;
     // Models detected per backend id (survives session switches).
     QHash<QString, QStringList> m_detectedModels;
+    // Config signature per backend id at the time its models were detected.
+    QHash<QString, QString> m_detectionSignatures;
     // Last model selected per backend id, loaded from/saved to okapi.conf.
     QHash<QString, QString> m_lastModels;
     QString m_dictatedText;
@@ -317,6 +330,8 @@ private:
     QList<QShortcut *> m_windowShortcuts;
     // General UI settings (Settings > General > User Interface).
     UiSettings m_uiSettings;
+    // Effective dark mode after applyTheme() (drives the web chat view).
+    bool m_darkMode = false;
     // Prompt templates (Settings > General > Prompt Templates).
     PromptTemplateRegistry m_promptTemplates;
     // Autocompletion popup (frameless top-level above the composer).

@@ -245,7 +245,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_mcpManager(&m_m
     loadUiSettings();
     // Apply the theme before setupUi() creates any widgets, so icons created
     // in constructors (themedIcon) already use the correct palette.
-    applyTheme(m_uiSettings.theme());
+    m_darkMode = applyTheme(m_uiSettings.theme());
     loadPromptTemplates();
 
     setupUi();
@@ -453,10 +453,10 @@ void MainWindow::setupConnections() {
     connect(&m_uiSettings, &UiSettings::changed, this,
             [this]() { m_chatView->setShowThroughput(m_uiSettings.showThroughput()); });
     // Theme: applied immediately; in Auto mode also follow live OS changes.
-    m_chatView->setDarkMode(applyTheme(m_uiSettings.theme()));
+    m_chatView->setDarkMode(m_darkMode);
     connect(&m_uiSettings, &UiSettings::changed, this, [this]() {
-        const bool dark = applyTheme(m_uiSettings.theme());
-        m_chatView->setDarkMode(dark);
+        m_darkMode = applyTheme(m_uiSettings.theme());
+        m_chatView->setDarkMode(m_darkMode);
         // Re-theme the toolbar and composer icons (recolored on load).
         m_newChatButton->setIcon(
             themedIcon(QStringLiteral(":/resources/icons/contact-new-symbolic.svg")));
@@ -466,8 +466,8 @@ void MainWindow::setupConnections() {
     });
     connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged, this, [this](Qt::ColorScheme) {
         if (m_uiSettings.theme() == UiSettings::Theme::Auto) {
-            const bool dark = applyTheme(UiSettings::Theme::Auto);
-            m_chatView->setDarkMode(dark);
+            m_darkMode = applyTheme(UiSettings::Theme::Auto);
+            m_chatView->setDarkMode(m_darkMode);
             m_newChatButton->setIcon(
                 themedIcon(QStringLiteral(":/resources/icons/contact-new-symbolic.svg")));
             m_settingsButton->setIcon(
@@ -540,11 +540,17 @@ void MainWindow::setupConnections() {
     connect(m_modelPicker, &ModelPickerButton::backendSelected, this, [this](const QString &id) {
         if (m_currentSession && !id.isEmpty()) {
             m_currentSession->setBackendId(id);
+            // The session's model belongs to the previously selected backend;
+            // switch to the model last used with the new backend (empty if it
+            // has none yet) so the old backend's model is never shown under
+            // the new one.
+            m_currentSession->setModel(lastModelForBackend(id));
             syncSessionToDatabase(m_currentSession);
             // The running turn belongs to the previous backend; switching
             // the chat's backend ends it, as before the parallel-chats rework.
             cancelContext(m_currentSession);
         }
+        refreshBackendSelector();
         detectModels();
     });
     connect(m_modelPicker, &ModelPickerButton::modelSelected, this,
@@ -1325,10 +1331,21 @@ void MainWindow::onBackendChanged() {
         else
             ++it;
     }
+    for (auto it = m_detectionSignatures.begin(); it != m_detectionSignatures.end();) {
+        if (!existing.contains(it.key()))
+            it = m_detectionSignatures.erase(it);
+        else
+            ++it;
+    }
     m_pendingDetection.clear();
     refreshBackendSelector();
     updateEmptyState();
     detectModels();
+}
+
+QString MainWindow::detectionSignature(const BackendConfig &config) {
+    return QStringLiteral("%1|%2|%3")
+        .arg(BackendConfig::kindKey(config.kind), config.effectiveBaseUrl(), config.apiKey);
 }
 
 QStringList MainWindow::knownModelsForBackend(const BackendConfig &config) const {
@@ -1391,7 +1408,11 @@ void MainWindow::refreshBackendSelector() {
     if (selectedId.isEmpty() && !backends.isEmpty())
         selectedId = backends.first().second;
 
-    QString model = m_currentSession ? m_currentSession->model() : QString();
+    // The session's model only applies while it belongs to the selected
+    // backend; after a backend switch it must not leak into the new one.
+    QString model = m_currentSession && m_currentSession->backendId() == selectedId
+                        ? m_currentSession->model()
+                        : QString();
     if (model.isEmpty())
         model = lastModelForBackend(selectedId);
     if (model.isEmpty()) {
@@ -1440,19 +1461,43 @@ void MainWindow::onModelSelected(const QString &backendId, const QString &model)
     saveLastModelForBackend(backendId, model);
 }
 
+bool MainWindow::dropStaleDetectionIfReconfigured(const BackendConfig &config) {
+    const QString backendId = config.id.toString();
+    const QString signature = detectionSignature(config);
+    if (m_detectionSignatures.value(backendId) == signature)
+        return false;
+    // The backend was reconfigured since its models were detected (e.g. a
+    // newly added backend still had the default URL when the first detection
+    // ran): drop the stale list and any in-flight request so the backend is
+    // queried again with the new config.
+    m_detectedModels.remove(backendId);
+    m_detectionSignatures.remove(backendId);
+    m_pendingDetection.remove(backendId);
+    const auto staleIt = m_detectors.find(backendId);
+    if (staleIt != m_detectors.end()) {
+        (*staleIt)->disconnect(this);
+        (*staleIt)->deleteLater();
+        m_detectors.erase(staleIt);
+    }
+    return true;
+}
+
 void MainWindow::detectModels() {
     // Query every enabled backend, not just the selected one: the picker
     // shows a submenu per provider, and a provider the user never selected
     // would otherwise stay at "No models detected yet".
+    bool invalidatedStale = false;
     for (const auto &config : m_registry.backends()) {
         if (!config.enabled)
             continue;
         const QString backendId = config.id.toString();
+        invalidatedStale = dropStaleDetectionIfReconfigured(config) || invalidatedStale;
         if (!m_detectedModels.value(backendId).isEmpty())
             continue; // already detected successfully for this backend
         if (m_pendingDetection.contains(backendId))
             continue; // request already in flight
         m_pendingDetection.insert(backendId);
+        m_detectionSignatures.insert(backendId, detectionSignature(config));
         auto *detector = createBackend(config).release();
         detector->setParent(this);
         const QString url = config.effectiveBaseUrl();
@@ -1479,6 +1524,11 @@ void MainWindow::detectModels() {
         m_detectors.insert(backendId, detector);
         detector->listModels();
     }
+    // Stale lists were dropped above: rebuild the picker right away so it no
+    // longer shows the old backend's models while re-detection is running (or
+    // if it fails).
+    if (invalidatedStale)
+        refreshBackendSelector();
     if (qEnvironmentVariableIsSet("OKAPI_DEBUG_MODELS")) {
         QStringList pending;
         for (const QString &id : m_pendingDetection)

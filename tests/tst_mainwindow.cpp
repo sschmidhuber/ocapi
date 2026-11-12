@@ -851,8 +851,8 @@ int main(int argc, char *argv[]) {
 }
 
 // In dark mode the toolbar must not show light horizontal border lines: the
-// frame roles (Light/Midlight/Dark) must be dark, and the toolbar's border
-// must be disabled via stylesheet.
+// frame roles (Light/Midlight/Dark) must be dark, and the toolbar must keep
+// its native layout (no stylesheet, which offsets the buttons vertically).
 void TestMainWindow::darkThemeToolbarHasNoLightBorders() {
     const QPalette original = qApp->palette();
     MainWindow window;
@@ -865,7 +865,7 @@ void TestMainWindow::darkThemeToolbarHasNoLightBorders() {
     auto *toolBar = window.findChild<QToolBar *>(QStringLiteral("mainToolBar"));
     if (!toolBar)
         QFAIL("main toolbar not found");
-    QVERIFY(toolBar->styleSheet().contains(QStringLiteral("border: none")));
+    QVERIFY(toolBar->styleSheet().isEmpty());
     QVERIFY(!applyTheme(UiSettings::Theme::Light));
     qApp->setPalette(original);
 }

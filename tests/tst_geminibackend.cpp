@@ -216,5 +216,5 @@ void TestGeminiBackend::nonSseResponseStillFinishes() {
     QCOMPARE(tokenSpy.count(), 0);
 }
 
-QTEST_MAIN(TestGeminiBackend)
+QTEST_GUILESS_MAIN(TestGeminiBackend)
 #include "tst_geminibackend.moc"

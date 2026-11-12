@@ -83,7 +83,7 @@ bool applyTheme(UiSettings::Theme theme) {
     // splitter handles and separators thin and in the theme's mid color.
     // palette() references re-evaluate automatically on palette changes.
     qApp->setStyleSheet(QStringLiteral(
-        "QToolBar { border: none; }"
+        "QToolBar { border: none; background: palette(window); }"
         "QMainWindow::separator { width: 1px; height: 1px; background: palette(mid); }"
         "QSplitter { border: none; margin: 0; padding: 0; }"
         "QSplitter::handle { background: palette(mid); }"));

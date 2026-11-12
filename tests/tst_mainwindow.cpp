@@ -865,7 +865,8 @@ void TestMainWindow::darkThemeToolbarHasNoLightBorders() {
     QVERIFY(p.color(QPalette::Midlight).lightness() < 128);
     QVERIFY(p.color(QPalette::Dark).lightness() < 128);
     const QString sheet = qApp->styleSheet();
-    QVERIFY(sheet.contains(QStringLiteral("QToolBar { border: none; }")));
+    QVERIFY(
+        sheet.contains(QStringLiteral("QToolBar { border: none; background: palette(window); }")));
     QVERIFY(sheet.contains(QStringLiteral("QSplitter::handle { background: palette(mid); }")));
     // The wide Fusion splitter handles must be slimmed to a 1px hairline.
     const auto splitters = window.findChildren<QSplitter *>();

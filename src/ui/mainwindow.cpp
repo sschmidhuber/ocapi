@@ -356,10 +356,9 @@ void MainWindow::setupUi() {
     rightLayout->setContentsMargins(0, 0, 0, 0);
     rightLayout->setSpacing(0);
 
-    // Constant margin around the chat conversation area, matching the
-    // sidebar's 8px gap. A slim scrollbar keeps the chat box the same
-    // width whether the scrollbar is shown or not.
-    constexpr int kPanelMargin = 8;
+    // No margin around the chat conversation area: the 1px splitter handle
+    // is the only separator (a wide margin read as a border).
+    constexpr int kPanelMargin = 0;
     m_chatView = new WebChatView(rightPanel);
     auto *chatMargin = new QVBoxLayout();
     chatMargin->setContentsMargins(kPanelMargin, kPanelMargin, kPanelMargin, 0);

@@ -182,15 +182,17 @@ void OpenAiApiBackend::sendMessage(ChatSession *session, const QString &model,
     m_stream = std::make_unique<SseClient>(m_nam, this);
     connect(m_stream.get(), &SseClient::eventReceived, this,
             [this](const QByteArray &, const QByteArray &data) { onStreamEvent(data); });
-    connect(m_stream.get(), &SseClient::httpError, this, [this](int, const QByteArray &body) {
-        const auto error = QJsonDocument::fromJson(body)
-                               .object()
-                               .value(QStringLiteral("error"))
-                               .toObject()
-                               .value(QStringLiteral("message"))
-                               .toString();
-        emit failed(m_currentMessageId, error.isEmpty() ? QString::fromUtf8(body) : error);
-    });
+    connect(m_stream.get(), &SseClient::httpError, this,
+            [this](int status, const QByteArray &body) {
+                const auto error = QJsonDocument::fromJson(body)
+                                       .object()
+                                       .value(QStringLiteral("error"))
+                                       .toObject()
+                                       .value(QStringLiteral("message"))
+                                       .toString();
+                emit failed(m_currentMessageId, error.isEmpty() ? QString::fromUtf8(body) : error,
+                            status);
+            });
     connect(m_stream.get(), &SseClient::networkError, this,
             [this](const QString &error) { emit failed(m_currentMessageId, error); });
     connect(m_stream.get(), &SseClient::finished, this,

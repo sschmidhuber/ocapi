@@ -238,7 +238,9 @@ void TestMainWindow::streamErrorSurvivesLateFinished() {
     ChatSession *session = window.currentSession();
     QVERIFY(session);
 
-    window.simulateStreamErrorForTest(QStringLiteral("RESOURCE_EXHAUSTED: credits depleted"));
+    window.simulateStreamErrorForTest(
+        QStringLiteral("Your prepayment credits are depleted. See https://ai.google.dev/billing"),
+        402);
     window.simulateLateStreamFinishForTest();
     // Let the deferred context deletion (singleShot(0)) run.
     QTest::qWait(20);
@@ -246,12 +248,17 @@ void TestMainWindow::streamErrorSurvivesLateFinished() {
     bool checked = false;
     for (const auto &message : session->messages()) {
         if (message.role == Role::Assistant) {
-            QCOMPARE(message.error, QStringLiteral("RESOURCE_EXHAUSTED: credits depleted"));
+            QVERIFY(message.error.contains(QStringLiteral("credits are depleted")));
             QVERIFY(!message.streaming);
             checked = true;
         }
     }
     QVERIFY(checked);
+    // The status bar shows only the error class + HTTP status, not the full
+    // server message (that goes to the error dialog).
+    auto *statusBar = window.findChild<QStatusBar *>();
+    QVERIFY(statusBar);
+    QCOMPARE(statusBar->currentMessage(), QStringLiteral("Client error: HTTP 402"));
 }
 
 // Regression test: a synchronously failing MCP tool call (unknown tool, no

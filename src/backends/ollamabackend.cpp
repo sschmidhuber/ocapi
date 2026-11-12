@@ -141,9 +141,10 @@ void OllamaBackend::sendMessage(ChatSession *session, const QString &model,
     m_stream->setFraming(SseClient::Framing::Ndjson);
     connect(m_stream.get(), &SseClient::eventReceived, this,
             [this](const QByteArray &, const QByteArray &data) { onStreamEvent(data); });
-    connect(m_stream.get(), &SseClient::httpError, this, [this](int, const QByteArray &body) {
-        emit failed(m_currentMessageId, QString::fromUtf8(body));
-    });
+    connect(m_stream.get(), &SseClient::httpError, this,
+            [this](int status, const QByteArray &body) {
+                emit failed(m_currentMessageId, QString::fromUtf8(body), status);
+            });
     connect(m_stream.get(), &SseClient::networkError, this,
             [this](const QString &error) { emit failed(m_currentMessageId, error); });
     connect(m_stream.get(), &SseClient::finished, this,

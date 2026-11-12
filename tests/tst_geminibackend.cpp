@@ -191,6 +191,7 @@ void TestGeminiBackend::httpErrorIsReportedAsFailure() {
 
     QVERIFY(failedSpy.wait(10000));
     QCOMPARE(failedSpy.last().at(1).toString(), QStringLiteral("API key not valid"));
+    QCOMPARE(failedSpy.last().at(2).toInt(), 400);
     // A failed request must not also report finished(): the UI's finish
     // handler would clear the error again.
     QTest::qWait(100);

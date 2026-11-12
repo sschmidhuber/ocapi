@@ -79,6 +79,15 @@ bool applyTheme(UiSettings::Theme theme) {
         qApp->setPalette(darkPalette());
     else
         qApp->setPalette(qApp->style()->standardPalette());
+    // Consistent slim borders app-wide: no toolbar border lines at all,
+    // splitter handles and separators thin and in the theme's mid color.
+    // palette() references re-evaluate automatically on palette changes.
+    qApp->setStyleSheet(QStringLiteral(
+        "QToolBar { border: none; }"
+        "QMainWindow::separator { width: 1px; height: 1px; background: palette(mid); }"
+        "QSplitter::handle { background: palette(mid); }"
+        "QSplitter::handle:horizontal { width: 3px; }"
+        "QSplitter::handle:vertical { height: 3px; }"));
     return dark;
 }
 

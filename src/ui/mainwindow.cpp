@@ -317,10 +317,9 @@ void MainWindow::setupUi() {
     m_toolBar->setFloatable(false);
     m_toolBar->setIconSize(QSize(16, 16));
     m_toolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    // No stylesheet here on purpose: with one, QStyleSheetStyle lays out the
-    // toolbar differently and the buttons end up off-center (top margin
-    // smaller than bottom). The border lines are handled via the palette
-    // frame roles in darkPalette() instead.
+    // Toolbar border lines are removed app-wide via the stylesheet in
+    // applyTheme() (QToolBar { border: none; }); the dark palette's frame
+    // roles keep any remaining separators dark.
     m_newChatButton = new QToolButton(m_toolBar);
     m_newChatButton->setText(tr("New"));
     m_newChatButton->setIcon(

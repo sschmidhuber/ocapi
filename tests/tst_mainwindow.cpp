@@ -850,11 +850,13 @@ int main(int argc, char *argv[]) {
     return QTest::qExec(&test, argc, argv);
 }
 
-// In dark mode the toolbar must not show light horizontal border lines: the
-// frame roles (Light/Midlight/Dark) must be dark, and the toolbar must keep
-// its native layout (no stylesheet, which offsets the buttons vertically).
+// In dark mode the toolbar must not show light horizontal border lines, and
+// all borders must be slim and consistent: the frame roles (Light/Midlight/
+// Dark) must be dark, and the app stylesheet removes the toolbar border and
+// narrows splitter handles/separators.
 void TestMainWindow::darkThemeToolbarHasNoLightBorders() {
     const QPalette original = qApp->palette();
+    const QString originalSheet = qApp->styleSheet();
     MainWindow window;
     window.show();
     QVERIFY(applyTheme(UiSettings::Theme::Dark));
@@ -862,12 +864,13 @@ void TestMainWindow::darkThemeToolbarHasNoLightBorders() {
     QVERIFY(p.color(QPalette::Light).lightness() < 128);
     QVERIFY(p.color(QPalette::Midlight).lightness() < 128);
     QVERIFY(p.color(QPalette::Dark).lightness() < 128);
-    auto *toolBar = window.findChild<QToolBar *>(QStringLiteral("mainToolBar"));
-    if (!toolBar)
-        QFAIL("main toolbar not found");
-    QVERIFY(toolBar->styleSheet().isEmpty());
+    const QString sheet = qApp->styleSheet();
+    QVERIFY(sheet.contains(QStringLiteral("QToolBar { border: none; }")));
+    QVERIFY(sheet.contains(QStringLiteral("QSplitter::handle:horizontal { width: 3px; }")));
+    QVERIFY(sheet.contains(QStringLiteral("QSplitter::handle:vertical { height: 3px; }")));
     QVERIFY(!applyTheme(UiSettings::Theme::Light));
     qApp->setPalette(original);
+    qApp->setStyleSheet(originalSheet);
 }
 
 // In dark mode the composer's text edit must use the dark base color (its

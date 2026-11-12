@@ -16,6 +16,11 @@ namespace okapi {
 
 namespace {
 
+// OKAPI_DEBUG_SSE enables stderr stream logging.
+bool sseDebugOn() {
+    return qEnvironmentVariableIsSet("OKAPI_DEBUG_SSE");
+}
+
 QString geminiRole(Role role) {
     switch (role) {
     case Role::Assistant:
@@ -163,7 +168,7 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model,
             [this](const QByteArray &, const QByteArray &data) { onStreamEvent(data); });
     connect(
         m_stream.get(), &SseClient::httpError, this, [this](int status, const QByteArray &body) {
-            if (qEnvironmentVariableIsSet("OKAPI_DEBUG_SSE"))
+            if (sseDebugOn())
                 qWarning().noquote()
                     << "[okapi sse] gemini httpError" << status
                     << "body:" << debugSanitize::clip(debugSanitize::redact(body), 500);
@@ -176,12 +181,12 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model,
             emit failed(m_currentMessageId, message.isEmpty() ? QString::fromUtf8(body) : message);
         });
     connect(m_stream.get(), &SseClient::networkError, this, [this](const QString &error) {
-        if (qEnvironmentVariableIsSet("OKAPI_DEBUG_SSE"))
+        if (sseDebugOn())
             qWarning().noquote() << "[okapi sse] gemini networkError:" << error;
         emit failed(m_currentMessageId, error);
     });
     connect(m_stream.get(), &SseClient::finished, this, [this]() {
-        if (qEnvironmentVariableIsSet("OKAPI_DEBUG_SSE"))
+        if (sseDebugOn())
             qWarning().noquote() << "[okapi sse] gemini stream finished, accumulated"
                                  << m_accumulated.size() << "chars";
         emit finished(m_currentMessageId);
@@ -193,6 +198,9 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model,
 void GeminiBackend::onStreamEvent(const QByteArray &data) {
     const auto candidates =
         QJsonDocument::fromJson(data).object().value(QStringLiteral("candidates")).toArray();
+    if (sseDebugOn())
+        qWarning().noquote() << "[okapi sse] gemini event, candidates=" << candidates.size()
+                             << "data=" << debugSanitize::clip(debugSanitize::redact(data), 400);
     if (candidates.isEmpty())
         return;
     const auto parts = candidates.first()

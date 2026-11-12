@@ -113,8 +113,13 @@ void SseClient::onFinished() {
                .arg(status)
                .arg(m_reply->header(QNetworkRequest::ContentTypeHeader).toString())
                .arg(m_received.size())
-               .arg(m_reply->errorString()));
-    if (error != QNetworkReply::NoError && error != QNetworkReply::OperationCanceledError) {
+               .arg(debugSanitize::redact(m_reply->errorString())));
+    // A failed request is not a normal finish: emitting finished() after the
+    // error would make backends report both, and the UI's finish handler
+    // clears the error again (message shown empty, status "Ready").
+    const bool failed =
+        error != QNetworkReply::NoError && error != QNetworkReply::OperationCanceledError;
+    if (failed) {
         if (status >= 400)
             emit httpError(status, m_received);
         else
@@ -123,7 +128,8 @@ void SseClient::onFinished() {
 
     m_reply->deleteLater();
     m_reply = nullptr;
-    emit finished();
+    if (!failed)
+        emit finished();
 }
 
 } // namespace okapi

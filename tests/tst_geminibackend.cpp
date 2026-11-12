@@ -186,10 +186,15 @@ void TestGeminiBackend::httpErrorIsReportedAsFailure() {
     ChatSession session;
     session.appendMessage(Role::User, QStringLiteral("hi"));
     QSignalSpy failedSpy(&backend, &IBackend::failed);
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
     backend.sendMessage(&session, QStringLiteral("gemini-test"));
 
     QVERIFY(failedSpy.wait(10000));
     QCOMPARE(failedSpy.last().at(1).toString(), QStringLiteral("API key not valid"));
+    // A failed request must not also report finished(): the UI's finish
+    // handler would clear the error again.
+    QTest::qWait(100);
+    QCOMPARE(finishedSpy.count(), 0);
 }
 
 // A 200 response that is not SSE (e.g. when alt=sse was dropped from the

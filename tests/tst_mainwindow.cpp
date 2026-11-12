@@ -71,6 +71,7 @@ private slots:
     void newChatKeepsCurrentBackendAndModel();
     void switchingToNewBackendDoesNotLeakOldModel();
     void reconfiguredBackendDropsStaleDetectedModels();
+    void streamErrorSurvivesLateFinished();
     void toolCallFailureAppendsToolMessageWithoutCrashing();
     void keyboardShortcuts();
     void reboundShortcutFiresImmediately();
@@ -221,6 +222,36 @@ void TestMainWindow::reconfiguredBackendDropsStaleDetectedModels() {
     // ...and a fresh detection result replaces it.
     window.simulateModelsDetectedForTest(freshId, {QStringLiteral("fresh-model")});
     QCOMPARE(picker->backendModels().value(freshId), QStringList{QStringLiteral("fresh-model")});
+}
+
+// Regression test: when a backend reports failed() and then a late
+// finished() for the same message (as SseClient emitted after an HTTP error),
+// the error must stay visible in the chat instead of being cleared to an
+// empty "Ready" turn.
+void TestMainWindow::streamErrorSurvivesLateFinished() {
+    MainWindow window;
+    window.show();
+    auto &registry = window.registryForTest();
+    registry.add(QStringLiteral("Ollama"), BackendKind::Ollama);
+    registry.save();
+    window.startNewChat();
+    ChatSession *session = window.currentSession();
+    QVERIFY(session);
+
+    window.simulateStreamErrorForTest(QStringLiteral("RESOURCE_EXHAUSTED: credits depleted"));
+    window.simulateLateStreamFinishForTest();
+    // Let the deferred context deletion (singleShot(0)) run.
+    QTest::qWait(20);
+
+    bool checked = false;
+    for (const auto &message : session->messages()) {
+        if (message.role == Role::Assistant) {
+            QCOMPARE(message.error, QStringLiteral("RESOURCE_EXHAUSTED: credits depleted"));
+            QVERIFY(!message.streaming);
+            checked = true;
+        }
+    }
+    QVERIFY(checked);
 }
 
 // Regression test: a synchronously failing MCP tool call (unknown tool, no

@@ -113,6 +113,10 @@ public:
     // Drives the streaming UI state of the current chat directly.
     void simulateStreamStartForTest();
     void simulateStreamFinishForTest();
+    // Simulates a backend failing the current stream (assistant message gets
+    // the error), and a late finished() for the same message afterwards.
+    void simulateStreamErrorForTest(const QString &error);
+    void simulateLateStreamFinishForTest();
     void sendTextForTest(const QString &text) { onSend(text, {}, {}); }
     void startEditMessageForTest(const QUuid &id) {
         startEditMessage(id.toString(QUuid::WithoutBraces));

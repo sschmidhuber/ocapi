@@ -868,6 +868,21 @@ void MainWindow::simulateStreamFinishForTest() {
         finalizeContext(context, tr("Ready"));
 }
 
+void MainWindow::simulateStreamErrorForTest(const QString &error) {
+    if (!m_currentSession)
+        return;
+    StreamContext *context = ensureContextForTest(m_currentSession);
+    const QUuid id = m_currentSession->appendMessage(Role::Assistant, {}, true).id;
+    context->streamedMessageId = id;
+    context->streaming = true;
+    onStreamFailed(context, id, error);
+}
+
+void MainWindow::simulateLateStreamFinishForTest() {
+    if (StreamContext *context = contextFor(m_currentSession))
+        onStreamFinished(context, context->streamedMessageId);
+}
+
 void MainWindow::reapplyShortcuts() {
     qDeleteAll(m_windowShortcuts);
     m_windowShortcuts.clear();
@@ -1798,6 +1813,13 @@ void MainWindow::onReasoningReceived(StreamContext *context, const QUuid &messag
 void MainWindow::onStreamFinished(StreamContext *context, const QUuid &messageId) {
     if (!contextAlive(context))
         return;
+    // A backend may emit failed() and then finished() for the same turn (e.g.
+    // an HTTP error at stream end). The failure already finalized the turn
+    // and set the message error; a late finished() must not clear it again.
+    for (const auto &message : context->session->messages()) {
+        if (message.id == messageId && !message.error.isEmpty())
+            return;
+    }
     const QString content = messageContent(context, messageId);
     if (qEnvironmentVariableIsSet("OKAPI_DEBUG_SSE"))
         qWarning().noquote() << "[okapi debug] streamFinished" << messageId.toString()

@@ -72,6 +72,7 @@ SseClient::SseClient(QNetworkAccessManager *nam, QObject *parent) : QObject(pare
 void SseClient::post(const QNetworkRequest &request, const QByteArray &payload) {
     cancel();
     m_buffer.clear();
+    m_received.clear();
     if (sseDebugEnabled()) {
         sseDebug("=== POST " + debugSanitize::redact(request.url().toEncoded()) + "\n");
         sseDebug("=== request body: " + debugSanitize::clip(debugSanitize::redact(payload), 200) +
@@ -95,6 +96,9 @@ void SseClient::onReadyRead() {
     if (!m_reply)
         return;
     const QByteArray chunk = m_reply->readAll();
+    // Keep everything read so far: on error status the body must still be
+    // available in onFinished() even when readyRead already consumed it.
+    m_received.append(chunk);
     if (sseDebugEnabled())
         sseDebug("--- read " + QByteArray::number(chunk.size()) +
                  " bytes\n--- hex: " + debugSanitize::clip(hexDump(chunk), 400) +
@@ -145,7 +149,7 @@ void SseClient::onFinished() {
     if (error != QNetworkReply::NoError && error != QNetworkReply::OperationCanceledError) {
         const int status = m_reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (status >= 400)
-            emit httpError(status, m_reply->readAll());
+            emit httpError(status, m_received);
         else
             emit networkError(m_reply->errorString());
     }

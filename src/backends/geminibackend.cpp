@@ -142,12 +142,20 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model,
     }
 
     QUrl url(m_config.effectiveBaseUrl() + QStringLiteral("/models/") + model +
-             QStringLiteral(":streamGenerateContent?alt=sse"));
+             QStringLiteral(":streamGenerateContent"));
+    // alt=sse must stay in the query: without it the API answers with a
+    // single non-streamed JSON body, which the SSE client never parses, so
+    // the chat would silently end with an empty answer. Building the query
+    // item by item also keeps the API key when the URL already had one.
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("alt"), QStringLiteral("sse"));
     if (!m_config.apiKey.isEmpty())
-        url.setQuery(QUrlQuery({{QStringLiteral("key"), m_config.apiKey}}));
+        query.addQueryItem(QStringLiteral("key"), m_config.apiKey);
+    url.setQuery(query);
 
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    request.setRawHeader("Accept", "text/event-stream");
 
     m_stream = std::make_unique<SseClient>(m_nam, this);
     connect(m_stream.get(), &SseClient::eventReceived, this,

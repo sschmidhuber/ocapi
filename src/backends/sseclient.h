@@ -37,6 +37,7 @@ private:
     QNetworkAccessManager *m_nam;
     QNetworkReply *m_reply = nullptr;
     QByteArray m_buffer;
+    QByteArray m_received;
     Framing m_framing = Framing::Sse;
 };
 

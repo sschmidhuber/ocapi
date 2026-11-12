@@ -144,15 +144,17 @@ void AnthropicBackend::sendMessage(ChatSession *session, const QString &model,
             [this](const QByteArray &event, const QByteArray &data) {
                 onStreamEvent(QString::fromUtf8(event), data);
             });
-    connect(m_stream.get(), &SseClient::httpError, this, [this](int, const QByteArray &body) {
-        const auto error = QJsonDocument::fromJson(body)
-                               .object()
-                               .value(QStringLiteral("error"))
-                               .toObject()
-                               .value(QStringLiteral("message"))
-                               .toString();
-        emit failed(m_currentMessageId, error.isEmpty() ? QString::fromUtf8(body) : error);
-    });
+    connect(m_stream.get(), &SseClient::httpError, this,
+            [this](int status, const QByteArray &body) {
+                const auto error = QJsonDocument::fromJson(body)
+                                       .object()
+                                       .value(QStringLiteral("error"))
+                                       .toObject()
+                                       .value(QStringLiteral("message"))
+                                       .toString();
+                emit failed(m_currentMessageId, error.isEmpty() ? QString::fromUtf8(body) : error,
+                            status);
+            });
     connect(m_stream.get(), &SseClient::networkError, this,
             [this](const QString &error) { emit failed(m_currentMessageId, error); });
 

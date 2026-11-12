@@ -48,12 +48,17 @@ signals:
     void modelsReady(const QStringList &models);
     void modelsFailed(const QString &error);
 
+    // httpStatusCode is the HTTP status when the failure came from an HTTP
+    // error response (e.g. 402), 0 for network/protocol errors. The UI shows
+    // only the error class + status in the status bar and the full message
+    // in a dialog.
+    void failed(const QUuid &messageId, const QString &error, int httpStatusCode = 0);
+
     void tokenReceived(const QUuid &messageId, const QString &accumulatedText);
     // Reasoning ("thinking") tokens streamed before the visible answer;
     // \p accumulatedReasoning is the full reasoning text so far.
     void reasoningReceived(const QUuid &messageId, const QString &accumulatedReasoning);
     void finished(const QUuid &messageId);
-    void failed(const QUuid &messageId, const QString &error);
     // The model wants to invoke tools; the UI/agent layer executes them and
     // sends the results back with sendMessage().
     void toolCallsRequested(const QUuid &messageId, const QVector<ToolCall> &toolCalls);

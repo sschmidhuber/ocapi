@@ -113,6 +113,10 @@ public:
     // Drives the streaming UI state of the current chat directly.
     void simulateStreamStartForTest();
     void simulateStreamFinishForTest();
+    // Simulates a backend failing the current stream (assistant message gets
+    // the error), and a late finished() for the same message afterwards.
+    void simulateStreamErrorForTest(const QString &error, int httpStatus = 0);
+    void simulateLateStreamFinishForTest();
     void sendTextForTest(const QString &text) { onSend(text, {}, {}); }
     void startEditMessageForTest(const QUuid &id) {
         startEditMessage(id.toString(QUuid::WithoutBraces));
@@ -192,7 +196,8 @@ private:
     void onTokenReceived(StreamContext *context, const QUuid &messageId, const QString &text);
     void onReasoningReceived(StreamContext *context, const QUuid &messageId, const QString &text);
     void onStreamFinished(StreamContext *context, const QUuid &messageId);
-    void onStreamFailed(StreamContext *context, const QUuid &messageId, const QString &error);
+    void onStreamFailed(StreamContext *context, const QUuid &messageId, const QString &error,
+                        int httpStatus = 0);
     void createSession(const QString &backendId = {}, const QString &model = {});
     void deleteSession(const QUuid &id);
     void refreshSidebar();

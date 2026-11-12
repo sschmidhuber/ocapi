@@ -26,6 +26,7 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScreen>
 #include <QSet>
 #include <QSettings>
@@ -54,6 +55,26 @@ constexpr int kPrefetchDelayMs = 300;
 // Minimum height of the chat history area when the composer splitter is
 // dragged; the composer column minimum is UiSettings::kMinComposerHeight.
 constexpr int kMinChatHeight = 120;
+
+// Short status-bar text for a stream failure: only the error class and the
+// HTTP status code, e.g. "Client error: HTTP 402". The full server message
+// is shown in a dialog instead (see onStreamFailed).
+QString shortStreamErrorText(int httpStatus) {
+    if (httpStatus >= 500)
+        return QObject::tr("Server error: HTTP %1").arg(httpStatus);
+    if (httpStatus >= 400)
+        return QObject::tr("Client error: HTTP %1").arg(httpStatus);
+    return QObject::tr("Error");
+}
+
+// Rich-text version of a backend error message with clickable links, for the
+// error dialog (server messages often contain URLs, e.g. billing pages).
+QString linkifiedErrorText(const QString &error) {
+    static const QRegularExpression urlPattern(QStringLiteral(R"(https?://[^\s<>"']+))"));
+    QString escaped = error.toHtmlEscaped();
+    escaped.replace(urlPattern, QStringLiteral(R"(<a href="%1">%1</a>)"));
+    return escaped;
+}
 
 } // namespace
 
@@ -866,6 +887,21 @@ void MainWindow::simulateStreamStartForTest() {
 void MainWindow::simulateStreamFinishForTest() {
     if (StreamContext *context = contextFor(m_currentSession))
         finalizeContext(context, tr("Ready"));
+}
+
+void MainWindow::simulateStreamErrorForTest(const QString &error, int httpStatus) {
+    if (!m_currentSession)
+        return;
+    StreamContext *context = ensureContextForTest(m_currentSession);
+    const QUuid id = m_currentSession->appendMessage(Role::Assistant, {}, true).id;
+    context->streamedMessageId = id;
+    context->streaming = true;
+    onStreamFailed(context, id, error, httpStatus);
+}
+
+void MainWindow::simulateLateStreamFinishForTest() {
+    if (StreamContext *context = contextFor(m_currentSession))
+        onStreamFinished(context, context->streamedMessageId);
 }
 
 void MainWindow::reapplyShortcuts() {
@@ -1754,8 +1790,8 @@ void MainWindow::connectContext(StreamContext *context) {
     connect(context->backend.get(), &IBackend::finished, this,
             [this, context](const QUuid &messageId) { onStreamFinished(context, messageId); });
     connect(context->backend.get(), &IBackend::failed, this,
-            [this, context](const QUuid &messageId, const QString &error) {
-                onStreamFailed(context, messageId, error);
+            [this, context](const QUuid &messageId, const QString &error, int httpStatus) {
+                onStreamFailed(context, messageId, error, httpStatus);
             });
 }
 
@@ -1798,6 +1834,13 @@ void MainWindow::onReasoningReceived(StreamContext *context, const QUuid &messag
 void MainWindow::onStreamFinished(StreamContext *context, const QUuid &messageId) {
     if (!contextAlive(context))
         return;
+    // A backend may emit failed() and then finished() for the same turn (e.g.
+    // an HTTP error at stream end). The failure already finalized the turn
+    // and set the message error; a late finished() must not clear it again.
+    for (const auto &message : context->session->messages()) {
+        if (message.id == messageId && !message.error.isEmpty())
+            return;
+    }
     const QString content = messageContent(context, messageId);
     if (qEnvironmentVariableIsSet("OKAPI_DEBUG_SSE"))
         qWarning().noquote() << "[okapi debug] streamFinished" << messageId.toString()
@@ -1834,7 +1877,7 @@ void MainWindow::onStreamFinished(StreamContext *context, const QUuid &messageId
 }
 
 void MainWindow::onStreamFailed(StreamContext *context, const QUuid &messageId,
-                                const QString &error) {
+                                const QString &error, int httpStatus) {
     if (!contextAlive(context))
         return;
     context->session->failMessage(messageId, error);
@@ -1847,7 +1890,22 @@ void MainWindow::onStreamFailed(StreamContext *context, const QUuid &messageId,
         result.error = error;
         ChatDatabase::persistStreamResultAsync(defaultDatabasePath(), result);
     }
-    finalizeContext(context, tr("Error: %1").arg(error));
+    // Status bar carries only the error class + HTTP status; the full message
+    // goes to a dialog so it cannot be missed.
+    finalizeContext(context, shortStreamErrorText(httpStatus));
+    auto *box = new QMessageBox(QMessageBox::Warning, tr("Backend error"),
+                                linkifiedErrorText(error), QMessageBox::Ok, this);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    box->setTextFormat(Qt::RichText);
+    box->setWindowFlags(box->windowFlags() | Qt::WindowStaysOnTopHint);
+    if (auto *label = box->findChild<QLabel *>()) {
+        label->setTextInteractionFlags(Qt::TextBrowserInteraction);
+        label->setOpenExternalLinks(true);
+        label->setWordWrap(true);
+    }
+    box->show();
+    box->raise();
+    box->activateWindow();
 }
 
 QString MainWindow::messageContent(StreamContext *context, const QUuid &messageId) {

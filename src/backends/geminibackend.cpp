@@ -1,6 +1,7 @@
 #include "backends/geminibackend.h"
 #include "backends/sseclient.h"
 #include "core/chatsession.h"
+#include "core/debuglog.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -14,6 +15,11 @@
 namespace okapi {
 
 namespace {
+
+// OKAPI_DEBUG_SSE enables stderr stream logging.
+bool sseDebugOn() {
+    return qEnvironmentVariableIsSet("OKAPI_DEBUG_SSE");
+}
 
 QString geminiRole(Role role) {
     switch (role) {
@@ -142,29 +148,50 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model,
     }
 
     QUrl url(m_config.effectiveBaseUrl() + QStringLiteral("/models/") + model +
-             QStringLiteral(":streamGenerateContent?alt=sse"));
+             QStringLiteral(":streamGenerateContent"));
+    // alt=sse must stay in the query: without it the API answers with a
+    // single non-streamed JSON body, which the SSE client never parses, so
+    // the chat would silently end with an empty answer. Building the query
+    // item by item also keeps the API key when the URL already had one.
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("alt"), QStringLiteral("sse"));
     if (!m_config.apiKey.isEmpty())
-        url.setQuery(QUrlQuery({{QStringLiteral("key"), m_config.apiKey}}));
+        query.addQueryItem(QStringLiteral("key"), m_config.apiKey);
+    url.setQuery(query);
 
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    request.setRawHeader("Accept", "text/event-stream");
 
     m_stream = std::make_unique<SseClient>(m_nam, this);
     connect(m_stream.get(), &SseClient::eventReceived, this,
             [this](const QByteArray &, const QByteArray &data) { onStreamEvent(data); });
-    connect(m_stream.get(), &SseClient::httpError, this, [this](int, const QByteArray &body) {
-        const auto message = QJsonDocument::fromJson(body)
-                                 .object()
-                                 .value(QStringLiteral("error"))
-                                 .toObject()
-                                 .value(QStringLiteral("message"))
-                                 .toString();
-        emit failed(m_currentMessageId, message.isEmpty() ? QString::fromUtf8(body) : message);
+    connect(m_stream.get(), &SseClient::httpError, this,
+            [this](int status, const QByteArray &body) {
+                if (sseDebugOn())
+                    qWarning().noquote()
+                        << "[okapi sse] gemini httpError" << status
+                        << "body:" << debugSanitize::clip(debugSanitize::redact(body), 500);
+                const auto message = QJsonDocument::fromJson(body)
+                                         .object()
+                                         .value(QStringLiteral("error"))
+                                         .toObject()
+                                         .value(QStringLiteral("message"))
+                                         .toString();
+                emit failed(m_currentMessageId,
+                            message.isEmpty() ? QString::fromUtf8(body) : message, status);
+            });
+    connect(m_stream.get(), &SseClient::networkError, this, [this](const QString &error) {
+        if (sseDebugOn())
+            qWarning().noquote() << "[okapi sse] gemini networkError:" << error;
+        emit failed(m_currentMessageId, error);
     });
-    connect(m_stream.get(), &SseClient::networkError, this,
-            [this](const QString &error) { emit failed(m_currentMessageId, error); });
-    connect(m_stream.get(), &SseClient::finished, this,
-            [this]() { emit finished(m_currentMessageId); });
+    connect(m_stream.get(), &SseClient::finished, this, [this]() {
+        if (sseDebugOn())
+            qWarning().noquote() << "[okapi sse] gemini stream finished, accumulated"
+                                 << m_accumulated.size() << "chars";
+        emit finished(m_currentMessageId);
+    });
 
     m_stream->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
 }
@@ -172,6 +199,9 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model,
 void GeminiBackend::onStreamEvent(const QByteArray &data) {
     const auto candidates =
         QJsonDocument::fromJson(data).object().value(QStringLiteral("candidates")).toArray();
+    if (sseDebugOn())
+        qWarning().noquote() << "[okapi sse] gemini event, candidates=" << candidates.size()
+                             << "data=" << debugSanitize::clip(debugSanitize::redact(data), 400);
     if (candidates.isEmpty())
         return;
     const auto parts = candidates.first()

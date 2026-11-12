@@ -317,6 +317,9 @@ void MainWindow::setupUi() {
     m_toolBar->setFloatable(false);
     m_toolBar->setIconSize(QSize(16, 16));
     m_toolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    // Fusion draws 1px border lines above/below the toolbar; remove them for
+    // a flat Plasma-style look (they were bright white in dark mode).
+    m_toolBar->setStyleSheet(QStringLiteral("QToolBar { border: none; }"));
     m_newChatButton = new QToolButton(m_toolBar);
     m_newChatButton->setText(tr("New"));
     m_newChatButton->setIcon(

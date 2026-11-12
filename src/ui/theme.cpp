@@ -31,6 +31,11 @@ namespace {
     p.setColor(QPalette::Highlight, QColor(42, 130, 218));
     p.setColor(QPalette::HighlightedText, Qt::white);
     p.setColor(QPalette::Mid, QColor(77, 77, 77));
+    // Frame/separator roles: left at their defaults these stay (near-)white
+    // and show up as light lines around toolbars etc. in dark mode.
+    p.setColor(QPalette::Light, QColor(72, 72, 78));
+    p.setColor(QPalette::Midlight, QColor(58, 58, 63));
+    p.setColor(QPalette::Dark, QColor(18, 18, 20));
     p.setColor(QPalette::Shadow, Qt::black);
     const QColor disabled(128, 128, 128);
     p.setColor(QPalette::Disabled, QPalette::WindowText, disabled);

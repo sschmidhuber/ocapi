@@ -88,6 +88,7 @@ private slots:
     void composerInsertTemplateAppendsTextAndAttachments();
     void promptMenuFiltersAndEnterConfirms();
     void composerFollowsDarkPalette();
+    void darkThemeToolbarHasNoLightBorders();
     void promptMenuOpensAtCaretAnchor();
     void promptMenuArrowKeysNavigateVisibleEntries();
     void startupShowsNewChatAndLoadsOldChatsOnDemand();
@@ -847,6 +848,26 @@ int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     TestMainWindow test;
     return QTest::qExec(&test, argc, argv);
+}
+
+// In dark mode the toolbar must not show light horizontal border lines: the
+// frame roles (Light/Midlight/Dark) must be dark, and the toolbar's border
+// must be disabled via stylesheet.
+void TestMainWindow::darkThemeToolbarHasNoLightBorders() {
+    const QPalette original = qApp->palette();
+    MainWindow window;
+    window.show();
+    QVERIFY(applyTheme(UiSettings::Theme::Dark));
+    const QPalette p = qApp->palette();
+    QVERIFY(p.color(QPalette::Light).lightness() < 128);
+    QVERIFY(p.color(QPalette::Midlight).lightness() < 128);
+    QVERIFY(p.color(QPalette::Dark).lightness() < 128);
+    auto *toolBar = window.findChild<QToolBar *>(QStringLiteral("mainToolBar"));
+    if (!toolBar)
+        QFAIL("main toolbar not found");
+    QVERIFY(toolBar->styleSheet().contains(QStringLiteral("border: none")));
+    QVERIFY(!applyTheme(UiSettings::Theme::Light));
+    qApp->setPalette(original);
 }
 
 // In dark mode the composer's text edit must use the dark base color (its

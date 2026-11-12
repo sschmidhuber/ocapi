@@ -62,6 +62,7 @@ void appendFileAttachment(const QString &path, QVector<ImageAttachment> &images,
 PromptTemplatesPage::PromptTemplatesPage(PromptTemplateRegistry *registry, QWidget *parent)
     : QWidget(parent), m_registry(registry) {
     auto *splitter = new QSplitter(this);
+    splitter->setHandleWidth(1); // slim 1px border instead of the wide Fusion handle
 
     auto *leftWidget = new QWidget(splitter);
     auto *leftLayout = new QVBoxLayout(leftWidget);

@@ -27,6 +27,7 @@ namespace okapi {
 SttPage::SttPage(SttRegistry *registry, BackendRegistry *backendRegistry, QWidget *parent)
     : QWidget(parent), m_registry(registry), m_backendRegistry(backendRegistry) {
     auto *splitter = new QSplitter(this);
+    splitter->setHandleWidth(1); // slim 1px border instead of the wide Fusion handle
     m_list = new QListWidget(splitter);
     m_list->setMinimumWidth(200);
 

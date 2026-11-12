@@ -30,6 +30,7 @@ constexpr int TestTimeoutMs = 15000;
 BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
     : QWidget(parent), m_registry(registry) {
     auto *splitter = new QSplitter(this);
+    splitter->setHandleWidth(1); // slim 1px border instead of the wide Fusion handle
     m_list = new QListWidget(splitter);
     m_list->setMinimumWidth(200);
 

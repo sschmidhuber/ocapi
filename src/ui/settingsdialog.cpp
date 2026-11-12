@@ -40,6 +40,7 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
     resize(880, 580);
 
     auto *splitter = new QSplitter(this);
+    splitter->setHandleWidth(1); // slim 1px border instead of the wide Fusion handle
     m_categories = new QListWidget(splitter);
     m_categories->setMinimumWidth(110);
     m_categories->setMaximumWidth(150);

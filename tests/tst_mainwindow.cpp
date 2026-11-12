@@ -866,8 +866,12 @@ void TestMainWindow::darkThemeToolbarHasNoLightBorders() {
     QVERIFY(p.color(QPalette::Dark).lightness() < 128);
     const QString sheet = qApp->styleSheet();
     QVERIFY(sheet.contains(QStringLiteral("QToolBar { border: none; }")));
-    QVERIFY(sheet.contains(QStringLiteral("QSplitter::handle:horizontal { width: 3px; }")));
-    QVERIFY(sheet.contains(QStringLiteral("QSplitter::handle:vertical { height: 3px; }")));
+    QVERIFY(sheet.contains(QStringLiteral("QSplitter::handle { background: palette(mid); }")));
+    // The wide Fusion splitter handles must be slimmed to a 1px hairline.
+    const auto splitters = window.findChildren<QSplitter *>();
+    QVERIFY(!splitters.isEmpty());
+    for (auto *sp : splitters)
+        QCOMPARE(sp->handleWidth(), 1);
     QVERIFY(!applyTheme(UiSettings::Theme::Light));
     qApp->setPalette(original);
     qApp->setStyleSheet(originalSheet);

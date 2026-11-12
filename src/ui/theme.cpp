@@ -85,9 +85,8 @@ bool applyTheme(UiSettings::Theme theme) {
     qApp->setStyleSheet(QStringLiteral(
         "QToolBar { border: none; }"
         "QMainWindow::separator { width: 1px; height: 1px; background: palette(mid); }"
-        "QSplitter::handle { background: palette(mid); }"
-        "QSplitter::handle:horizontal { width: 3px; }"
-        "QSplitter::handle:vertical { height: 3px; }"));
+        "QSplitter { border: none; margin: 0; padding: 0; }"
+        "QSplitter::handle { background: palette(mid); }"));
     return dark;
 }
 

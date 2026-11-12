@@ -3,6 +3,7 @@
 #include "core/sessiongrouper.h"
 
 #include <QApplication>
+#include <QFrame>
 #include <QHeaderView>
 #include <QIcon>
 #include <QIconEngine>
@@ -91,10 +92,13 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent), m_tree(new QTreeWidget(this
     connect(m_spinnerTimer, &QTimer::timeout, this, &Sidebar::advanceSpinner);
 
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(8, 8, 8, 8);
+    // No right margin: the 1px splitter handle is the only separator between
+    // sidebar and chat area.
+    layout->setContentsMargins(8, 8, 0, 8);
     layout->setSpacing(6);
     layout->addWidget(m_tree, 1);
 
+    m_tree->setFrameShape(QFrame::NoFrame);
     m_tree->setHeaderHidden(true);
     m_tree->setRootIsDecorated(true);
     m_tree->setIndentation(12);

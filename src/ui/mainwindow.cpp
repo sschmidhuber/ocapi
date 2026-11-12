@@ -345,6 +345,7 @@ void MainWindow::setupUi() {
     centralLayout->setSpacing(0);
 
     auto *splitter = new QSplitter(central);
+    splitter->setHandleWidth(1); // slim 1px border instead of the wide Fusion handle
 
     m_sidebar = new Sidebar(splitter);
     m_sidebar->setMinimumWidth(200);
@@ -432,6 +433,7 @@ void MainWindow::setupUi() {
     // settings); attachment thumbnails grow the composer column on top of
     // the persisted base height, shrinking the chat area.
     m_rightSplitter = new QSplitter(Qt::Vertical, rightPanel);
+    m_rightSplitter->setHandleWidth(1); // slim 1px border instead of the wide Fusion handle
     m_rightSplitter->setChildrenCollapsible(false);
     m_rightSplitter->addWidget(chatMarginHost);
     m_rightSplitter->addWidget(composerColumn);

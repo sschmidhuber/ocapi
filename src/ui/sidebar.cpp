@@ -92,9 +92,9 @@ Sidebar::Sidebar(QWidget *parent) : QWidget(parent), m_tree(new QTreeWidget(this
     connect(m_spinnerTimer, &QTimer::timeout, this, &Sidebar::advanceSpinner);
 
     auto *layout = new QVBoxLayout(this);
-    // No right margin: the 1px splitter handle is the only separator between
-    // sidebar and chat area.
-    layout->setContentsMargins(8, 8, 0, 8);
+    // No top/right margin: the 1px splitter handles are the only separators
+    // (top edge and the border to the chat area).
+    layout->setContentsMargins(8, 0, 0, 8);
     layout->setSpacing(6);
     layout->addWidget(m_tree, 1);
 

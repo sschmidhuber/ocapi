@@ -42,6 +42,12 @@ public:
         m_errorStatus = status;
         m_errorBody = jsonBody;
     }
+    // Respond with a fixed status/content-type/body instead of the SSE stream.
+    void setRawResponse(int status, const QByteArray &contentType, const QByteArray &body) {
+        m_rawStatus = status;
+        m_rawContentType = contentType;
+        m_rawBody = body;
+    }
 
     // Request target (path + query) of the most recently completed request.
     [[nodiscard]] QString lastRequestTarget() const { return m_lastTarget; }
@@ -70,19 +76,24 @@ private:
 
         QByteArray body;
         QByteArray statusLine;
-        if (m_errorStatus >= 400) {
+        QByteArray contentType;
+        if (m_rawStatus != 0) {
+            statusLine = "HTTP/1.1 " + QByteArray::number(m_rawStatus) + " Raw\r\n";
+            contentType = m_rawContentType;
+            body = m_rawBody;
+        } else if (m_errorStatus >= 400) {
             statusLine = "HTTP/1.1 " + QByteArray::number(m_errorStatus) + " Error\r\n";
+            contentType = "application/json";
             body = m_errorBody;
         } else {
             statusLine = "HTTP/1.1 200 OK\r\n";
+            contentType = "text/event-stream";
             for (const QString &event : m_events)
                 body += "data: " + event.toUtf8() + "\n\n";
         }
         QByteArray response;
         response += statusLine;
-        response += "Content-Type: ";
-        response += m_errorStatus >= 400 ? "application/json" : "text/event-stream";
-        response += "\r\n";
+        response += "Content-Type: " + contentType + "\r\n";
         response += "Content-Length: " + QByteArray::number(body.size()) + "\r\n";
         response += "\r\n";
         response += body;
@@ -95,6 +106,9 @@ private:
     QStringList m_events;
     int m_errorStatus = 0;
     QByteArray m_errorBody;
+    int m_rawStatus = 0;
+    QByteArray m_rawContentType;
+    QByteArray m_rawBody;
     QString m_lastTarget;
 };
 
@@ -131,6 +145,7 @@ class TestGeminiBackend : public QObject {
 private slots:
     void sendMessageRequestsSseAndStreamsText();
     void httpErrorIsReportedAsFailure();
+    void nonSseResponseStillFinishes();
 
 private:
     FakeGeminiServer m_server;
@@ -175,6 +190,24 @@ void TestGeminiBackend::httpErrorIsReportedAsFailure() {
 
     QVERIFY(failedSpy.wait(10000));
     QCOMPARE(failedSpy.last().at(1).toString(), QStringLiteral("API key not valid"));
+}
+
+// A 200 response that is not SSE (e.g. when alt=sse was dropped from the
+// request URL) must not hang the turn forever: the stream ends and no tokens
+// are emitted.
+void TestGeminiBackend::nonSseResponseStillFinishes() {
+    QVERIFY(m_server.start());
+    m_server.setRawResponse(200, "application/json", R"({"candidates":[]})");
+
+    GeminiBackend backend(geminiConfig(m_server.port()));
+    ChatSession session;
+    session.appendMessage(Role::User, QStringLiteral("hi"));
+    QSignalSpy tokenSpy(&backend, &IBackend::tokenReceived);
+    QSignalSpy finishedSpy(&backend, &IBackend::finished);
+    backend.sendMessage(&session, QStringLiteral("gemini-test"));
+
+    QTRY_VERIFY_WITH_TIMEOUT(finishedSpy.count() >= 1, 10000);
+    QCOMPARE(tokenSpy.count(), 0);
 }
 
 QTEST_MAIN(TestGeminiBackend)

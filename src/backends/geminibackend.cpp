@@ -1,6 +1,7 @@
 #include "backends/geminibackend.h"
 #include "backends/sseclient.h"
 #include "core/chatsession.h"
+#include "core/debuglog.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -160,19 +161,31 @@ void GeminiBackend::sendMessage(ChatSession *session, const QString &model,
     m_stream = std::make_unique<SseClient>(m_nam, this);
     connect(m_stream.get(), &SseClient::eventReceived, this,
             [this](const QByteArray &, const QByteArray &data) { onStreamEvent(data); });
-    connect(m_stream.get(), &SseClient::httpError, this, [this](int, const QByteArray &body) {
-        const auto message = QJsonDocument::fromJson(body)
-                                 .object()
-                                 .value(QStringLiteral("error"))
-                                 .toObject()
-                                 .value(QStringLiteral("message"))
-                                 .toString();
-        emit failed(m_currentMessageId, message.isEmpty() ? QString::fromUtf8(body) : message);
+    connect(
+        m_stream.get(), &SseClient::httpError, this, [this](int status, const QByteArray &body) {
+            if (qEnvironmentVariableIsSet("OKAPI_DEBUG_SSE"))
+                qWarning().noquote()
+                    << "[okapi sse] gemini httpError" << status
+                    << "body:" << debugSanitize::clip(debugSanitize::redact(body), 500);
+            const auto message = QJsonDocument::fromJson(body)
+                                     .object()
+                                     .value(QStringLiteral("error"))
+                                     .toObject()
+                                     .value(QStringLiteral("message"))
+                                     .toString();
+            emit failed(m_currentMessageId, message.isEmpty() ? QString::fromUtf8(body) : message);
+        });
+    connect(m_stream.get(), &SseClient::networkError, this, [this](const QString &error) {
+        if (qEnvironmentVariableIsSet("OKAPI_DEBUG_SSE"))
+            qWarning().noquote() << "[okapi sse] gemini networkError:" << error;
+        emit failed(m_currentMessageId, error);
     });
-    connect(m_stream.get(), &SseClient::networkError, this,
-            [this](const QString &error) { emit failed(m_currentMessageId, error); });
-    connect(m_stream.get(), &SseClient::finished, this,
-            [this]() { emit finished(m_currentMessageId); });
+    connect(m_stream.get(), &SseClient::finished, this, [this]() {
+        if (qEnvironmentVariableIsSet("OKAPI_DEBUG_SSE"))
+            qWarning().noquote() << "[okapi sse] gemini stream finished, accumulated"
+                                 << m_accumulated.size() << "chars";
+        emit finished(m_currentMessageId);
+    });
 
     m_stream->post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
 }

@@ -77,6 +77,11 @@ void SseClient::post(const QNetworkRequest &request, const QByteArray &payload) 
         sseDebug("=== POST " + debugSanitize::redact(request.url().toEncoded()) + "\n");
         sseDebug("=== request body: " + debugSanitize::clip(debugSanitize::redact(payload), 200) +
                  "\n");
+        // Also to stderr, so the terminal shows the request when the app is
+        // started from a console (the file log above is easy to miss).
+        qWarning().noquote() << "[okapi sse] POST"
+                             << debugSanitize::redact(request.url().toString()) << "payload"
+                             << payload.size() << "bytes";
     }
     m_reply = m_nam->post(request, payload);
     connect(m_reply, &QNetworkReply::readyRead, this, &SseClient::onReadyRead);
@@ -100,6 +105,9 @@ void SseClient::onReadyRead() {
     // available in onFinished() even when readyRead already consumed it.
     m_received.append(chunk);
     if (sseDebugEnabled())
+        qWarning().noquote() << "[okapi sse] read" << chunk.size() << "bytes (buffer now"
+                             << m_buffer.size() + chunk.size() << ")";
+    if (sseDebugEnabled())
         sseDebug("--- read " + QByteArray::number(chunk.size()) +
                  " bytes\n--- hex: " + debugSanitize::clip(hexDump(chunk), 400) +
                  "\n--- text: " + debugSanitize::clip(debugSanitize::redact(chunk), 1000) + "\n");
@@ -110,6 +118,8 @@ void SseClient::onReadyRead() {
         events = extractCompleteNdjsonRecords(m_buffer);
     else
         events = extractCompleteEvents(m_buffer);
+    if (sseDebugEnabled() && !events.isEmpty())
+        qWarning().noquote() << "[okapi sse] parsed" << events.size() << "event(s)";
 
     for (const auto &rawEvent : events) {
         std::optional<SseEvent> parsed;
@@ -146,8 +156,13 @@ void SseClient::onFinished() {
         onReadyRead();
 
     const QNetworkReply::NetworkError error = m_reply->error();
+    const int status = m_reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    if (sseDebugEnabled())
+        qWarning().noquote() << "[okapi sse] finished status=" << status << "content-type="
+                             << m_reply->header(QNetworkRequest::ContentTypeHeader).toString()
+                             << "received=" << m_received.size() << "bytes"
+                             << "error=" << m_reply->errorString();
     if (error != QNetworkReply::NoError && error != QNetworkReply::OperationCanceledError) {
-        const int status = m_reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (status >= 400)
             emit httpError(status, m_received);
         else

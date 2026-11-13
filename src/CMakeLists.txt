@@ -132,6 +132,7 @@ endif()
 set(OKAPI_UI_SOURCES
     ui/mainwindow.h
     ui/mainwindow.cpp
+    ui/mainwindow.ui
     ui/chatview.h
     ui/chatview.cpp
     ui/webchatview.h

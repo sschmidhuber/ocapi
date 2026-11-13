@@ -85,6 +85,7 @@ add_test(NAME tst_settingsdialog COMMAND tst_settingsdialog)
 # like tst_settingsdialog and needs the UI sources it pulls in.
 add_executable(tst_mainwindow tst_mainwindow.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/mainwindow.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/mainwindow.ui
     ${CMAKE_SOURCE_DIR}/src/ui/webchatview.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/chatview.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/chatdelegate.cpp

@@ -11,6 +11,7 @@
 #include "ui/sidebar.h"
 #include "ui/theme.h"
 #include "ui/webchatview.h"
+#include "ui_mainwindow.h"
 
 #include <QApplication>
 #include <QDateTime>
@@ -310,140 +311,53 @@ void MainWindow::showEvent(QShowEvent *event) {
 }
 
 void MainWindow::setupUi() {
-    // Plasma-style toolbar across the top: flat buttons with icon and text.
-    m_toolBar = addToolBar(tr("Main"));
-    m_toolBar->setObjectName(QStringLiteral("mainToolBar"));
-    m_toolBar->setMovable(false);
-    m_toolBar->setFloatable(false);
-    m_toolBar->setIconSize(QSize(16, 16));
-    m_toolBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    m_newChatButton = new QToolButton(m_toolBar);
-    m_newChatButton->setText(tr("New"));
+    // The whole main-window layout is loaded from ui/mainwindow.ui
+    // (AUTOUIC); the m_* widget members are assigned from the generated
+    // Ui::MainWindow struct.
+    m_ui = std::make_unique<Ui::MainWindow>();
+    m_ui->setupUi(this);
+
+    m_toolBar = m_ui->mainToolBar;
+    m_newChatButton = m_ui->newChatButton;
+    m_settingsButton = m_ui->settingsButton;
+    m_sidebar = m_ui->sidebar;
+    m_chatView = m_ui->chatView;
+    m_emptyLabel = m_ui->emptyLabel;
+    m_composer = m_ui->composer;
+    m_composerColumn = m_ui->composerColumn;
+    m_rightSplitter = m_ui->rightSplitter;
+    m_modelPicker = m_ui->modelPicker;
+    m_sendButton = m_ui->sendButton;
+    m_stopButton = m_ui->stopButton;
+    m_cancelEditButton = m_ui->cancelEditButton;
+    m_speakButton = m_ui->speakButton;
+
+    // Icons need the current theme (re-set on theme changes as well).
     m_newChatButton->setIcon(
         themedIcon(QStringLiteral(":/resources/icons/contact-new-symbolic.svg")));
-    // Widgets added via addWidget() don't inherit the toolbar's
-    // toolButtonStyle; set it explicitly so icon and text both show.
-    m_newChatButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_settingsButton->setIcon(
+        themedIcon(QStringLiteral(":/resources/icons/settings-configure-symbolic.svg")));
     const QKeySequence newChatSequence = m_shortcuts.sequence(QStringLiteral("newChat"));
     m_newChatButton->setToolTip(
         tr("Start a new chat (%1)").arg(newChatSequence.toString(QKeySequence::NativeText)));
-    m_settingsButton = new QToolButton(m_toolBar);
-    m_settingsButton->setText(tr("Settings"));
-    m_settingsButton->setIcon(
-        themedIcon(QStringLiteral(":/resources/icons/settings-configure-symbolic.svg")));
-    m_settingsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    m_settingsButton->setToolTip(tr("Open settings"));
-    m_toolBar->addWidget(m_newChatButton);
-    m_toolBar->addWidget(m_settingsButton);
-
-    auto *central = new QWidget(this);
-    auto *centralLayout = new QHBoxLayout(central);
-    centralLayout->setContentsMargins(0, 0, 0, 0);
-    centralLayout->setSpacing(0);
-
-    auto *splitter = new QSplitter(central);
-
-    m_sidebar = new Sidebar(splitter);
-    m_sidebar->setMinimumWidth(200);
-    m_sidebar->setMaximumWidth(320);
-
-    auto *rightPanel = new QWidget(splitter);
-    auto *rightLayout = new QVBoxLayout(rightPanel);
-    rightLayout->setContentsMargins(0, 0, 0, 0);
-    rightLayout->setSpacing(0);
-
-    // Constant margin around the chat conversation area, matching the
-    // sidebar's 8px gap. A slim scrollbar keeps the chat box the same
-    // width whether the scrollbar is shown or not.
-    constexpr int kPanelMargin = 8;
-    m_chatView = new WebChatView(rightPanel);
-    auto *chatMargin = new QVBoxLayout();
-    chatMargin->setContentsMargins(kPanelMargin, kPanelMargin, kPanelMargin, 0);
-    chatMargin->setSpacing(kPanelMargin);
-    chatMargin->addWidget(m_chatView);
-    m_emptyLabel =
-        new QLabel(tr("Select a chat or start a new one.\n\n"
-                      "Set up a backend via \"Settings… → Model backends\" to get started."),
-                   rightPanel);
-    m_emptyLabel->setAlignment(Qt::AlignCenter);
-    m_emptyLabel->setStyleSheet(QStringLiteral("color: gray;"));
-    chatMargin->addWidget(m_emptyLabel);
-    m_emptyLabel->hide();
-    auto *chatMarginHost = new QWidget(rightPanel);
-    chatMarginHost->setLayout(chatMargin);
-    chatMarginHost->setMinimumHeight(kMinChatHeight);
-
-    auto *composerColumn = new QWidget(rightPanel);
-    auto *composerColumnLayout = new QVBoxLayout(composerColumn);
-    composerColumnLayout->setContentsMargins(kPanelMargin, kPanelMargin, kPanelMargin,
-                                             kPanelMargin);
-    composerColumnLayout->setSpacing(4);
-    m_composer = new Composer(composerColumn);
-    composerColumnLayout->addWidget(m_composer);
-
-    // Row below the input: model picker, audio and file input buttons,
-    // then send/stop.
-    auto *footerRow = new QWidget(composerColumn);
-    auto *footerLayout = new QHBoxLayout(footerRow);
-    footerLayout->setContentsMargins(0, 0, 0, 0);
-    footerLayout->setSpacing(6);
-    m_modelPicker = new ModelPickerButton(footerRow);
-    m_modelPicker->setToolTip(tr("Select model backend and model"));
-    m_sendButton = new QPushButton(tr("Send"), footerRow);
-    m_stopButton = new QPushButton(tr("Stop"), footerRow);
-    m_stopButton->setVisible(false);
-    // Shown only while a user message is being edited.
-    m_cancelEditButton = new QPushButton(tr("Cancel"), footerRow);
-    m_cancelEditButton->setVisible(false);
-    // Icon button styled like the Dictate (mic) button next to it.
-    m_speakButton = new QToolButton(footerRow);
     const QIcon speakerIcon(themedIcon(QStringLiteral(":/resources/icons/audio-symbolic.svg")));
-    if (!speakerIcon.isNull()) {
+    if (!speakerIcon.isNull())
         m_speakButton->setIcon(speakerIcon);
-        m_speakButton->setIconSize(QSize(18, 18));
-    } else {
+    else
         m_speakButton->setText(QString::fromUtf8("\U0001F50A"));
-    }
-    m_speakButton->setCheckable(true);
-    m_speakButton->setAutoRaise(true);
+    m_speakButton->setIconSize(QSize(18, 18));
     m_speakButton->setFixedSize(28, 28);
-    m_speakButton->setToolTip(tr("Audio output (text-to-speech)"));
-    m_speakButton->setAccessibleName(tr("Speak assistant responses aloud"));
-    m_speakButton->setVisible(false);
-    footerLayout->addWidget(m_modelPicker, 1);
-    footerLayout->addStretch(1);
-    m_composer->micButton()->setParent(footerRow);
-    m_composer->attachButton()->setParent(footerRow);
-    footerLayout->addWidget(m_composer->micButton());
-    footerLayout->addWidget(m_composer->attachButton());
-    footerLayout->addWidget(m_speakButton);
-    footerLayout->addWidget(m_cancelEditButton);
-    footerLayout->addWidget(m_sendButton);
-    footerLayout->addWidget(m_stopButton);
-    composerColumnLayout->addWidget(footerRow);
-    composerColumn->setMinimumHeight(UiSettings::kMinComposerHeight);
-    m_composerColumn = composerColumn;
 
-    // The chat area and the composer share a vertical splitter, so the
-    // composer height is resizable with the mouse (persisted in the UI
-    // settings); attachment thumbnails grow the composer column on top of
-    // the persisted base height, shrinking the chat area.
-    m_rightSplitter = new QSplitter(Qt::Vertical, rightPanel);
-    m_rightSplitter->setChildrenCollapsible(false);
-    m_rightSplitter->addWidget(chatMarginHost);
-    m_rightSplitter->addWidget(composerColumn);
-    rightLayout->addWidget(m_rightSplitter, 1);
+    m_ui->mainSplitter->setStretchFactor(1, 1);
+    m_composerColumn->setMinimumHeight(UiSettings::kMinComposerHeight);
 
-    // Dropping files/images onto the chat view forwards them to the
-    // composer's attachment strip.
-    connect(m_chatView, &WebChatView::urlsDropped, m_composer, &Composer::addDroppedUrls);
-    connect(m_chatView, &WebChatView::imageDropped, m_composer, &Composer::addDroppedImage);
-
-    splitter->addWidget(m_sidebar);
-    splitter->addWidget(rightPanel);
-    splitter->setStretchFactor(1, 1);
-    centralLayout->addWidget(splitter);
-    setCentralWidget(central);
+    // The composer's mic/attach buttons live in the footer row, right after
+    // the spacer (footerLayout already holds picker, spacer, speak, cancel,
+    // send, stop from the .ui file).
+    m_composer->micButton()->setParent(m_ui->footerRow);
+    m_composer->attachButton()->setParent(m_ui->footerRow);
+    m_ui->footerLayout->insertWidget(2, m_composer->micButton());
+    m_ui->footerLayout->insertWidget(3, m_composer->attachButton());
 
     m_statusLabel = new QLabel(statusBar());
     statusBar()->addPermanentWidget(m_statusLabel);

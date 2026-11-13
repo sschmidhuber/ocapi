@@ -1,22 +1,21 @@
-# Designer UI representation
+# Qt Designer UI files
 
-`mainwindow.ui` is a **Qt Widget Designer** representation of Okapi's main
-window (toolbar, sidebar, chat area, composer). Open it with:
+The main window layout is loaded at runtime from **`src/ui/mainwindow.ui`**
+(CMake AUTOUIC generates `ui_mainwindow.h`; `MainWindow::setupUi()` calls
+`Ui::MainWindow::setupUi(this)`). Open it in Qt Widget Designer:
 
 ```sh
-designer designer/mainwindow.ui        # or open via Qt Creator
+designer src/ui/mainwindow.ui        # or open via Qt Creator
 ```
 
-Note: Okapi builds its UI programmatically in `src/ui/mainwindow.cpp`
-(`MainWindow::setupUi()`); the app does **not** load this file at runtime.
-Custom widgets are represented by placeholders:
+Custom widgets are promoted widgets in the .ui file:
 
-| Placeholder in .ui | Real class in code |
+| Widget in .ui | Real class |
 |---|---|
-| `sidebar` / `sidebarTree` | `Sidebar` (contains a `QTreeWidget`) |
-| `chatView` | `WebChatView` (`QWebEngineView`) |
-| `composer` / `composerInput` | `Composer` / `MessageTextEdit` (`QPlainTextEdit`) |
-| `modelPicker` | `ModelPickerButton` |
+| `sidebar` | `okapi::Sidebar` (`ui/sidebar.h`) |
+| `chatView` | `okapi::WebChatView` (`ui/webchatview.h`) |
+| `composer` | `okapi::Composer` (`ui/composer.h`) |
+| `modelPicker` | `okapi::ModelPickerButton` (`ui/mainwindow.h`) |
 
-Use this file to experiment with the layout in Designer; port changes back
-to `setupUi()` in code.
+Edit the layout in Designer, keep `objectName`s stable (unit + E2E tests
+locate widgets by name/accessible name), and rebuild.

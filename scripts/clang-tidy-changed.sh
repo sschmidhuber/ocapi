@@ -113,13 +113,18 @@ run_tidy() {
                     fi
                 fi
             fi
-            autogen_ui_dir="$(dirname "$(find "$build_dir" -name mocs_compilation.cpp | head -1)")"
-            # The autogen include dir on the -I path is <autogen>/include.
-            if [ -d "$autogen_ui_dir/include" ]; then
+            # Prefer the app target's autogen include dir (on the -I path of
+            # the compile command); quote-includes also resolve relative to
+            # the including file, so writing next to the source is a fallback.
+            autogen_ui_dir="$(dirname "$(find "$build_dir/src" -name mocs_compilation.cpp 2>/dev/null | head -1)")"
+            if [ -n "$autogen_ui_dir" ] && [ -d "$autogen_ui_dir/include" ]; then
                 autogen_ui_dir="$autogen_ui_dir/include"
             fi
             if [ -n "$uic_bin" ] && [ -n "$autogen_ui_dir" ]; then
                 "$uic_bin" "$ui_src" -o "$autogen_ui_dir/$ui_header" >/dev/null 2>&1 || true
+            fi
+            if [ -n "$uic_bin" ]; then
+                "$uic_bin" "$ui_src" -o "$(dirname "$file")/$ui_header" >/dev/null 2>&1 || true
             fi
         fi
     done

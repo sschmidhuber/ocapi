@@ -88,6 +88,41 @@ run_tidy() {
             fi
         fi
     fi
+    # AUTOUIC: if the TU includes a generated ui_*.h, run uic on the matching
+    # .ui next to the source into the autogen include dir (which is on the
+    # -I path of the compile command). The autogen target usually emits it,
+    # but generate it explicitly so a failed autogen cannot break the check.
+    for ui_header in $(grep -oE '#include "ui_[^"]+\.h"' "$file" | sed -E 's/#include "([^"]+)"/\1/'); do
+        ui_src="$(dirname "$file")/${ui_header#ui_}"
+        ui_src="${ui_src%.h}.ui"
+        if [ -f "$ui_src" ]; then
+            uic_bin="$(find "$build_dir" -name uic -type f | head -1)"
+            if [ -z "$uic_bin" ]; then
+                uic_bin="$(command -v uic || true)"
+            fi
+            if [ -z "$uic_bin" ]; then
+                # Qt installs (aqtinstall, install-qt-action) keep uic in
+                # libexec/, not bin/ - derive it from moc or Qt6_DIR.
+                moc_bin="$(command -v moc || true)"
+                if [ -n "$moc_bin" ] && [ -f "$(dirname "$moc_bin")/../libexec/uic" ]; then
+                    uic_bin="$(cd "$(dirname "$moc_bin")/../libexec" && pwd)/uic"
+                elif [ -f "$build_dir/CMakeCache.txt" ]; then
+                    qt6_dir="$(sed -n 's/^Qt6_DIR:PATH=//p' "$build_dir/CMakeCache.txt")"
+                    if [ -n "$qt6_dir" ] && [ -f "$qt6_dir/../../../libexec/uic" ]; then
+                        uic_bin="$qt6_dir/../../../libexec/uic"
+                    fi
+                fi
+            fi
+            autogen_ui_dir="$(dirname "$(find "$build_dir" -name mocs_compilation.cpp | head -1)")"
+            # The autogen include dir on the -I path is <autogen>/include.
+            if [ -d "$autogen_ui_dir/include" ]; then
+                autogen_ui_dir="$autogen_ui_dir/include"
+            fi
+            if [ -n "$uic_bin" ] && [ -n "$autogen_ui_dir" ]; then
+                "$uic_bin" "$ui_src" -o "$autogen_ui_dir/$ui_header" >/dev/null 2>&1 || true
+            fi
+        fi
+    done
     # -warnings-as-errors='*' turns every check warning into a failure, so
     # the exit code reflects the tidy result (a bare clang-tidy run exits 0
     # even when it prints warnings). A missing <name>.moc include is a fatal

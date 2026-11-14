@@ -1,4 +1,5 @@
 #include "ui/prompttemplatespage.h"
+#include "ui_prompttemplatespage.h"
 
 #include "core/filepreview.h"
 #include "core/prompttemplateregistry.h"
@@ -6,7 +7,6 @@
 
 #include <QFileDialog>
 #include <QFileInfo>
-#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -14,9 +14,10 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSplitter>
-#include <QVBoxLayout>
 
 namespace okapi {
+
+PromptTemplatesPage::~PromptTemplatesPage() = default;
 
 namespace {
 
@@ -61,56 +62,20 @@ void appendFileAttachment(const QString &path, QVector<ImageAttachment> &images,
 
 PromptTemplatesPage::PromptTemplatesPage(PromptTemplateRegistry *registry, QWidget *parent)
     : QWidget(parent), m_registry(registry) {
-    auto *splitter = new QSplitter(this);
+    m_ui = std::make_unique<Ui::PromptTemplatesPage>();
+    m_ui->setupUi(this);
+    m_list = m_ui->list;
+    m_nameEdit = m_ui->nameEdit;
+    m_textEdit = m_ui->textEdit;
+    m_attachmentsList = m_ui->attachmentsList;
+    m_newButton = m_ui->newButton;
+    m_saveButton = m_ui->saveButton;
+    m_deleteButton = m_ui->deleteButton;
+    m_addFilesButton = m_ui->addFilesButton;
+    m_removeAttachmentButton = m_ui->removeAttachmentButton;
 
-    auto *leftWidget = new QWidget(splitter);
-    auto *leftLayout = new QVBoxLayout(leftWidget);
-    leftLayout->setContentsMargins(0, 0, 0, 0);
-    m_list = new QListWidget(leftWidget);
-    leftLayout->addWidget(m_list, 1);
-    auto *leftButtons = new QHBoxLayout();
-    m_newButton = new QPushButton(tr("New"), leftWidget);
-    m_deleteButton = new QPushButton(tr("Delete"), leftWidget);
-    leftButtons->addWidget(m_newButton);
-    leftButtons->addWidget(m_deleteButton);
-    leftButtons->addStretch(1);
-    leftLayout->addLayout(leftButtons);
-
-    auto *rightWidget = new QWidget(splitter);
-    auto *form = new QVBoxLayout(rightWidget);
-    form->setContentsMargins(0, 0, 0, 0);
-    form->addWidget(new QLabel(tr("Name:"), rightWidget));
-    m_nameEdit = new QLineEdit(rightWidget);
-    m_nameEdit->setPlaceholderText(tr("Template name (shown in the autocompletion)"));
-    form->addWidget(m_nameEdit);
-    form->addWidget(new QLabel(tr("Prompt text:"), rightWidget));
-    m_textEdit = new QPlainTextEdit(rightWidget);
-    m_textEdit->setPlaceholderText(tr("Prompt text inserted into the composer"));
-    form->addWidget(m_textEdit, 1);
-    form->addWidget(new QLabel(tr("Attachments:"), rightWidget));
-    m_attachmentsList = new QListWidget(rightWidget);
-    m_attachmentsList->setMaximumHeight(120);
-    form->addWidget(m_attachmentsList);
-    auto *attachmentButtons = new QHBoxLayout();
-    m_addFilesButton = new QPushButton(tr("Add files…"), rightWidget);
-    m_removeAttachmentButton = new QPushButton(tr("Remove"), rightWidget);
-    attachmentButtons->addWidget(m_addFilesButton);
-    attachmentButtons->addWidget(m_removeAttachmentButton);
-    attachmentButtons->addStretch(1);
-    form->addLayout(attachmentButtons);
-    auto *formButtons = new QHBoxLayout();
-    m_saveButton = new QPushButton(tr("Save"), rightWidget);
-    formButtons->addWidget(m_saveButton);
-    formButtons->addStretch(1);
-    form->addLayout(formButtons);
-
-    splitter->addWidget(leftWidget);
-    splitter->addWidget(rightWidget);
-    splitter->setStretchFactor(0, 1);
-    splitter->setStretchFactor(1, 2);
-
-    auto *layout = new QVBoxLayout(this);
-    layout->addWidget(splitter);
+    m_ui->splitter->setStretchFactor(0, 1);
+    m_ui->splitter->setStretchFactor(1, 2);
 
     connect(m_list, &QListWidget::currentItemChanged, this,
             [this](QListWidgetItem *current, QListWidgetItem *) {

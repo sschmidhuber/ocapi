@@ -1,6 +1,11 @@
 #pragma once
 
 #include <QWidget>
+#include <memory>
+
+namespace Ui {
+class ShortcutPage;
+}
 
 class QLineEdit;
 class QPushButton;
@@ -20,6 +25,8 @@ class ShortcutPage : public QWidget {
     Q_OBJECT
 
 public:
+    ~ShortcutPage() override;
+
     explicit ShortcutPage(ShortcutRegistry *registry, QWidget *parent = nullptr);
 
 private slots:
@@ -30,6 +37,7 @@ private slots:
     void onRegistryChanged();
 
 private:
+    std::unique_ptr<Ui::ShortcutPage> m_ui;
     void rebuildTable();
     void applyFilter();
     // Opens the capture dialog for the action of the given row and applies a

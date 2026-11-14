@@ -6,6 +6,11 @@ Designer files (CMake AUTOUIC generates `ui_*.h`):
 - **`src/ui/mainwindow.ui`** — `MainWindow::setupUi()` calls `Ui::MainWindow::setupUi(this)`
 - **`src/ui/settingsdialog.ui`** — `SettingsDialog` calls `Ui::SettingsDialog::setupUi(this)`
   (categories/tabs are registered dynamically in code)
+- **`src/ui/<page>.ui`** — internal layout of each settings page
+  (`backendpage`, `mcppage`, `sttpage`, `ttspage`, `systempromptpage`,
+  `shortcutpage`, `userinterfacepage`, `prompttemplatespage`); widget
+  `objectName`s match the former `setObjectName()` calls (e.g. `themeCombo`,
+  `apiKeyRadio`, `apiKeyEdit`, `headersRadio`, `headersEdit`).
 
 Open them in Qt Widget Designer:
 

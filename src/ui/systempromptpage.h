@@ -1,6 +1,11 @@
 #pragma once
 
 #include <QWidget>
+#include <memory>
+
+namespace Ui {
+class SystemPromptPage;
+}
 
 class QPlainTextEdit;
 class QPushButton;
@@ -16,6 +21,8 @@ class SystemPromptPage : public QWidget {
     Q_OBJECT
 
 public:
+    ~SystemPromptPage() override;
+
     explicit SystemPromptPage(SystemPrompt *systemPrompt, QWidget *parent = nullptr);
 
 signals:
@@ -27,6 +34,7 @@ private slots:
     void onResetDefault();
 
 private:
+    std::unique_ptr<Ui::SystemPromptPage> m_ui;
     SystemPrompt *m_systemPrompt;
     QPlainTextEdit *m_editor = nullptr;
     QPlainTextEdit *m_preview = nullptr;

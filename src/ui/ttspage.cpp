@@ -1,4 +1,5 @@
 #include "ui/ttspage.h"
+#include "ui_ttspage.h"
 
 #include "core/backendregistry.h"
 #include "core/ttsplayer.h"
@@ -7,7 +8,6 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFormLayout>
-#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -17,7 +17,6 @@
 #include <QSlider>
 #include <QSplitter>
 #include <QTimer>
-#include <QVBoxLayout>
 
 #include <algorithm>
 
@@ -32,96 +31,44 @@ constexpr int TestTimeoutMs = 30000;
 TtsPage::TtsPage(TtsRegistry *registry, BackendRegistry *backendRegistry, QWidget *parent)
     : QWidget(parent), m_registry(registry), m_backendRegistry(backendRegistry),
       m_testPlayer(new TtsPlayer(this)) {
-    auto *splitter = new QSplitter(this);
-    m_list = new QListWidget(splitter);
-    m_list->setMinimumWidth(200);
+    m_ui = std::make_unique<Ui::TtsPage>();
+    m_ui->setupUi(this);
+    m_list = m_ui->list;
+    m_speakResponsesBox = m_ui->speakResponsesBox;
+    m_nameEdit = m_ui->nameEdit;
+    m_formLayout = m_ui->formLayout;
+    m_kindCombo = m_ui->kindCombo;
+    m_urlEdit = m_ui->urlEdit;
+    m_apiKeyEdit = m_ui->apiKeyEdit;
+    m_modelEdit = m_ui->modelEdit;
+    m_voiceCombo = m_ui->voiceCombo;
+    m_speedSlider = m_ui->speedSlider;
+    m_speedLabel = m_ui->speedLabel;
+    m_speedValueLabel = m_ui->speedValueLabel;
+    m_languageEdit = m_ui->languageEdit;
+    m_enabledBox = m_ui->enabledBox;
+    m_deviceCombo = m_ui->deviceCombo;
+    m_testButton = m_ui->testButton;
+    m_testResultLabel = m_ui->testResultLabel;
+    auto *addButton = m_ui->addButton;
+    auto *removeButton = m_ui->removeButton;
 
-    auto *formWidget = new QWidget(splitter);
-    auto *formLayout = new QFormLayout(formWidget);
-    // Right-aligned labels (KDE style), consistent with the MCP page.
-    formLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    m_formLayout = formLayout;
-    m_speakResponsesBox = new QCheckBox(tr("Speak assistant responses aloud"), formWidget);
     m_speakResponsesBox->setChecked(m_registry->speakResponses());
-    m_nameEdit = new QLineEdit(formWidget);
-    m_kindCombo = new QComboBox(formWidget);
     for (auto kind : TtsServiceConfig::allKinds()) {
         m_kindCombo->addItem(TtsServiceConfig::kindName(kind),
                              QVariant::fromValue(static_cast<int>(kind)));
     }
-    m_urlEdit = new QLineEdit(formWidget);
     m_urlEdit->setAccessibleName(tr("Base URL"));
-    m_urlEdit->setPlaceholderText(tr("http://127.0.0.1:5000"));
-    m_apiKeyEdit = new QLineEdit(formWidget);
-    m_apiKeyEdit->setEchoMode(QLineEdit::Password);
-    m_apiKeyEdit->setPlaceholderText(tr("API key"));
-    m_modelEdit = new QLineEdit(formWidget);
-    m_modelEdit->setPlaceholderText(tr("Model (optional)"));
-    m_voiceCombo = new QComboBox(formWidget);
-    m_voiceCombo->setEditable(true);
-    m_voiceCombo->setInsertPolicy(QComboBox::NoInsert);
-    // Full form width like the other fields: QComboBox sizes to its
-    // contents by default, which made it narrower than the provider combo.
-    m_voiceCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_voiceCombo->lineEdit()->setPlaceholderText(tr("Voice (optional)"));
     m_voiceCombo->setToolTip(tr("Voice name (OpenAI, Groq), voice ID (Mistral, ElevenLabs)"));
-    m_speedSlider = new QSlider(Qt::Horizontal, formWidget);
-    m_speedSlider->setToolTip(tr("Speech speed"));
-    m_speedValueLabel = new QLabel(formWidget);
-    m_languageEdit = new QLineEdit(formWidget);
-    m_languageEdit->setPlaceholderText(tr("ISO 639-1 code, e.g. en, de (optional)"));
-    m_enabledBox = new QCheckBox(tr("Enabled"), formWidget);
-    m_enabledBox->setChecked(true);
-    m_testButton = new QPushButton(tr("Test voice"), formWidget);
-    m_testResultLabel = new QLabel(formWidget);
-    m_testResultLabel->setWordWrap(true);
-    m_testTimer = new QTimer(this);
-    m_testTimer->setSingleShot(true);
-
-    formLayout->addRow(m_speakResponsesBox);
-    formLayout->addRow(tr("Provider:"), m_kindCombo);
-    formLayout->addRow(tr("Name:"), m_nameEdit);
-    formLayout->addRow(tr("Base URL:"), m_urlEdit);
-    formLayout->addRow(tr("API key:"), m_apiKeyEdit);
-    formLayout->addRow(tr("Default model:"), m_modelEdit);
-    formLayout->addRow(tr("Voice:"), m_voiceCombo);
-    auto *speedRow = new QHBoxLayout;
-    speedRow->addWidget(m_speedSlider, 1);
     // Fixed width so the slider keeps its size when the label text changes
     // (e.g. "moderate" vs "very fast" for the Mistral paces).
     m_speedValueLabel->setFixedWidth(
         m_speedValueLabel->fontMetrics().horizontalAdvance(QStringLiteral("very fast")));
-    speedRow->addWidget(m_speedValueLabel);
-    formLayout->addRow(m_speedLabel = new QLabel(tr("Speed:"), formWidget), speedRow);
-    formLayout->addRow(new QLabel(tr("Language:"), formWidget), m_languageEdit);
-    formLayout->addRow(m_enabledBox);
-    formLayout->addRow(m_testButton);
-    formLayout->addRow(m_testResultLabel);
-    m_testResultLabel->hide();
+    m_testTimer = new QTimer(this);
+    m_testTimer->setSingleShot(true);
 
-    m_deviceCombo = new QComboBox(formWidget);
-    formLayout->addRow(tr("Audio output device:"), m_deviceCombo);
-
-    auto *listButtons = new QHBoxLayout;
-    auto *addButton = new QPushButton(tr("Add"));
-    auto *removeButton = new QPushButton(tr("Remove"));
-    listButtons->addWidget(addButton);
-    listButtons->addWidget(removeButton);
-    listButtons->addStretch();
-
-    auto *leftLayout = new QVBoxLayout;
-    leftLayout->addWidget(m_list);
-    leftLayout->addLayout(listButtons);
-    auto *leftWidget = new QWidget(splitter);
-    leftWidget->setLayout(leftLayout);
-
-    splitter->addWidget(leftWidget);
-    splitter->addWidget(formWidget);
-    splitter->setStretchFactor(1, 1);
-
-    auto *outerLayout = new QVBoxLayout(this);
-    outerLayout->setContentsMargins(0, 0, 0, 0);
-    outerLayout->addWidget(splitter);
+    m_ui->splitter->setStretchFactor(1, 1);
 
     connect(addButton, &QPushButton::clicked, this, &TtsPage::onAddService);
     connect(removeButton, &QPushButton::clicked, this, &TtsPage::onRemoveService);

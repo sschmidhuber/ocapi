@@ -1,4 +1,5 @@
 #include "ui/backendpage.h"
+#include "ui_backendpage.h"
 
 #include "backends/backendfactory.h"
 #include "backends/ibackend.h"
@@ -6,7 +7,6 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFormLayout>
-#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -15,7 +15,6 @@
 #include <QSpinBox>
 #include <QSplitter>
 #include <QTimer>
-#include <QVBoxLayout>
 #include <QVector>
 #include <algorithm>
 
@@ -27,19 +26,25 @@ constexpr int TestTimeoutMs = 15000;
 
 } // namespace
 
+BackendPage::~BackendPage() = default;
+
 BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
     : QWidget(parent), m_registry(registry) {
-    auto *splitter = new QSplitter(this);
-    m_list = new QListWidget(splitter);
-    m_list->setMinimumWidth(200);
+    m_ui = std::make_unique<Ui::BackendPage>();
+    m_ui->setupUi(this);
+    m_list = m_ui->list;
+    m_formLayout = m_ui->formLayout;
+    m_kindCombo = m_ui->kindCombo;
+    m_nameEdit = m_ui->nameEdit;
+    m_urlEdit = m_ui->urlEdit;
+    m_apiKeyEdit = m_ui->apiKeyEdit;
+    m_contextSpin = m_ui->contextSpin;
+    m_enabledBox = m_ui->enabledBox;
+    m_testButton = m_ui->testButton;
+    m_testResultLabel = m_ui->testResultLabel;
+    auto *addButton = m_ui->addButton;
+    auto *removeButton = m_ui->removeButton;
 
-    auto *formWidget = new QWidget(splitter);
-    auto *formLayout = new QFormLayout(formWidget);
-    // Right-aligned labels (KDE style), consistent with the MCP page.
-    formLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    m_formLayout = formLayout;
-    formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    m_kindCombo = new QComboBox(formWidget);
     {
         // Show the providers sorted alphabetically by their display name.
         QVector<BackendKind> kinds = BackendConfig::allKinds();
@@ -51,62 +56,15 @@ BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
                                  QVariant::fromValue(static_cast<int>(kind)));
         }
     }
-    m_nameEdit = new QLineEdit(formWidget);
-    m_urlEdit = new QLineEdit(formWidget);
     m_urlEdit->setAccessibleName(tr("Base URL"));
-    m_apiKeyEdit = new QLineEdit(formWidget);
-    m_apiKeyEdit->setEchoMode(QLineEdit::Password);
-    m_apiKeyEdit->setPlaceholderText(tr("API key"));
-    // Ollama drops the oldest messages of a conversation once the rendered
-    // prompt (system prompt + history + tool definitions) exceeds num_ctx;
-    // the window must therefore be requested explicitly. 0 keeps the
-    // server's default.
-    m_contextSpin = new QSpinBox(formWidget);
-    m_contextSpin->setRange(0, 1000000);
-    m_contextSpin->setSingleStep(1024);
-    m_contextSpin->setSpecialValueText(tr("Server default"));
     m_contextSpin->setToolTip(
         tr("Context window (Ollama num_ctx) requested from the server. Ollama "
            "silently drops the oldest messages when the conversation and the "
            "tool definitions do not fit; 0 keeps the server's default."));
-    m_enabledBox = new QCheckBox(tr("Enabled"), formWidget);
-    m_enabledBox->setChecked(true);
-    m_testButton = new QPushButton(tr("Test connection"), formWidget);
-    m_testResultLabel = new QLabel(formWidget);
-    m_testResultLabel->setWordWrap(true);
-    m_testResultLabel->hide();
     m_testTimer = new QTimer(this);
     m_testTimer->setSingleShot(true);
 
-    formLayout->addRow(tr("Provider:"), m_kindCombo);
-    formLayout->addRow(tr("Name:"), m_nameEdit);
-    formLayout->addRow(tr("Base URL:"), m_urlEdit);
-    formLayout->addRow(tr("API key:"), m_apiKeyEdit);
-    formLayout->addRow(tr("Context window:"), m_contextSpin);
-    formLayout->addRow(m_enabledBox);
-    formLayout->addRow(m_testButton);
-    formLayout->addRow(m_testResultLabel);
-
-    auto *listButtons = new QHBoxLayout;
-    auto *addButton = new QPushButton(tr("Add"));
-    auto *removeButton = new QPushButton(tr("Remove"));
-    listButtons->addWidget(addButton);
-    listButtons->addWidget(removeButton);
-    listButtons->addStretch();
-
-    auto *leftLayout = new QVBoxLayout;
-    leftLayout->addWidget(m_list);
-    leftLayout->addLayout(listButtons);
-    auto *leftWidget = new QWidget(splitter);
-    leftWidget->setLayout(leftLayout);
-
-    splitter->addWidget(leftWidget);
-    splitter->addWidget(formWidget);
-    splitter->setStretchFactor(1, 1);
-
-    auto *outerLayout = new QVBoxLayout(this);
-    outerLayout->setContentsMargins(0, 0, 0, 0);
-    outerLayout->addWidget(splitter);
+    m_ui->splitter->setStretchFactor(1, 1);
 
     connect(addButton, &QPushButton::clicked, this, &BackendPage::onAddBackend);
     connect(removeButton, &QPushButton::clicked, this, &BackendPage::onRemoveBackend);

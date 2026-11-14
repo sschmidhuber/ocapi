@@ -71,7 +71,7 @@ Features:
 %license LICENSE
 %{_bindir}/okapi
 %{_datadir}/applications/dev.sschmidhuber.okapi.desktop
-%{_datadir}/icons/hicolor/512x512/apps/okapi.png
+%{_datadir}/icons/hicolor/*/apps/okapi.png
 %{_datadir}/metainfo/dev.sschmidhuber.okapi.appdata.xml
 
 %changelog

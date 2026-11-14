@@ -16,7 +16,7 @@ SystemPromptPage::~SystemPromptPage() = default;
 
 SystemPromptPage::SystemPromptPage(SystemPrompt *systemPrompt, QWidget *parent)
     : QWidget(parent), m_systemPrompt(systemPrompt),
-      m_ui(std::make_unique<Ui::m_ui = std::make_unique<Ui::SystemPromptPage>();>()) {
+      m_ui(std::make_unique<Ui::SystemPromptPage>()) {
     m_ui->setupUi(this);
     m_editor = m_ui->editor;
     m_preview = m_ui->preview;

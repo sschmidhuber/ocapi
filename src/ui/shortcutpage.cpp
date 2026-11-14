@@ -23,8 +23,7 @@ namespace okapi {
 ShortcutPage::~ShortcutPage() = default;
 
 ShortcutPage::ShortcutPage(ShortcutRegistry *registry, QWidget *parent)
-    : QWidget(parent), m_registry(registry),
-      m_ui(std::make_unique<Ui::m_ui = std::make_unique<Ui::ShortcutPage>();>()) {
+    : QWidget(parent), m_registry(registry), m_ui(std::make_unique<Ui::ShortcutPage>()) {
     m_ui->setupUi(this);
     m_search = m_ui->search;
     m_table = m_ui->table;

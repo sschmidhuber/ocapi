@@ -23,7 +23,7 @@ McpPage::~McpPage() = default;
 
 McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
     : QWidget(parent), m_registry(registry), m_manager(manager),
-      m_ui(std::make_unique<Ui::m_ui = std::make_unique<Ui::McpPage>();>()) {
+      m_ui(std::make_unique<Ui::McpPage>()) {
     m_ui->setupUi(this);
     m_list = m_ui->list;
     m_nameEdit = m_ui->nameEdit;

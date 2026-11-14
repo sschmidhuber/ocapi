@@ -61,8 +61,7 @@ void appendFileAttachment(const QString &path, QVector<ImageAttachment> &images,
 } // namespace
 
 PromptTemplatesPage::PromptTemplatesPage(PromptTemplateRegistry *registry, QWidget *parent)
-    : QWidget(parent), m_registry(registry),
-      m_ui(std::make_unique<Ui::m_ui = std::make_unique<Ui::PromptTemplatesPage>();>()) {
+    : QWidget(parent), m_registry(registry), m_ui(std::make_unique<Ui::PromptTemplatesPage>()) {
     m_ui->setupUi(this);
     m_list = m_ui->list;
     m_nameEdit = m_ui->nameEdit;

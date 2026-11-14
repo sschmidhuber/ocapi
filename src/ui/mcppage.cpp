@@ -1,4 +1,5 @@
 #include "ui/mcppage.h"
+#include "ui_mcppage.h"
 
 #include "backends/mcpclient.h"
 #include "core/mcpregistry.h"
@@ -6,7 +7,6 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFormLayout>
-#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
@@ -16,145 +16,76 @@
 #include <QRadioButton>
 #include <QSplitter>
 #include <QTableWidget>
-#include <QVBoxLayout>
 
 namespace okapi {
 
+McpPage::~McpPage() = default;
+
 McpPage::McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent)
-    : QWidget(parent), m_registry(registry), m_manager(manager) {
-    auto *splitter = new QSplitter(this);
-    m_list = new QListWidget(splitter);
-    m_list->setMinimumWidth(120);
-    m_list->setMaximumWidth(170);
+    : QWidget(parent), m_registry(registry), m_manager(manager),
+      m_ui(std::make_unique<Ui::McpPage>()) {
+    m_ui->setupUi(this);
+    m_list = m_ui->list;
+    m_nameEdit = m_ui->nameEdit;
+    m_transportCombo = m_ui->transportCombo;
+    m_urlLabel = m_ui->urlLabel;
+    m_urlEdit = m_ui->urlEdit;
+    m_apiKeyRadio = m_ui->apiKeyRadio;
+    m_headersRadio = m_ui->headersRadio;
+    m_authLabel = m_ui->authLabel;
+    m_authModeWidget = m_ui->authModeWidget;
+    m_apiKeyLabel = m_ui->apiKeyLabel;
+    m_apiKeyEdit = m_ui->apiKeyEdit;
+    m_headersLabel = m_ui->headersLabel;
+    m_headersEdit = m_ui->headersEdit;
+    m_commandLabel = m_ui->commandLabel;
+    m_commandEdit = m_ui->commandEdit;
+    m_argumentsLabel = m_ui->argumentsLabel;
+    m_argumentsEdit = m_ui->argumentsEdit;
+    m_environmentLabel = m_ui->environmentLabel;
+    m_environmentEdit = m_ui->environmentEdit;
+    m_defaultPermissionCombo = m_ui->defaultPermissionCombo;
+    m_enabledBox = m_ui->enabledBox;
+    m_testButton = m_ui->testButton;
+    m_testResultLabel = m_ui->testResultLabel;
+    m_serverInfoLabel = m_ui->serverInfoLabel;
+    m_toolsTable = m_ui->toolsTable;
+    auto *addButton = m_ui->addButton;
+    auto *removeButton = m_ui->removeButton;
 
-    auto *rightWidget = new QWidget(splitter);
-    auto *rightLayout = new QVBoxLayout(rightWidget);
-
-    auto *formLayout = new QFormLayout;
-    // Right-aligned labels (KDE style) and fields that fill the whole row.
-    formLayout->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-    m_nameEdit = new QLineEdit(rightWidget);
-    m_transportCombo = new QComboBox(rightWidget);
     for (const auto transport : McpServerConfig::allTransports())
         m_transportCombo->addItem(McpServerConfig::transportName(transport),
                                   QVariant::fromValue(static_cast<int>(transport)));
 
     // Transport-specific rows live in the same form so all labels share one
     // column; updateTransportVisibility() shows only the relevant group.
-    m_urlLabel = new QLabel(tr("URL:"), rightWidget);
-    m_urlEdit = new QLineEdit(rightWidget);
-    m_urlEdit->setPlaceholderText(QStringLiteral("http://127.0.0.1:3000/mcp"));
-    // Authorization method for HTTP transports: API token (default, sent as
-    // Bearer) or custom HTTP headers. Only the selected field is visible;
-    // both values are kept so switching modes loses no configuration.
-    m_apiKeyRadio = new QRadioButton(tr("API token"), rightWidget);
-    m_apiKeyRadio->setObjectName(QStringLiteral("apiKeyRadio"));
-    m_apiKeyRadio->setChecked(true);
-    m_headersRadio = new QRadioButton(tr("HTTP headers"), rightWidget);
-    m_headersRadio->setObjectName(QStringLiteral("headersRadio"));
-    m_authLabel = new QLabel(tr("Authorization:"), rightWidget);
-    m_authModeWidget = new QWidget(rightWidget);
-    auto *authModeRow = new QHBoxLayout(m_authModeWidget);
-    authModeRow->setContentsMargins(0, 0, 0, 0);
-    authModeRow->addWidget(m_apiKeyRadio);
-    authModeRow->addWidget(m_headersRadio);
-    authModeRow->addStretch();
-    m_apiKeyLabel = new QLabel(tr("API token:"), rightWidget);
-    m_apiKeyEdit = new QLineEdit(rightWidget);
-    m_apiKeyEdit->setObjectName(QStringLiteral("apiKeyEdit"));
-    m_apiKeyEdit->setEchoMode(QLineEdit::Password);
-    m_apiKeyEdit->setPlaceholderText(tr("API token"));
-    m_headersLabel = new QLabel(tr("HTTP headers:"), rightWidget);
-    m_headersEdit = new QLineEdit(rightWidget);
-    m_headersEdit->setObjectName(QStringLiteral("headersEdit"));
-    m_headersEdit->setPlaceholderText(tr("Authorization: Bearer \u2026 (one per line)"));
     m_httpGroup = {
         m_urlLabel,    m_urlEdit,    m_authLabel,    m_authModeWidget,
         m_apiKeyLabel, m_apiKeyEdit, m_headersLabel, m_headersEdit,
     };
-    m_commandLabel = new QLabel(tr("Command:"), rightWidget);
-    m_commandEdit = new QLineEdit(rightWidget);
-    m_commandEdit->setPlaceholderText(QStringLiteral("npx"));
-    m_argumentsLabel = new QLabel(tr("Arguments:"), rightWidget);
-    m_argumentsEdit = new QLineEdit(rightWidget);
-    m_argumentsEdit->setPlaceholderText(tr("-y @modelcontextprotocol/server-filesystem /tmp"));
-    m_environmentLabel = new QLabel(tr("Environment:"), rightWidget);
-    m_environmentEdit = new QLineEdit(rightWidget);
-    m_environmentEdit->setPlaceholderText(tr("KEY=VALUE (one per line)"));
     m_stdioGroup = {
         m_commandLabel,  m_commandEdit,      m_argumentsLabel,
         m_argumentsEdit, m_environmentLabel, m_environmentEdit,
     };
 
-    m_defaultPermissionCombo = new QComboBox(rightWidget);
     for (const auto permission : McpServerConfig::allPermissions())
         m_defaultPermissionCombo->addItem(McpServerConfig::permissionName(permission),
                                           QVariant::fromValue(static_cast<int>(permission)));
-    m_enabledBox = new QCheckBox(tr("Enabled"), rightWidget);
-    m_enabledBox->setChecked(true);
-    m_testButton = new QPushButton(tr("Test connection"), rightWidget);
-    m_testResultLabel = new QLabel(rightWidget);
-    m_testResultLabel->setWordWrap(true);
-    m_serverInfoLabel = new QLabel(rightWidget);
-    m_serverInfoLabel->setWordWrap(true);
-    m_serverInfoLabel->setStyleSheet(QStringLiteral("color: gray;"));
 
-    formLayout->addRow(tr("Name:"), m_nameEdit);
-    formLayout->addRow(tr("Transport:"), m_transportCombo);
-    formLayout->addRow(m_urlLabel, m_urlEdit);
-    formLayout->addRow(m_authLabel, m_authModeWidget);
-    formLayout->addRow(m_apiKeyLabel, m_apiKeyEdit);
-    formLayout->addRow(m_headersLabel, m_headersEdit);
-    formLayout->addRow(m_commandLabel, m_commandEdit);
-    formLayout->addRow(m_argumentsLabel, m_argumentsEdit);
-    formLayout->addRow(m_environmentLabel, m_environmentEdit);
-    formLayout->addRow(tr("Default permission:"), m_defaultPermissionCombo);
-    formLayout->addRow(m_enabledBox);
-    formLayout->addRow(m_testButton);
-    formLayout->addRow(m_testResultLabel);
-    formLayout->addRow(m_serverInfoLabel);
-    m_testResultLabel->hide();
-    m_serverInfoLabel->hide();
-    rightLayout->addLayout(formLayout);
-
-    auto *toolsLabel = new QLabel(tr("Tools and permissions:"), rightWidget);
-    rightLayout->addWidget(toolsLabel);
-    m_toolsTable = new QTableWidget(0, 3, rightWidget);
     m_toolsTable->setHorizontalHeaderLabels({tr("Tool"), tr("Description"), tr("Permission")});
     m_toolsTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     m_toolsTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     m_toolsTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    m_toolsTable->setSelectionMode(QAbstractItemView::NoSelection);
-    rightLayout->addWidget(m_toolsTable, 1);
 
-    auto *listButtons = new QHBoxLayout;
-    auto *addButton = new QPushButton(tr("Add"), splitter);
-    auto *removeButton = new QPushButton(tr("Remove"), splitter);
-    listButtons->addWidget(addButton);
-    listButtons->addWidget(removeButton);
-    listButtons->addStretch();
-
-    auto *leftLayout = new QVBoxLayout;
-    leftLayout->addWidget(m_list);
-    leftLayout->addLayout(listButtons);
-    auto *leftWidget = new QWidget(splitter);
-    leftWidget->setLayout(leftLayout);
     // Cap the container as well: otherwise the splitter can allocate it more
     // width than the server list (which is capped), leaving an empty gap
     // between the list and the form until the handle is moved once.
-    leftWidget->setMaximumWidth(m_list->maximumWidth() + 20);
+    m_ui->leftWidget->setMaximumWidth(m_list->maximumWidth() + 20);
 
-    splitter->addWidget(leftWidget);
-    splitter->addWidget(rightWidget);
     // Stretch factor 0 for the server list: extra width always goes to the
     // form, never to the list (same first-show sizing issue as the settings
     // sidebar).
-    splitter->setStretchFactor(0, 1);
-
-    auto *outerLayout = new QVBoxLayout(this);
-    outerLayout->setContentsMargins(0, 0, 0, 0);
-    outerLayout->addWidget(splitter);
+    m_ui->splitter->setStretchFactor(0, 1);
 
     connect(addButton, &QPushButton::clicked, this, &McpPage::onAddServer);
     connect(removeButton, &QPushButton::clicked, this, &McpPage::onRemoveServer);

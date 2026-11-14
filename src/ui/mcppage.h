@@ -6,6 +6,11 @@
 #include <QList>
 #include <QUuid>
 #include <QWidget>
+#include <memory>
+
+namespace Ui {
+class McpPage;
+}
 
 class QCheckBox;
 class QComboBox;
@@ -29,6 +34,8 @@ class McpPage : public QWidget {
     Q_OBJECT
 
 public:
+    ~McpPage() override;
+
     explicit McpPage(McpRegistry *registry, McpManager *manager, QWidget *parent = nullptr);
 
 private slots:
@@ -44,6 +51,7 @@ private slots:
     void onPermissionChanged(int row, int column);
 
 private:
+    std::unique_ptr<Ui::McpPage> m_ui;
     void populateList();
     void loadConfigIntoForm(const McpServerConfig &config);
     void saveFormIntoConfig(McpServerConfig &config);

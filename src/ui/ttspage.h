@@ -3,6 +3,11 @@
 #include "core/ttsconfig.h"
 
 #include <QWidget>
+#include <memory>
+
+namespace Ui {
+class TtsPage;
+}
 
 class QCheckBox;
 class QComboBox;
@@ -50,6 +55,7 @@ private slots:
     void onTestTimeout();
 
 private:
+    std::unique_ptr<Ui::TtsPage> m_ui;
     void populateList();
     void populateOutputDevices();
     void populateVoiceCombo();

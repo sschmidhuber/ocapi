@@ -68,14 +68,23 @@ add_test(NAME tst_chatview COMMAND tst_chatview)
 # directly like tst_sidebar and needs the page widgets it hosts.
 add_executable(tst_settingsdialog tst_settingsdialog.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/settingsdialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/settingsdialog.ui
     ${CMAKE_SOURCE_DIR}/src/ui/backendpage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/backendpage.ui
+    ${CMAKE_SOURCE_DIR}/src/ui/mcppage.ui
     ${CMAKE_SOURCE_DIR}/src/ui/mcppage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/shortcutpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/sttpage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/sttpage.ui
+    ${CMAKE_SOURCE_DIR}/src/ui/ttspage.ui
     ${CMAKE_SOURCE_DIR}/src/ui/systempromptpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/ttspage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/userinterfacepage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/userinterfacepage.ui
+    ${CMAKE_SOURCE_DIR}/src/ui/systempromptpage.ui
+    ${CMAKE_SOURCE_DIR}/src/ui/shortcutpage.ui
     ${CMAKE_SOURCE_DIR}/src/ui/prompttemplatespage.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/prompttemplatespage.ui
     ${CMAKE_SOURCE_DIR}/src/ui/theme.cpp)
 target_include_directories(tst_settingsdialog PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries(tst_settingsdialog PRIVATE okapi-core Qt6::Test Qt6::Widgets Qt6::Svg)
@@ -85,6 +94,7 @@ add_test(NAME tst_settingsdialog COMMAND tst_settingsdialog)
 # like tst_settingsdialog and needs the UI sources it pulls in.
 add_executable(tst_mainwindow tst_mainwindow.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/mainwindow.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/mainwindow.ui
     ${CMAKE_SOURCE_DIR}/src/ui/webchatview.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/chatview.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/chatdelegate.cpp

@@ -3,6 +3,11 @@
 #include "core/backendconfig.h"
 
 #include <QWidget>
+#include <memory>
+
+namespace Ui {
+class BackendPage;
+}
 
 class QComboBox;
 class QFormLayout;
@@ -27,6 +32,8 @@ class BackendPage : public QWidget {
     Q_OBJECT
 
 public:
+    ~BackendPage() override;
+
     explicit BackendPage(BackendRegistry *registry, QWidget *parent = nullptr);
 
 private slots:
@@ -41,6 +48,7 @@ private slots:
     void onTestTimeout();
 
 private:
+    std::unique_ptr<Ui::BackendPage> m_ui;
     void populateList();
     void loadConfigIntoForm(const BackendConfig &config);
     void saveFormIntoConfig(BackendConfig &config);

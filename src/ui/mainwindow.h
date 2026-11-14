@@ -34,6 +34,10 @@
 #include <QVector>
 #include <memory>
 
+namespace Ui {
+class MainWindow;
+}
+
 namespace okapi {
 
 class ChatSession;
@@ -340,6 +344,10 @@ private:
     // Prompt templates (Settings > General > Prompt Templates).
     PromptTemplateRegistry m_promptTemplates;
     // Autocompletion popup (frameless top-level above the composer).
+    // The whole main-window layout is loaded from ui/mainwindow.ui
+    // (AUTOUIC); the m_* widget members below are assigned from it.
+    std::unique_ptr<Ui::MainWindow> m_ui;
+
     QWidget *m_promptMenu = nullptr;
     QListWidget *m_promptMenuList = nullptr;
 

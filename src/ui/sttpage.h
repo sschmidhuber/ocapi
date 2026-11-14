@@ -3,6 +3,11 @@
 #include "core/sttconfig.h"
 
 #include <QWidget>
+#include <memory>
+
+namespace Ui {
+class SttPage;
+}
 
 class QCheckBox;
 class QComboBox;
@@ -24,6 +29,8 @@ class SttPage : public QWidget {
     Q_OBJECT
 
 public:
+    ~SttPage() override;
+
     explicit SttPage(SttRegistry *registry, BackendRegistry *backendRegistry = nullptr,
                      QWidget *parent = nullptr);
 
@@ -39,6 +46,7 @@ private slots:
     void onTestFailed(const QString &error);
 
 private:
+    std::unique_ptr<Ui::SttPage> m_ui;
     void populateList();
     void populateInputDevices();
     void loadConfigIntoForm(const SttServiceConfig &config);

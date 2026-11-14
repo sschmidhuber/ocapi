@@ -4,6 +4,11 @@
 #include "core/message.h"
 
 #include <QWidget>
+#include <memory>
+
+namespace Ui {
+class PromptTemplatesPage;
+}
 
 class QLineEdit;
 class QListWidget;
@@ -23,6 +28,8 @@ class PromptTemplatesPage : public QWidget {
     Q_OBJECT
 
 public:
+    ~PromptTemplatesPage() override;
+
     explicit PromptTemplatesPage(PromptTemplateRegistry *registry, QWidget *parent = nullptr);
 
 private slots:
@@ -33,6 +40,7 @@ private slots:
     void onRemoveAttachment();
 
 private:
+    std::unique_ptr<Ui::PromptTemplatesPage> m_ui;
     void reloadList();
     void loadToForm(const QUuid &id);
     void clearForm();

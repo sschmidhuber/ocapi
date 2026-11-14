@@ -132,6 +132,7 @@ endif()
 set(OKAPI_UI_SOURCES
     ui/mainwindow.h
     ui/mainwindow.cpp
+    ui/mainwindow.ui
     ui/chatview.h
     ui/chatview.cpp
     ui/webchatview.h
@@ -144,24 +145,33 @@ set(OKAPI_UI_SOURCES
     ui/sidebar.cpp
     ui/backendpage.h
     ui/backendpage.cpp
+    ui/backendpage.ui
+    ui/mcppage.ui
     ui/mcppage.h
     ui/mcppage.cpp
     ui/sttpage.h
     ui/sttpage.cpp
+    ui/sttpage.ui
+    ui/ttspage.ui
     ui/systempromptpage.h
     ui/systempromptpage.cpp
     ui/ttspage.h
     ui/ttspage.cpp
     ui/settingsdialog.h
     ui/settingsdialog.cpp
+    ui/settingsdialog.ui
     ui/shortcutpage.h
     ui/shortcutpage.cpp
     ui/userinterfacepage.h
     ui/userinterfacepage.cpp
+    ui/userinterfacepage.ui
+    ui/systempromptpage.ui
+    ui/shortcutpage.ui
     ui/theme.h
     ui/theme.cpp
     ui/prompttemplatespage.h
     ui/prompttemplatespage.cpp
+    ui/prompttemplatespage.ui
 )
 
 qt_add_executable(okapi

@@ -1,4 +1,5 @@
 #include "ui/shortcutpage.h"
+#include "ui_shortcutpage.h"
 
 #include "core/shortcutregistry.h"
 
@@ -19,31 +20,15 @@
 
 namespace okapi {
 
+ShortcutPage::~ShortcutPage() = default;
+
 ShortcutPage::ShortcutPage(ShortcutRegistry *registry, QWidget *parent)
-    : QWidget(parent), m_registry(registry) {
-    auto *layout = new QVBoxLayout(this);
-
-    m_search = new QLineEdit(this);
-    m_search->setPlaceholderText(tr("Search…"));
-    m_search->setClearButtonEnabled(true);
-    layout->addWidget(m_search);
-
-    m_table = new QTableWidget(0, 2, this);
-    m_table->setHorizontalHeaderLabels({tr("Action"), tr("Shortcut")});
-    m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_table->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_table->verticalHeader()->setVisible(false);
-    m_table->horizontalHeader()->setStretchLastSection(true);
-    layout->addWidget(m_table, 1);
-
-    auto *buttonRow = new QHBoxLayout();
-    m_editButton = new QPushButton(tr("Edit Shortcut…"), this);
-    m_resetButton = new QPushButton(tr("Reset to Default"), this);
-    buttonRow->addWidget(m_editButton);
-    buttonRow->addWidget(m_resetButton);
-    buttonRow->addStretch(1);
-    layout->addLayout(buttonRow);
+    : QWidget(parent), m_registry(registry), m_ui(std::make_unique<Ui::ShortcutPage>()) {
+    m_ui->setupUi(this);
+    m_search = m_ui->search;
+    m_table = m_ui->table;
+    m_editButton = m_ui->editButton;
+    m_resetButton = m_ui->resetButton;
 
     connect(m_search, &QLineEdit::textChanged, this, &ShortcutPage::onSearchChanged);
     connect(m_editButton, &QPushButton::clicked, this, &ShortcutPage::onEditShortcut);

@@ -39,7 +39,7 @@ rpmbuild -bb "$REPO_ROOT/packaging/rpm/okapi.spec" \
     --define "_topdir $TOPDIR" \
     --define "version $VERSION"
 
-RPM_FILE="$(find "$TOPDIR/RPMS" -name 'okapi-*.rpm' | head -n 1)"
+RPM_FILE="$(find "$TOPDIR/RPMS" -name 'okapi-*.rpm' ! -name '*debuginfo*' ! -name '*debugsource*' | head -n 1)"
 cp "$RPM_FILE" "$OUT_DIR/"
 
 echo ">> Done: $OUT_DIR/$(basename "$RPM_FILE")"

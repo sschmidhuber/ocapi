@@ -29,8 +29,8 @@ constexpr int TestTimeoutMs = 15000;
 BackendPage::~BackendPage() = default;
 
 BackendPage::BackendPage(BackendRegistry *registry, QWidget *parent)
-    : QWidget(parent), m_registry(registry) {
-    m_ui = std::make_unique<Ui::BackendPage>();
+    : QWidget(parent), m_registry(registry),
+      m_ui(std::make_unique<Ui::m_ui = std::make_unique<Ui::BackendPage>();>()) {
     m_ui->setupUi(this);
     m_list = m_ui->list;
     m_formLayout = m_ui->formLayout;

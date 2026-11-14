@@ -13,8 +13,8 @@ namespace okapi {
 UserInterfacePage::~UserInterfacePage() = default;
 
 UserInterfacePage::UserInterfacePage(UiSettings *uiSettings, QWidget *parent)
-    : QWidget(parent), m_uiSettings(uiSettings) {
-    m_ui = std::make_unique<Ui::UserInterfacePage>();
+    : QWidget(parent), m_uiSettings(uiSettings),
+      m_ui(std::make_unique<Ui::m_ui = std::make_unique<Ui::UserInterfacePage>();>()) {
     m_ui->setupUi(this);
     m_themeCombo = m_ui->themeCombo;
     m_showThroughputBox = m_ui->showThroughputBox;

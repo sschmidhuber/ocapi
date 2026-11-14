@@ -21,13 +21,10 @@
 #include "ui/userinterfacepage.h"
 
 #include <QDialogButtonBox>
-#include <QHBoxLayout>
-#include <QIcon>
 #include <QListWidget>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QTabWidget>
-#include <QVBoxLayout>
 
 namespace okapi {
 

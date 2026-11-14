@@ -19,7 +19,6 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFrame>
-#include <QHBoxLayout>
 #include <QIcon>
 #include <QJsonDocument>
 #include <QKeySequence>

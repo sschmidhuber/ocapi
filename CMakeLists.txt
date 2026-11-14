@@ -38,8 +38,11 @@ include(GNUInstallDirs)
 install(TARGETS okapi RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES data/dev.sschmidhuber.okapi.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
-install(FILES resources/icons/okapi.png
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/512x512/apps)
+# App icon in all standard hicolor sizes (the master okapi.png is 512x512;
+# smaller sizes are pre-generated under resources/icons/hicolor/ so desktops
+# never have to scale a single bitmap).
+install(DIRECTORY resources/icons/hicolor
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons)
 install(FILES packaging/linux/dev.sschmidhuber.okapi.appdata.xml
     DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 

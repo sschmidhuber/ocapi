@@ -5,6 +5,9 @@ GenericName=AI Chat Client
 Comment=Chat with local and cloud LLM inference backends
 Exec=okapi
 Icon=okapi
+# WM_CLASS of the Qt window (QApplication::setApplicationName("okapi")), so
+# GNOME matches the window to this desktop entry in the dock/window switcher.
+StartupWMClass=okapi
 Terminal=false
 Categories=Qt;Network;Chat;Utility;
 Keywords=chat;llm;ai;ollama;openai;anthropic;gemini;

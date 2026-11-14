@@ -155,6 +155,7 @@ set(OKAPI_UI_SOURCES
     ui/ttspage.cpp
     ui/settingsdialog.h
     ui/settingsdialog.cpp
+    ui/settingsdialog.ui
     ui/shortcutpage.h
     ui/shortcutpage.cpp
     ui/userinterfacepage.h

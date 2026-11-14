@@ -1,8 +1,13 @@
 # Qt Designer UI files
 
-The main window layout is loaded at runtime from **`src/ui/mainwindow.ui`**
-(CMake AUTOUIC generates `ui_mainwindow.h`; `MainWindow::setupUi()` calls
-`Ui::MainWindow::setupUi(this)`). Open it in Qt Widget Designer:
+The main window and the settings dialog shell are loaded at runtime from
+Designer files (CMake AUTOUIC generates `ui_*.h`):
+
+- **`src/ui/mainwindow.ui`** — `MainWindow::setupUi()` calls `Ui::MainWindow::setupUi(this)`
+- **`src/ui/settingsdialog.ui`** — `SettingsDialog` calls `Ui::SettingsDialog::setupUi(this)`
+  (categories/tabs are registered dynamically in code)
+
+Open them in Qt Widget Designer:
 
 ```sh
 designer src/ui/mainwindow.ui        # or open via Qt Creator

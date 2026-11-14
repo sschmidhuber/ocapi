@@ -1,5 +1,6 @@
 #include "ui/settingsdialog.h"
 #include "ui/theme.h"
+#include "ui_settingsdialog.h"
 
 #include "core/backendregistry.h"
 #include "core/mcpmanager.h"
@@ -36,15 +37,12 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
                                ShortcutRegistry *shortcutRegistry, UiSettings *uiSettings,
                                PromptTemplateRegistry *promptTemplates, QWidget *parent)
     : QDialog(parent) {
-    setWindowTitle(tr("Settings"));
-    resize(880, 580);
-
-    auto *splitter = new QSplitter(this);
-    m_categories = new QListWidget(splitter);
-    m_categories->setMinimumWidth(110);
-    m_categories->setMaximumWidth(150);
-
-    m_stack = new QStackedWidget(splitter);
+    // The dialog shell comes from ui/settingsdialog.ui; categories and tabs
+    // are registered dynamically below.
+    m_ui = std::make_unique<Ui::SettingsDialog>();
+    m_ui->setupUi(this);
+    m_categories = m_ui->categories;
+    m_stack = m_ui->stack;
 
     addCategory(tr("General"), QStringLiteral("general"),
                 QStringLiteral(":/resources/icons/general.svg"));
@@ -70,21 +68,14 @@ SettingsDialog::SettingsDialog(BackendRegistry *backendRegistry, McpRegistry *mc
     addTab(tr("Shortcuts"), QStringLiteral("shortcuts"),
            new ShortcutPage(shortcutRegistry, m_stack));
 
-    splitter->addWidget(m_categories);
-    splitter->addWidget(m_stack);
     // Stretch factor 0 for the sidebar: on the first layout QSplitter
     // distributes extra space by stretch factor, so (1, 1) made the category
     // list grow far beyond its maximum width until the handle was moved once.
-    splitter->setStretchFactor(0, 1);
-
-    auto *layout = new QVBoxLayout(this);
-    layout->addWidget(splitter);
-    auto *buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, this);
-    layout->addWidget(buttonBox);
+    m_ui->splitter->setStretchFactor(0, 1);
 
     connect(m_categories, &QListWidget::currentRowChanged, this,
             [this](int row) { m_stack->setCurrentIndex(row); });
-    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(m_ui->buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     m_categories->setCurrentRow(0);
 }

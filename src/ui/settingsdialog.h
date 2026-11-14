@@ -2,8 +2,13 @@
 
 #include <QDialog>
 #include <QStringList>
+#include <memory>
 
 class QListWidget;
+
+namespace Ui {
+class SettingsDialog;
+}
 class QStackedWidget;
 class QTabWidget;
 
@@ -47,6 +52,10 @@ private:
     // Adds a page as a new tab of the most recently added category. The
     // dialog takes ownership of the page.
     void addTab(const QString &title, const QString &tabId, QWidget *page);
+
+    // The dialog shell (splitter, category list, stacked pages, button box)
+    // is loaded from ui/settingsdialog.ui (AUTOUIC).
+    std::unique_ptr<Ui::SettingsDialog> m_ui;
 
     QListWidget *m_categories = nullptr;
     QStackedWidget *m_stack = nullptr;

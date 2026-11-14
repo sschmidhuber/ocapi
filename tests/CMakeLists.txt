@@ -68,6 +68,7 @@ add_test(NAME tst_chatview COMMAND tst_chatview)
 # directly like tst_sidebar and needs the page widgets it hosts.
 add_executable(tst_settingsdialog tst_settingsdialog.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/settingsdialog.cpp
+    ${CMAKE_SOURCE_DIR}/src/ui/settingsdialog.ui
     ${CMAKE_SOURCE_DIR}/src/ui/backendpage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/mcppage.cpp
     ${CMAKE_SOURCE_DIR}/src/ui/shortcutpage.cpp
